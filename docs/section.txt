@@ -1,0 +1,376 @@
+  </div>;
+}
+
+
+// ─── ANALYTICS PAGE ───────────────────────────────────────────
+/* ══════════════ KPI INTELLIGENCE (Phase 3) ══════════════
+   Four dashboard levels (post/format/platform/system) + Layer Intelligence,
+   all derived live from plan._analytics — nothing here is hardcoded per platform. */
+
+// ── Lightweight, dependency-free SVG charts (no external chart lib is loaded in this file) ──
+function BarChartH({data,color,formatter,height=10}){
+  const max=Math.max(...data.map(d=>d.value),1);
+  if(data.length===0) return <div style={{fontSize:10,color:"#94A3B8"}}>لا توجد بيانات كافية</div>;
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {data.map((d,i)=>(
+        <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:120,fontSize:11,color:"#57606A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flexShrink:0}}>{d.label}</div>
+          <div style={{flex:1,height,background:"rgba(0,0,0,0.04)",borderRadius:height/2,overflow:"hidden"}}>
+            <div style={{width:`${Math.max(2,d.value/max*100)}%`,height:"100%",background:d.color||color||A,borderRadius:height/2,transition:"width 0.5s ease-out"}}/>
+          </div>
+          <div style={{width:74,textAlign:"left",fontSize:11,fontWeight:700,color:d.color||color||A,flexShrink:0}}>{formatter?formatter(d.value):d.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+function LineChartSVG({points,color,height=70}){
+  if(!points||points.length<2) return <div style={{fontSize:10,color:"#94A3B8"}}>محتاج قياسين على الأقل لعرض الاتجاه بمرور الوقت</div>;
+  const vals=points.map(p=>p.value);
+  const max=Math.max(...vals), min=Math.min(...vals);
+  const range=(max-min)||1;
+  const w=320;
+  const stepX=w/(points.length-1);
+  const y=v=>height-2-((v-min)/range*(height-8));
+  const path=points.map((p,i)=>`${i===0?"M":"L"} ${(i*stepX).toFixed(1)} ${y(p.value).toFixed(1)}`).join(" ");
+  return(
+    <div>
+      <svg viewBox={`0 0 ${w} ${height}`} style={{width:"100%",height}} preserveAspectRatio="none">
+        <path d={path} fill="none" stroke={color||A} strokeWidth="2"/>
+        {points.map((p,i)=><circle key={i} cx={i*stepX} cy={y(p.value)} r="3" fill={color||A}/>)}
+      </svg>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:8,color:"#94A3B8",marginTop:2}}>
+        <span>{points[0].date}</span><span>{points[points.length-1].date}</span>
+      </div>
+    </div>
+  );
+}
+function DonutChart({data,size=120}){
+  const total=data.reduce((s,d)=>s+d.value,0);
+  if(total<=0) return <div style={{fontSize:10,color:"#94A3B8"}}>لا توجد بيانات كافية</div>;
+  let acc=0;
+  const r=size/2, cx=r, cy=r, sw=size*0.28;
+  const segs=data.map(d=>{
+    const frac=d.value/total;
+    const start=acc*2*Math.PI - Math.PI/2; acc+=frac;
+    const end=acc*2*Math.PI - Math.PI/2;
+    const large=frac>0.5?1:0;
+    const x1=cx+(r-sw/2)*Math.cos(start), y1=cy+(r-sw/2)*Math.sin(start);
+    const x2=cx+(r-sw/2)*Math.cos(end), y2=cy+(r-sw/2)*Math.sin(end);
+    return {d:`M ${x1} ${y1} A ${r-sw/2} ${r-sw/2} 0 ${large} 1 ${x2} ${y2}`,color:d.color,pct:Math.round(frac*100),label:d.label};
+  });
+  return(
+    <div style={{display:"flex",alignItems:"center",gap:16}}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {segs.map((s,i)=><path key={i} d={s.d} fill="none" stroke={s.color} strokeWidth={sw}/>)}
+      </svg>
+      <div style={{display:"flex",flexDirection:"column",gap:5}}>
+        {segs.map((s,i)=>(
+          <div key={i} style={{display:"flex",alignItems:"center",gap:6,fontSize:10}}>
+            <span style={{width:9,height:9,borderRadius:2,background:s.color,flexShrink:0}}/>
+            <span style={{color:"#57606A"}}>{s.label}</span>
+            <span style={{fontWeight:700,color:"#16181D"}}>{s.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+// Returns the most recent analytics entry within [from,to] (inclusive, either bound optional);
+// falls back to overall latest entry when no date filter is set.
+function entryInRange(rec,from,to){
+  if(!rec||!rec.entries||rec.entries.length===0) return null;
+  const filtered=rec.entries.filter(e=>(!from||e.date>=from)&&(!to||e.date<=to));
+  return filtered.length?filtered[filtered.length-1]:(from||to?null:rec.entries[rec.entries.length-1]);
+}
+
+function dedupeInputs(kpis){
+  const seen=new Map();
+  (kpis||[]).forEach(k=>(k.inputs||[]).forEach(inp=>{ if(!seen.has(inp.id)) seen.set(inp.id,inp.label); }));
+  return Array.from(seen.entries()).map(([id,label])=>({id,label}));
+}
+
+function PostKpiEntryForm({plan,setPlan,post,onDone}){
+  const ct=getFormatById(plan,post.platform,post.type);
+  const account=(plan._accounts||[]).find(a=>a.id===post.accountId);
+  const effective=getEffectiveContentConfig(plan,account,post.platform,post.type);
+  const kpis=(effective&&effective.postKpis)||[];
+  const inputs=dedupeInputs(kpis);
+  const rawMetrics=(effective&&effective.rawMetrics)||[];
+  const metricById=new Map(rawMetrics.map(m=>[m.id,m]));
+  const rec=getPostAnalytics(plan,post.id);
+  const todayStr=dateKeyFromOffset(0);
+  const [entryDate,setEntryDate]=useState(todayStr);
+  const existing=rec?rec.entries.find(e=>e.date===entryDate):null;
+  const [values,setValues]=useState(existing?existing.values:{});
+  const [source,setSource]=useState(existing?.source||"manual");
+  const [notes,setNotes]=useState(existing?.notes||"");
+  useEffect(()=>{ const e=rec?rec.entries.find(x=>x.date===entryDate):null; setValues(e?e.values:{}); setSource(e?.source||"manual"); setNotes(e?.notes||""); },[entryDate]);
+  const notify=useToastNotify();
+  const computed=computeAllKpis(kpis,values);
+  const totalValues={};
+  (rec?.entries||[]).forEach(e=>{ Object.entries(e.values||{}).forEach(([k,v])=>{ totalValues[k]=(totalValues[k]||0)+parseAnalyticsNum(v); }); });
+  const totalComputed=computeAllKpis(kpis,totalValues);
+  function save(){
+    if(!entryDate){ notify("⚠️ اختر تاريخ القياس أولًا"); return; }
+    const missing=inputs.filter(inp=>values[inp.id]===undefined||values[inp.id]===null||String(values[inp.id]).trim()==="");
+    if(missing.length && !confirm(`هناك ${missing.length} من المؤشرات بدون قيمة. هل تريد الحفظ كما هو؟`)) return;
+    saveAnalyticsEntry(plan,setPlan,post,entryDate,values,{source,notes});
+    notify("✅ تم حفظ بيانات الأداء");
+    onDone&&onDone();
+  }
+  if(!ct||kpis.length===0) return <div style={{fontSize:11,color:"#6E7781",padding:12}}>الفورمات ده لسه من غير تعريف KPIs — أضفهم من "إدارة المنصات"</div>;
+  return(
+    <div style={{padding:"12px 14px",background:"rgba(0,0,0,0.02)",border:"1px solid rgba(0,0,0,0.07)",borderRadius:10}}>
+      {rec&&rec.entries.length>0&&(
+        <div style={{marginBottom:14,padding:"10px 12px",background:"rgba(239,159,39,0.05)",border:"1px solid rgba(239,159,39,0.2)",borderRadius:8}}>
+          <div style={{fontSize:10,fontWeight:700,color:A,marginBottom:8}}>📊 الإجمالي الكلي لهذا المنشور (كل القياسات مجمّعة معًا — {rec.entries.length} قياس)</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
+            {inputs.filter(inp=>totalValues[inp.id]).map(inp=>(
+              <span key={inp.id} style={{fontSize:10,padding:"3px 9px",borderRadius:8,background:"#fff",border:"1px solid rgba(0,0,0,0.07)",color:"#57606A"}}>{inp.label}: <b style={{color:"#16181D"}}>{formatNum(totalValues[inp.id])}</b></span>
+            ))}
+          </div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {kpis.map(k=>{
+              const v=totalComputed[k.id];
+              if(v==null) return null;
+              const pm=KPI_PRIO_META[k.priority]||KPI_PRIO_META.medium;
+              return <span key={k.id} style={{fontSize:10,padding:"3px 9px",borderRadius:8,background:pm.color+"12",color:pm.color,fontWeight:700}}>{k.name}: {Number.isInteger(v)?v:v.toFixed(1)}{k.calc?.type==="percent"?"%":""}</span>;
+            })}
+          </div>
+        </div>
+      )}
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+        <span style={{fontSize:11,color:"#57606A"}}>تاريخ القياس</span>
+        <input type="date" value={entryDate} onChange={e=>setEntryDate(e.target.value)} style={{...S.inp,margin:0,width:150}}/>
+        {rec&&rec.entries.length>0&&<span style={{fontSize:9,color:"#94A3B8"}}>({rec.entries.length} قياس مسجّل سابقًا لهذا المنشور)</span>}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"180px 1fr",gap:8,marginBottom:10}}>
+        <select value={source} onChange={e=>setSource(e.target.value)} style={{...S.sel,margin:0,color:"#000"}}>
+          <option value="manual">إدخال يدوي</option><option value="import">استيراد</option><option value="api">API</option><option value="hybrid">Hybrid</option>
+        </select>
+        <input value={notes} onChange={e=>setNotes(e.target.value)} style={{...S.inp,margin:0}} placeholder="ملاحظة على القياس (اختياري)"/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8,marginBottom:12}}>
+        {inputs.map(inp=>(
+          <div key={inp.id}>
+            <div style={{fontSize:9,color:"#6E7781",marginBottom:2}}>{metricById.get(inp.metricId)?.label||inp.label}</div>
+            <input type="number" value={values[inp.id]??""} onChange={e=>setValues(v=>({...v,[inp.id]:e.target.value}))} style={{...S.inp,margin:0}} placeholder="0"/>
+          </div>
+        ))}
+      </div>
+      <div style={{fontSize:10,fontWeight:700,color:A,marginBottom:6}}>KPIs المحسوبة</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
+        {kpis.map(k=>{
+          const v=computed[k.id];
+          const pm=KPI_PRIO_META[k.priority]||KPI_PRIO_META.medium;
+          return(
+            <div key={k.id} style={{padding:"6px 10px",borderRadius:8,background:"#fff",border:`1px solid ${pm.color}30`,minWidth:100}}>
+              <div style={{fontSize:9,color:"#6E7781"}}>{k.name}</div>
+              <div style={{fontSize:14,fontWeight:700,color:pm.color}}>{v==null?"—":(Number.isInteger(v)?v:v.toFixed(1))+(k.calc?.type==="percent"?"%":"")}</div>
+              {k.target&&<div style={{fontSize:8,color:"#94A3B8"}}>الهدف: {k.target}</div>}
+              {(()=>{const perf=evaluateKpiPerformance(k,v);return perf?<div style={{fontSize:8,color:perf.meetsTarget?"#059669":"#DC2626",fontWeight:700,marginTop:2}}>🎯 {kpiPerformanceLabel(perf)} من الهدف · {perf.meetsTarget?"تم تحقيق الهدف":"أقل من الهدف"}</div>:null})()}
+
+            </div>
+          );
+        })}
+      </div>
+      <button style={S.btnA} onClick={save}>💾 حفظ القياس</button>
+    </div>
+  );
+}
+
+function kpiScopedRecords(plan,accId,dFrom,dTo){
+  let records=getAllAnalyticsRecords(plan);
+  if(accId) records=records.filter(r=>r.post&&r.post.accountId===accId);
+  return records.map(r=>({...r,_entry:entryInRange(r,dFrom,dTo)})).filter(r=>r._entry);
+}
+const KPI_TARGET_SCHEMA_VERSION=1;
+function normalizeKpiTarget(k){
+  const t=(k&&k.targetConfig&&typeof k.targetConfig==='object')?k.targetConfig:{};
+  return {schemaVersion:t.schemaVersion||KPI_TARGET_SCHEMA_VERSION,mode:t.mode||'inherit',value:t.value!==undefined&&t.value!==''?Number(t.value):null,unit:t.unit||'',direction:t.direction||'higher_better',benchmarkType:t.benchmarkType||'none',benchmarkValue:t.benchmarkValue!==undefined&&t.benchmarkValue!==''?Number(t.benchmarkValue):null,scoreType:t.scoreType||'percent_of_target',cap:t.cap!==undefined&&t.cap!==''?Number(t.cap):100};
+}
+function kpiTargetValue(k){ const t=normalizeKpiTarget(k); return Number.isFinite(t.value)?t.value:null; }
+function evaluateKpiPerformance(k,actual){
+  const t=normalizeKpiTarget(k); const a=Number(actual);
+  if(!Number.isFinite(a)||!Number.isFinite(t.value)||t.value===0) return null;
+  const achieved=t.direction==='lower_better' ? (t.value/a)*100 : (a/t.value)*100;
+  const score=t.cap>0?Math.min(t.cap,Math.max(0,achieved)):Math.max(0,achieved);
+  let benchmark=null;
+  if(Number.isFinite(t.benchmarkValue)){
+    benchmark=t.direction==='lower_better' ? (t.benchmarkValue/a)*100 : (a/t.benchmarkValue)*100;
+  }
+  return {actual:a,target:t.value,achievement:achieved,score,benchmark,meetsTarget:t.direction==='lower_better'?a<=t.value:a>=t.value,direction:t.direction};
+}
+function kpiPerformanceLabel(result){ if(!result)return '—'; return `${result.score.toFixed(0)}%`; }
+
+function kpiEntryScore(entry){
+  const vals=Object.values(entry?.computed||{}).filter(v=>typeof v==="number"&&Number.isFinite(v));
+  return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+}
+function kpiMetricTotals(records,key){
+  let total=0,count=0;
+  records.forEach(r=>{const v=parseAnalyticsNum(r._entry?.values?.[key]);if(v!==0){total+=v;count++;}else if(r._entry?.values?.[key]!==undefined&&r._entry?.values?.[key]!==""){count++;}});
+  return {total,count,avg:count?total/count:0};
+}
+function kpiInteractions(records){
+  return ["likes","comments","shares","saves"].reduce((sum,k)=>sum+kpiMetricTotals(records,k).total,0);
+}
+function KpiDashboardCard({icon,label,value,sub,accent="#EF9F27",onClick}){
+  return <div onClick={onClick} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:14,padding:"15px 16px",minHeight:92,cursor:onClick?"pointer":"default",position:"relative",overflow:"hidden"}}>
+    <div style={{position:"absolute",insetInlineStart:0,top:0,bottom:0,width:3,background:accent}}/>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><span style={{width:28,height:28,borderRadius:8,background:accent+"14",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:14}}>{icon}</span><span style={{fontSize:10,color:"#6E7781",fontWeight:600}}>{label}</span></div>
+    <div style={{fontSize:21,fontWeight:800,color:"#16181D",letterSpacing:"-0.4px"}}>{value}</div>
+    {sub&&<div style={{fontSize:9,color:"#94A3B8",marginTop:3}}>{sub}</div>}
+  </div>;
+}
+function KpiProgress({value,max,color="#EF9F27"}){
+  const pct=max>0?Math.max(0,Math.min(100,(value/max)*100)):0;
+  return <div style={{height:5,borderRadius:5,background:"#EEF0F2",overflow:"hidden"}}><div style={{height:"100%",width:pct+"%",background:color,borderRadius:5}}/></div>;
+}
+function KpiEmpty({title,desc,icon="📊"}){
+  return <div style={{background:"#fff",border:"1px dashed rgba(0,0,0,0.12)",borderRadius:14,padding:"42px 24px",textAlign:"center"}}><div style={{fontSize:28,marginBottom:10}}>{icon}</div><div style={{fontSize:13,fontWeight:700,color:"#16181D",marginBottom:5}}>{title}</div><div style={{fontSize:10,color:"#94A3B8"}}>{desc}</div></div>;
+}
+function KpiEntryTab({plan,setPlan,accId,dFrom,dTo,onNavigate}){
+  const allPosts=getAllPosts(plan);
+  let readyPosts=allPosts.filter(p=>isPostAtFinalStage(p)).sort((a,b)=>(b.dateKey||"").localeCompare(a.dateKey||""));
+  if(accId) readyPosts=readyPosts.filter(p=>p.accountId===accId);
+  if(dFrom||dTo) readyPosts=readyPosts.filter(p=>(!dFrom||p.dateKey>=dFrom)&&(!dTo||p.dateKey<=dTo));
+  const [openId,setOpenId]=useState(null);
+  const [q,setQ]=useState("");
+  const [platform,setPlatform]=useState("");
+  const [format,setFormat]=useState("");
+  const filtered=readyPosts.filter(p=>{
+    if(platform&&p.platform!==platform)return false;
+    if(format&&p.type!==format)return false;
+    if(q.trim()&&!String(p.content||p.type||"").toLowerCase().includes(q.trim().toLowerCase()))return false;
+    return true;
+  });
+  const measured=filtered.filter(p=>{const r=getPostAnalytics(plan,p.id);return r&&r.entries&&r.entries.length;}).length;
+  const pending=filtered.length-measured;
+  const formats=platform?getContentTypes(plan,platform)||[]:[];
+  return <div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:10,marginBottom:14}}>
+      <KpiDashboardCard icon="📝" label="جاهز لإدخال البيانات" value={filtered.length} sub="منشورات وصلت لآخر مرحلة" accent="#EF9F27"/>
+      <KpiDashboardCard icon="✓" label="تم القياس" value={measured} sub="لديها قياس واحد على الأقل" accent="#10B981"/>
+      <KpiDashboardCard icon="⚠" label="بانتظار القياس" value={pending} sub="الأولوية لإدخال البيانات" accent="#F97316"/>
+    </div>
+    <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:14,padding:12,marginBottom:12,display:"flex",gap:7,flexWrap:"wrap"}}>
+      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="🔎 ابحث عن منشور..." style={{...S.inp,margin:0,width:220,fontSize:10}}/>
+      <select value={platform} onChange={e=>{setPlatform(e.target.value);setFormat("");}} style={{...S.sel,margin:0,width:150,fontSize:10,color:"#000"}}><option value="">كل المنصات</option>{getPlatforms(plan).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
+      {platform&&<select value={format} onChange={e=>setFormat(e.target.value)} style={{...S.sel,margin:0,width:170,fontSize:10,color:"#000"}}><option value="">كل الفورمات</option>{formats.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>}
+    </div>
+    {filtered.length===0?<KpiEmpty title="لا توجد منشورات مطابقة" desc="جرّب تغيير الفلاتر أو سجّل منشورات وصلت إلى المرحلة النهائية." icon="📝"/>:
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>{filtered.map(p=>{
+        const pl=getPlt(p.platform,plan); const rec=getPostAnalytics(plan,p.id); const open=openId===p.id; const last=rec?latestEntry(rec):null; const score=kpiEntryScore(last);
+        return <div key={p.id} style={{background:"#fff",border:`1px solid ${open?pl.accent+"55":"rgba(0,0,0,0.07)"}`,borderRadius:12,overflow:"hidden"}}>
+          <div onClick={()=>setOpenId(open?null:p.id)} style={{display:"flex",alignItems:"center",gap:9,padding:"11px 14px",cursor:"pointer"}}>
+            <span style={{fontSize:10,padding:"3px 8px",borderRadius:8,background:pl.accent+"15",color:pl.accent,fontWeight:800}}><PlatformLogo p={pl} size={15}/></span>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:650,color:"#16181D",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.content||p.type}</div><div style={{fontSize:9,color:"#94A3B8",marginTop:2}}>{getTypeName(plan,p.platform,p.type)} · {p.dateKey} {p.accountName?"· "+p.accountName:""}</div></div>
+            {score!=null&&<span style={{fontSize:10,fontWeight:800,color:"#10B981",background:"#10B98112",padding:"3px 8px",borderRadius:8}}>{score.toFixed(1)}</span>}
+            {rec?.entries?.length?<span style={{fontSize:9,color:"#10B981"}}>✓ {rec.entries.length} قياس</span>:<span style={{fontSize:9,color:"#F97316"}}>بانتظار القياس</span>}
+            <span style={{fontSize:12,color:"#94A3B8",transform:open?"rotate(180deg)":"none"}}>⌄</span>
+          </div>
+          {open&&<div style={{padding:"0 14px 14px",borderTop:"1px solid rgba(0,0,0,0.05)",background:"#FCFCFD"}}><PostKpiEntryForm plan={plan} setPlan={setPlan} post={p} onDone={()=>{}}/></div>}
+        </div>;
+      })}</div>}
+  </div>;
+}
+function KpiFormatRollup({plan,accId,dFrom,dTo}){
+  const records=kpiScopedRecords(plan,accId,dFrom,dTo); const groups=new Map();
+  records.forEach(r=>{const key=r.platformId+"|"+r.formatId;if(!groups.has(key))groups.set(key,{key,platformId:r.platformId,formatId:r.formatId,records:[]});groups.get(key).records.push(r);});
+  const list=Array.from(groups.values()).map(g=>{const pl=getPlt(g.platformId,plan);const ct=getFormatById(plan,g.platformId,g.formatId);const views=kpiMetricTotals(g.records,"views").total;const reach=kpiMetricTotals(g.records,"reach").total;const interactions=kpiInteractions(g.records);const scores=g.records.map(r=>kpiEntryScore(r._entry)).filter(v=>v!=null);return {...g,pl,ct,views,reach,interactions,avgScore:scores.length?scores.reduce((a,b)=>a+b,0)/scores.length:null};}).sort((a,b)=>(b.avgScore??-Infinity)-(a.avgScore??-Infinity));
+  if(!list.length)return <KpiEmpty title="لا توجد بيانات حسب الفورمات" desc="أدخل قياسات أداء أولًا، وستظهر مقارنة كل فورمات هنا تلقائيًا." icon="📐"/>;
+  const maxScore=Math.max(...list.map(x=>x.avgScore||0),1);
+  return <div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:10,marginBottom:14}}>
+      <KpiDashboardCard icon="📐" label="الفورمات المقاسة" value={list.length} sub="من كل المنصات"/>
+      <KpiDashboardCard icon="📝" label="المنشورات المقاسة" value={records.length} sub="داخل الفلاتر الحالية" accent="#60A5FA"/>
+      <KpiDashboardCard icon="👁" label="إجمالي المشاهدات" value={formatNum(list.reduce((s,x)=>s+x.views,0))} sub="لكل الفورمات" accent="#8B5CF6"/>
+      <KpiDashboardCard icon="⚡" label="متوسط الأداء" value={list.filter(x=>x.avgScore!=null).length? (list.reduce((s,x)=>s+(x.avgScore||0),0)/list.filter(x=>x.avgScore!=null).length).toFixed(1):"—"} sub="متوسط الـ KPIs المحسوبة" accent="#10B981"/>
+    </div>
+    <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:14,padding:16,marginBottom:14}}><div style={{fontSize:12,fontWeight:750,marginBottom:12}}>🏆 ترتيب الفورمات حسب الأداء</div><BarChartH data={list.slice(0,10).map(x=>({label:x.ct?.name||x.formatId,value:Math.round((x.avgScore||0)*10)/10,color:x.pl.accent}))} formatter={v=>v}/></div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}>{list.map((g,i)=><div key={g.key} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:14,padding:15}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{padding:"3px 8px",borderRadius:8,background:g.pl.accent+"15",color:g.pl.accent,fontSize:10,fontWeight:800}}><PlatformLogo p={g.pl} size={15}/></span><div style={{flex:1,fontSize:13,fontWeight:750}}>{g.ct?.name||g.formatId}</div>{i===0&&<span title="الأفضل">🏆</span>}</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7,marginBottom:12}}><div><div style={{fontSize:9,color:"#94A3B8"}}>منشورات</div><b>{g.records.length}</b></div><div><div style={{fontSize:9,color:"#94A3B8"}}>مشاهدات</div><b>{formatNum(g.views)}</b></div><div><div style={{fontSize:9,color:"#94A3B8"}}>تفاعل</div><b>{formatNum(g.interactions)}</b></div></div>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"#6E7781",marginBottom:5}}><span>متوسط الأداء</span><b style={{color:g.avgScore!=null?"#10B981":"#94A3B8"}}>{g.avgScore!=null?g.avgScore.toFixed(1):"—"}</b></div><KpiProgress value={g.avgScore||0} max={maxScore} color={g.pl.accent}/>
+    </div>)}</div>
+  </div>;
+}
+function KpiPlatformRollup({plan,setPlan,accId,dFrom,dTo}){
+  const platforms=getPlatforms(plan); const records=kpiScopedRecords(plan,accId,dFrom,dTo); const [selPid,setSelPid]=useState(platforms[0]?.id||""); const [period,setPeriod]=useState(dateKeyFromOffset(0).slice(0,7)); const notify=useToastNotify(); const plt=platforms.find(p=>p.id===selPid)||platforms[0];
+  if(!plt)return <KpiEmpty title="لا توجد منصات" desc="أضف منصة من إدارة المنصات أولًا." icon="📱"/>;
+  const pr=records.filter(r=>r.platformId===plt.id); const byFormat=new Map(); pr.forEach(r=>{if(!byFormat.has(r.formatId))byFormat.set(r.formatId,[]);byFormat.get(r.formatId).push(r);});
+  const views=kpiMetricTotals(pr,"views").total,reach=kpiMetricTotals(pr,"reach").total,interactions=kpiInteractions(pr); const scores=pr.map(r=>kpiEntryScore(r._entry)).filter(v=>v!=null); const avg=scores.length?scores.reduce((a,b)=>a+b,0)/scores.length:null;
+  const pageKpis=getEffectivePlatformAnalytics(plan,selPid).pageKpis||[]; const pageHealth=(plan._pageHealth||{})[plt.id]; const current=pageHealth?.entries?.find(e=>e.period===period); const [phValues,setPhValues]=useState(current?current.values:{}); useEffect(()=>{const e=pageHealth?.entries?.find(x=>x.period===period);setPhValues(e?e.values:{});},[period,selPid]); const phInputs=dedupeInputs(pageKpis); const phComputed=computeAllKpis(pageKpis,phValues); function savePh(){savePageHealthEntry(plan,setPlan,plt.id,period,phValues);notify("✅ تم حفظ مؤشرات الصفحة");}
+  return <div>
+    <div style={{display:"flex",gap:7,overflowX:"auto",paddingBottom:5,marginBottom:14}}>{platforms.map(p=><button key={p.id} onClick={()=>setSelPid(p.id)} style={{flexShrink:0,padding:"8px 13px",borderRadius:10,border:`1px solid ${selPid===p.id?p.accent+"60":"rgba(0,0,0,0.08)"}`,background:selPid===p.id?p.accent+"12":"#fff",color:selPid===p.id?p.accent:"#57606A",cursor:"pointer",fontSize:10,fontFamily:"inherit",fontWeight:700}}><PlatformLogo p={p} size={16}/> {p.name}</button>)}</div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:10,marginBottom:14}}><KpiDashboardCard icon="📱" label="المنشورات المقاسة" value={pr.length} sub={plt.name}/><KpiDashboardCard icon="👁" label="المشاهدات" value={formatNum(views)} sub="إجمالي الفترة" accent="#8B5CF6"/><KpiDashboardCard icon="💬" label="التفاعلات" value={formatNum(interactions)} sub="إعجاب + تعليق + مشاركة + حفظ" accent="#E1306C"/><KpiDashboardCard icon="⚡" label="متوسط الأداء" value={avg!=null?avg.toFixed(1):"—"} sub="كل الـ KPIs المتاحة" accent="#10B981"/></div>
+    <div style={{display:"grid",gridTemplateColumns:"1.15fr .85fr",gap:12,marginBottom:14}}>
+      <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:14,padding:16}}><div style={{fontSize:12,fontWeight:750,marginBottom:12}}>📐 توزيع الأداء حسب الفورمات</div><DonutChart data={Array.from(byFormat.entries()).map(([fid,recs])=>{const ct=getFormatById(plan,plt.id,fid);const scores=recs.map(r=>kpiEntryScore(r._entry)).filter(v=>v!=null);return {label:(ct?.name||fid)+" ("+recs.length+")",value:recs.length,color:plt.accent};})}/></div>
+      <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:14,padding:16}}><div style={{fontSize:12,fontWeight:750,marginBottom:12}}>📊 ملخص الفورمات</div>{Array.from(byFormat.entries()).map(([fid,recs])=>{const ct=getFormatById(plan,plt.id,fid);const scores=recs.map(r=>kpiEntryScore(r._entry)).filter(v=>v!=null);const sc=scores.length?scores.reduce((a,b)=>a+b,0)/scores.length:null;return <div key={fid} style={{marginBottom:11}}><div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:5}}><span>{ct?.name||fid}</span><b>{sc!=null?sc.toFixed(1):"—"}</b></div><KpiProgress value={sc||0} max={100} color={plt.accent}/></div>})}</div>
+    </div>
+    <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:14,padding:16}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div><div style={{fontSize:12,fontWeight:750}}>🌐 صحة المنصة الدورية</div><div style={{fontSize:9,color:"#94A3B8",marginTop:2}}>مؤشرات الصفحة لا ترتبط بمنشور واحد</div></div><input type="month" value={period} onChange={e=>setPeriod(e.target.value)} style={{...S.inp,margin:0,width:150,fontSize:10}}/></div>
+      {pageKpis.length===0?<div style={{fontSize:10,color:"#94A3B8"}}>لا توجد مؤشرات صفحة معرفة لهذه المنصة.</div>:<><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8,marginBottom:10}}>{phInputs.map(inp=><div key={inp.id}><div style={{fontSize:9,color:"#6E7781",marginBottom:3}}>{inp.label}</div><input type="number" value={phValues[inp.id]??""} onChange={e=>setPhValues(v=>({...v,[inp.id]:e.target.value}))} style={{...S.inp,margin:0,fontSize:11}}/></div>)}</div><div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>{pageKpis.map(k=>{const v=phComputed[k.id];const pm=KPI_PRIO_META[k.priority]||KPI_PRIO_META.medium;return <span key={k.id} style={{padding:"5px 9px",borderRadius:8,background:pm.color+"10",border:`1px solid ${pm.color}25`,fontSize:9}}>{k.name}: <b style={{color:pm.color}}>{v==null?"—":v}</b></span>})}</div><button style={S.btnA} onClick={savePh}>💾 حفظ مؤشرات الشهر</button></>}
+    </div>
+  </div>;
+}
+function KpiSystemRollup({plan,accId,dFrom,dTo}){
+  const records=kpiScopedRecords(plan,accId,dFrom,dTo); const platforms=getPlatforms(plan);
+  if(!records.length)return <KpiEmpty title="لا توجد بيانات تحليلية" desc="عند تسجيل أول قياس سيظهر الأداء المجمع لكل المنصات والفورمات هنا." icon="🌐"/>;
+  const views=kpiMetricTotals(records,"views").total,reach=kpiMetricTotals(records,"reach").total,interactions=kpiInteractions(records),revenue=kpiMetricTotals(records,"revenue").total; const scores=records.map(r=>kpiEntryScore(r._entry)).filter(v=>v!=null); const avg=scores.length?scores.reduce((a,b)=>a+b,0)/scores.length:null;
+  const rows=platforms.map(p=>{const rs=records.filter(r=>r.platformId===p.id);const sc=rs.map(r=>kpiEntryScore(r._entry)).filter(v=>v!=null);return {p,count:rs.length,views:kpiMetricTotals(rs,"views").total,interactions:kpiInteractions(rs),avg:sc.length?sc.reduce((a,b)=>a+b,0)/sc.length:null};}).filter(r=>r.count>0).sort((a,b)=>(b.avg??-Infinity)-(a.avg??-Infinity));
+  const byDate=new Map();records.forEach(r=>{const d=r._entry?.date||r.post?.dateKey;if(!d)return;if(!byDate.has(d))byDate.set(d,[]);byDate.get(d).push(r);});const trend=Array.from(byDate.entries()).sort((a,b)=>a[0].localeCompare(b[0])).slice(-14).map(([d,rs])=>{const ss=rs.map(r=>kpiEntryScore(r._entry)).filter(v=>v!=null);return {label:d.slice(5),value:ss.length?Math.round((ss.reduce((a,b)=>a+b,0)/ss.length)*10)/10:0,color:A};});
+  return <div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:10,marginBottom:14}}><KpiDashboardCard icon="📝" label="القياسات" value={records.length} sub="كل المنصات"/><KpiDashboardCard icon="👁" label="المشاهدات" value={formatNum(views)} sub="إجمالي" accent="#8B5CF6"/><KpiDashboardCard icon="⚡" label="التفاعلات" value={formatNum(interactions)} sub="إجمالي" accent="#E1306C"/><KpiDashboardCard icon="💰" label="الإيرادات" value={formatNum(revenue)} sub="إجمالي" accent="#10B981"/><KpiDashboardCard icon="🏆" label="متوسط الأداء" value={avg!=null?avg.toFixed(1):"—"} sub="كل الـ KPIs" accent="#EF9F27"/></div>
+    <div style={{display:"grid",gridTemplateColumns:"1.35fr .65fr",gap:12,marginBottom:14}}><div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:14,padding:16}}><div style={{fontSize:12,fontWeight:750,marginBottom:12}}>📈 اتجاه الأداء</div>{trend.length?<BarChartH data={trend} formatter={v=>v}/>:<div style={{fontSize:10,color:"#94A3B8"}}>لا توجد بيانات زمنية كافية.</div>}</div><div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:14,padding:16}}><div style={{fontSize:12,fontWeight:750,marginBottom:12}}>📱 توزيع القياسات</div><DonutChart data={rows.map(r=>({label:r.p.name,value:r.count,color:r.p.accent}))}/></div></div>
+    <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:14,padding:16}}><div style={{fontSize:12,fontWeight:750,marginBottom:12}}>🏆 ترتيب المنصات</div><div style={{display:"flex",flexDirection:"column",gap:8}}>{rows.map((r,i)=><div key={r.p.id} style={{display:"grid",gridTemplateColumns:"28px 1fr 90px 90px 90px",alignItems:"center",gap:8,padding:"9px 10px",background:i===0?r.p.accent+"08":"#fff",border:"1px solid rgba(0,0,0,0.05)",borderRadius:10}}><span style={{fontSize:10,color:"#94A3B8"}}>#{i+1}</span><span style={{fontSize:11,fontWeight:700,color:r.p.accent}}><PlatformLogo p={r.p} size={16}/> <span style={{color:"#16181D",fontWeight:600}}>{r.p.name}</span></span><span style={{fontSize:10,color:"#6E7781"}}>{r.count} قياس</span><span style={{fontSize:10,color:"#6E7781"}}>{formatNum(r.views)} مشاهدة</span><b style={{fontSize:11,color:r.avg!=null?"#10B981":"#94A3B8"}}>{r.avg!=null?r.avg.toFixed(1):"—"}</b></div>)}</div></div>
+  </div>;
+}
+function KpiLayerIntelligence({plan,accId,dFrom,dTo}){
+  const groups=plan._layerGroups||[]; const [gid,setGid]=useState(groups[0]?.id||""); const [metricName,setMetricName]=useState(""); const [pillarId,setPillarId]=useState("");
+  const records=kpiScopedRecords(plan,accId,dFrom,dTo); const group=groups.find(g=>g.id===gid)||groups[0];
+  if(!group)return <KpiEmpty title="لا توجد طبقات معرفة" desc="أضف Content Layers أولًا، ثم سجّل القياسات لتظهر العلاقة بين الطبقات والأداء." icon="🎯"/>;
+  const layers=plan._layers||[]; const vals=layers.filter(l=>l.groupId===group.id); const isPillar=/pillar|عمود|محور/i.test(group.name||"");
+  const topicGroup=groups.find(g=>/topic|موضوع/i.test(g.name||"")); const topicLayers=topicGroup?(layers.filter(l=>l.groupId===topicGroup.id)):[];
+  const availableMetrics=Array.from(new Set(records.flatMap(r=>{const ct=getFormatById(plan,r.platformId,r.formatId);return (ct?.postKpis||[]).map(k=>k.name);}))).sort();
+  function scoreFor(r){if(metricName){const ct=getFormatById(plan,r.platformId,r.formatId);const k=(ct?.postKpis||[]).find(x=>x.name===metricName);return k&&typeof r._entry?.computed?.[k.id]==="number"?r._entry.computed[k.id]:null;}return kpiEntryScore(r._entry);}
+  function statsForLayer(layerId,sourceGroupId=group.id){const rs=records.filter(r=>{const id=(r.layersSnapshot||{})[sourceGroupId];return Array.isArray(id)?id.includes(layerId):id===layerId;});const ss=rs.map(scoreFor).filter(v=>v!=null);return {count:rs.length,avg:ss.length?ss.reduce((a,b)=>a+b,0)/ss.length:null,views:kpiMetricTotals(rs,"views").total};}
+  const ranked=vals.map(layer=>({...layer,...statsForLayer(layer.id)})).filter(x=>x.count>0).sort((a,b)=>(b.avg??-Infinity)-(a.avg??-Infinity));
+  const selectedPillar=layers.find(l=>l.id===pillarId); const relatedTopics=selectedPillar&&topicLayers.length?topicLayers.filter(t=>Array.isArray(t.parentIds)&&t.parentIds.includes(selectedPillar.id)):[];
+  return <div>
+    <div style={{display:"flex",gap:7,overflowX:"auto",paddingBottom:5,marginBottom:12}}>{groups.map(g=><button key={g.id} onClick={()=>{setGid(g.id);setPillarId("");}} style={{flexShrink:0,padding:"8px 13px",borderRadius:10,border:`1px solid ${gid===g.id?(g.color||A)+"60":"rgba(0,0,0,0.08)"}`,background:gid===g.id?(g.color||A)+"12":"#fff",color:gid===g.id?(g.color||A):"#57606A",cursor:"pointer",fontSize:10,fontFamily:"inherit",fontWeight:700}}>{g.icon} {g.name}</button>)}</div>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>{availableMetrics.length>0&&<select value={metricName} onChange={e=>setMetricName(e.target.value)} style={{...S.sel,margin:0,width:190,fontSize:10,color:"#000"}}><option value="">متوسط كل الـ KPIs</option>{availableMetrics.map(m=><option key={m} value={m}>{m}</option>)}</select>}{isPillar&&topicLayers.length>0&&<select value={pillarId} onChange={e=>setPillarId(e.target.value)} style={{...S.sel,margin:0,width:220,fontSize:10,color:"#000"}}><option value="">اختر Content Pillar لرؤية الـ Topics التابعة</option>{vals.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select>}</div>
+    {isPillar&&selectedPillar&&<div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:14,padding:14,marginBottom:14}}><div style={{fontSize:11,fontWeight:750,marginBottom:8}}>🎯 {selectedPillar.name} → 💡 Content Topic</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{relatedTopics.length?relatedTopics.map(t=>{const st=statsForLayer(t.id,topicGroup.id);return <span key={t.id} style={{padding:"5px 9px",borderRadius:9,background:(topicGroup.color||A)+"10",color:topicGroup.color||A,fontSize:9,fontWeight:650}}>{t.name} · {st.avg!=null?st.avg.toFixed(1):"—"}</span>}):<span style={{fontSize:10,color:"#94A3B8"}}>لا توجد Topics مرتبطة بهذا الـ Pillar.</span>}</div></div>}
+    {ranked.length===0?<KpiEmpty title="لا توجد بيانات كافية لهذه الطبقة" desc="المنشورات تحتاج إلى قياسات أداء وقيمة من هذه الطبقة حتى يمكن ترتيبها." icon="🎯"/>:<>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:10,marginBottom:14}}><KpiDashboardCard icon="🎯" label="القيم المقاسة" value={ranked.length} sub={group.name}/><KpiDashboardCard icon="📝" label="المنشورات المرتبطة" value={ranked.reduce((s,x)=>s+x.count,0)} sub="مع قياسات" accent="#60A5FA"/><KpiDashboardCard icon="🏆" label="الأفضل أداءً" value={ranked[0]?.name||"—"} sub={ranked[0]?.avg!=null?"متوسط "+ranked[0].avg.toFixed(1):""} accent="#10B981"/></div>
+      <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:14,padding:16,marginBottom:14}}><div style={{fontSize:12,fontWeight:750,marginBottom:12}}>📊 أداء قيم {group.name}</div><BarChartH data={ranked.slice(0,12).map(x=>({label:x.name,value:x.avg!=null?Math.round(x.avg*10)/10:0,color:group.color||A}))} formatter={v=>v}/></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>{ranked.map((r,i)=><div key={r.id} style={{background:"#fff",border:`1px solid ${i===0?"#10B98140":"rgba(0,0,0,0.06)"}`,borderRadius:12,padding:"11px 13px"}}><div style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}><span style={{fontSize:10,color:"#94A3B8"}}>#{i+1}</span>{i===0&&<span>🏆</span>}<span style={{flex:1,fontSize:11,fontWeight:700}}>{r.name}</span><b style={{fontSize:12,color:i===0?"#10B981":"#57606A"}}>{r.avg!=null?r.avg.toFixed(1):"—"}</b></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:9,color:"#6E7781"}}><span>{r.count} منشور</span><span style={{textAlign:"left"}}>{formatNum(r.views)} مشاهدة</span></div></div>)}</div>
+    </>}
+  </div>;
+}
+function KpiIntelligencePage({plan,setPlan,user}){
+  const [tab,setTab]=useState("entry"); const [accId,setAccId]=useState(""); const [dFrom,setDFrom]=useState(""); const [dTo,setDTo]=useState(""); const accounts=plan._accounts||[]; const records=kpiScopedRecords(plan,accId,dFrom,dTo);
+  const baseTabs=[{id:"entry",label:"📝 إدخال البيانات",desc:"تسجيل و مراجعة القياسات"},{id:"format",label:"📐 حسب الفورمات",desc:"أي صيغة تحقق أفضل أداء؟"},{id:"platform",label:"📱 حسب المنصة",desc:"أداء كل منصة وحسابها"},{id:"system",label:"🌐 كل المنصات",desc:"الصورة الكاملة للنظام"},{id:"layers",label:"🎯 ذكاء الطبقات",desc:"ما الذي يصنع الأداء؟"}];
+  const selectedAccount=accounts.find(a=>String(a.id)===String(accId));
+  const dashboard=getEffectiveAccountDashboard(plan,selectedAccount);
+  const tabs=baseTabs.filter(t=>dashboard.tabs.includes(t.id));
+  useEffect(()=>{if(accId&&dashboard.enabled===false){setTab("entry");return;} if(!tabs.some(t=>t.id===tab)) setTab(tabs.find(t=>t.id===dashboard.defaultTab)?.id||tabs[0]?.id||"entry");},[accId,dashboard.enabled,dashboard.defaultTab,dashboard.tabs.join("|")]);
+  const views=kpiMetricTotals(records,"views").total,reach=kpiMetricTotals(records,"reach").total,interactions=kpiInteractions(records),revenue=kpiMetricTotals(records,"revenue").total; const scores=records.map(r=>kpiEntryScore(r._entry)).filter(v=>v!=null); const avg=scores.length?scores.reduce((a,b)=>a+b,0)/scores.length:null;
+  return <div style={{paddingBottom:30}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:12,marginBottom:16,flexWrap:"wrap"}}><div><div style={{fontSize:22,fontWeight:800,letterSpacing:"-0.5px",color:"#16181D"}}>التحليلات وذكاء المحتوى</div><div style={{fontSize:11,color:"#6E7781",marginTop:4}}>لوحة القرار التي تربط البيانات بالأداء وتوضح ما الذي يجب تحسينه في صناعة المحتوى.</div></div><div style={{fontSize:9,color:"#94A3B8"}}>{records.length} قياس ضمن النطاق الحالي</div></div>
+    {dashboard.enabled!==false&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:14}}>{dashboard.cards.includes("measurements")&&<KpiDashboardCard icon="📝" label="القياسات" value={records.length} sub="منشورات لها بيانات"/>}{dashboard.cards.includes("views")&&<KpiDashboardCard icon="👁" label="المشاهدات" value={formatNum(views)} sub="إجمالي" accent="#8B5CF6"/>}{dashboard.cards.includes("reach")&&<KpiDashboardCard icon="📣" label="الوصول" value={formatNum(reach)} sub="إجمالي" accent="#3B82F6"/>}{dashboard.cards.includes("interactions")&&<KpiDashboardCard icon="⚡" label="التفاعلات" value={formatNum(interactions)} sub="إجمالي" accent="#E1306C"/>}{dashboard.cards.includes("performance")&&<KpiDashboardCard icon="🏆" label="متوسط الأداء" value={avg!=null?avg.toFixed(1):"—"} sub={revenue?"الإيرادات "+formatNum(revenue):"كل الـ KPIs المتاحة"} accent="#10B981"/>}</div>}
+    {selectedAccount&&dashboard.enabled===false?<KpiEmpty title="لوحة Analytics متوقفة لهذا الحساب" desc="يمكن إعادة تفعيلها من إعدادات الحساب." icon="⏸️"/>:<div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:14,padding:8,marginBottom:14,display:"flex",gap:6,flexWrap:"wrap",alignItems:"stretch"}}>{tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{flex:"1 1 150px",textAlign:"right",padding:"10px 12px",borderRadius:10,border:`1px solid ${tab===t.id?A+"45":"transparent"}`,background:tab===t.id?A+"0F":"transparent",color:tab===t.id?A:"#57606A",cursor:"pointer",fontFamily:"inherit"}}><div style={{fontSize:11,fontWeight:800}}>{t.label}</div><div style={{fontSize:8,color:tab===t.id?A:"#94A3B8",marginTop:3}}>{t.desc}</div></button>)}</div>}
+    <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:14,padding:"10px 12px",marginBottom:16,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><span style={{fontSize:10,fontWeight:700,color:"#57606A"}}>فلاتر التحليل</span><input type="date" value={dFrom} onChange={e=>setDFrom(e.target.value)} style={{...S.inp,margin:0,width:140,fontSize:10}}/><span style={{fontSize:9,color:"#94A3B8"}}>إلى</span><input type="date" value={dTo} onChange={e=>setDTo(e.target.value)} style={{...S.inp,margin:0,width:140,fontSize:10}}/>{accounts.length>0&&<select value={accId} onChange={e=>setAccId(e.target.value)} style={{...S.sel,margin:0,width:190,fontSize:10,color:"#000"}}><option value="">كل الحسابات</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>}{(dFrom||dTo||accId)&&<button onClick={()=>{setDFrom("");setDTo("");setAccId("");}} style={{background:"none",border:"none",color:"#F87171",cursor:"pointer",fontFamily:"inherit",fontSize:10}}>× مسح الفلاتر</button>}<span style={{marginInlineStart:"auto",fontSize:9,color:"#94A3B8"}}>كل اللوحات تتبع نفس الفلاتر</span></div>
+    {dashboard.enabled!==false&&<div>{tab==="entry"&&<KpiEntryTab plan={plan} setPlan={setPlan} accId={accId} dFrom={dFrom} dTo={dTo}/>} {tab==="format"&&<KpiFormatRollup plan={plan} accId={accId} dFrom={dFrom} dTo={dTo}/>} {tab==="platform"&&<KpiPlatformRollup plan={plan} setPlan={setPlan} accId={accId} dFrom={dFrom} dTo={dTo}/>} {tab==="system"&&<KpiSystemRollup plan={plan} accId={accId} dFrom={dFrom} dTo={dTo}/>} {tab==="layers"&&<KpiLayerIntelligence plan={plan} accId={accId} dFrom={dFrom} dTo={dTo}/>}</div>}
+  </div>;
+}
+
+
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+    this.handleReload = this.handleReload.bind(this);
+  }

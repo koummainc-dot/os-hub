@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#111827">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<title>OS Hub — منصّة الأنظمة</title>
+</head>
+<body>
+<script>
+// ── One-tap local reset: open the site with ?reset=1 to wipe all locally
+// cached data (localStorage + service-worker caches) and force a clean
+// reload straight from Supabase. Useful when a device is stuck showing
+// stale local data instead of the true server state.
+(function(){
+  try {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('reset') === '1') {
+      localStorage.clear();
+      if ('caches' in window) {
+        caches.keys().then(function(names){ names.forEach(function(n){ caches.delete(n); }); });
+      }
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs){
+          regs.forEach(function(r){ r.unregister(); });
+        }).finally(function(){
+          setTimeout(function(){ window.location.href = window.location.pathname; }, 300);
+        });
+      } else {
+        setTimeout(function(){ window.location.href = window.location.pathname; }, 300);
+      }
+    }
+  } catch(e) {}
+})();
+</script>
+<div id="root"></div>
+<script type="module" src="/src/main.jsx"></script>
+
+<script>if('serviceWorker' in navigator && location.protocol.startsWith('http')){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));}</script>
+<!-- ── PWA install affordance (Android/Chrome native prompt + iOS manual hint) ── -->
+<style>
+#cosInstallBtn{position:fixed;left:16px;bottom:16px;z-index:99999;display:none;align-items:center;gap:8px;
+  padding:11px 16px;border-radius:999px;background:#111827;color:#fff;font-family:system-ui,sans-serif;
+  font-size:13px;font-weight:700;border:none;box-shadow:0 6px 18px rgba(0,0,0,0.25);cursor:pointer;direction:rtl}
+#cosInstallBtn:active{transform:scale(0.97)}
+#cosIosHint{position:fixed;left:16px;right:16px;bottom:16px;z-index:99999;display:none;
+  background:#111827;color:#fff;font-family:system-ui,sans-serif;font-size:12.5px;line-height:1.8;
+  padding:12px 16px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,0.25);direction:rtl;text-align:right}
+#cosIosHint b{color:#EF9F27}
+#cosIosHintClose{position:absolute;top:6px;left:10px;background:none;border:none;color:#9AA4B2;font-size:16px;cursor:pointer}
+</style>
+<button id="cosInstallBtn">⬇️ تثبيت التطبيق</button>
+<div id="cosIosHint"><button id="cosIosHintClose">✕</button>لتثبيت التطبيق على الشاشة الرئيسية: اضغط زر <b>المشاركة</b> (Share) في Safari، ثم اختر <b>Add to Home Screen</b>.</div>
+<script>
+(function(){
+  var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (isStandalone) return; // already installed — nothing to show
+
+  var btn = document.getElementById('cosInstallBtn');
+  var deferredPrompt = null;
+
+  // Android / Chrome / Edge: native install prompt
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();
+    deferredPrompt = e;
+    btn.style.display = 'inline-flex';
+  });
+  btn.addEventListener('click', async function(){
+    if (!deferredPrompt) return;
+    btn.style.display = 'none';
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+  });
+  window.addEventListener('appinstalled', function(){ btn.style.display = 'none'; });
+
+  // iOS Safari: no beforeinstallprompt event exists — show a manual hint once
+  var ua = navigator.userAgent || '';
+  var isIOS = /iphone|ipad|ipod/i.test(ua);
+  var isSafari = /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
+  if (isIOS && isSafari) {
+    try {
+      if (!localStorage.getItem('cos_ios_hint_dismissed')) {
+        var hint = document.getElementById('cosIosHint');
+        setTimeout(function(){ hint.style.display = 'block'; }, 1200);
+        document.getElementById('cosIosHintClose').addEventListener('click', function(){
+          hint.style.display = 'none';
+          try { localStorage.setItem('cos_ios_hint_dismissed', '1'); } catch(e){}
+        });
+      }
+    } catch(e){}
+  }
+})();
+</script>
+</body>
+</html>
