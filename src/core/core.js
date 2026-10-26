@@ -19,7 +19,7 @@ function osSec(str){return str.split("|").map(x=>{const p=x.split(":");return{id
 const OS_SYSTEMS=[
 {id:"content",group:"work",scope:"shared",icon:"✍️",color:"#EF9F27",name:"Content OS",title:"إدارة المحتوى",status:"live",phase:"جاهز",sensitive:false,plan:"docs/ContentOS_Phases_Roadmap.md",sections:null,
  desc:"تخطيط وإنتاج ونشر وتحليل المحتوى عبر الحسابات والمنصات."},
-{id:"projects",group:"work",scope:"shared",icon:"🚀",color:"#6366F1",name:"Projects OS",title:"المشاريع والمخرجات",status:"planned",phase:"المرحلة 1",sensitive:false,plan:"Projects_OS_v4_Unified_Master_Plan.md",
+{id:"projects",group:"work",scope:"shared",icon:"🚀",color:"#6366F1",name:"Projects OS",title:"المشاريع والمخرجات",status:"live",phase:"جاهز",sensitive:false,plan:"Projects_OS_v4_Unified_Master_Plan.md",
  desc:"المشاريع والمهام والمخرجات والمخاطر والأهداف (OKR) للفريق.",
  sections:osSec("dashboard:الرئيسية:⌂|today:اليوم:📅|week:هذا الأسبوع:🗓️|projects:المشاريع:📁|tasks:مهامي:✅|discovery:الاكتشاف:🔎|prds:المواصفات:📝|okrs:الأهداف (OKR):🎯|outputs:المخرجات:📦|risks:المخاطر والمشاكل والقرارات:⚠️|meetings:الاجتماعات:👥|updates:التحديثات:📣|wins:الإنجازات:🏆|reviews:المراجعات الأسبوعية:🔁|contacts:جهات الاتصال:📇|team:الفريق:🧑‍🤝‍🧑|templates:القوالب:🧩|settings:الإعدادات:⚙️")},
 {id:"habits",group:"life",scope:"personal",icon:"🌱",color:"#84CC16",name:"Habit OS",title:"العادات",status:"planned",phase:"المرحلة 2",sensitive:true,plan:"Habit_OS_v4_Unified_Master_Plan.md",

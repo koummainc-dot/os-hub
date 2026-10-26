@@ -38,7 +38,7 @@ function OSSystemHost({sys,ws,acc,me,members,isDemo,demoStore,section,setSection
   if(!mod) return <div style={{textAlign:"center",padding:60,color:"#6E7781",fontSize:13}}><div style={{width:30,height:30,border:`3px solid ${A}30`,borderTopColor:A,borderRadius:"50%",margin:"0 auto 12px",animation:"spin 0.8s linear infinite"}}/>جاري تحميل {sys.title}...</div>;
   if(mod.scaffold) return <OSScaffold sys={sys} section={section} acc={acc} isDemo={isDemo}/>;
   const Comp=mod.default;
-  return <Comp api={api} access={acc} authUser={me} ws={ws} members={members} isDemo={isDemo} page={section} setPage={setSection} shell={shell}/>;
+  return <Comp api={api} access={acc} authUser={me} ws={ws} members={members} isDemo={isDemo} demoStore={demoStore} page={section} setPage={setSection} shell={shell}/>;
 }
 
 // ════════════════ PLATFORM ROOT + SHELL ════════════════
@@ -231,6 +231,8 @@ function Platform(){
   const currentSection=sys?(sectionBy[sys.id]||defSection(sys)):"";
   const setSection=(sysId,v)=>setSectionBy(p=>({...p,[sysId]:typeof v==="function"?v(p[sysId]||defSection(osSystemById(sysId))):v}));
   const navSections=sys&&acc.level!=="none"?osSections(sys).filter(s=>osSectionLevel(acc,s.id)!=="none"&&(!br.visible||br.visible.indexOf(s.id)>-1)):[];
+  const viewMember=isDemo&&demo.viewAs!=="owner"?demo.members.find(x=>x.userId===demo.viewAs):null;
+  const hostMe=viewMember?{id:viewMember.userId,email:viewMember.email,name:viewMember.name}:me;
   const invCount=incoming.length;
   const teamLabel=ws.isOwner?"الفريق والصلاحيات":"أعضاء المساحة";
   const platformItems=[{id:"today",label:"اليوم",icon:"📅"},{id:"team",label:teamLabel,icon:"👥"},{id:"invites",label:"الدعوات",icon:"✉️",badge:invCount},{id:"account",label:"حسابي",icon:"👤"}];
@@ -318,7 +320,7 @@ function Platform(){
   else if(route.view==="invites") content=<OSInvitesPage incoming={incoming} onAccept={actions.accept} onDecline={actions.decline} toast={toast} isDemo={isDemo}/>;
   else if(route.view==="account") content=<OSAccountPage me={me} profile={data.profile} isDemo={isDemo} workspaces={workspaces} onUpdateName={actions.updateName} onLeave={actions.leave} onSignOut={actions.signOut} onSignOutOthers={actions.signOutOthers} toast={toast}/>;
   else if(route.view==="system") content=(sys&&acc.level!=="none")
-    ?<OSSystemHost key={ws.id+":"+sys.id+":"+(isDemo?demo.viewAs:"")} sys={sys} ws={ws} acc={acc} me={me} members={admin.members} isDemo={isDemo} demoStore={demoStore} section={currentSection} setSection={(v)=>setSection(sys.id,v)} shell={shellApi}/>
+    ?<OSSystemHost key={ws.id+":"+sys.id+":"+(isDemo?demo.viewAs:"")} sys={sys} ws={ws} acc={acc} me={hostMe} members={admin.members} isDemo={isDemo} demoStore={demoStore} section={currentSection} setSection={(v)=>setSection(sys.id,v)} shell={shellApi}/>
     :<AccessDenied/>;
 
   return(
