@@ -3,6 +3,21 @@ import { supabase } from "../../core/supabase.js";
 
 const GREEN = "#059669", INK = "#17211D", MUTED = "#718078", LINE = "#E4EBE6", BG = "#F5F8F5";
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+function scheduleDueDate(firstDueDate, frequency, index) {
+  const [year, month, day] = String(firstDueDate || "").split("-").map(Number);
+  if (!year || !month || !day) return firstDueDate;
+  if (frequency === "Weekly") {
+    return new Date(Date.UTC(year, month - 1, day + 7 * index)).toISOString().slice(0, 10);
+  }
+  const monthOffset = frequency === "Quarterly" ? 3 * index : frequency === "Yearly" ? 12 * index : index;
+  const targetMonth = new Date(Date.UTC(year, month - 1 + monthOffset, 1));
+  const targetYear = targetMonth.getUTCFullYear();
+  const targetMonthIndex = targetMonth.getUTCMonth();
+  const lastDayOfAnchorMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const lastDayOfTargetMonth = new Date(Date.UTC(targetYear, targetMonthIndex + 1, 0)).getUTCDate();
+  const targetDay = day === lastDayOfAnchorMonth ? lastDayOfTargetMonth : Math.min(day, lastDayOfTargetMonth);
+  return new Date(Date.UTC(targetYear, targetMonthIndex, targetDay)).toISOString().slice(0, 10);
+}
 const money = (v, c = "EGP") => { try { return new Intl.NumberFormat("ar-EG", { style: "currency", currency: c, maximumFractionDigits: 2 }).format(Number(v || 0)); } catch { return String(v || 0) + " " + c; } };
 const input = { width: "100%", minWidth: 0, boxSizing: "border-box", border: "1px solid #D8E2DB", borderRadius: 9, padding: "10px 11px", background: "#fff", color: INK, font: "inherit", fontSize: 13 };
 function Field({ label, children }) { return <label style={{ display: "grid", gap: 6, color: "#46544B", fontSize: 12, fontWeight: 700 }}>{label}{children}</label>; }
@@ -50,7 +65,7 @@ export default function FinanceDebts({ ws, access, isDemo = false }) {
     try {
       const count = Math.max(0, Math.min(600, Number.parseInt(form.schedule_count || "0", 10) || 0));
       const principalCents = Math.round(Number(form.principal) * 100);
-      const installmentsPayload = count > 0 ? Array.from({ length: count }, (_, i) => { const date = new Date(form.schedule_first_due_date + "T12:00:00"); const step = i; if (form.schedule_frequency === "Weekly") date.setDate(date.getDate() + 7 * step); else if (form.schedule_frequency === "Quarterly") date.setMonth(date.getMonth() + 3 * step); else if (form.schedule_frequency === "Yearly") date.setFullYear(date.getFullYear() + step); else date.setMonth(date.getMonth() + step); const cents = Math.floor(principalCents / count) + (i === count - 1 ? principalCents - Math.floor(principalCents / count) * count : 0); return { due_date: date.toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }), principal: (cents / 100).toFixed(2), interest: "0", fees: "0" }; }) : [];
+      const installmentsPayload = count > 0 ? Array.from({ length: count }, (_, i) => { const dueDate = scheduleDueDate(form.schedule_first_due_date, form.schedule_frequency, i); const cents = Math.floor(principalCents / count) + (i === count - 1 ? principalCents - Math.floor(principalCents / count) * count : 0); return { due_date: dueDate, principal: (cents / 100).toFixed(2), interest: "0", fees: "0" }; }) : [];
       if (count > 0 && !form.schedule_first_due_date) { setError("حدد تاريخ أول قسط."); return; }
       const p = { workspace_id: ws.id, name: form.name.trim(), counterparty: form.counterparty.trim() || null, direction: form.direction, principal: String(form.principal), currency: form.currency, start_date: form.start_date, interest_method: form.interest_method, disbursement_account_id: form.disbursement_account_id || null, installments: installmentsPayload, idempotency_key: "debt-create-" + crypto.randomUUID() };
       const { error: err } = await supabase.rpc("fin_debt_create", { p });
