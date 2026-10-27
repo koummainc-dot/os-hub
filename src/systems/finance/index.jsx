@@ -37,6 +37,7 @@ function Empty({ title, detail }) { return <div style={{ padding: "36px 16px", t
 export default function FinanceOS({ ws, access, page = "dashboard", setPage, isDemo = false, shell }) {
   const [accounts, setAccounts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [goals, setGoals] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [reconciliations, setReconciliations] = useState([]);
   const [reconForm, setReconForm] = useState({ account_id: "", cutoff_date: today(), statement_balance: "", reason: "" });
@@ -77,7 +78,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     if (!ws?.id || isDemo) { setLoading(false); return; }
     setLoading(true); setError("");
     try {
-      const [ar, cr, tr, sr, br, nr, settingsRes, bu, bt, rr] = await Promise.all([
+      const [ar, cr, tr, sr, br, nr, settingsRes, bu, bt, rr, gr] = await Promise.all([
         supabase.from("finance_accounts").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }),
         supabase.from("finance_categories").select("*").eq("workspace_id", ws.id).eq("archived", false).order("name"),
         supabase.from("finance_transactions").select("*").eq("workspace_id", ws.id).order("local_date", { ascending: false }).limit(150),
@@ -87,7 +88,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         supabase.from("finance_settings").select("base_currency,timezone,lock_before_date,overdraft_policy").eq("workspace_id", ws.id).maybeSingle(),
         supabase.rpc("fin_budgets_get", { p_ws: ws.id, p_period: budgetPeriod }),
         supabase.rpc("fin_budget_templates_get", { p_ws: ws.id }),
-        supabase.from("finance_reconciliations").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }).limit(50)
+        supabase.from("finance_reconciliations").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }).limit(50),
+        supabase.from("finance_goals").select("id,name,currency,status").eq("workspace_id", ws.id).in("status", ["Active","Paused"]).order("name")
       ]);
       for (const r of [ar, cr, tr]) if (r.error) throw r.error;
       setAccounts(ar.data || []); setCategories(cr.data || []); setTransactions(tr.data || []);
@@ -96,6 +98,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       setBudgets(bu.error ? [] : (Array.isArray(bu.data) ? bu.data : []));
       setBudgetTemplates(bt.error ? [] : (Array.isArray(bt.data) ? bt.data : []));
       setReconciliations(rr.error ? [] : (Array.isArray(rr.data) ? rr.data : []));
+      setGoals(gr.error ? [] : (Array.isArray(gr.data) ? gr.data : []));
       setLockDate(settingsRes.data?.lock_before_date || "");
       const rpcErrors = [sr, br, nr].filter(x => x.error);
       if (rpcErrors.length || bu.error || bt.error || rr.error) setNotice("بعض المؤشرات أو بيانات الميزانية غير متاحة حاليًا؛ راجع صلاحيات الوصول.");
