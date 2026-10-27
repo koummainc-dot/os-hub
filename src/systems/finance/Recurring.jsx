@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../core/supabase.js";
-const GREEN="#059669",INK="#17211D",MUTED="#718078",LINE="#E4EBE6";
+const GREEN="#059669",INK="#17211D",MUTED="#718078",LINE="#E4EBE6"; // recurring schedule management
 const today=()=>new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"});
 const input={width:"100%",minWidth:0,boxSizing:"border-box",border:"1px solid #D8E2DB",borderRadius:9,padding:"10px 11px",background:"#fff",color:INK,font:"inherit",fontSize:13};
 const money=(v,c="EGP")=>{try{return new Intl.NumberFormat("ar-EG",{style:"currency",currency:c,maximumFractionDigits:2}).format(Number(v||0));}catch{return String(v||0)+" "+c;}};
