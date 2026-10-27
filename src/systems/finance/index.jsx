@@ -129,6 +129,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     e.preventDefault(); if (!canEdit || saving) return;
     if (!tx.name.trim() || !(Number(tx.amount) > 0) || !tx.local_date || !tx.from_account_id) { setError("أكمل اسم الحركة والمبلغ والتاريخ والحساب."); return; }
     if (tx.type === "Transfer" && (!tx.to_account_id || tx.to_account_id === tx.from_account_id)) { setError("اختر حسابًا مستلمًا مختلفًا عن حساب المصدر."); return; }
+    if (tx.goal_id && tx.type !== "Transfer") { setError("مساهمة الهدف أو السحب منه يجب أن تكون تحويلًا بين حسابين."); return; }
     const validSplits = splitRows.filter(s => s.category_id && Number(s.amount) > 0);
     if (splitMode && tx.type === "Transfer") { setError("تقسيم التحويلات غير متاح؛ اختر دخلًا أو مصروفًا."); return; }
     if (splitMode && (validSplits.length < 2 || Math.abs(validSplits.reduce((sum, s) => sum + Number(s.amount), 0) - Number(tx.amount)) > 0.0001)) { setError("أضف تصنيفين على الأقل، وتأكد أن مجموع التقسيمات يساوي مبلغ الحركة بالكامل."); return; }
@@ -140,7 +141,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         workspace_id: ws.id, name: tx.name.trim(), type: tx.type, purpose: tx.purpose || "Regular", status: "Posted",
         amount: String(tx.amount), currency: tx.currency || sourceAccount?.currency || baseCurrency, local_date: tx.local_date,
         from_account_id: tx.from_account_id, to_account_id: tx.type === "Transfer" ? tx.to_account_id : null,
-        category_id: tx.type === "Transfer" || splitMode ? null : (tx.category_id || null), merchant: tx.merchant || null, notes: tx.notes || null,
+        category_id: tx.type === "Transfer" || splitMode ? null : (tx.category_id || null), goal_id: tx.goal_id || null, merchant: tx.merchant || null, notes: tx.notes || null,
         splits: splitMode ? validSplits.map(s => ({ category_id: s.category_id, amount: String(s.amount) })) : [],
         client_generated_id: "web-" + (globalThis.crypto?.randomUUID?.() || (Date.now() + "-" + Math.random().toString(36).slice(2))),
         idempotency_key: "finance-ui-" + (globalThis.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2))
