@@ -59,13 +59,13 @@ BEGIN
   coalesce(sum((x->>'base_value')::numeric) FILTER(WHERE x->>'kind'='receivable'),0),
   coalesce(abs(sum((x->>'base_value')::numeric) FILTER(WHERE x->>'kind'='payable')),0)
  INTO account_assets,account_liabilities,asset_total,receivable_total,payable_total
- FROM jsonb_array_elements(comps) x WHERE nullif(x->>'base_value','') IS NOT NULL;
+ FROM jsonb_array_elements(comps) AS e(x) WHERE nullif(x->>'base_value','') IS NOT NULL;
  total_assets:=account_assets+asset_total+receivable_total; total_liabilities:=account_liabilities+payable_total;
  INSERT INTO public.finance_net_worth_snapshots(workspace_id,period_type,period_key,base_currency,accounts_assets_base,accounts_liabilities_base,
   assets_base,receivables_base,payables_base,total_assets_base,total_liabilities_base,value_base,rates_used,is_estimated,created_by)
  VALUES(ws,pt,k,coalesce(nw->>'base_currency',st.base_currency),account_assets,account_liabilities,asset_total,receivable_total,payable_total,
   total_assets,total_liabilities,coalesce((nw->>'net_worth')::numeric,total_assets-total_liabilities),
-  coalesce((SELECT jsonb_agg(jsonb_build_object('name',x->>'name','kind',x->>'kind','currency',x->>'currency','rate',x->>'rate','value_base',x->>'base_value')) FROM jsonb_array_elements(comps) x),'[]'::jsonb),
+  coalesce((SELECT jsonb_agg(jsonb_build_object('name',x->>'name','kind',x->>'kind','currency',x->>'currency','rate',x->>'rate','value_base',x->>'base_value')) FROM jsonb_array_elements(comps) AS e(x)),'[]'::jsonb),
   NOT coalesce((nw->>'complete')::boolean,false),auth.uid())
  ON CONFLICT(workspace_id,period_type,period_key) DO NOTHING RETURNING id INTO inserted_id;
  IF inserted_id IS NULL THEN
@@ -76,7 +76,7 @@ BEGIN
  INSERT INTO public.finance_net_worth_snapshot_items(workspace_id,snapshot_id,item_type,item_id,name_at_time,native_value,currency,rate_used,value_base)
  SELECT ws,sid,CASE WHEN x->>'kind'='account' THEN 'Account' WHEN x->>'kind'='asset' THEN 'Asset' ELSE 'Debt' END,
   nullif(x->>'item_id','')::uuid,coalesce(x->>'name','عنصر مالي'),nullif(x->>'amount','')::numeric,
-  nullif(x->>'currency',''),nullif(x->>'rate','')::numeric,nullif(x->>'base_value','')::numeric FROM jsonb_array_elements(comps) x;
+  nullif(x->>'currency',''),nullif(x->>'rate','')::numeric,nullif(x->>'base_value','')::numeric FROM jsonb_array_elements(comps) AS e(x);
  PERFORM public.fin__audit(ws,auth.uid(),'net_worth_snapshot',sid::text,'create',null,null,
   jsonb_build_object('period_type',pt,'period_key',k,'value_base',nw->>'net_worth','is_estimated',NOT coalesce((nw->>'complete')::boolean,false)));
  RETURN jsonb_build_object('created',true,'duplicate',false,'snapshot_id',sid,'period_type',pt,'period_key',k,'value_base',nw->>'net_worth');
