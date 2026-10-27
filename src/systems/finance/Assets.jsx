@@ -18,6 +18,7 @@ export default function FinanceAssets({ws,access,isDemo=false}){
  const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [showForm,setShowForm]=useState(false),[editingId,setEditingId]=useState(null),[form,setForm]=useState(emptyForm());
  const [confirmTarget,setConfirmTarget]=useState(null),[confirmForm,setConfirmForm]=useState({current_value:"",reason:""});
+ const [historyTarget,setHistoryTarget]=useState(null),[historyRows,setHistoryRows]=useState([]),[historyLoading,setHistoryLoading]=useState(false);
  const canEdit=!isDemo&&(access?.level==="edit"||access?.manage||access?.owner);
  const load=useCallback(async()=>{
   if(!ws?.id||isDemo){setLoading(false);return;}
@@ -52,6 +53,12 @@ export default function FinanceAssets({ws,access,isDemo=false}){
    const {error:err}=await supabase.rpc("fin_asset_upsert",{p});if(err)throw err;
    setNotice(editingId?"تم تحديث الأصل.":"تم إنشاء الأصل.");setShowForm(false);await load();
   }catch(e){setError(e?.message||"تعذّر حفظ الأصل.");}finally{setSaving(false);}}
+ async function openHistory(asset){
+  setHistoryTarget(asset);setHistoryRows([]);setHistoryLoading(true);setError("");
+  try{const {data,error:err}=await supabase.rpc("fin_asset_valuation_history_get",{p:{workspace_id:ws.id,asset_id:asset.id}});if(err)throw err;setHistoryRows(Array.isArray(data)?data:[]);}
+  catch(e){setError(e?.message||"تعذّر تحميل سجل تقييم الأصل.");}
+  finally{setHistoryLoading(false);}
+ }
  async function confirmValuation(e){e.preventDefault();if(!canEdit||saving||!confirmTarget)return;
   if(!(Number(confirmForm.current_value)>=0)||confirmForm.reason.trim().length<3){setError("أدخل قيمة صحيحة وسببًا لا يقل عن 3 أحرف.");return;}
   setSaving(true);setError("");try{const {error:err}=await supabase.rpc("fin_asset_confirm_valuation",{p:{workspace_id:ws.id,asset_id:confirmTarget.id,current_value:String(confirmForm.current_value),reason:confirmForm.reason.trim()}});if(err)throw err;
@@ -68,9 +75,12 @@ export default function FinanceAssets({ws,access,isDemo=false}){
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12}}><div style={{background:BG,borderRadius:9,padding:10}}><div style={{fontSize:10,color:MUTED}}>قيمة الشراء</div><b>{money(a.purchase_value,a.currency)}</b></div><div style={{background:BG,borderRadius:9,padding:10}}><div style={{fontSize:10,color:MUTED}}>القيمة الحالية</div><b>{money(a.current_value,a.currency)}</b></div></div>
     <div style={{fontSize:11,color:MUTED,marginTop:9}}>مصدر التقييم: {SOURCE_LABEL[a.valuation_source]||a.valuation_source} · {a.valuation_date||"لا يوجد تاريخ"}</div>
     {a.inventory_item_ref&&<div style={{fontSize:10,color:MUTED,marginTop:3}}>مرجع الجرد: {a.inventory_item_ref}</div>}
-    {canEdit&&<div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:11}}><Btn secondary onClick={()=>startEdit(a)}>تعديل</Btn>{!a.valuation_confirmed&&<Btn onClick={()=>{setConfirmTarget(a);setConfirmForm({current_value:String(a.current_value??0),reason:""});}}>تأكيد التقييم</Btn>}</div>}
+    {canEdit&&<div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:11}}><Btn secondary onClick={()=>openHistory(a)}>سجل التقييم</Btn>{canEdit&&<><Btn secondary onClick={()=>startEdit(a)}>تعديل</Btn>{!a.valuation_confirmed&&<Btn onClick={()=>{setConfirmTarget(a);setConfirmForm({current_value:String(a.current_value??0),reason:""});}}>تأكيد التقييم</Btn>}</>}</div>}
    </div>)}</div>}
   </Card>
+  {historyTarget&&<Card><div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}><div><h3 style={{margin:"0 0 5px"}}>سجل تقييم الأصل: {historyTarget.name}</h3><p style={{margin:0,fontSize:11,color:MUTED}}>القيم المسجلة تاريخيًا؛ لا يعاد حسابها باستخدام أسعار صرف حالية.</p></div><Btn secondary onClick={()=>setHistoryTarget(null)}>إغلاق السجل</Btn></div>
+   {historyLoading?<p style={{textAlign:"center",color:MUTED,padding:18}}>جارٍ تحميل سجل التقييم…</p>:!historyRows.length?<p style={{textAlign:"center",color:MUTED,padding:18}}>لا توجد سجلات لهذا الأصل.</p>:<div style={{overflowX:"auto",marginTop:10}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:700}}><thead><tr>{["تاريخ التقييم","القيمة الحالية","قيمة الشراء","المصدر","الحالة","نوع السجل","وقت التسجيل"].map(x=><th key={x} style={{textAlign:"right",padding:10,color:MUTED,fontSize:11,borderBottom:"1px solid "+LINE,whiteSpace:"nowrap"}}>{x}</th>)}</tr></thead><tbody>{historyRows.map(v=><tr key={v.id}><td style={{padding:10,borderBottom:"1px solid #EEF2EF",fontSize:12}}>{v.valuation_date}</td><td style={{padding:10,borderBottom:"1px solid #EEF2EF",fontSize:12,fontWeight:800}}>{money(v.current_value,v.currency)}</td><td style={{padding:10,borderBottom:"1px solid #EEF2EF",fontSize:12}}>{money(v.purchase_value,v.currency)}</td><td style={{padding:10,borderBottom:"1px solid #EEF2EF",fontSize:12}}>{SOURCE_LABEL[v.valuation_source]||v.valuation_source}</td><td style={{padding:10,borderBottom:"1px solid #EEF2EF",fontSize:12}}>{v.valuation_confirmed?"معتمد":"غير مؤكد"} · {v.include_in_net_worth?"ضمن الثروة":"مستبعد"}</td><td style={{padding:10,borderBottom:"1px solid #EEF2EF",fontSize:12}}>{{Created:"إنشاء",Revalued:"إعادة تقييم",Confirmed:"تأكيد",LegacyBaseline:"سجل سابق عند التفعيل"}[v.event_type]||v.event_type}</td><td style={{padding:10,borderBottom:"1px solid #EEF2EF",fontSize:11,whiteSpace:"nowrap"}}>{v.recorded_at?new Date(v.recorded_at).toLocaleString("ar-EG",{dateStyle:"short",timeStyle:"short"}):"—"}</td></tr>)}</tbody></table></div>}
+  </Card>}
   {showForm&&<Card><h3 style={{marginTop:0}}>{editingId?"تعديل الأصل":"إضافة أصل"}</h3><form onSubmit={save} style={{display:"grid",gap:12}}><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:12}}>
    <Field label="اسم الأصل *"><input required maxLength={160} style={input} value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="مثال: لابتوب العمل"/></Field>
    <Field label="نوع الأصل"><select style={input} value={form.asset_type} onChange={e=>setForm({...form,asset_type:e.target.value,account_id:e.target.value==="Cash-like"?"":form.account_id})}>{ASSET_TYPES.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></Field>
