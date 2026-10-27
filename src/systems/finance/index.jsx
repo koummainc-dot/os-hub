@@ -33,6 +33,9 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [accounts, setAccounts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [budgets, setBudgets] = useState([]);
+  const [budgetPeriod, setBudgetPeriod] = useState(today().slice(0, 7));
+  const [budgetForm, setBudgetForm] = useState({ category_id: "", budget_amount: "", notes: "" });
   const [balances, setBalances] = useState([]);
   const [summary, setSummary] = useState(null);
   const [netWorth, setNetWorth] = useState(null);
@@ -59,24 +62,26 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     if (!ws?.id || isDemo) { setLoading(false); return; }
     setLoading(true); setError("");
     try {
-      const [ar, cr, tr, sr, br, nr, settingsRes] = await Promise.all([
+      const [ar, cr, tr, sr, br, nr, settingsRes, bu] = await Promise.all([
         supabase.from("finance_accounts").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }),
         supabase.from("finance_categories").select("*").eq("workspace_id", ws.id).eq("archived", false).order("name"),
         supabase.from("finance_transactions").select("*").eq("workspace_id", ws.id).order("local_date", { ascending: false }).limit(150),
         supabase.rpc("fin_period_summary", { p_ws: ws.id, p_from: monthStart(), p_to: today() }),
         supabase.rpc("fin_balances", { p_ws: ws.id }),
         supabase.rpc("fin_net_worth", { p_ws: ws.id, p_as_of: today() }),
-        supabase.from("finance_settings").select("base_currency,timezone,lock_before_date,overdraft_policy").eq("workspace_id", ws.id).maybeSingle()
+        supabase.from("finance_settings").select("base_currency,timezone,lock_before_date,overdraft_policy").eq("workspace_id", ws.id).maybeSingle(),
+        supabase.rpc("fin_budgets_get", { p_ws: ws.id, p_period: budgetPeriod })
       ]);
       for (const r of [ar, cr, tr]) if (r.error) throw r.error;
       setAccounts(ar.data || []); setCategories(cr.data || []); setTransactions(tr.data || []);
       setSummary(sr.error ? null : sr.data); setBalances(br.error ? [] : (Array.isArray(br.data) ? br.data : []));
       setNetWorth(nr.error ? null : nr.data); setSettings(settingsRes.data || { base_currency: "EGP", timezone: "Africa/Cairo" });
+      setBudgets(bu.error ? [] : (Array.isArray(bu.data) ? bu.data : []));
       const rpcErrors = [sr, br, nr].filter(x => x.error);
-      if (rpcErrors.length) setNotice("بعض مؤشرات لوحة القيادة غير متاحة حاليًا؛ تظل الحركات والحسابات متاحة.");
+      if (rpcErrors.length || bu.error) setNotice("بعض المؤشرات أو بيانات الميزانية غير متاحة حاليًا؛ راجع صلاحيات الوصول.");
     } catch (e) { setError(e?.message || "تعذّر تحميل بيانات الماليات"); }
     finally { setLoading(false); }
-  }, [ws?.id, isDemo]);
+  }, [ws?.id, isDemo, budgetPeriod]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(""), 5000); return () => clearTimeout(t); }, [notice]);
@@ -146,7 +151,19 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     finally { setSaving(false); }
   }
 
-  const pageTitle = ({ dashboard: "لوحة القيادة", inbox: "الوارد", transactions: "الحركات المالية", accounts: "الحسابات", categories: "التصنيفات", budgets: "الميزانيات", assets: "الأصول والاستثمارات", debts: "الديون والأقساط", goals: "الأهداف المالية", recurring: "المتكرر والاشتراكات", projects: "المشاريع المالية", networth: "صافي الثروة", fx: "أسعار الصرف", reports: "التقارير", settings: "الإعدادات والأمان" })[section] || "الماليات";
+  async function saveBudget(e) {
+    e.preventDefault(); if (!canEdit || saving) return;
+    if (!budgetPeriod || !/^\d{4}-(0[1-9]|1[0-2])$/.test(budgetPeriod) || budgetForm.budget_amount === "" || Number(budgetForm.budget_amount) < 0) { setError("اختر شهرًا صحيحًا وأدخل ميزانية صفرًا أو أكثر."); return; }
+    setSaving(true); setError("");
+    try {
+      const { error: err } = await supabase.rpc("fin_budget_upsert", { p: { workspace_id: ws.id, category_id: budgetForm.category_id || null, period: budgetPeriod, budget_amount: String(budgetForm.budget_amount), notes: budgetForm.notes || null, source: "Manual" } });
+      if (err) throw err;
+      setNotice("تم حفظ الميزانية."); setBudgetForm({ category_id: "", budget_amount: "", notes: "" }); await load();
+    } catch (e) { setError(e?.message || "تعذّر حفظ الميزانية"); }
+    finally { setSaving(false); }
+  }
+
+  const pageTitle = ({ dashboard: "لوحة القيادة", inbox: "الوارد", transactions: "الحركات المالية", accounts: "الحسابات", categories: "التصنيفات", budgets: "الميزانيات", assets: "الأصول والاستثمارات", debts: "الديون والأقساط", recurring: "المتكرر والاشتراكات", projects: "المشاريع المالية", networth: "صافي الثروة", fx: "أسعار الصرف", reports: "التقارير", settings: "الإعدادات والأمان" })[section] || "الماليات";
   const nav = [
     ["dashboard", "لوحة القيادة", "⌂"], ["inbox", "الوارد", "📥"], ["transactions", "الحركات", "🧾"], ["accounts", "الحسابات", "🏦"], ["categories", "التصنيفات", "🗂️"], ["budgets", "الميزانيات", "📊"], ["assets", "الأصول", "📈"], ["debts", "الديون والأقساط", "💳"], ["goals", "الأهداف المالية", "🎯"], ["recurring", "المتكرر والاشتراكات", "🔁"], ["projects", "المشاريع المالية", "📁"], ["networth", "صافي الثروة", "💎"], ["fx", "أسعار الصرف", "💱"], ["reports", "التقارير", "📑"], ["settings", "الإعدادات والأمان", "🔐"]
   ];
@@ -210,9 +227,30 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         {!categories.length ? <Empty title="أضف تصنيفاتك" detail="مثال: الطعام، المواصلات، الراتب، العمل الحر." /> : <div style={tableWrap}><table style={{ borderCollapse: "collapse", width: "100%", minWidth: 420 }}><thead><tr>{["اسم التصنيف","النوع","الاستخدام"].map(x => <th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{categories.map(c => <tr key={c.id}><td style={{ ...td, fontWeight: 750 }}>{c.name}</td><td style={td}>{c.kind === "Income" ? "دخل" : c.kind === "Expense" ? "مصروف" : "مشترك"}</td><td style={td}>{transactions.filter(t => t.category_id === c.id).length} حركة</td></tr>)}</tbody></table></div>}
       </Card>}
 
+      {section === "budgets" && <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+          <div><h3 style={{ margin: 0, fontSize: 16 }}>الميزانيات الشهرية</h3><p style={{ color: MUTED, fontSize: 12, margin: "5px 0 0" }}>الإنفاق محسوب من الحركات المنشورة بعملة الأساس. القيم غير المقيمة تظهر كتنبيه منفصل.</p></div>
+          <Field label="الفترة المالية"><Input type="month" value={budgetPeriod} onChange={e => setBudgetPeriod(e.target.value)} style={{ width: 170 }} /></Field>
+        </div>
+        {canEdit && <form onSubmit={saveBudget} style={{ background: BG, border: "1px solid " + LINE, borderRadius: 12, padding: 14, display: "grid", gap: 11, marginBottom: 16 }}>
+          <b style={{ fontSize: 13 }}>إضافة ميزانية أو تعديلها</b><div style={formGrid}>
+            <Field label="النطاق"><Select value={budgetForm.category_id} onChange={e => setBudgetForm({ ...budgetForm, category_id: e.target.value })}><option value="">ميزانية إجمالية</option>{categories.filter(c => c.kind === "Expense" || c.kind === "Both").map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></Field>
+            <Field label={"الحد المالي (" + baseCurrency + ") *"}><Input required type="number" min="0" step="0.01" value={budgetForm.budget_amount} onChange={e => setBudgetForm({ ...budgetForm, budget_amount: e.target.value })} placeholder="مثال: 5000" /></Field>
+            <Field label="ملاحظات"><Input value={budgetForm.notes} onChange={e => setBudgetForm({ ...budgetForm, notes: e.target.value })} placeholder="اختياري" /></Field>
+          </div><div><Button type="submit" disabled={saving}>{saving ? "جارٍ الحفظ…" : "حفظ الميزانية"}</Button></div>
+        </form>}
+        {!budgets.length ? <Empty title="لا توجد ميزانيات لهذه الفترة" detail="أضف ميزانية إجمالية أو حدًا لكل تصنيف لتتابع الإنفاق." /> : <div style={{ display: "grid", gap: 10 }}>{budgets.map(b => { const cap = Number(b.budget_amount || 0) + Number(b.rollover_in || 0); const spent = Number(b.spent || 0); const pct = b.used_pct == null ? (cap > 0 ? spent / cap * 100 : null) : Number(b.used_pct); const over = pct !== null && pct >= 100; const warn = pct !== null && pct >= 75; return <div key={b.id} style={{ border: "1px solid " + (over ? "#FDA29B" : LINE), borderRadius: 12, padding: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}><div><b style={{ fontSize: 13 }}>{b.category_id ? b.category_name || "تصنيف" : "الميزانية الإجمالية"}</b><div style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>{b.period} · {b.source === "Manual" ? "يدوية" : b.source}</div></div><div style={{ textAlign: "left" }}><div style={{ fontSize: 15, fontWeight: 850, color: over ? "#B42318" : INK }}>{money(spent, b.currency || baseCurrency)}</div><div style={{ fontSize: 11, color: MUTED }}>من {money(cap, b.currency || baseCurrency)}</div></div></div>
+          <div style={{ height: 8, background: "#E8EEE9", borderRadius: 99, overflow: "hidden", marginTop: 12 }}><div style={{ height: "100%", width: Math.min(100, Math.max(0, pct || 0)) + "%", background: over ? "#D92D20" : warn ? "#F79009" : GREEN, borderRadius: 99 }} /></div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 8, fontSize: 11, color: over ? "#B42318" : warn ? "#B54708" : MUTED }}><span>{pct == null ? "لم تُحدد ميزانية موجبة" : pct.toFixed(1) + "% مستخدم"}</span><span>المتبقي: {money(Number(b.remaining || 0), b.currency || baseCurrency)}</span></div>
+          {Number(b.unvalued_count || 0) > 0 && <div style={{ color: "#92400E", background: "#FFFAEB", padding: 8, borderRadius: 8, fontSize: 11, marginTop: 8 }}>تنبيه: توجد {b.unvalued_count} حركة مصروف غير مقيمة بعملة الأساس.</div>}
+          {b.notes && <div style={{ color: MUTED, fontSize: 11, marginTop: 8 }}>{b.notes}</div>}
+        </div>; })}</div>}
+      </Card>}
+
       {section === "networth" && <Card><h3 style={{ marginTop: 0 }}>صافي الثروة</h3>{netWorth ? <><div style={{ fontSize: 30, fontWeight: 850, margin: "18px 0" }}>{netValue == null ? "غير متاح" : money(netValue, baseCurrency)}</div><p style={{ color: MUTED, fontSize: 12 }}>يتم إظهار الأصول والالتزامات غير المقيمة أو المستبعدة بوضوح؛ لا تُعامل القيمة المجهولة كصفر.</p><pre style={{ whiteSpace: "pre-wrap", fontSize: 11, background: BG, padding: 12, borderRadius: 10, overflow: "auto" }}>{JSON.stringify(netWorth, null, 2)}</pre></> : <Empty title="تعذّر حساب صافي الثروة" detail="تأكد من صلاحية الوصول وأسعار الصرف وإعدادات الحسابات." />}</Card>}
 
-      {!["dashboard", "transactions", "accounts", "categories", "networth"].includes(section) && <Card><div style={{ fontSize: 32, marginBottom: 8 }}>{nav.find(x => x[0] === section)?.[2] || "💰"}</div><h3 style={{ margin: "0 0 8px" }}>{pageTitle}</h3><p style={{ color: MUTED, fontSize: 13, lineHeight: 1.9 }}>هذا القسم موجود ضمن خريطة Finance OS v4.2، وسيُفعّل على مراحل مع الالتزام بنفس دفتر الحركات ومصدر الحقيقة المحاسبي. لم يتم تفعيل عمليات الكتابة لهذا القسم بعد حتى لا تُسجّل بيانات غير مكتملة.</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button secondary onClick={() => go("dashboard")}>العودة للوحة القيادة</Button>{section === "budgets" && <Button onClick={() => go("categories")}>إدارة التصنيفات</Button>}{section === "fx" && <Button onClick={() => go("settings")}>إعدادات العملة</Button>}</div></Card>}
+      {!["dashboard", "transactions", "accounts", "categories", "budgets", "networth"].includes(section) && <Card><div style={{ fontSize: 32, marginBottom: 8 }}>{nav.find(x => x[0] === section)?.[2] || "💰"}</div><h3 style={{ margin: "0 0 8px" }}>{pageTitle}</h3><p style={{ color: MUTED, fontSize: 13, lineHeight: 1.9 }}>هذا القسم موجود ضمن خريطة Finance OS v4.2، وسيُفعّل على مراحل مع الالتزام بنفس دفتر الحركات ومصدر الحقيقة المحاسبي. لم يتم تفعيل عمليات الكتابة لهذا القسم بعد حتى لا تُسجّل بيانات غير مكتملة.</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button secondary onClick={() => go("dashboard")}>العودة للوحة القيادة</Button>{section === "fx" && <Button onClick={() => go("settings")}>إعدادات العملة</Button>}</div></Card>}
     </>}
 
     {showTx && <div role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setShowTx(false); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#14251DB8", display: "grid", placeItems: "center", padding: 20, overflowY: "auto" }}><div className="fin-modal" role="dialog" aria-modal="true" aria-label="حركة مالية جديدة" style={{ background: "#fff", width: "min(680px,100%)", maxHeight: "calc(100vh - 40px)", overflowY: "auto", borderRadius: 18, padding: 22, boxSizing: "border-box" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}><h2 style={{ margin: 0, fontSize: 19 }}>تسجيل حركة مالية</h2><button onClick={() => setShowTx(false)} aria-label="إغلاق" style={{ border: 0, background: "transparent", fontSize: 22, cursor: "pointer" }}>×</button></div><form onSubmit={saveTransaction} style={{ display: "grid", gap: 13 }}><div style={formGrid}><Field label="اسم الحركة *"><Input required value={tx.name} onChange={e => setTx({ ...tx, name: e.target.value })} placeholder="مثال: مشتريات البقالة" /></Field><Field label="نوع الحركة *"><Select value={tx.type} onChange={e => setTx({ ...tx, type: e.target.value, category_id: "" })}>{TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</Select></Field><Field label="المبلغ *"><Input required type="number" min="0.01" step="0.01" value={tx.amount} onChange={e => setTx({ ...tx, amount: e.target.value })} placeholder="0.00" /></Field><Field label="العملة"><Input maxLength={3} value={tx.currency} onChange={e => setTx({ ...tx, currency: e.target.value.toUpperCase() })} /></Field><Field label="التاريخ *"><Input required type="date" value={tx.local_date} onChange={e => setTx({ ...tx, local_date: e.target.value })} /></Field><Field label={tx.type === "Transfer" ? "من حساب *" : "الحساب *"}><Select required value={tx.from_account_id} onChange={e => setTx({ ...tx, from_account_id: e.target.value, currency: accountById[e.target.value]?.currency || tx.currency })}><option value="">اختر حسابًا</option>{accounts.filter(a => a.status === "Active").map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</Select></Field>{tx.type === "Transfer" ? <Field label="إلى حساب *"><Select required value={tx.to_account_id} onChange={e => setTx({ ...tx, to_account_id: e.target.value })}><option value="">اختر الحساب المستلم</option>{accounts.filter(a => a.status === "Active" && a.id !== tx.from_account_id).map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</Select></Field> : <Field label="التصنيف"><Select value={tx.category_id} onChange={e => setTx({ ...tx, category_id: e.target.value })}><option value="">بدون تصنيف</option>{categories.filter(c => c.kind === "Both" || c.kind === tx.type).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></Field>}<Field label="التاجر / المستفيد"><Input value={tx.merchant} onChange={e => setTx({ ...tx, merchant: e.target.value })} placeholder="اختياري" /></Field></div><Field label="ملاحظات"><textarea value={tx.notes} onChange={e => setTx({ ...tx, notes: e.target.value })} rows={3} style={{ ...inputStyle, resize: "vertical" }} /></Field><div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 5 }}><Button secondary onClick={() => setShowTx(false)}>إلغاء</Button><Button type="submit" disabled={saving || !accounts.length}>{saving ? "جارٍ الحفظ…" : "حفظ الحركة ونشرها"}</Button></div>{!accounts.length && <div style={{ color: "#B42318", fontSize: 12 }}>أنشئ حسابًا أولًا لتسجيل حركة مالية.</div>}</form></div></div>}
