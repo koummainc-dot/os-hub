@@ -6,6 +6,7 @@ import FinanceRecurring from "./Recurring.jsx";
 import FinanceReports from "./Reports.jsx";
 import FinanceProjects from "./Projects.jsx";
 import FinanceAssets from "./Assets.jsx";
+import FinanceNetWorthHistory from "./NetWorthHistory.jsx";
 
 const GREEN = "#059669";
 const INK = "#17211D";
@@ -444,7 +445,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         </form> : <div style={{ color: MUTED, fontSize: 12 }}>تحتاج صلاحية إدارة لتغيير قفل الفترات.</div>}
       </Card>}
 
-      {section === "networth" && <Card><h3 style={{ marginTop: 0 }}>صافي الثروة</h3>{netWorth ? <><div style={{ fontSize: 30, fontWeight: 850, margin: "18px 0" }}>{netValue == null ? "غير متاح" : money(netValue, baseCurrency)}</div><p style={{ color: MUTED, fontSize: 12 }}>يتم إظهار الأصول والالتزامات غير المقيمة أو المستبعدة بوضوح؛ لا تُعامل القيمة المجهولة كصفر.</p><pre style={{ whiteSpace: "pre-wrap", fontSize: 11, background: BG, padding: 12, borderRadius: 10, overflow: "auto" }}>{JSON.stringify(netWorth, null, 2)}</pre></> : <Empty title="تعذّر حساب صافي الثروة" detail="تأكد من صلاحية الوصول وأسعار الصرف وإعدادات الحسابات." />}</Card>}
+      {section === "networth" && <FinanceNetWorthHistory ws={ws} access={access} isDemo={isDemo} />}
 
       {section === "debts" && <FinanceDebts ws={ws} access={access} isDemo={isDemo} />}
       {section === "goals" && <FinanceGoals ws={ws} access={access} isDemo={isDemo} />}
