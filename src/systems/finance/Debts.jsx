@@ -10,26 +10,28 @@ function Btn({ children, secondary, ...props }) { return <button {...props} styl
 function Card({ children }) { return <div style={{ background: "#fff", border: "1px solid " + LINE, borderRadius: 14, padding: 16 }}>{children}</div>; }
 
 export default function FinanceDebts({ ws, access, isDemo = false }) {
-  const [debts, setDebts] = useState([]), [movements, setMovements] = useState([]), [accounts, setAccounts] = useState([]);
+  const [debts, setDebts] = useState([]), [movements, setMovements] = useState([]), [accounts, setAccounts] = useState([]), [installments, setInstallments] = useState([]);
   const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [showCreate, setShowCreate] = useState(false), [payDebt, setPayDebt] = useState(null);
-  const [form, setForm] = useState({ name: "", counterparty: "", direction: "IOwe", principal: "", currency: "EGP", start_date: today(), interest_method: "None", disbursement_account_id: "" });
-  const [payment, setPayment] = useState({ account_id: "", principal: "", interest: "0", fees: "0", local_date: today(), reason: "" });
+  const [form, setForm] = useState({ name: "", counterparty: "", direction: "IOwe", principal: "", currency: "EGP", start_date: today(), interest_method: "None", disbursement_account_id: "", schedule_count: "0", schedule_first_due_date: today(), schedule_frequency: "Monthly" });
+  const [payment, setPayment] = useState({ account_id: "", principal: "", interest: "0", fees: "0", local_date: today(), reason: "", installment_id: "" });
   const canEdit = !isDemo && (access?.level === "edit" || access?.manage || access?.owner);
 
   const load = useCallback(async () => {
     if (!ws?.id || isDemo) { setLoading(false); return; }
     setLoading(true); setError("");
     try {
-      const [d, m, a] = await Promise.all([
+      const [d, m, a, ins] = await Promise.all([
         supabase.from("finance_debts").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }),
         supabase.from("finance_debt_movements").select("*").eq("workspace_id", ws.id).is("reversed_at", null).order("local_date", { ascending: false }).limit(300),
-        supabase.from("finance_accounts").select("id,name,currency,nature,status").eq("workspace_id", ws.id).order("name")
+        supabase.from("finance_accounts").select("id,name,currency,nature,status").eq("workspace_id", ws.id).order("name"),
+        supabase.from("finance_debt_installments").select("*").eq("workspace_id", ws.id).order("due_date")
       ]);
       if (d.error) throw d.error;
       if (m.error) throw m.error;
       if (a.error) throw a.error;
-      setDebts(d.data || []); setMovements(m.data || []); setAccounts(a.data || []);
+      if (ins.error) throw ins.error;
+      setDebts(d.data || []); setMovements(m.data || []); setAccounts(a.data || []); setInstallments(ins.data || []);
     } catch (e) { setError(e?.message || "تعذّر تحميل بيانات الديون"); }
     finally { setLoading(false); }
   }, [ws?.id, isDemo]);
@@ -46,10 +48,14 @@ export default function FinanceDebts({ ws, access, isDemo = false }) {
     if (!form.name.trim() || !(Number(form.principal) > 0) || !/^[A-Z]{3}$/.test(form.currency) || !form.start_date) { setError("راجع الاسم والمبلغ والعملة والتاريخ."); return; }
     setSaving(true); setError("");
     try {
-      const p = { workspace_id: ws.id, name: form.name.trim(), counterparty: form.counterparty.trim() || null, direction: form.direction, principal: String(form.principal), currency: form.currency, start_date: form.start_date, interest_method: form.interest_method, disbursement_account_id: form.disbursement_account_id || null, idempotency_key: "debt-create-" + crypto.randomUUID() };
+      const count = Math.max(0, Math.min(600, Number.parseInt(form.schedule_count || "0", 10) || 0));
+      const principalCents = Math.round(Number(form.principal) * 100);
+      const installmentsPayload = count > 0 ? Array.from({ length: count }, (_, i) => { const date = new Date(form.schedule_first_due_date + "T12:00:00"); const step = i; if (form.schedule_frequency === "Weekly") date.setDate(date.getDate() + 7 * step); else if (form.schedule_frequency === "Quarterly") date.setMonth(date.getMonth() + 3 * step); else if (form.schedule_frequency === "Yearly") date.setFullYear(date.getFullYear() + step); else date.setMonth(date.getMonth() + step); const cents = Math.floor(principalCents / count) + (i === count - 1 ? principalCents - Math.floor(principalCents / count) * count : 0); return { due_date: date.toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }), principal: (cents / 100).toFixed(2), interest: "0", fees: "0" }; }) : [];
+      if (count > 0 && !form.schedule_first_due_date) { setError("حدد تاريخ أول قسط."); return; }
+      const p = { workspace_id: ws.id, name: form.name.trim(), counterparty: form.counterparty.trim() || null, direction: form.direction, principal: String(form.principal), currency: form.currency, start_date: form.start_date, interest_method: form.interest_method, disbursement_account_id: form.disbursement_account_id || null, installments: installmentsPayload, idempotency_key: "debt-create-" + crypto.randomUUID() };
       const { error: err } = await supabase.rpc("fin_debt_create", { p });
       if (err) throw err;
-      setNotice("تم تسجيل الدين بنجاح."); setShowCreate(false); setForm({ name: "", counterparty: "", direction: "IOwe", principal: "", currency: "EGP", start_date: today(), interest_method: "None", disbursement_account_id: "" }); await load();
+      setNotice("تم تسجيل الدين بنجاح."); setShowCreate(false); setForm({ name: "", counterparty: "", direction: "IOwe", principal: "", currency: "EGP", start_date: today(), interest_method: "None", disbursement_account_id: "", schedule_count: "0", schedule_first_due_date: today(), schedule_frequency: "Monthly" }); await load();
     } catch (e) { setError(e?.message || "تعذّر تسجيل الدين"); }
     finally { setSaving(false); }
   }
@@ -58,10 +64,10 @@ export default function FinanceDebts({ ws, access, isDemo = false }) {
     if (!payment.account_id || Number(payment.principal || 0) < 0 || Number(payment.interest || 0) < 0 || Number(payment.fees || 0) < 0 || (Number(payment.principal || 0) + Number(payment.interest || 0) + Number(payment.fees || 0) <= 0)) { setError("اختر الحساب وأدخل مبلغ سداد موجبًا."); return; }
     setSaving(true); setError("");
     try {
-      const p = { workspace_id: ws.id, debt_id: payDebt.id, account_id: payment.account_id, principal: String(payment.principal || 0), interest: String(payment.interest || 0), fees: String(payment.fees || 0), local_date: payment.local_date, reason: payment.reason.trim() || null, idempotency_key: "debt-payment-" + crypto.randomUUID() };
+      const p = { workspace_id: ws.id, debt_id: payDebt.id, account_id: payment.account_id, principal: String(payment.principal || 0), interest: String(payment.interest || 0), fees: String(payment.fees || 0), installment_id: payment.installment_id || null, local_date: payment.local_date, reason: payment.reason.trim() || null, idempotency_key: "debt-payment-" + crypto.randomUUID() };
       const { error: err } = await supabase.rpc("fin_debt_payment", { p });
       if (err) throw err;
-      setNotice("تم تسجيل السداد وربطه بالحركات المالية."); setPayDebt(null); setPayment({ account_id: "", principal: "", interest: "0", fees: "0", local_date: today(), reason: "" }); await load();
+      setNotice("تم تسجيل السداد وربطه بالحركات المالية."); setPayDebt(null); setPayment({ account_id: "", principal: "", interest: "0", fees: "0", local_date: today(), reason: "", installment_id: "" }); await load();
     } catch (e) { setError(e?.message || "تعذّر تسجيل السداد"); }
     finally { setSaving(false); }
   }
@@ -91,7 +97,8 @@ export default function FinanceDebts({ ws, access, isDemo = false }) {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><div><b style={{ fontSize: 14 }}>{d.name}</b><div style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>{d.counterparty || "بدون طرف مقابل"} · {d.direction === "IOwe" ? "دين عليّ" : "مبلغ مستحق لي"} · بدأ {d.start_date}</div></div><span style={{ background: active ? "#ECFDF3" : "#F2F4F7", color: active ? "#067647" : MUTED, borderRadius: 999, padding: "5px 9px", fontSize: 11, fontWeight: 800 }}>{({ Active: "نشط", Closed: "مغلق", Cancelled: "ملغي" })[d.lifecycle] || d.lifecycle}</span></div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(125px,1fr))", gap: 10, marginTop: 14 }}><div><div style={{ color: MUTED, fontSize: 11 }}>أصل الدين</div><b>{money(d.principal_amount,d.currency)}</b></div><div><div style={{ color: MUTED, fontSize: 11 }}>المسدّد من الأصل</div><b>{money(m.paid,d.currency)}</b></div><div><div style={{ color: MUTED, fontSize: 11 }}>المتبقي من الأصل</div><b style={{ color: m.remaining > 0 ? "#B54708" : "#047857" }}>{money(m.remaining,d.currency)}</b></div></div>
         <div style={{ height: 7, borderRadius: 99, background: "#EEF2EF", overflow: "hidden", marginTop: 12 }}><div style={{ width: pct + "%", height: "100%", background: GREEN, borderRadius: 99 }} /></div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>{canEdit && active && <Btn onClick={() => { setPayDebt(d); setPayment({ account_id: "", principal: String(m.remaining), interest: "0", fees: "0", local_date: today(), reason: "" }); }}>＋ تسجيل سداد</Btn>}{canEdit && active && m.remaining === 0 && <Btn secondary onClick={() => closeDebt(d)} disabled={saving}>إغلاق الدين</Btn>}{canEdit && active && m.paid === 0 && <Btn secondary onClick={() => closeDebt(d)} disabled={saving}>إلغاء الدين</Btn>}</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>{canEdit && active && <Btn onClick={() => { setPayDebt(d); setPayment({ account_id: "", principal: String(m.remaining), interest: "0", fees: "0", local_date: today(), reason: "", installment_id: "" }); }}>＋ تسجيل سداد</Btn>}{canEdit && active && m.remaining === 0 && <Btn secondary onClick={() => closeDebt(d)} disabled={saving}>إغلاق الدين</Btn>}{canEdit && active && m.paid === 0 && <Btn secondary onClick={() => closeDebt(d)} disabled={saving}>إلغاء الدين</Btn>}</div>
+        {installments.some(i => i.debt_id === d.id) && <div style={{ marginTop: 14, borderTop: "1px solid " + LINE, paddingTop: 12 }}><b style={{ fontSize: 12 }}>جدول الأقساط</b><div style={{ display: "grid", gap: 6, marginTop: 8 }}>{installments.filter(i => i.debt_id === d.id).map(i => { const paid = movements.some(mv => mv.installment_id === i.id && mv.kind === "Payment"); const overdue = !paid && i.due_date < today(); return <div key={i.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto auto", gap: 10, alignItems: "center", fontSize: 11, padding: "7px 0", borderBottom: "1px solid #F0F3F1" }}><span>#{i.seq} · {i.due_date}</span><b>{money(i.principal_due, d.currency)}</b><span style={{ color: paid ? "#047857" : overdue ? "#B42318" : MUTED }}>{paid ? "مسدد" : overdue ? "متأخر" : "قادم"}</span></div>; })}</div></div>}
       </div>; })}</div>}
     </Card>
     {showCreate && <Card><h3 style={{ marginTop: 0 }}>تسجيل دين جديد</h3><form onSubmit={createDebt} style={{ display: "grid", gap: 12 }}><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12 }}>
@@ -103,8 +110,11 @@ export default function FinanceDebts({ ws, access, isDemo = false }) {
       <Field label="تاريخ بدء الدين"><input required type="date" style={input} value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} /></Field>
       <Field label="طريقة الفائدة"><select style={input} value={form.interest_method} onChange={e => setForm({ ...form, interest_method: e.target.value })}><option value="None">بدون فائدة</option></select></Field>
       <Field label="حساب صرف المبلغ (اختياري)"><select style={input} value={form.disbursement_account_id} onChange={e => setForm({ ...form, disbursement_account_id: e.target.value })}><option value="">عدم إنشاء حركة صرف تلقائية</option>{accounts.filter(a => a.status === "Active" && a.currency === form.currency && (form.direction === "IOwe" ? a.nature !== "LIABILITY" : true)).map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></Field>
-    </div><div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn type="button" secondary onClick={() => setShowCreate(false)}>إلغاء</Btn><Btn type="submit" disabled={saving}>{saving ? "جارٍ التسجيل…" : "حفظ الدين"}</Btn></div></form></Card>}
+      <Field label="عدد الأقساط (اختياري)"><input type="number" min="0" max="600" step="1" style={input} value={form.schedule_count} onChange={e => setForm({ ...form, schedule_count: e.target.value })} /><small style={{ color: MUTED, fontWeight: 400 }}>0 = بدون جدول أقساط</small></Field>
+      {Number(form.schedule_count) > 0 && <><Field label="تاريخ أول قسط"><input required type="date" style={input} value={form.schedule_first_due_date} onChange={e => setForm({ ...form, schedule_first_due_date: e.target.value })} /></Field><Field label="تكرار الأقساط"><select style={input} value={form.schedule_frequency} onChange={e => setForm({ ...form, schedule_frequency: e.target.value })}><option value="Monthly">شهري</option><option value="Weekly">أسبوعي</option><option value="Quarterly">ربع سنوي</option><option value="Yearly">سنوي</option></select></Field></>}
+    </div>{Number(form.schedule_count) > 0 && <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 10, padding: 11, fontSize: 12, color: "#166534" }}>سيتم إنشاء {Math.min(600, Math.max(0, Number.parseInt(form.schedule_count || "0", 10) || 0))} قسطًا متساويًا من أصل الدين، مع ضبط فرق التقريب في القسط الأخير. الفوائد والرسوم تُسجّل عند الدفع.</div>}<div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn type="button" secondary onClick={() => setShowCreate(false)}>إلغاء</Btn><Btn type="submit" disabled={saving}>{saving ? "جارٍ التسجيل…" : "حفظ الدين"}</Btn></div></form></Card>}
     {payDebt && <Card><h3 style={{ marginTop: 0 }}>تسجيل سداد — {payDebt.name}</h3><p style={{ color: MUTED, fontSize: 12 }}>سيتم إنشاء الحركات المحاسبية اللازمة من خلال خدمة الدين؛ لا تسجّل حركة مكررة يدويًا.</p><form onSubmit={recordPayment} style={{ display: "grid", gap: 12 }}><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 12 }}>
+      <Field label="القسط (اختياري)"><select style={input} value={payment.installment_id} onChange={e => { const id = e.target.value; const ins = installments.find(i => i.id === id); setPayment({ ...payment, installment_id: id, principal: ins ? String(ins.principal_due) : String(metrics(payDebt).remaining), interest: ins ? String(ins.interest_due) : "0", fees: ins ? String(ins.fees_due) : "0", local_date: ins?.due_date || payment.local_date }); }}><option value="">سداد يدوي / بدون ربط بقسط</option>{installments.filter(i => i.debt_id === payDebt.id && !movements.some(mv => mv.installment_id === i.id && mv.kind === "Payment")).map(i => <option key={i.id} value={i.id}>#{i.seq} · {i.due_date} · {money(i.principal_due, payDebt.currency)}</option>)}</select></Field>
       <Field label="حساب السداد *"><select required style={input} value={payment.account_id} onChange={e => setPayment({ ...payment, account_id: e.target.value })}><option value="">اختر الحساب</option>{accounts.filter(a => a.status === "Active" && a.currency === payDebt.currency && (payDebt.direction === "IOwe" ? a.nature !== "LIABILITY" : true)).map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></Field>
       <Field label="سداد أصل الدين"><input type="number" min="0" step="0.01" style={input} value={payment.principal} onChange={e => setPayment({ ...payment, principal: e.target.value })} /></Field>
       <Field label="الفائدة"><input type="number" min="0" step="0.01" style={input} value={payment.interest} onChange={e => setPayment({ ...payment, interest: e.target.value })} /></Field>
