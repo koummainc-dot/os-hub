@@ -13,6 +13,7 @@ const money = (v, c = "EGP") => {
 };
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 const monthStart = () => today().slice(0, 7) + "-01";
+const nextPeriod = (period) => { if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(period || "")) return ""; const [y, m] = period.split("-").map(Number); return new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7); };
 const fmtDate = (v) => { try { return new Date(v + "T12:00:00").toLocaleDateString("ar-EG", { year: "numeric", month: "short", day: "numeric" }); } catch { return v || "—"; } };
 const TYPES = [{ value: "Expense", label: "مصروف" }, { value: "Income", label: "دخل" }, { value: "Transfer", label: "تحويل" }];
 const ACCOUNT_TYPES = ["Bank", "Cash", "Mobile Wallet", "Credit Card", "E-Wallet", "Payment Platform", "Investment", "Savings", "Other"];
@@ -60,6 +61,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
 
   const canEdit = !isDemo && (access?.level === "edit" || access?.manage || access?.owner);
   const baseCurrency = settings.base_currency || "EGP";
+  const targetBudgetPeriod = nextPeriod(budgetPeriod);
   const section = page || "dashboard";
   const go = (id) => setPage && setPage(id);
 
@@ -171,6 +173,20 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       if (err) throw err;
       setNotice("تم حفظ الميزانية."); setBudgetForm({ category_id: "", budget_amount: "", notes: "" }); await load();
     } catch (e) { setError(e?.message || "تعذّر حفظ الميزانية"); }
+    finally { setSaving(false); }
+  }
+
+  async function rolloverBudget() {
+    if (!canEdit || saving) return;
+    if (!budgets.length) { setError("لا توجد ميزانيات في الفترة الحالية لترحيلها."); return; }
+    if (!globalThis.confirm("سيتم إنشاء أو تحديث ميزانيات " + targetBudgetPeriod + " بنسخ حدود الشهر الحالي وإضافة المتبقي الموجب إلى خانة الترحيل. لن يمكن تكرار العملية لنفس الشهرين. هل تريد المتابعة؟")) return;
+    setSaving(true); setError("");
+    try {
+      const { data, error: err } = await supabase.rpc("fin_budget_rollover_apply", { p: { workspace_id: ws.id, source_period: budgetPeriod, target_period: targetBudgetPeriod } });
+      if (err) throw err;
+      setNotice("تم تجهيز ميزانيات " + targetBudgetPeriod + " (" + (data?.copied_count || 0) + " بند)، والمتبقي المُرحّل: " + money(data?.rollover_amount || 0, baseCurrency) + ".");
+      setBudgetPeriod(targetBudgetPeriod);
+    } catch (e) { setError(e?.message || "تعذّر ترحيل الميزانيات"); }
     finally { setSaving(false); }
   }
 
@@ -291,6 +307,11 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
             {selectedTemplateId && <div style={{ background: BG, borderRadius: 8, padding: 9, fontSize: 11, color: MUTED }}>{budgetTemplates.find(t => t.id === selectedTemplateId)?.lines?.map(l => (l.category_name || "الميزانية الإجمالية") + ": " + money(l.budget_amount, baseCurrency)).join(" · ")}</div>}
             <Button type="submit" disabled={saving || !selectedTemplateId}>{saving ? "جارٍ التطبيق…" : "تطبيق القالب"}</Button>
           </form>
+        <div style={{ border: "1px solid " + LINE, borderRadius: 12, padding: 13, display: "grid", gap: 9 }}>
+            <b style={{ fontSize: 13 }}>ترحيل ميزانيات الشهر التالي</b>
+            <div style={{ color: MUTED, fontSize: 11 }}>ينسخ حدود الميزانية إلى {targetBudgetPeriod}، ويرحّل المتبقي الموجب فقط. الميزانيات الموجودة تُحدّث خانة الترحيل ولا تتغير حدودها، ولا يُسمح بتكرار العملية لنفس الشهرين.</div>
+            <Button onClick={rolloverBudget} disabled={saving || !budgets.length || !targetBudgetPeriod}>{saving ? "جارٍ الترحيل…" : "ترحيل إلى " + targetBudgetPeriod}</Button>
+          </div>
         </div>}
         {!budgets.length ? <Empty title="لا توجد ميزانيات لهذه الفترة" detail="أضف ميزانية إجمالية أو حدًا لكل تصنيف لتتابع الإنفاق." /> : <div style={{ display: "grid", gap: 10 }}>{budgets.map(b => { const cap = Number(b.budget_amount || 0) + Number(b.rollover_in || 0); const spent = Number(b.spent || 0); const pct = b.used_pct == null ? (cap > 0 ? spent / cap * 100 : null) : Number(b.used_pct); const over = pct !== null && pct >= 100; const warn = pct !== null && pct >= 75; return <div key={b.id} style={{ border: "1px solid " + (over ? "#FDA29B" : LINE), borderRadius: 12, padding: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}><div><b style={{ fontSize: 13 }}>{b.category_id ? b.category_name || "تصنيف" : "الميزانية الإجمالية"}</b><div style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>{b.period} · {b.source === "Manual" ? "يدوية" : b.source}</div></div><div style={{ textAlign: "left" }}><div style={{ fontSize: 15, fontWeight: 850, color: over ? "#B42318" : INK }}>{money(spent, b.currency || baseCurrency)}</div><div style={{ fontSize: 11, color: MUTED }}>من {money(cap, b.currency || baseCurrency)}</div></div></div>
