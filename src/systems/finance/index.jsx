@@ -34,6 +34,10 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [accounts, setAccounts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [reconciliations, setReconciliations] = useState([]);
+  const [reconForm, setReconForm] = useState({ account_id: "", cutoff_date: today(), statement_balance: "", reason: "" });
+  const [lockDate, setLockDate] = useState("");
+  const [lockReason, setLockReason] = useState("");
   const [budgets, setBudgets] = useState([]);
   const [budgetTemplates, setBudgetTemplates] = useState([]);
   const [templateName, setTemplateName] = useState("");
@@ -69,7 +73,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     if (!ws?.id || isDemo) { setLoading(false); return; }
     setLoading(true); setError("");
     try {
-      const [ar, cr, tr, sr, br, nr, settingsRes, bu, bt] = await Promise.all([
+      const [ar, cr, tr, sr, br, nr, settingsRes, bu, bt, rr] = await Promise.all([
         supabase.from("finance_accounts").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }),
         supabase.from("finance_categories").select("*").eq("workspace_id", ws.id).eq("archived", false).order("name"),
         supabase.from("finance_transactions").select("*").eq("workspace_id", ws.id).order("local_date", { ascending: false }).limit(150),
@@ -78,7 +82,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         supabase.rpc("fin_net_worth", { p_ws: ws.id, p_as_of: today() }),
         supabase.from("finance_settings").select("base_currency,timezone,lock_before_date,overdraft_policy").eq("workspace_id", ws.id).maybeSingle(),
         supabase.rpc("fin_budgets_get", { p_ws: ws.id, p_period: budgetPeriod }),
-        supabase.rpc("fin_budget_templates_get", { p_ws: ws.id })
+        supabase.rpc("fin_budget_templates_get", { p_ws: ws.id }),
+        supabase.from("finance_reconciliations").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }).limit(50)
       ]);
       for (const r of [ar, cr, tr]) if (r.error) throw r.error;
       setAccounts(ar.data || []); setCategories(cr.data || []); setTransactions(tr.data || []);
@@ -86,8 +91,10 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       setNetWorth(nr.error ? null : nr.data); setSettings(settingsRes.data || { base_currency: "EGP", timezone: "Africa/Cairo" });
       setBudgets(bu.error ? [] : (Array.isArray(bu.data) ? bu.data : []));
       setBudgetTemplates(bt.error ? [] : (Array.isArray(bt.data) ? bt.data : []));
+      setReconciliations(rr.error ? [] : (Array.isArray(rr.data) ? rr.data : []));
+      setLockDate(settingsRes.data?.lock_before_date || "");
       const rpcErrors = [sr, br, nr].filter(x => x.error);
-      if (rpcErrors.length || bu.error || bt.error) setNotice("بعض المؤشرات أو بيانات الميزانية غير متاحة حاليًا؛ راجع صلاحيات الوصول.");
+      if (rpcErrors.length || bu.error || bt.error || rr.error) setNotice("بعض المؤشرات أو بيانات الميزانية غير متاحة حاليًا؛ راجع صلاحيات الوصول.");
     } catch (e) { setError(e?.message || "تعذّر تحميل بيانات الماليات"); }
     finally { setLoading(false); }
   }, [ws?.id, isDemo, budgetPeriod]);
@@ -219,9 +226,82 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     finally { setSaving(false); }
   }
 
-  const pageTitle = ({ dashboard: "لوحة القيادة", inbox: "الوارد", transactions: "الحركات المالية", accounts: "الحسابات", categories: "التصنيفات", budgets: "الميزانيات", assets: "الأصول والاستثمارات", debts: "الديون والأقساط", recurring: "المتكرر والاشتراكات", projects: "المشاريع المالية", networth: "صافي الثروة", fx: "أسعار الصرف", reports: "التقارير", settings: "الإعدادات والأمان" })[section] || "الماليات";
+  async function createReconciliation(e) {
+    e.preventDefault(); if (!canEdit || saving) return;
+    if (!reconForm.account_id || !reconForm.cutoff_date || reconForm.statement_balance === "" || !Number.isFinite(Number(reconForm.statement_balance))) { setError("اختر الحساب وتاريخ الكشف وأدخل الرصيد الختامي."); return; }
+    setSaving(true); setError("");
+    try {
+      const { data, error: err } = await supabase.rpc("fin_reconciliation_create", { p: { workspace_id: ws.id, account_id: reconForm.account_id, cutoff_date: reconForm.cutoff_date, statement_balance: String(reconForm.statement_balance) } });
+      if (err) throw err;
+      setNotice("تم إنشاء مسودة التسوية. فرق الرصيد: " + money(data?.difference || 0, accountById[reconForm.account_id]?.currency || baseCurrency));
+      setReconForm({ account_id: reconForm.account_id, cutoff_date: today(), statement_balance: "", reason: "" });
+      await load();
+    } catch (e) { setError(e?.message || "تعذّر إنشاء التسوية"); }
+    finally { setSaving(false); }
+  }
+
+  async function reviewReconciliation(row, decision) {
+    if (!canEdit || saving) return;
+    let reason = "";
+    if (decision === "adjust") { reason = globalThis.prompt("اكتب سبب تعديل الرصيد (مطلوب للتدقيق):", "فرق كشف الحساب"); if (!reason || reason.trim().length < 3) return; }
+    setSaving(true); setError("");
+    try {
+      const { error: err } = await supabase.rpc("fin_reconciliation_review", { p: { workspace_id: ws.id, reconciliation_id: row.id, decision, reason: reason.trim() || null } });
+      if (err) throw err;
+      setNotice(decision === "match" ? "تمت مراجعة التسوية دون فرق." : "تمت مراجعة فرق الرصيد مع اعتماد التسوية المقترحة؛ لم تُنشأ حركة التعديل بعد.");
+      await load();
+    } catch (e) { setError(e?.message || "تعذّرت مراجعة التسوية"); }
+    finally { setSaving(false); }
+  }
+
+  async function completeReconciliation(row) {
+    if (!canEdit || saving) return;
+    if (!globalThis.confirm("سيتم إكمال التسوية ووضع علامة مطابقة على الحركات حتى تاريخ الكشف. إذا اعتمدت التعديل، ستُنشأ حركة Adjustment منفصلة. هل تريد المتابعة؟")) return;
+    setSaving(true); setError("");
+    try {
+      const { data, error: err } = await supabase.rpc("fin_reconciliation_complete", { p: { workspace_id: ws.id, reconciliation_id: row.id, idempotency_key: "recon-ui-" + (globalThis.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2)) } });
+      if (err) throw err;
+      setNotice("اكتملت التسوية. " + (data?.adjustment_tx_id ? "تم إنشاء حركة تعديل مرتبطة بالتسوية." : "لم تكن هناك حاجة إلى حركة تعديل."));
+      await load();
+    } catch (e) { setError(e?.message || "تعذّر إكمال التسوية"); }
+    finally { setSaving(false); }
+  }
+
+  async function cancelReconciliation(row) {
+    if (!(access?.manage || access?.owner) || saving) return;
+    const reason = globalThis.prompt("سبب إلغاء التسوية المكتملة (مطلوب للتدقيق):", "");
+    if (!reason || reason.trim().length < 3) return;
+    if (!globalThis.confirm("سيُلغى اعتماد التسوية، وسيُعكس أي تعديل مالي أنشأته. هل تريد المتابعة؟")) return;
+    setSaving(true); setError("");
+    try {
+      const { error: err } = await supabase.rpc("fin_reconciliation_cancel", { p: { workspace_id: ws.id, reconciliation_id: row.id, reason: reason.trim() } });
+      if (err) throw err;
+      setNotice("تم إلغاء التسوية وعكس تعديلها إن وُجد.");
+      await load();
+    } catch (e) { setError(e?.message || "تعذّر إلغاء التسوية"); }
+    finally { setSaving(false); }
+  }
+
+  async function savePeriodLock(e) {
+    e.preventDefault(); if (!(access?.manage || access?.owner) || saving) return;
+    const previous = settings.lock_before_date || null;
+    const next = lockDate || null;
+    if (previous && (!next || next < previous) && lockReason.trim().length < 3) { setError("اكتب سببًا من 3 أحرف على الأقل عند فتح فترة مقفلة أو تقليل نطاق القفل."); return; }
+    setSaving(true); setError("");
+    try {
+      const { error: err } = await supabase.rpc("fin_set_lock", { p: { workspace_id: ws.id, lock_before_date: next, reason: lockReason.trim() || null } });
+      if (err) throw err;
+      setSettings(old => ({ ...old, lock_before_date: next }));
+      setLockReason("");
+      setNotice(next ? "تم تحديث قفل الفترات. الحركات قبل " + next + " ستظل مقفلة." : "تم فتح الفترات المقفلة.");
+      await load();
+    } catch (e) { setError(e?.message || "تعذّر تحديث قفل الفترات"); }
+    finally { setSaving(false); }
+  }
+
+  const pageTitle = ({ dashboard: "لوحة القيادة", inbox: "الوارد", transactions: "الحركات المالية", accounts: "الحسابات", categories: "التصنيفات", budgets: "الميزانيات", reconciliation: "التسوية البنكية", assets: "الأصول والاستثمارات", debts: "الديون والأقساط", recurring: "المتكرر والاشتراكات", projects: "المشاريع المالية", networth: "صافي الثروة", fx: "أسعار الصرف", reports: "التقارير", settings: "الإعدادات والأمان" })[section] || "الماليات";
   const nav = [
-    ["dashboard", "لوحة القيادة", "⌂"], ["inbox", "الوارد", "📥"], ["transactions", "الحركات", "🧾"], ["accounts", "الحسابات", "🏦"], ["categories", "التصنيفات", "🗂️"], ["budgets", "الميزانيات", "📊"], ["assets", "الأصول", "📈"], ["debts", "الديون والأقساط", "💳"], ["goals", "الأهداف المالية", "🎯"], ["recurring", "المتكرر والاشتراكات", "🔁"], ["projects", "المشاريع المالية", "📁"], ["networth", "صافي الثروة", "💎"], ["fx", "أسعار الصرف", "💱"], ["reports", "التقارير", "📑"], ["settings", "الإعدادات والأمان", "🔐"]
+    ["dashboard", "لوحة القيادة", "⌂"], ["inbox", "الوارد", "📥"], ["transactions", "الحركات", "🧾"], ["accounts", "الحسابات", "🏦"], ["categories", "التصنيفات", "🗂️"], ["budgets", "الميزانيات", "📊"], ["reconciliation", "التسوية البنكية", "☑️"], ["assets", "الأصول", "📈"], ["debts", "الديون والأقساط", "💳"], ["goals", "الأهداف المالية", "🎯"], ["recurring", "المتكرر والاشتراكات", "🔁"], ["projects", "المشاريع المالية", "📁"], ["networth", "صافي الثروة", "💎"], ["fx", "أسعار الصرف", "💱"], ["reports", "التقارير", "📑"], ["settings", "الإعدادات والأمان", "🔐"]
   ];
   const pageStyle = { minWidth: 0, color: INK, fontFamily: "inherit", direction: "rtl" };
   const labelStyle = { color: MUTED, fontSize: 12, marginBottom: 7 };
@@ -322,9 +402,41 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         </div>; })}</div>}
       </Card>}
 
+      {section === "reconciliation" && <Card>
+        <div style={{ marginBottom: 16 }}><h3 style={{ margin: 0 }}>التسوية البنكية</h3><p style={{ color: MUTED, fontSize: 12, lineHeight: 1.8 }}>قارن رصيد دفتر الحساب مع كشف البنك عند تاريخ محدد. فرق الرصيد لا يُعدّل تلقائيًا: يجب مراجعته واعتماد السبب، ثم إكمال التسوية لإنشاء حركة تعديل منفصلة عند الحاجة.</p></div>
+        {canEdit && <form onSubmit={createReconciliation} style={{ background: BG, border: "1px solid " + LINE, borderRadius: 12, padding: 14, display: "grid", gap: 11, marginBottom: 16 }}>
+          <b style={{ fontSize: 13 }}>بدء تسوية جديدة</b><div style={formGrid}>
+            <Field label="الحساب *"><Select required value={reconForm.account_id} onChange={e => setReconForm({ ...reconForm, account_id: e.target.value })}><option value="">اختر الحساب</option>{accounts.filter(a => a.status !== "Archived").map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</Select></Field>
+            <Field label="تاريخ الكشف *"><Input required type="date" max={today()} value={reconForm.cutoff_date} onChange={e => setReconForm({ ...reconForm, cutoff_date: e.target.value })} /></Field>
+            <Field label={"الرصيد الختامي في الكشف * (" + (accountById[reconForm.account_id]?.currency || baseCurrency) + ")"}><Input required type="number" step="0.01" value={reconForm.statement_balance} onChange={e => setReconForm({ ...reconForm, statement_balance: e.target.value })} placeholder="0.00" /></Field>
+          </div><div><Button type="submit" disabled={saving || !accounts.length}>{saving ? "جارٍ الإنشاء…" : "حساب الفرق وإنشاء مسودة"}</Button></div>
+        </form>}
+        {!reconciliations.length ? <Empty title="لا توجد تسويات بعد" detail="ابدأ بتسوية حساب مقابل كشف البنك أو المحفظة." /> : <div style={{ display: "grid", gap: 10 }}>{reconciliations.map(r => { const curr = accountById[r.account_id]?.currency || baseCurrency; const diff = Number(r.difference || 0); return <div key={r.id} style={{ border: "1px solid " + LINE, borderRadius: 12, padding: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><div><b>{accountById[r.account_id]?.name || "حساب مالي"}</b><div style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>حتى {fmtDate(r.cutoff_date)} · أنشئت {fmtDate(String(r.created_at || "").slice(0,10))}</div></div><span style={{ background: r.status === "Completed" ? "#ECFDF3" : r.status === "Cancelled" ? "#F2F4F7" : "#FFFAEB", color: r.status === "Completed" ? "#067647" : r.status === "Cancelled" ? MUTED : "#92400E", borderRadius: 999, padding: "5px 9px", fontSize: 11, fontWeight: 800 }}>{({ Draft: "مسودة", Reviewed: "تمت المراجعة", Completed: "مكتملة", Cancelled: "ملغاة" })[r.status] || r.status}</span></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(125px,1fr))", gap: 9, marginTop: 12 }}><div><div style={labelStyle}>رصيد الدفتر</div><b>{money(r.ledger_balance,curr)}</b></div><div><div style={labelStyle}>رصيد الكشف</div><b>{money(r.statement_balance,curr)}</b></div><div><div style={labelStyle}>الفرق</div><b style={{ color: Math.abs(diff) < 0.0001 ? "#047857" : "#B42318" }}>{money(diff,curr)}</b></div></div>
+          {r.reason && <div style={{ color: MUTED, fontSize: 11, marginTop: 8 }}>السبب: {r.reason}</div>}
+          {r.status === "Draft" && canEdit && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>{Math.abs(diff) < 0.0001 ? <Button onClick={() => reviewReconciliation(r,"match")} disabled={saving}>مراجعة: متطابق</Button> : <Button onClick={() => reviewReconciliation(r,"adjust")} disabled={saving}>مراجعة الفرق واعتماد التعديل</Button>}</div>}
+          {r.status === "Reviewed" && canEdit && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}><Button onClick={() => completeReconciliation(r)} disabled={saving}>إكمال التسوية</Button></div>}
+          {r.status === "Completed" && (access?.manage || access?.owner) && <div style={{ marginTop: 12 }}><Button secondary onClick={() => cancelReconciliation(r)} disabled={saving}>إلغاء التسوية المكتملة</Button></div>}
+        </div>; })}</div>}
+      </Card>}
+
+      {section === "settings" && <Card>
+        <h3 style={{ marginTop: 0 }}>الإعدادات والأمان</h3>
+        <p style={{ color: MUTED, fontSize: 12, lineHeight: 1.8 }}>قفل الفترات يمنع تسجيل أو تعديل الحركات بتاريخ أقدم من حد القفل. فتح فترة سابقة يتطلب صلاحية إدارة وسببًا مسجلًا في سجل التدقيق.</p>
+        <div style={{ background: BG, border: "1px solid " + LINE, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+          <div style={{ color: MUTED, fontSize: 11 }}>الحد الحالي لقفل الفترات</div><b>{settings.lock_before_date ? fmtDate(settings.lock_before_date) : "لا يوجد قفل نشط"}</b><div style={{ color: MUTED, fontSize: 11, marginTop: 5 }}>عند تحديد تاريخ، تكون التواريخ الأقدم منه مقفلة؛ التاريخ نفسه وما بعده يظل مفتوحًا.</div>
+        </div>
+        {(access?.manage || access?.owner) ? <form onSubmit={savePeriodLock} style={{ display: "grid", gap: 12 }}>
+          <Field label="قفل كل التواريخ قبل"><Input type="date" value={lockDate} onChange={e => setLockDate(e.target.value)} /></Field>
+          <Field label="سبب التغيير (مطلوب عند فتح فترة أو تقليل القفل)"><textarea value={lockReason} onChange={e => setLockReason(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} placeholder="مثال: تصحيح كشف بنكي معتمد" /></Field>
+          <div><Button type="submit" disabled={saving}>{saving ? "جارٍ الحفظ…" : "حفظ إعداد قفل الفترات"}</Button></div>
+        </form> : <div style={{ color: MUTED, fontSize: 12 }}>تحتاج صلاحية إدارة لتغيير قفل الفترات.</div>}
+      </Card>}
+
       {section === "networth" && <Card><h3 style={{ marginTop: 0 }}>صافي الثروة</h3>{netWorth ? <><div style={{ fontSize: 30, fontWeight: 850, margin: "18px 0" }}>{netValue == null ? "غير متاح" : money(netValue, baseCurrency)}</div><p style={{ color: MUTED, fontSize: 12 }}>يتم إظهار الأصول والالتزامات غير المقيمة أو المستبعدة بوضوح؛ لا تُعامل القيمة المجهولة كصفر.</p><pre style={{ whiteSpace: "pre-wrap", fontSize: 11, background: BG, padding: 12, borderRadius: 10, overflow: "auto" }}>{JSON.stringify(netWorth, null, 2)}</pre></> : <Empty title="تعذّر حساب صافي الثروة" detail="تأكد من صلاحية الوصول وأسعار الصرف وإعدادات الحسابات." />}</Card>}
 
-      {!["dashboard", "transactions", "accounts", "categories", "budgets", "networth"].includes(section) && <Card><div style={{ fontSize: 32, marginBottom: 8 }}>{nav.find(x => x[0] === section)?.[2] || "💰"}</div><h3 style={{ margin: "0 0 8px" }}>{pageTitle}</h3><p style={{ color: MUTED, fontSize: 13, lineHeight: 1.9 }}>هذا القسم موجود ضمن خريطة Finance OS v4.2، وسيُفعّل على مراحل مع الالتزام بنفس دفتر الحركات ومصدر الحقيقة المحاسبي. لم يتم تفعيل عمليات الكتابة لهذا القسم بعد حتى لا تُسجّل بيانات غير مكتملة.</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button secondary onClick={() => go("dashboard")}>العودة للوحة القيادة</Button>{section === "fx" && <Button onClick={() => go("settings")}>إعدادات العملة</Button>}</div></Card>}
+      {!["dashboard", "transactions", "accounts", "categories", "budgets", "reconciliation", "settings", "networth"].includes(section) && <Card><div style={{ fontSize: 32, marginBottom: 8 }}>{nav.find(x => x[0] === section)?.[2] || "💰"}</div><h3 style={{ margin: "0 0 8px" }}>{pageTitle}</h3><p style={{ color: MUTED, fontSize: 13, lineHeight: 1.9 }}>هذا القسم موجود ضمن خريطة Finance OS v4.2، وسيُفعّل على مراحل مع الالتزام بنفس دفتر الحركات ومصدر الحقيقة المحاسبي. لم يتم تفعيل عمليات الكتابة لهذا القسم بعد حتى لا تُسجّل بيانات غير مكتملة.</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button secondary onClick={() => go("dashboard")}>العودة للوحة القيادة</Button>{section === "fx" && <Button onClick={() => go("settings")}>إعدادات العملة</Button>}</div></Card>}
     </>}
 
     {showTx && <div role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setShowTx(false); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#14251DB8", display: "grid", placeItems: "center", padding: 20, overflowY: "auto" }}><div className="fin-modal" role="dialog" aria-modal="true" aria-label="حركة مالية جديدة" style={{ background: "#fff", width: "min(680px,100%)", maxHeight: "calc(100vh - 40px)", overflowY: "auto", borderRadius: 18, padding: 22, boxSizing: "border-box" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}><h2 style={{ margin: 0, fontSize: 19 }}>تسجيل حركة مالية</h2><button onClick={() => setShowTx(false)} aria-label="إغلاق" style={{ border: 0, background: "transparent", fontSize: 22, cursor: "pointer" }}>×</button></div><form onSubmit={saveTransaction} style={{ display: "grid", gap: 13 }}><div style={formGrid}><Field label="اسم الحركة *"><Input required value={tx.name} onChange={e => setTx({ ...tx, name: e.target.value })} placeholder="مثال: مشتريات البقالة" /></Field><Field label="نوع الحركة *"><Select value={tx.type} onChange={e => setTx({ ...tx, type: e.target.value, category_id: "" })}>{TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</Select></Field><Field label="المبلغ *"><Input required type="number" min="0.01" step="0.01" value={tx.amount} onChange={e => setTx({ ...tx, amount: e.target.value })} placeholder="0.00" /></Field><Field label="العملة"><Input maxLength={3} value={tx.currency} onChange={e => setTx({ ...tx, currency: e.target.value.toUpperCase() })} /></Field><Field label="التاريخ *"><Input required type="date" value={tx.local_date} onChange={e => setTx({ ...tx, local_date: e.target.value })} /></Field><Field label={tx.type === "Transfer" ? "من حساب *" : "الحساب *"}><Select required value={tx.from_account_id} onChange={e => setTx({ ...tx, from_account_id: e.target.value, currency: accountById[e.target.value]?.currency || tx.currency })}><option value="">اختر حسابًا</option>{accounts.filter(a => a.status === "Active").map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</Select></Field>{tx.type === "Transfer" ? <Field label="إلى حساب *"><Select required value={tx.to_account_id} onChange={e => setTx({ ...tx, to_account_id: e.target.value })}><option value="">اختر الحساب المستلم</option>{accounts.filter(a => a.status === "Active" && a.id !== tx.from_account_id).map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</Select></Field> : <Field label="التصنيف"><Select value={tx.category_id} onChange={e => setTx({ ...tx, category_id: e.target.value })}><option value="">بدون تصنيف</option>{categories.filter(c => c.kind === "Both" || c.kind === tx.type).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></Field>}<Field label="التاجر / المستفيد"><Input value={tx.merchant} onChange={e => setTx({ ...tx, merchant: e.target.value })} placeholder="اختياري" /></Field></div>{tx.type !== "Transfer" && <div style={{ border: "1px solid " + LINE, borderRadius: 12, padding: 13, background: BG }}><label style={{ display: "flex", gap: 9, alignItems: "center", fontSize: 13, fontWeight: 750 }}><input type="checkbox" checked={splitMode} onChange={e => setSplitMode(e.target.checked)} /> توزيع الحركة على عدة تصنيفات</label>{splitMode && <div style={{ display: "grid", gap: 9, marginTop: 12 }}>{splitRows.map((row, idx) => <div key={idx} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(110px,.6fr) auto", gap: 8, alignItems: "end" }}><Field label={"التصنيف " + (idx + 1)}><Select value={row.category_id} onChange={e => setSplitRows(rows => rows.map((x,i) => i === idx ? { ...x, category_id: e.target.value } : x))}><option value="">اختر التصنيف</option>{categories.filter(c => c.kind === "Both" || c.kind === tx.type).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></Field><Field label="المبلغ"><Input type="number" min="0.01" step="0.01" value={row.amount} onChange={e => setSplitRows(rows => rows.map((x,i) => i === idx ? { ...x, amount: e.target.value } : x))} /></Field>{splitRows.length > 2 && <Button secondary onClick={() => setSplitRows(rows => rows.filter((_,i) => i !== idx))}>حذف</Button>}</div>)}<div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, fontSize: 12, color: Math.abs(splitRows.reduce((sum,s) => sum + (Number(s.amount)||0),0) - (Number(tx.amount)||0)) < 0.0001 ? "#047857" : "#B42318" }}><span>مجموع التقسيمات: {money(splitRows.reduce((sum,s) => sum + (Number(s.amount)||0),0), tx.currency)}</span><span>مبلغ الحركة: {money(Number(tx.amount)||0, tx.currency)}</span></div><div><Button secondary onClick={() => setSplitRows(rows => [...rows, { category_id: "", amount: "" }])}>＋ إضافة تصنيف</Button></div></div>}</div>}<Field label="ملاحظات"><textarea value={tx.notes} onChange={e => setTx({ ...tx, notes: e.target.value })} rows={3} style={{ ...inputStyle, resize: "vertical" }} /></Field><div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 5 }}><Button secondary onClick={() => setShowTx(false)}>إلغاء</Button><Button type="submit" disabled={saving || !accounts.length}>{saving ? "جارٍ الحفظ…" : "حفظ الحركة ونشرها"}</Button></div>{!accounts.length && <div style={{ color: "#B42318", fontSize: 12 }}>أنشئ حسابًا أولًا لتسجيل حركة مالية.</div>}</form></div></div>}
