@@ -4,6 +4,7 @@ import FinanceDebts from "./Debts.jsx";
 import FinanceGoals from "./Goals.jsx";
 import FinanceRecurring from "./Recurring.jsx";
 import FinanceReports from "./Reports.jsx";
+import FinanceProjects from "./Projects.jsx";
 
 const GREEN = "#059669";
 const INK = "#17211D";
@@ -447,6 +448,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       {section === "debts" && <FinanceDebts ws={ws} access={access} isDemo={isDemo} />}
       {section === "goals" && <FinanceGoals ws={ws} access={access} isDemo={isDemo} />}
       {section === "recurring" && <FinanceRecurring ws={ws} access={access} isDemo={isDemo} />}
+      {section === "projects" && <FinanceProjects ws={ws} access={access} isDemo={isDemo} />}
       {section === "reports" && <FinanceReports ws={ws} isDemo={isDemo} baseCurrency={baseCurrency} />}
 
       {!["dashboard", "transactions", "accounts", "categories", "budgets", "reconciliation", "settings", "networth", "debts", "goals", "recurring", "reports"].includes(section) && <Card><div style={{ fontSize: 32, marginBottom: 8 }}>{nav.find(x => x[0] === section)?.[2] || "💰"}</div><h3 style={{ margin: "0 0 8px" }}>{pageTitle}</h3><p style={{ color: MUTED, fontSize: 13, lineHeight: 1.9 }}>هذا القسم موجود ضمن خريطة Finance OS v4.2، وسيُفعّل على مراحل مع الالتزام بنفس دفتر الحركات ومصدر الحقيقة المحاسبي. لم يتم تفعيل عمليات الكتابة لهذا القسم بعد حتى لا تُسجّل بيانات غير مكتملة.</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button secondary onClick={() => go("dashboard")}>العودة للوحة القيادة</Button>{section === "fx" && <Button onClick={() => go("settings")}>إعدادات العملة</Button>}</div></Card>}
