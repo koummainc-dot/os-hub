@@ -176,6 +176,41 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     finally { setSaving(false); }
   }
 
+  function exportVisibleTransactionsCsv() {
+    const headers = ["التاريخ", "اسم الحركة", "النوع", "المبلغ", "العملة", "الحالة", "التصنيف", "الحساب", "التاجر", "الغرض", "ملاحظات", "معرّف الحركة"];
+    const cell = (value) => {
+      let text = String(value ?? "");
+      // Prevent spreadsheet formula execution for user-controlled text fields.
+      if (/^[\\t\\r ]*[=+@-]/.test(text)) text = "'" + text;
+      return '"' + text.replace(/"/g, '""') + '"';
+    };
+    const rows = visibleTransactions.map((t) => [
+      t.local_date,
+      t.name,
+      TYPES.find((x) => x.value === t.type)?.label || t.type,
+      t.amount,
+      t.currency,
+      t.status,
+      categoryById[t.category_id]?.name || "",
+      accountById[t.from_account_id]?.name || accountById[t.to_account_id]?.name || "",
+      t.merchant || "",
+      t.purpose || "",
+      t.notes || "",
+      t.id
+    ]);
+    const csv = "\\uFEFF" + [headers, ...rows].map((row) => row.map(cell).join(",")).join("\\r\\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "finance-transactions-" + today() + ".csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setNotice("تم تصدير " + rows.length + " حركة من النتائج الحالية. التصدير يشمل الحركات المحمّلة فقط (حتى 150 حركة).");
+  }
+
   async function saveAccount(e) {
     e.preventDefault(); if (!canEdit || saving) return;
     if (!accountForm.name.trim()) { setError("اكتب اسم الحساب."); return; }
@@ -381,6 +416,9 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       {section === "transactions" && <Card>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}><div><h3 style={{ margin: 0, fontSize: 16 }}>دفتر الحركات</h3><p style={{ color: MUTED, fontSize: 12, margin: "5px 0 0" }}>المصدر المحاسبي للحسابات والتقارير.</p></div>{canEdit && <Button onClick={() => setShowTx(true)}>＋ إضافة حركة</Button>}</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}><Input placeholder="ابحث بالاسم أو التاجر أو الملاحظات…" value={search} onChange={e => setSearch(e.target.value)} style={{ flex: "1 1 220px" }} /><Select value={filterType} onChange={e => setFilterType(e.target.value)} style={{ width: 150 }}><option value="all">كل الأنواع</option>{TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</Select></div>
+        <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 12 }}>
+          <Button secondary onClick={exportVisibleTransactionsCsv} disabled={!visibleTransactions.length}>⇩ تصدير النتائج CSV ({visibleTransactions.length})</Button>
+        </div>
         {!visibleTransactions.length ? <Empty title="لا توجد حركات مطابقة" detail="غيّر البحث أو سجّل حركة جديدة." /> : <div style={tableWrap}><table style={{ borderCollapse: "collapse", width: "100%", minWidth: 820 }}><thead><tr>{["الحركة","النوع","التصنيف","الحساب","التاريخ","الحالة","المبلغ","إجراء"].map(x => <th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{visibleTransactions.map(t => <tr key={t.id}><td style={{ ...td, fontWeight: 750 }}>{t.name}<div style={{ color: MUTED, fontSize: 10, marginTop: 3 }}>{t.merchant || ""}</div></td><td style={td}>{TYPES.find(x => x.value === t.type)?.label || t.type}</td><td style={td}>{categoryById[t.category_id]?.name || "—"}</td><td style={td}>{accountById[t.from_account_id]?.name || accountById[t.to_account_id]?.name || "—"}</td><td style={td}>{fmtDate(t.local_date)}</td><td style={td}><span style={{ borderRadius: 20, padding: "4px 8px", background: t.status === "Posted" ? "#ECFDF3" : "#FFFAEB", color: t.status === "Posted" ? "#067647" : "#92400E" }}>{t.status === "Posted" ? "منشورة" : t.status === "Proposed" ? "مقترحة" : t.status}</span></td><td style={{ ...td, fontWeight: 800, color: t.type === "Income" ? "#047857" : t.type === "Expense" ? "#B42318" : INK }}>{money(t.amount, t.currency)}</td><td style={td}>{canEdit && t.status === "Posted" && !t.reversal_of_id ? <Button secondary onClick={() => { setTxAction({ kind: "reverse", transaction: t }); setTxActionReason(""); setError(""); }}>عكس</Button> : canEdit && t.status === "Proposed" ? <Button secondary onClick={() => { setTxAction({ kind: "void", transaction: t }); setTxActionReason(""); setError(""); }}>إلغاء المقترح</Button> : "—"}</td></tr>)}</tbody></table></div>}
       </Card>}
 
