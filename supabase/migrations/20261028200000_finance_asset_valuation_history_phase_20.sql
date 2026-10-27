@@ -60,9 +60,12 @@ BEGIN
 END
 $function$;
 REVOKE ALL ON FUNCTION public.fin__asset_valuation_history_touch() FROM PUBLIC,anon,authenticated;
-DROP TRIGGER IF EXISTS finance_asset_valuation_history_touch ON public.finance_assets;
-CREATE TRIGGER finance_asset_valuation_history_touch
-AFTER INSERT OR UPDATE OF current_value,purchase_value,currency,valuation_date,valuation_source,valuation_confirmed,include_in_net_worth
+DROP TRIGGER IF EXISTS finance_asset_valuation_history_insert ON public.finance_assets;
+DROP TRIGGER IF EXISTS finance_asset_valuation_history_update ON public.finance_assets;
+CREATE TRIGGER finance_asset_valuation_history_insert
+AFTER INSERT ON public.finance_assets FOR EACH ROW EXECUTE FUNCTION public.fin__asset_valuation_history_touch();
+CREATE TRIGGER finance_asset_valuation_history_update
+AFTER UPDATE OF current_value,purchase_value,currency,valuation_date,valuation_source,valuation_confirmed,include_in_net_worth
 ON public.finance_assets FOR EACH ROW EXECUTE FUNCTION public.fin__asset_valuation_history_touch();
 
 -- Preserve a baseline for assets created before this feature shipped.
