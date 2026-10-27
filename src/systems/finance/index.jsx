@@ -22,7 +22,7 @@ const fmtDate = (v) => { try { return new Date(v + "T12:00:00").toLocaleDateStri
 const TYPES = [{ value: "Expense", label: "مصروف" }, { value: "Income", label: "دخل" }, { value: "Transfer", label: "تحويل" }];
 const ACCOUNT_TYPES = ["Bank", "Cash", "Mobile Wallet", "Credit Card", "E-Wallet", "Payment Platform", "Investment", "Savings", "Other"];
 const TYPE_AR = { Bank: "بنك", Cash: "نقدي", "Mobile Wallet": "محفظة موبايل", "Credit Card": "بطاقة ائتمان", "E-Wallet": "محفظة إلكترونية", "Payment Platform": "منصة دفع", Investment: "استثمار", Savings: "ادخار", Other: "أخرى" };
-const initialTx = () => ({ name: "", type: "Expense", purpose: "Regular", amount: "", currency: "EGP", local_date: today(), from_account_id: "", to_account_id: "", category_id: "", merchant: "", notes: "" });
+const initialTx = () => ({ name: "", type: "Expense", purpose: "Regular", amount: "", currency: "EGP", local_date: today(), from_account_id: "", to_account_id: "", category_id: "", goal_id: "", merchant: "", notes: "" });
 
 function Card({ children, style = {} }) { return <div style={{ background: "#fff", border: "1px solid " + LINE, borderRadius: 16, padding: 18, ...style }}>{children}</div>; }
 function Button({ children, onClick, secondary = false, disabled = false, type = "button" }) {
