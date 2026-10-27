@@ -207,7 +207,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     setNotice("تم تصدير " + rows.length + " حركة من النتائج الحالية. التصدير يشمل الحركات المحمّلة فقط (حتى 150 حركة).");
   }
 
