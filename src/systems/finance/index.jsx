@@ -50,7 +50,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [accountForm, setAccountForm] = useState({ name: "", account_type: "Bank", currency: "EGP", initial_balance: "0", include_in_net_worth: true, nature: "ASSET" });
   const [categoryForm, setCategoryForm] = useState({ name: "", kind: "Expense" });
 
-  const canEdit = access?.level === "edit" || access?.manage || access?.owner;
+  const canEdit = !isDemo && (access?.level === "edit" || access?.manage || access?.owner);
   const baseCurrency = settings.base_currency || "EGP";
   const section = page || "dashboard";
   const go = (id) => setPage && setPage(id);
@@ -101,6 +101,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     e.preventDefault(); if (!canEdit || saving) return;
     if (!tx.name.trim() || !(Number(tx.amount) > 0) || !tx.local_date || !tx.from_account_id) { setError("أكمل اسم الحركة والمبلغ والتاريخ والحساب."); return; }
     if (tx.type === "Transfer" && (!tx.to_account_id || tx.to_account_id === tx.from_account_id)) { setError("اختر حسابًا مستلمًا مختلفًا عن حساب المصدر."); return; }
+    if (tx.type === "Transfer" && accountById[tx.from_account_id]?.currency !== accountById[tx.to_account_id]?.currency) { setError("التحويل بين عملتين مختلفتين سيُفعّل في مرحلة أسعار الصرف؛ استخدم حسابين بنفس العملة حاليًا."); return; }
     setSaving(true); setError("");
     try {
       const sourceAccount = accountById[tx.from_account_id];
