@@ -31,7 +31,7 @@ const OS_SYSTEMS=[
 {id:"learning",group:"work",scope:"personal",icon:"🎓",color:"#8B5CF6",name:"Learning OS",title:"التعلّم والتطوير",status:"planned",phase:"المرحلة 4",sensitive:false,plan:"Learning_OS_v4_Unified_Master_Plan.md",
  desc:"المجالات والدورات والدروس وجلسات الدراسة والمهارات والمفردات.",
  sections:osSec("dashboard:الرئيسية:⌂|areas:المجالات:🧭|courses:الدورات:📚|skills:المهارات:🛠️|placement:اختبارات المستوى:🧪|careergoals:الأهداف المهنية:🎯|vocab:المفردات والمراجعة:🔤|analytics:التاريخ والتحليلات:📊|settings:الإعدادات:⚙️")},
-{id:"finance",group:"money",scope:"personal",icon:"💰",color:"#10B981",name:"Finance OS",title:"المال",status:"planned",phase:"المرحلة 5",sensitive:true,plan:"FINANCE_OS_UNIFIED_MASTER_PLAN_v4_1.md",
+{id:"finance",group:"money",scope:"personal",icon:"💰",color:"#10B981",name:"Finance OS",title:"المال",status:"live",phase:"المرحلة 1 · الأساس المالي",sensitive:true,plan:"Finance_OS_v4.2_Full_Specification_AR.md",
  desc:"الحسابات والحركات والميزانيات والأصول والديون والأهداف المالية.",
  sections:osSec("dashboard:لوحة القيادة:⌂|inbox:الوارد:📥|transactions:الحركات:🧾|accounts:الحسابات:🏦|categories:التصنيفات:🗂️|budgets:الميزانيات:📊|assets:الأصول:📈|debts:الديون والأقساط:💳|goals:الأهداف المالية:🎯|recurring:المتكرر والاشتراكات:🔁|projects:المشاريع المالية:📁|networth:صافي الثروة:💎|fx:أسعار الصرف:💱|reports:التقارير:📑|settings:الإعدادات والأمان:🔐")},
 {id:"home",group:"life",scope:"shared",icon:"🏠",color:"#F97316",name:"Home OS",title:"إدارة البيت",status:"planned",phase:"المرحلة 6",sensitive:false,plan:"Home_OS_v4_Unified_Master_Plan.md",
