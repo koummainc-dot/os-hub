@@ -181,7 +181,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     const cell = (value) => {
       let text = String(value ?? "");
       // Prevent spreadsheet formula execution for user-controlled text fields.
-      if (/^[\\t\\r ]*[=+@-]/.test(text)) text = "'" + text;
+      if (/^[\t\r ]*[=+@-]/.test(text)) text = "'" + text;
       return '"' + text.replace(/"/g, '""') + '"';
     };
     const rows = visibleTransactions.map((t) => [
@@ -198,7 +198,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       t.notes || "",
       t.id
     ]);
-    const csv = "\\uFEFF" + [headers, ...rows].map((row) => row.map(cell).join(",")).join("\\r\\n");
+    const csv = "\uFEFF" + [headers, ...rows].map((row) => row.map(cell).join(",")).join("\r\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
