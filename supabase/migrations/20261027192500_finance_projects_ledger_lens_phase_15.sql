@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS public.finance_projects (
  status text NOT NULL DEFAULT 'Planning' CHECK(status IN ('Planning','Active','On Hold','Completed','Cancelled')),
  scope text NOT NULL DEFAULT 'Personal' CHECK(scope IN ('Personal','Business')),
  project_ref text, area_ref text,
- roi_basis text NOT NULL DEFAULT 'ExpensesLinked' CHECK(roi_basis IN ('ExpensesLinked','DeclaredCapital')),
+ roi_basis text NOT NULL DEFAULT 'ExpensesLinked' CHECK(roi_basis IN ('ExpensesLinked','DeclaredCapital','Disabled')),
  invested_capital numeric(20,2) CHECK(invested_capital IS NULL OR invested_capital>=0),
  notes text, created_by uuid, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
  UNIQUE(workspace_id,id), CHECK(end_date IS NULL OR end_date>=start_date),
