@@ -34,6 +34,9 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [categories, setCategories] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState([]);
+  const [budgetTemplates, setBudgetTemplates] = useState([]);
+  const [templateName, setTemplateName] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [budgetPeriod, setBudgetPeriod] = useState(today().slice(0, 7));
   const [budgetForm, setBudgetForm] = useState({ category_id: "", budget_amount: "", notes: "" });
   const [balances, setBalances] = useState([]);
@@ -64,7 +67,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     if (!ws?.id || isDemo) { setLoading(false); return; }
     setLoading(true); setError("");
     try {
-      const [ar, cr, tr, sr, br, nr, settingsRes, bu] = await Promise.all([
+      const [ar, cr, tr, sr, br, nr, settingsRes, bu, bt] = await Promise.all([
         supabase.from("finance_accounts").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }),
         supabase.from("finance_categories").select("*").eq("workspace_id", ws.id).eq("archived", false).order("name"),
         supabase.from("finance_transactions").select("*").eq("workspace_id", ws.id).order("local_date", { ascending: false }).limit(150),
@@ -72,15 +75,17 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         supabase.rpc("fin_balances", { p_ws: ws.id }),
         supabase.rpc("fin_net_worth", { p_ws: ws.id, p_as_of: today() }),
         supabase.from("finance_settings").select("base_currency,timezone,lock_before_date,overdraft_policy").eq("workspace_id", ws.id).maybeSingle(),
-        supabase.rpc("fin_budgets_get", { p_ws: ws.id, p_period: budgetPeriod })
+        supabase.rpc("fin_budgets_get", { p_ws: ws.id, p_period: budgetPeriod }),
+        supabase.rpc("fin_budget_templates_get", { p_ws: ws.id })
       ]);
       for (const r of [ar, cr, tr]) if (r.error) throw r.error;
       setAccounts(ar.data || []); setCategories(cr.data || []); setTransactions(tr.data || []);
       setSummary(sr.error ? null : sr.data); setBalances(br.error ? [] : (Array.isArray(br.data) ? br.data : []));
       setNetWorth(nr.error ? null : nr.data); setSettings(settingsRes.data || { base_currency: "EGP", timezone: "Africa/Cairo" });
       setBudgets(bu.error ? [] : (Array.isArray(bu.data) ? bu.data : []));
+      setBudgetTemplates(bt.error ? [] : (Array.isArray(bt.data) ? bt.data : []));
       const rpcErrors = [sr, br, nr].filter(x => x.error);
-      if (rpcErrors.length || bu.error) setNotice("بعض المؤشرات أو بيانات الميزانية غير متاحة حاليًا؛ راجع صلاحيات الوصول.");
+      if (rpcErrors.length || bu.error || bt.error) setNotice("بعض المؤشرات أو بيانات الميزانية غير متاحة حاليًا؛ راجع صلاحيات الوصول.");
     } catch (e) { setError(e?.message || "تعذّر تحميل بيانات الماليات"); }
     finally { setLoading(false); }
   }, [ws?.id, isDemo, budgetPeriod]);
@@ -169,6 +174,35 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     finally { setSaving(false); }
   }
 
+  async function saveBudgetTemplate(e) {
+    e.preventDefault(); if (!canEdit || saving) return;
+    if (!templateName.trim()) { setError("اكتب اسمًا للقالب."); return; }
+    if (!budgets.length) { setError("لا توجد ميزانيات في هذه الفترة لحفظها كقالب."); return; }
+    setSaving(true); setError("");
+    try {
+      const { data, error: err } = await supabase.rpc("fin_budget_template_save", { p: { workspace_id: ws.id, period: budgetPeriod, name: templateName.trim() } });
+      if (err) throw err;
+      setNotice("تم حفظ قالب الميزانية (" + (data?.line_count || budgets.length) + " بند).");
+      setTemplateName(""); await load();
+      if (data?.id) setSelectedTemplateId(data.id);
+    } catch (e) { setError(e?.message || "تعذّر حفظ قالب الميزانية"); }
+    finally { setSaving(false); }
+  }
+
+  async function applyBudgetTemplate(e) {
+    e.preventDefault(); if (!canEdit || saving) return;
+    if (!selectedTemplateId) { setError("اختر قالبًا أولًا."); return; }
+    if (!globalThis.confirm("سيتم إنشاء أو تحديث الميزانيات المطابقة في " + budgetPeriod + ". القيم الحالية للبنود الموجودة ستُستبدل. هل تريد المتابعة؟")) return;
+    setSaving(true); setError("");
+    try {
+      const { data, error: err } = await supabase.rpc("fin_budget_template_apply", { p: { workspace_id: ws.id, template_id: selectedTemplateId, period: budgetPeriod } });
+      if (err) throw err;
+      setNotice("تم تطبيق القالب على " + (data?.applied_count || 0) + " بند في " + budgetPeriod + ".");
+      await load();
+    } catch (e) { setError(e?.message || "تعذّر تطبيق قالب الميزانية"); }
+    finally { setSaving(false); }
+  }
+
   const pageTitle = ({ dashboard: "لوحة القيادة", inbox: "الوارد", transactions: "الحركات المالية", accounts: "الحسابات", categories: "التصنيفات", budgets: "الميزانيات", assets: "الأصول والاستثمارات", debts: "الديون والأقساط", recurring: "المتكرر والاشتراكات", projects: "المشاريع المالية", networth: "صافي الثروة", fx: "أسعار الصرف", reports: "التقارير", settings: "الإعدادات والأمان" })[section] || "الماليات";
   const nav = [
     ["dashboard", "لوحة القيادة", "⌂"], ["inbox", "الوارد", "📥"], ["transactions", "الحركات", "🧾"], ["accounts", "الحسابات", "🏦"], ["categories", "التصنيفات", "🗂️"], ["budgets", "الميزانيات", "📊"], ["assets", "الأصول", "📈"], ["debts", "الديون والأقساط", "💳"], ["goals", "الأهداف المالية", "🎯"], ["recurring", "المتكرر والاشتراكات", "🔁"], ["projects", "المشاريع المالية", "📁"], ["networth", "صافي الثروة", "💎"], ["fx", "أسعار الصرف", "💱"], ["reports", "التقارير", "📑"], ["settings", "الإعدادات والأمان", "🔐"]
@@ -245,6 +279,19 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
             <Field label="ملاحظات"><Input value={budgetForm.notes} onChange={e => setBudgetForm({ ...budgetForm, notes: e.target.value })} placeholder="اختياري" /></Field>
           </div><div><Button type="submit" disabled={saving}>{saving ? "جارٍ الحفظ…" : "حفظ الميزانية"}</Button></div>
         </form>}
+        {canEdit && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 12, marginBottom: 16 }}>
+          <form onSubmit={saveBudgetTemplate} style={{ border: "1px solid " + LINE, borderRadius: 12, padding: 13, display: "grid", gap: 9 }}>
+            <b style={{ fontSize: 13 }}>حفظ الفترة كقالب</b><div style={{ color: MUTED, fontSize: 11 }}>يحفظ حدود الميزانيات وتصنيفاتها وملاحظاتها من الشهر المحدد، دون نسخ الإنفاق الفعلي.</div>
+            <Field label="اسم القالب"><Input required maxLength={100} value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder="مثال: ميزانية شهر عادي" /></Field>
+            <Button type="submit" disabled={saving || !budgets.length}>{saving ? "جارٍ الحفظ…" : "حفظ كقالب"}</Button>
+          </form>
+          <form onSubmit={applyBudgetTemplate} style={{ border: "1px solid " + LINE, borderRadius: 12, padding: 13, display: "grid", gap: 9 }}>
+            <b style={{ fontSize: 13 }}>تطبيق قالب على الفترة المحددة</b><div style={{ color: MUTED, fontSize: 11 }}>ينشئ البنود الناقصة ويحدّث حدود البنود المطابقة؛ لا يحذف الميزانيات الأخرى.</div>
+            <Field label="قالب الميزانية"><Select value={selectedTemplateId} onChange={e => setSelectedTemplateId(e.target.value)}><option value="">اختر قالبًا</option>{budgetTemplates.map(t => <option key={t.id} value={t.id}>{t.name} · {t.line_count} بند</option>)}</Select></Field>
+            {selectedTemplateId && <div style={{ background: BG, borderRadius: 8, padding: 9, fontSize: 11, color: MUTED }}>{budgetTemplates.find(t => t.id === selectedTemplateId)?.lines?.map(l => (l.category_name || "الميزانية الإجمالية") + ": " + money(l.budget_amount, baseCurrency)).join(" · ")}</div>}
+            <Button type="submit" disabled={saving || !selectedTemplateId}>{saving ? "جارٍ التطبيق…" : "تطبيق القالب"}</Button>
+          </form>
+        </div>}
         {!budgets.length ? <Empty title="لا توجد ميزانيات لهذه الفترة" detail="أضف ميزانية إجمالية أو حدًا لكل تصنيف لتتابع الإنفاق." /> : <div style={{ display: "grid", gap: 10 }}>{budgets.map(b => { const cap = Number(b.budget_amount || 0) + Number(b.rollover_in || 0); const spent = Number(b.spent || 0); const pct = b.used_pct == null ? (cap > 0 ? spent / cap * 100 : null) : Number(b.used_pct); const over = pct !== null && pct >= 100; const warn = pct !== null && pct >= 75; return <div key={b.id} style={{ border: "1px solid " + (over ? "#FDA29B" : LINE), borderRadius: 12, padding: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}><div><b style={{ fontSize: 13 }}>{b.category_id ? b.category_name || "تصنيف" : "الميزانية الإجمالية"}</b><div style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>{b.period} · {b.source === "Manual" ? "يدوية" : b.source}</div></div><div style={{ textAlign: "left" }}><div style={{ fontSize: 15, fontWeight: 850, color: over ? "#B42318" : INK }}>{money(spent, b.currency || baseCurrency)}</div><div style={{ fontSize: 11, color: MUTED }}>من {money(cap, b.currency || baseCurrency)}</div></div></div>
           <div style={{ height: 8, background: "#E8EEE9", borderRadius: 99, overflow: "hidden", marginTop: 12 }}><div style={{ height: "100%", width: Math.min(100, Math.max(0, pct || 0)) + "%", background: over ? "#D92D20" : warn ? "#F79009" : GREEN, borderRadius: 99 }} /></div>
