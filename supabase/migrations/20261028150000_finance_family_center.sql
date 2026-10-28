@@ -118,6 +118,7 @@ create table if not exists public.finance_family_budgets (
   check ((period is not null and period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' and start_date is null and end_date is null)
       or (period is null and start_date is not null and end_date is not null and end_date >= start_date)),
   check (rollover_cap is null or rollover_cap >= 0),
+  check (rollover_rule <> 'Capped' or rollover_cap is not null),
   check (jsonb_typeof(alert_thresholds) = 'array')
 );
 create index if not exists finance_family_budgets_ws_period_idx
