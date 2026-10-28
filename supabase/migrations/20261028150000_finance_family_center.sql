@@ -310,7 +310,7 @@ begin
     after_data := case when tg_op = 'DELETE' then null else to_jsonb(new) - 'linked_user_id' end;
   end if;
   perform public.fin__audit(ws, auth.uid(), tg_table_name, entity_id, action_name, null, before_data, after_data);
-  return coalesce(new, old);
+  return new;
 end
 $function$;
 
