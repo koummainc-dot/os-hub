@@ -90,22 +90,25 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   }, [repository, isDemo]);
 
   const persist = useCallback(async (next, success = "تم حفظ التغييرات") => {
+    const previousData = data;
     setData(next);
     setSaving(true);
     try {
       const result = await repository.save(next);
       if (result && result.ok === false) {
+        setData(previousData);
         setError(result.conflict ? "توجد نسخة أحدث على الخادم. أعد تحميل البيانات قبل الحفظ لتجنب الكتابة فوقها." : "تعذر تأكيد الحفظ على الخادم. قد تكون النسخة المحلية أحدث.");
-        tell("⚠ لم يتأكد الحفظ على الخادم؛ راجع حالة الاتصال قبل المتابعة.");
+        tell("⚠ لم يتأكد الحفظ على الخادم؛ تم التراجع عن التغيير المحلي. راجع الاتصال ثم أعد المحاولة.");
       } else {
         setError("");
         tell(isDemo ? "تم الحفظ داخل الوضع التجريبي" : success);
       }
     } catch (e) {
+      setData(previousData);
       setError(e?.message || "تعذر حفظ البيانات");
-      tell("⚠ تعذر تأكيد الحفظ");
+      tell("⚠ تعذر تأكيد الحفظ؛ تم التراجع عن التغيير المحلي.");
     } finally { setSaving(false); }
-  }, [repository, isDemo, tell]);
+  }, [repository, isDemo, tell, data]);
 
   const categories = data.categories.filter(x => !x.deletedAt);
   const places = data.places.filter(x => !x.deletedAt);
