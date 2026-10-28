@@ -84,7 +84,7 @@ export function planInventoryAggregateMigration(aggregate, options = {}) {
   const ref = (map, oldId, label) => {
     if (oldId === null || oldId === undefined || oldId === "") return null;
     const resolved = map.get(String(oldId));
-    if (!resolved) warnings.push({ code: "UNRESOLVED_REFERENCE", reference: label, oldId: String(oldId) });
+    if (!resolved) blockers.push({ code: "UNRESOLVED_REFERENCE", reference: label, oldId: String(oldId), detail: "Resolve the referenced row or explicitly repair the legacy relation before applying." });
     return resolved || null;
   };
   const base = (r, id) => ({
@@ -120,15 +120,17 @@ export function planInventoryAggregateMigration(aggregate, options = {}) {
     });
   }
   for (const { source: r, id } of places) if (id) {
+    if (!String(r.name || "").trim()) { blockers.push({ code: "EMPTY_PLACE_NAME", oldId: r.id }); continue; }
     const typeMap = { Home: "Home", Room: "Room", Storage: "Storage", Vehicle: "Vehicle", Workplace: "Workplace", External: "External" };
     tables.inventory_locations.push({
-      ...base(r, id), name: String(r.name || "مكان غير مسمى").trim().slice(0, 160),
+      ...base(r, id), name: String(r.name).trim().slice(0, 160),
       location_type: typeMap[r.type] || "Other", parent_id: ref(idMaps.place, r.parentId, "place.parentId"),
       description: text(r.description), privacy_level: privacy(r.sensitivity || r.privacyLevel),
       notes: text(r.notes), version: 1
     });
   }
   for (const { source: r, id } of items) if (id) {
+    if (!String(r.name || "").trim()) { blockers.push({ code: "EMPTY_ITEM_NAME", oldId: r.id }); continue; }
     const condition = ["New", "Good", "Fair", "Poor", "Damaged"].includes(r.condition) ? r.condition : "Good";
     const status = ["Owned", "Loaned", "Sold", "Disposed", "Lost"].includes(r.status) ? r.status : "Owned";
     const q = r.quantity === "" || r.quantity === undefined ? null : amount(r.quantity);
@@ -137,7 +139,7 @@ export function planInventoryAggregateMigration(aggregate, options = {}) {
     if (r.purchasePrice !== null && r.purchasePrice !== undefined && r.purchasePrice !== "" && p === null) blockers.push({ code: "INVALID_PURCHASE_AMOUNT", oldId: r.id });
     if (r.estimatedValue !== null && r.estimatedValue !== undefined && r.estimatedValue !== "" && v === null) blockers.push({ code: "INVALID_ESTIMATED_AMOUNT", oldId: r.id });
     tables.inventory_items.push({
-      ...base(r, id), name: String(r.name || "عنصر غير مسمى").trim().slice(0, 200),
+      ...base(r, id), name: String(r.name).trim().slice(0, 200),
       description: text(r.description), item_kind: "Asset",
       category_id: ref(idMaps.category, r.categoryId, "item.categoryId"),
       current_location_id: ref(idMaps.place, r.placeId, "item.placeId"),
