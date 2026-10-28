@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {
   emptyRelationshipsData, normalizeRelationshipsData, validatePerson,
-  findPossibleDuplicates, dueFollowups
+  findPossibleDuplicates, dueFollowups, validateRelationshipsImport
 } from "../src/systems/relationships/domain.js";
 import { buildRelationshipsSeed } from "../src/systems/relationships/demo.js";
 
@@ -39,3 +39,16 @@ assert.ok(seed.circles.length >= 2);
 assert.ok(seed.followups.every((f) => seed.people.some((p) => p.id === f.personId)));
 assert.ok(seed.occasions.every((o) => seed.people.some((p) => p.id === o.personId)));
 console.log("Relationships OS domain tests passed.");
+
+const validImport = validateRelationshipsImport({
+  people: [{ id: "import-person", name: "مها" }],
+  timeline: [], followups: [], occasions: [], gifts: [], circles: [],
+  settings: { defaultFollowupDays: 14 }
+});
+assert.equal(validImport.ok, true);
+assert.equal(validImport.value.settings.defaultFollowupDays, 14);
+assert.equal(validateRelationshipsImport(null).ok, false);
+assert.equal(validateRelationshipsImport({ random: [] }).ok, false);
+assert.equal(validateRelationshipsImport({ people: [{ name: "بلا معرّف" }] }).ok, false);
+assert.equal(validateRelationshipsImport({ people: [{ id: "p", name: "" }] }).ok, false);
+console.log("Relationships OS import validation tests passed.");
