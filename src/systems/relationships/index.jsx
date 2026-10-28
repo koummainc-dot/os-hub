@@ -6,7 +6,7 @@ import { buildRelationshipsSeed } from "./demo.js";
 import {
   RELATIONSHIP_SECTIONS, RELATIONSHIP_TYPES, RELATIONSHIP_TYPE_LABELS,
   emptyRelationshipsData, normalizeRelationshipsData, validatePerson,
-  normalizeSearch, findPossibleDuplicates, dueFollowups
+  normalizeSearch, findPossibleDuplicates, dueFollowups, validateRelationshipsImport
 } from "./domain.js";
 
 const C = { ink: "#172033", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#DB2777", soft: "#FCE7F3", green: "#047857", amber: "#B45309", red: "#B91C1C" };
@@ -43,16 +43,29 @@ async function saveRecord(workspaceId, collection, record) {
   if (error) throw error;
 }
 
+async function saveRecords(workspaceId, collection, records) {
+  if (!records.length) return;
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  const updatedAt = new Date().toISOString();
+  const payload = records.map((record) => ({
+    workspace_id: workspaceId, system_id: "relationships", collection, id: String(record.id),
+    data: record, deleted: false, updated_at: updatedAt, updated_by: authData?.user?.id || null
+  }));
+  const { error } = await supabase.from("workspace_records").upsert(payload, { onConflict: "workspace_id,system_id,collection,id" });
+  if (error) throw error;
+}
+
 async function softDeleteRecord(workspaceId, collection, record) {
   const { error } = await supabase.from("workspace_records").update({ deleted: true, updated_at: new Date().toISOString() })
     .eq("workspace_id", workspaceId).eq("system_id", "relationships").eq("collection", collection).eq("id", String(record.id));
   if (error) throw error;
 }
 
-function Field({ label, value, onChange, placeholder = "", type = "text", required = false }) {
+function Field({ label, value, onChange, placeholder = "", type = "text", required = false, disabled = false }) {
   return <label style={{ display: "grid", gap: 5, color: C.muted, fontSize: 12, minWidth: 0 }}>
     <span>{label}{required ? " *" : ""}</span>
-    <input type={type} value={value ?? ""} required={required} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
+    <input type={type} value={value ?? ""} required={required} disabled={disabled} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
       style={{ width: "100%", boxSizing: "border-box", padding: "10px 11px", border: "1px solid " + C.line, borderRadius: 10, background: "#fff", color: C.ink, font: "inherit", fontSize: 14 }} />
   </label>;
 }
@@ -93,6 +106,7 @@ export default function RelationshipsSystem(props) {
   const [occasionDraft, setOccasionDraft] = useState({ personId: "", title: "عيد الميلاد", date: "", recurrence: "yearly", reminderDays: 7, notes: "" });
   const [circleDraft, setCircleDraft] = useState({ name: "", description: "", color: "#DB2777" });
   const [busy, setBusy] = useState(false);
+  const [importPreview, setImportPreview] = useState(null);
   const currentLevel = osSectionLevel(access, page);
   const canEdit = currentLevel === "edit";
 
@@ -262,8 +276,55 @@ export default function RelationshipsSystem(props) {
     <Panel title="مؤشرات تنظيمية" hint="هذه مؤشرات عن اكتمال السجلات والمتابعات، وليست تقييمًا لمشاعر أو نوايا الناس."><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 10 }}><Metric label="بلا وسيلة تواصل" value={data.people.filter((p) => !p.phone && !p.email).length} /><Metric label="بلا تاريخ تواصل مسجل" value={data.people.filter((p) => !data.timeline.some((t) => t.personId === p.id)).length} /><Metric label="متابعات مفتوحة" value={data.followups.filter((f) => f.status !== "done").length} /><Metric label="مناسبات بلا تاريخ" value={data.occasions.filter((o) => !o.date).length} /></div></Panel>
   </>;
   else if (page === "merge") content = <Panel title="مراجعة التكرارات" hint="لا يتم الدمج تلقائيًا؛ راجع السجلات يدويًا قبل أي تعديل.">{duplicates.length ? duplicates.map((d) => <div key={d.key} style={{ padding: 10, borderBottom: "1px solid " + C.line }}>{d.first.name} ↔ {d.duplicate.name} <span style={{ color: C.muted, fontSize: 12 }}>({d.key})</span></div>) : <Empty>لم نعثر على تكرارات واضحة باستخدام الاسم أو الهاتف أو البريد.</Empty>}</Panel>;
-  else if (page === "import") content = <Panel title="الاستيراد والتصدير" hint="تصدير JSON متاح الآن. استيراد الملفات والتحقق منها سيُستكمل في مرحلة لاحقة."><Button onClick={() => { const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "relationships-export.json"; a.click(); URL.revokeObjectURL(url); }}>تصدير البيانات (JSON)</Button></Panel>;
-  else if (page === "settings") content = <Panel title="الإعدادات والخصوصية" hint="تخزين العلاقات في مجموعات منفصلة يسمح بتطبيق صلاحيات على مستوى المجموعة في قاعدة البيانات."><div style={{ display: "grid", gap: 10 }}><p style={{ margin: 0, color: C.muted, fontSize: 13 }}>بيانات العلاقات حساسة؛ امنح الوصول للأشخاص الموثوق بهم فقط، وتجنّب إضافة أسرار أو بيانات لا تحتاجها.</p><label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}><input type="checkbox" checked={data.settings.privacyLock} onChange={(e) => persist({ ...data, settings: { ...data.settings, privacyLock: e.target.checked } })} disabled={!canEdit} /> تفعيل تنبيه الخصوصية داخل النظام</label><Field label="أيام التذكير الافتراضية للمتابعة" type="number" value={data.settings.defaultFollowupDays} onChange={(v) => persist({ ...data, settings: { ...data.settings, defaultFollowupDays: Math.max(0, Number(v) || 0) } })} /></div></Panel>;
+  else if (page === "import") content = <Panel title="الاستيراد والتصدير" hint="الاستيراد يدمج السجلات حسب المعرّف؛ لا يحذف السجلات الحالية."><div style={{ display: "grid", gap: 12 }}>
+    <div><Button onClick={() => { const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "relationships-export.json"; a.click(); URL.revokeObjectURL(url); }}>تصدير البيانات (JSON)</Button></div>
+    {canEdit && <div style={{ display: "grid", gap: 8, padding: 14, border: "1px dashed " + C.line, borderRadius: 12 }}>
+      <strong>استيراد نسخة JSON</strong>
+      <p style={{ margin: 0, color: C.muted, fontSize: 12 }}>الحد الأقصى 5 ميجابايت. راجع ملخص الملف قبل دمجه. احتفظ بنسخة احتياطية قبل استيراد بيانات مهمة.</p>
+      <input type="file" accept=".json,application/json" onChange={async (e) => {
+        const file = e.target.files?.[0]; setImportPreview(null); setError(""); setNotice("");
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) { setError("حجم الملف أكبر من 5 ميجابايت."); return; }
+        try {
+          const parsed = JSON.parse(await file.text());
+          const checked = validateRelationshipsImport(parsed);
+          if (!checked.ok) { setError(checked.error); return; }
+          const total = ["people","timeline","followups","occasions","gifts","circles"].reduce((sum, key) => sum + checked.value[key].length, 0);
+          if (total > 5000) { setError("الملف يحتوي على أكثر من 5000 سجل. قسّم الملف إلى أجزاء أصغر."); return; }
+          setImportPreview({ data: checked.value, name: file.name, total });
+        } catch (err) { setError(err?.message || "تعذر قراءة ملف JSON."); }
+      }} />
+      {importPreview && <div style={{ background: C.bg, padding: 12, borderRadius: 10, fontSize: 12 }}>
+        <strong>{importPreview.name}</strong><div style={{ marginTop: 5 }}>عدد السجلات: {importPreview.total} · الأشخاص {importPreview.data.people.length} · التواصل {importPreview.data.timeline.length} · المتابعات {importPreview.data.followups.length} · المناسبات {importPreview.data.occasions.length} · الهدايا {importPreview.data.gifts.length} · الدوائر {importPreview.data.circles.length}</div>
+        <div style={{ color: C.muted, marginTop: 5 }}>عند تكرار المعرّف نفسه، ستُستبدل بيانات ذلك السجل بالنسخة المستوردة. بقية السجلات الحالية ستظل موجودة.</div>
+        <div style={{ marginTop: 10 }}><Button kind="primary" disabled={busy} onClick={async () => {
+          if (!globalThis.confirm?.("دمج " + importPreview.total + " سجلًا من " + importPreview.name + "؟ لن تُحذف السجلات الأخرى، لكن السجلات المتطابقة بالمعرّف ستُحدّث.")) return;
+          const incoming = importPreview.data;
+          const keys = ["people","timeline","followups","occasions","gifts","circles"];
+          const next = { ...data, settings: { ...data.settings, ...incoming.settings } };
+          for (const key of keys) {
+            const byId = new Map(data[key].map((item) => [String(item.id), item]));
+            for (const item of incoming[key]) byId.set(String(item.id), item);
+            next[key] = [...byId.values()];
+          }
+          setBusy(true); setError(""); setNotice("");
+          try {
+            if (isDemo) {
+              const result = await api.save(next);
+              if (result && result.ok === false) throw new Error("تعذر حفظ الاستيراد في الوضع التجريبي.");
+            } else {
+              for (const key of keys) await saveRecords(ws.id, key, incoming[key]);
+              await saveRecord(ws.id, "settings", { id: "settings", ...next.settings });
+            }
+            setData(normalizeRelationshipsData(next)); setImportPreview(null); setNotice("تم دمج البيانات بنجاح.");
+          } catch (err) {
+            setError((err?.message || "تعذر استكمال الاستيراد.") + " قد تكون بعض المجموعات حُفظت بالفعل؛ أعد تحميل البيانات قبل إعادة المحاولة.");
+          } finally { setBusy(false); }
+        }}>دمج البيانات المستوردة</Button> <Button onClick={() => setImportPreview(null)}>إلغاء</Button></div>
+      </div>}
+    </div>}
+  </div></Panel>;
+  else if (page === "settings") content = <Panel title="الإعدادات والخصوصية" hint="تخزين العلاقات في مجموعات منفصلة يسمح بتطبيق صلاحيات على مستوى المجموعة في قاعدة البيانات."><div style={{ display: "grid", gap: 10 }}><p style={{ margin: 0, color: C.muted, fontSize: 13 }}>بيانات العلاقات حساسة؛ امنح الوصول للأشخاص الموثوق بهم فقط، وتجنّب إضافة أسرار أو بيانات لا تحتاجها.</p><label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}><input type="checkbox" checked={data.settings.privacyLock} onChange={(e) => persist({ ...data, settings: { ...data.settings, privacyLock: e.target.checked } })} disabled={!canEdit} /> تفعيل تنبيه الخصوصية داخل النظام</label><Field label="أيام التذكير الافتراضية للمتابعة" type="number" value={data.settings.defaultFollowupDays} disabled={!canEdit} onChange={(v) => persist({ ...data, settings: { ...data.settings, defaultFollowupDays: Math.max(0, Number(v) || 0) } })} /></div></Panel>;
   else content = <Panel title="القسم غير معروف"><Empty>اختر قسمًا من قائمة العلاقات.</Empty></Panel>;
 
   return <div dir="rtl" style={{ color: C.ink, fontFamily: "inherit", maxWidth: 1200, margin: "0 auto" }}>
