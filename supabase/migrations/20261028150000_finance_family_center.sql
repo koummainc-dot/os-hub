@@ -214,28 +214,28 @@ create policy finance_family_members_upd on public.finance_family_members for up
 drop policy if exists finance_family_private_sel on public.finance_family_member_private;
 create policy finance_family_private_sel on public.finance_family_member_private for select
   using (public.ws_access_level(workspace_id, 'finance', 'family') in ('view','edit')
-    and (exists (select 1 from public.workspaces w where w.id = workspace_id and w.owner_id = auth.uid())
-      or exists (select 1 from public.workspace_members m where m.workspace_id = workspace_id and m.user_id = auth.uid() and m.status='active'
+    and (exists (select 1 from public.workspaces w where w.id = finance_family_member_private.workspace_id and w.owner_id = auth.uid())
+      or exists (select 1 from public.workspace_members m where m.workspace_id = finance_family_member_private.workspace_id and m.user_id = auth.uid() and m.status='active'
         and (coalesce(m.access->'systems'->'finance'->'sections'->>'family_sensitive','none') in ('view','edit')
           or coalesce((m.access->'systems'->'finance'->>'manage')::boolean,false)))));
 drop policy if exists finance_family_private_ins on public.finance_family_member_private;
 create policy finance_family_private_ins on public.finance_family_member_private for insert
   with check (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit'
-    and (exists (select 1 from public.workspaces w where w.id = workspace_id and w.owner_id = auth.uid())
-      or exists (select 1 from public.workspace_members m where m.workspace_id = workspace_id and m.user_id = auth.uid() and m.status='active'
+    and (exists (select 1 from public.workspaces w where w.id = finance_family_member_private.workspace_id and w.owner_id = auth.uid())
+      or exists (select 1 from public.workspace_members m where m.workspace_id = finance_family_member_private.workspace_id and m.user_id = auth.uid() and m.status='active'
         and (coalesce(m.access->'systems'->'finance'->'sections'->>'family_sensitive','none') = 'edit'
           or coalesce((m.access->'systems'->'finance'->>'manage')::boolean,false))))
     and (updated_by is null or updated_by = auth.uid());
 drop policy if exists finance_family_private_upd on public.finance_family_member_private;
 create policy finance_family_private_upd on public.finance_family_member_private for update
   using (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit'
-    and (exists (select 1 from public.workspaces w where w.id = workspace_id and w.owner_id = auth.uid())
-      or exists (select 1 from public.workspace_members m where m.workspace_id = workspace_id and m.user_id = auth.uid() and m.status='active'
+    and (exists (select 1 from public.workspaces w where w.id = finance_family_member_private.workspace_id and w.owner_id = auth.uid())
+      or exists (select 1 from public.workspace_members m where m.workspace_id = finance_family_member_private.workspace_id and m.user_id = auth.uid() and m.status='active'
         and (coalesce(m.access->'systems'->'finance'->'sections'->>'family_sensitive','none') = 'edit'
           or coalesce((m.access->'systems'->'finance'->>'manage')::boolean,false))))
   with check (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit'
-    and (exists (select 1 from public.workspaces w where w.id = workspace_id and w.owner_id = auth.uid())
-      or exists (select 1 from public.workspace_members m where m.workspace_id = workspace_id and m.user_id = auth.uid() and m.status='active'
+    and (exists (select 1 from public.workspaces w where w.id = finance_family_member_private.workspace_id and w.owner_id = auth.uid())
+      or exists (select 1 from public.workspace_members m where m.workspace_id = finance_family_member_private.workspace_id and m.user_id = auth.uid() and m.status='active'
         and (coalesce(m.access->'systems'->'finance'->'sections'->>'family_sensitive','none') = 'edit'
           or coalesce((m.access->'systems'->'finance'->>'manage')::boolean,false))))
     and (updated_by is null or updated_by = auth.uid()));
