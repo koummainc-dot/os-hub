@@ -101,7 +101,7 @@ begin
     allocation_status,reviewed_at,reviewed_by,created_by,updated_by
   ) values (
     p_workspace_id,p_transaction_id,p_responsibility_type,p_primary_family_member_id,
-    case when p_mark_reviewed then 'Reviewed' when item_count>0 then 'Allocated' else 'Unassigned' end,
+    case when p_mark_reviewed then 'Reviewed' when item_count>0 or p_primary_family_member_id is not null then 'Allocated' else 'Unassigned' end,
     case when p_mark_reviewed then now() else null end,
     case when p_mark_reviewed then auth.uid() else null end,
     auth.uid(),auth.uid()
@@ -185,6 +185,59 @@ begin
 end
 $function$;
 
+
+create or replace function public.fin_family_list_expenses(
+  p_workspace_id uuid,
+  p_limit integer default 50
+)
+returns table (
+  transaction_id uuid,
+  transaction_name text,
+  local_date date,
+  amount numeric,
+  currency text,
+  category_id uuid,
+  category_name text,
+  responsibility_type text,
+  primary_family_member_id uuid,
+  allocation_status text,
+  allocations jsonb
+)
+language plpgsql
+stable
+security definer
+set search_path to ''
+as $function$
+begin
+  perform public.fin_family_need(p_workspace_id,'view',false);
+  return query
+  select t.id,t.name,t.local_date,t.amount,t.currency,t.category_id,coalesce(c.name,'غير مصنف'),
+         coalesce(m.responsibility_type,'Unassigned'),m.primary_family_member_id,
+         coalesce(m.allocation_status,'Unassigned'),
+         coalesce((
+           select jsonb_agg(jsonb_build_object(
+             'family_member_id',a.family_member_id,
+             'member_name',fm.display_name,
+             'allocation_method',a.allocation_method,
+             'amount',a.amount,
+             'percentage',a.percentage,
+             'currency',a.currency
+           ) order by fm.display_name)
+           from public.finance_family_allocations a
+           join public.finance_family_members fm on fm.workspace_id=a.workspace_id and fm.id=a.family_member_id
+           where a.workspace_id=t.workspace_id and a.transaction_id=t.id
+         ),'[]'::jsonb)
+    from public.finance_transactions t
+    left join public.finance_categories c on c.workspace_id=t.workspace_id and c.id=t.category_id
+    left join public.finance_family_transaction_meta m on m.workspace_id=t.workspace_id and m.transaction_id=t.id
+   where t.workspace_id=p_workspace_id and t.type='Expense' and t.status='Posted'
+   order by t.local_date desc,t.created_at desc
+   limit greatest(1,least(coalesce(p_limit,50),200));
+end
+$function$;
+
+revoke all on function public.fin_family_list_expenses(uuid,integer) from public;
+grant execute on function public.fin_family_list_expenses(uuid,integer) to authenticated;
 revoke all on function public.fin_family_set_transaction_allocation(uuid,uuid,text,uuid,jsonb,boolean) from public;
 revoke all on function public.fin_family_spending_report(uuid,date,date,uuid) from public;
 grant execute on function public.fin_family_set_transaction_allocation(uuid,uuid,text,uuid,jsonb,boolean) to authenticated;
