@@ -54,8 +54,8 @@ export default function FinanceFamily({ws,access,isDemo=false,currencies=[]}) {
         supabase.rpc("fin_family_list_expenses",{p_workspace_id:ws.id,p_limit:100}),
         supabase.from("finance_family_member_private").select("family_member_id,birth_date,notes").eq("workspace_id",ws.id)
       ]);
-      if(m.error) throw m.error; if(b.error) throw b.error; if(a.error) throw a.error; if(x.error) throw x.error;
-      setMembers(m.data||[]); setBudgets(b.data||[]); setAllowances(a.data||[]); setExpenses(x.data||[]);
+      if(m.error) throw m.error; if(b.error) throw b.error; if(a.error) throw a.error; if(x.error) throw x.error; if(p.error) throw p.error;
+      setMembers(m.data||[]); setBudgets(b.data||[]); setAllowances(a.data||[]); setExpenses(x.data||[]); setPrivateDetails(p.data||[]);
     } catch(e) { setError(e?.message||"تعذّر تحميل مركز العائلة. تحقق من صلاحيات Finance/Family وتطبيق ترحيل قاعدة البيانات."); }
     finally { setLoading(false); }
   },[ws?.id,isDemo]);
@@ -136,7 +136,7 @@ export default function FinanceFamily({ws,access,isDemo=false,currencies=[]}) {
     {notice&&<Card style={{borderColor:"#A6F4C5",background:"#F6FEF9"}}><div style={{color:"#067647",fontSize:13}}>{notice}</div></Card>}
     <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{tabs.map(([id,label,icon])=><button key={id} onClick={()=>setTab(id)} style={{border:"1px solid "+(tab===id?"#A7DCC4":LINE),background:tab===id?"#E8F7EF":"#fff",color:tab===id?"#047857":MUTED,borderRadius:10,padding:"9px 13px",fontWeight:750,cursor:"pointer",fontFamily:"inherit"}}>{icon} {label}</button>)}</div>
     {loading?<Card>جارٍ تحميل بيانات العائلة…</Card>:<>
-      {tab==="overview"&&<><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>{[["الأفراد النشطون",activeMembers.length],["الميزانيات النشطة",budgets.length],["المخصصات النشطة",allowances.filter(a=>a.status==="Active").length],["غير موزع (آخر 100 حركة)",expenses.filter(t=>t.allocation_status==="Unassigned").length]].map(([l,v])=><Card key={l}><div style={{fontSize:12,color:MUTED}}>{l}</div><div style={{fontSize:25,fontWeight:850,marginTop:7}}>{v}</div></Card>)}</div><Card><h3 style={{marginTop:0}}>قبل عرض إجمالي المصروفات</h3><p style={{fontSize:13,color:MUTED,lineHeight:1.9,marginBottom:0}}>توزيع المعاملات الفعلية وربطها بدفتر الحركات مرحلة مستقلة؛ لن نعرض أرقام إنفاق تقديرية أو نحسب التوزيعات مرتين. عند اكتمال ربط الدفتر ستظهر هنا مصروفات الأسرة حسب الفترة والفرد والتصنيف.</p></Card></>}
+      {tab==="overview"&&<><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>{[["الأفراد النشطون",activeMembers.length],["الميزانيات النشطة",budgets.length],["المخصصات النشطة",allowances.filter(a=>a.status==="Active").length],["غير موزع (آخر 100 حركة)",expenses.filter(t=>t.allocation_status==="Unassigned").length]].map(([l,v])=><Card key={l}><div style={{fontSize:12,color:MUTED}}>{l}</div><div style={{fontSize:25,fontWeight:850,marginTop:7}}>{v}</div></Card>)}</div><Card><h3 style={{marginTop:0}}>قبل عرض إجمالي المصروفات</h3><p style={{fontSize:13,color:MUTED,lineHeight:1.9,marginBottom:0}}>التوزيع مرتبط بالحركات الأصلية، والتقرير يحسب المصروفات المعتمدة فقط ويفصل العملات. الرقم غير الموزع يعكس آخر 100 حركة معتمدة؛ استخدم تقرير الأسرة للفترة المطلوبة.</p></Card></>}
       {tab==="members"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,300px),1fr))",gap:12,alignItems:"start"}}>
         {canEdit&&<Card><h3 style={{marginTop:0}}>{editing?"تعديل بيانات فرد":"إضافة فرد للأسرة"}</h3><form onSubmit={saveMember} style={{display:"grid",gap:11}}>
           <Field label="الاسم الظاهر *"><input required maxLength={120} style={input} value={form.display_name} onChange={e=>setForm({...form,display_name:e.target.value})} placeholder="مثال: أحمد"/></Field>
