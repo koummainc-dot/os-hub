@@ -24,6 +24,12 @@ Depends on: `20261028120000_inventory_p0_foundation.sql`
 - Sensitive offline persistence remains disabled; this migration does not implement encryption or the sync engine.
 - Cross-system IDs remain soft references; no cross-system foreign keys are introduced.
 
+## Static review update
+
+- Corrected malformed PL/pgSQL dollar-quote delimiters in `inventory_p1_stamp_row()` and `inventory_p1_stamp_append()` (`as $ ... $;`). This was a source-level syntax defect found during static inspection. The migration has **not** been executed against PostgreSQL, so the correction is not a claim that the migration parses or applies successfully.
+- Before building the normalized repository adapter, add an explicit mapping between the current aggregate event vocabulary and normalized ownership events/audit records. The aggregate contains events such as `ItemUpdated`, `LoanReturned`, and category/place events that do not all belong in `inventory_ownership_events`.
+- Add mapping/default logic for aggregate fields that differ from the normalized schema (for example, category `slug`, loan `status` vs `returned_at`, and `placeId` vs `current_location_id`) before enabling any data migration.
+
 ## Review blockers (not tested)
 1. Confirm `ws_access_level` recognizes each section ID and uses the expected `view`/`edit` values.
 2. Physical deletes for categories/locations referenced by other rows are restricted to preserve workspace-bound composite foreign keys. UI should use soft-delete/archive and offer a clear explanation when a category/location is still referenced.
