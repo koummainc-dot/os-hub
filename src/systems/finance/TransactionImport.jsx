@@ -56,7 +56,9 @@ export default function TransactionImport({ws,accounts,categories,existingTransa
    if(!type)errors.push("النوع يجب أن يكون دخلًا أو مصروفًا؛ التحويلات غير مدعومة هنا");
    if(!(amount>0)||!Number.isFinite(amount))errors.push("المبلغ غير صالح");
    if(!account)errors.push("اختر حسابًا افتراضيًا أو اربط عمود الحساب");
-   if(!/^[A-Z]{3}$/.test(currency))errors.push("رمز العملة غير صالح");\n   if(account&&account.currency!==currency)errors.push("عملة الحركة لا تطابق عملة الحساب");\n   if(category&&category.kind!=="Both"&&category.kind!==type)errors.push("التصنيف لا يطابق نوع الحركة");
+   if(!/^[A-Z]{3}$/.test(currency))errors.push("رمز العملة غير صالح");
+   if(account&&account.currency!==currency)errors.push("عملة الحركة لا تطابق عملة الحساب");
+   if(category&&category.kind!=="Both"&&category.kind!==type)errors.push("التصنيف لا يطابق نوع الحركة");
    const row={index,raw,date,name,type,amount,currency,account,category,merchant:value("merchant"),notes:value("notes"),errors};
    const key=signature({local_date:date,name,amount,currency,from_account_id:account?.id});
    if(!errors.length&&(existingKeys.has(key)||seen.has(key))){row.duplicate=true;row.errors.push("تبدو مكررة — لن تُستورد");}
