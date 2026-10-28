@@ -15,7 +15,7 @@ function Btn({children,secondary=false,...props}){return <button {...props} styl
 function Card({children,style={}}){return <div style={{background:"#fff",border:"1px solid "+LINE,borderRadius:14,padding:15,...style}}>{children}</div>}
 function Metric({label,value,detail}){return <div style={{background:BG,border:"1px solid "+LINE,borderRadius:10,padding:11,minWidth:0}}><div style={{fontSize:11,color:MUTED,marginBottom:5}}>{label}</div><b style={{fontSize:16,overflowWrap:"anywhere"}}>{value}</b>{detail&&<div style={{fontSize:10,color:MUTED,marginTop:4}}>{detail}</div>}</div>}
 
-export default function FinanceProjects({ws,access,isDemo=false}){
+export default function FinanceProjects({ws,access,isDemo=false,currencies=[]}){
  const [projects,setProjects]=useState([]),[transactions,setTransactions]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
  const [error,setError]=useState(""),[notice,setNotice]=useState(""),[showForm,setShowForm]=useState(false),[editingId,setEditingId]=useState(null),[selectedId,setSelectedId]=useState(null);
  const [form,setForm]=useState(emptyForm()),[linkTxId,setLinkTxId]=useState("");
@@ -83,7 +83,7 @@ export default function FinanceProjects({ws,access,isDemo=false}){
    <Field label="النطاق"><select style={input} value={form.scope} onChange={e=>setForm({...form,scope:e.target.value})}><option value="Personal">شخصي</option><option value="Business">تجاري</option></select></Field>
    <Field label="الحالة"><select style={input} value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>{STATUSES.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></Field>
    <Field label="الميزانية"><input type="number" min="0" step="0.01" style={input} value={form.budget} onChange={e=>setForm({...form,budget:e.target.value})} placeholder="اختياري"/></Field>
-   <Field label="العملة"><input required maxLength={3} style={input} value={form.currency} onChange={e=>setForm({...form,currency:e.target.value.toUpperCase()})}/></Field>
+   <Field label="العملة"><select required style={input} value={form.currency} onChange={e=>setForm({...form,currency:e.target.value})}>{!currencies.some(c=>c.currency===form.currency)&&form.currency&&<option value={form.currency}>{form.currency} · العملة الحالية</option>}{currencies.filter(c=>c.is_active).map(c=><option key={c.currency} value={c.currency}>{c.currency} · {c.display_name}</option>)}</select></Field>
    <Field label="تاريخ البداية"><input required type="date" style={input} value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/></Field>
    <Field label="تاريخ النهاية"><input type="date" style={input} value={form.end_date} onChange={e=>setForm({...form,end_date:e.target.value})}/></Field>
    <Field label="أساس ROI"><select style={input} value={form.roi_basis} onChange={e=>setForm({...form,roi_basis:e.target.value})}><option value="ExpensesLinked">المصروفات المرتبطة</option><option value="DeclaredCapital">رأس مال معلن</option><option value="Disabled">تعطيل ROI</option></select></Field>
