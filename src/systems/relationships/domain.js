@@ -138,12 +138,13 @@ export function upcomingRelationshipEvents(people, occasions, today, horizonDays
     }
   }
   for (const occasion of Array.isArray(occasions) ? occasions : []) {
-    if (!occasion?.date) continue;
+    if (!occasion?.date || occasion.reminderEnabled === false) continue;
     const nextDate = occasion.recurrence === "yearly" ? nextAnnualDate(occasion.date, today) : occasion.date;
     if (!nextDate) continue;
     const daysAway = daysBetweenISO(today, nextDate);
-    if (daysAway !== null && daysAway >= 0 && daysAway <= horizonDays) {
-      events.push({ id: "occasion:" + occasion.id, personId: occasion.personId, title: String(occasion.title || "مناسبة"), date: nextDate, daysAway, kind: "occasion" });
+    const reminderDays = Math.max(0, Math.min(365, Number(occasion.reminderDays ?? 7) || 0));
+    if (daysAway !== null && daysAway >= 0 && daysAway <= horizonDays && daysAway <= reminderDays) {
+      events.push({ id: "occasion:" + occasion.id, personId: occasion.personId, title: String(occasion.title || "مناسبة"), date: nextDate, daysAway, kind: "occasion", reminderDays });
     }
   }
   return events.sort((a, b) => a.daysAway - b.daysAway || a.title.localeCompare(b.title));
