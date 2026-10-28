@@ -1,0 +1,40 @@
+# Personal Inventory OS — P1 domain schema review
+
+Status: **Draft only — not applied to any Supabase database**  
+Migration: `20261028130000_inventory_p1_domain_schema.sql`  
+Depends on: `20261028120000_inventory_p0_foundation.sql`
+
+## Scope added
+- Categories and nested locations.
+- Items: item kind, condition, ownership status, category/location, quantity, purchase amount/currency, optional estimated value, sensitivity, and soft reference to a person.
+- Multiple identifiers per item (serial, IMEI, asset tag, barcode, registration, other).
+- Append-only ownership timeline.
+- Multiple warranties per item and warranty claims.
+- Replacement plans with optional soft Shopping wishlist reference; no automatic purchase creation.
+- Append-only valuations, explicitly separate from Finance transactions/net worth.
+- Loans with direction, person snapshot, due date and return state.
+- Maintenance/service logs.
+- Attachments as references to Core Files; this migration stores no file bytes.
+
+## Authorization and data boundaries
+- All tables are workspace-scoped. Child records use composite workspace/parent foreign keys where applicable.
+- RLS uses `public.ws_access_level(workspace_id, 'inventory', section)` for sections: `categories`, `places`, `items`, `history`, `warranty`, `replacement`, `loans`, `maintenance`, and `documents`.
+- Anonymous Data API access is revoked.
+- Ownership events, valuations, and attachments are append-only through authenticated Data API operations.
+- Sensitive offline persistence remains disabled; this migration does not implement encryption or the sync engine.
+- Cross-system IDs remain soft references; no cross-system foreign keys are introduced.
+
+## Review blockers (not tested)
+1. Confirm `ws_access_level` recognizes each section ID and uses the expected `view`/`edit` values.
+2. Review PostgreSQL behavior for composite self-referential foreign keys using `ON DELETE SET NULL`; ensure it does not attempt to null the workspace key. If necessary, replace with explicit parent nullification logic.
+3. Review the P0/P1 row-stamping conventions and ensure the application never trusts client-supplied actor or owner IDs.
+4. Derived values such as current location and ownership status are not calculated from the event log yet. Do not expose the event log as if it automatically controls current state.
+5. Duplicate identifier policy (workspace-wide vs per item) remains open; current schema does not add a unique constraint.
+6. Sensitive/Secret search and notification suppression still require application-layer implementation.
+7. Run the full migration chain against an isolated database and complete the RLS matrix before any production rollout.
+
+## Explicitly not done
+- No Supabase branch created.
+- No SQL executed against Supabase.
+- No tests or build commands run, per request.
+- No merge or deployment.
