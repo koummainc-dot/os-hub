@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { createInventoryRepository } from "./repository.js";
+import { createNormalizedInventoryRepository } from "./normalized-repository.js";
 import { deriveLoanState, deriveReplacementState, deriveWarrantyState } from "./domain.js";
 import { inventoryToday, inventoryDateOffset, prepareInventoryItem, prepareInventoryCategory, prepareInventoryPlace, archiveInventoryItem, restoreInventoryItem, archiveInventoryReference, prepareRelatedInventoryRecord, returnInventoryLoan } from "./services.js";
 import { osSectionLevel } from "../../core/core.js";
@@ -62,7 +62,7 @@ function Badge({ children, tone = "neutral" }) { const colors = tone === "good" 
 
 function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPage, shell }) {
   const [data, setData] = useState(blank);
-  const repository = useMemo(() => createInventoryRepository(api, normalize), [api]);
+  const repository = useMemo(() => createNormalizedInventoryRepository(api, normalize), [api]);
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [source, setSource] = useState("");
