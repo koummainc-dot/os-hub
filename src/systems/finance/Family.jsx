@@ -13,6 +13,7 @@ const money = (v,c="EGP") => { try { return new Intl.NumberFormat("ar-EG",{style
 
 export default function FinanceFamily({ws,access,isDemo=false,currencies=[]}) {
   const [members,setMembers] = useState([]);
+  const [workspaceUsers,setWorkspaceUsers] = useState([]);
   const [budgets,setBudgets] = useState([]);
   const [categories,setCategories] = useState([]);
   const [allowances,setAllowances] = useState([]);
@@ -48,16 +49,17 @@ export default function FinanceFamily({ws,access,isDemo=false,currencies=[]}) {
     if(isDemo || !ws?.id) { setMembers([]); setBudgets([]); setCategories([]); setAllowances([]); setExpenses([]); setLoading(false); return; }
     setLoading(true); setError("");
     try {
-      const [m,b,a,x,p,cat] = await Promise.all([
+      const [m,b,a,x,p,cat,users] = await Promise.all([
         supabase.from("finance_family_members").select("id,display_name,nickname,relationship_type,relationship_label,color,default_responsibility,linked_user_id,status,created_at").eq("workspace_id",ws.id).order("status").order("display_name"),
         supabase.from("finance_family_budgets").select("id,family_member_id,category_id,period,start_date,end_date,amount,currency,rollover_rule,rollover_cap,status").eq("workspace_id",ws.id).eq("status","Active").order("period",{ascending:false}),
         supabase.from("finance_family_allowances").select("id,family_member_id,amount,currency,frequency,due_day,start_date,end_date,status").eq("workspace_id",ws.id).neq("status","Archived").order("created_at",{ascending:false}),
         supabase.rpc("fin_family_list_expenses",{p_workspace_id:ws.id,p_limit:100}),
         supabase.from("finance_family_member_private").select("family_member_id,birth_date,notes").eq("workspace_id",ws.id),
-        supabase.from("finance_categories").select("id,name,kind,parent_id,archived").eq("workspace_id",ws.id).eq("archived",false).order("name")
+        supabase.from("finance_categories").select("id,name,kind,parent_id,archived").eq("workspace_id",ws.id).eq("archived",false).order("name"),
+        supabase.from("workspace_members").select("user_id,display_name,email,status").eq("workspace_id",ws.id).eq("status","active").order("display_name")
       ]);
       if(m.error) throw m.error; if(b.error) throw b.error; if(a.error) throw a.error; if(x.error) throw x.error; if(p.error) throw p.error; if(cat.error) throw cat.error;
-      setMembers(m.data||[]); setBudgets(b.data||[]); setCategories(cat.data||[]); setAllowances(a.data||[]); setExpenses(x.data||[]); setPrivateDetails(p.data||[]);
+      setMembers(m.data||[]); setBudgets(b.data||[]); setCategories(cat.data||[]); setAllowances(a.data||[]); setExpenses(x.data||[]); setPrivateDetails(p.data||[]); setWorkspaceUsers(users.error?[]:(users.data||[]));
     } catch(e) { setError(e?.message||"تعذّر تحميل مركز العائلة. تحقق من صلاحيات Finance/Family وتطبيق ترحيل قاعدة البيانات."); }
     finally { setLoading(false); }
   },[ws?.id,isDemo]);
@@ -149,7 +151,7 @@ export default function FinanceFamily({ws,access,isDemo=false,currencies=[]}) {
           {form.relationship_type==="Other"&&<Field label="توضيح الصلة"><input style={input} maxLength={100} value={form.relationship_label} onChange={e=>setForm({...form,relationship_label:e.target.value})}/></Field>}
           <Field label="المسؤولية الافتراضية"><select style={input} value={form.default_responsibility} onChange={e=>setForm({...form,default_responsibility:e.target.value})}>{RESPONSIBILITIES.map(r=><option key={r.v} value={r.v}>{r.l}</option>)}</select></Field>
           <Field label="لون التمييز"><input type="color" style={{...input,height:42,padding:4}} value={form.color} onChange={e=>setForm({...form,color:e.target.value})}/></Field>
-          <Field label="ربط بمستخدم موجود (اختياري — لا يمنح صلاحية تلقائيًا)"><input style={input} value={form.linked_user_id} onChange={e=>setForm({...form,linked_user_id:e.target.value})} placeholder="UUID لمستخدم داخل المساحة"/></Field>
+          <Field label="ربط بحساب موجود في مساحة العمل (اختياري)"><select style={input} value={form.linked_user_id} onChange={e=>setForm({...form,linked_user_id:e.target.value})}><option value="">بدون ربط</option>{workspaceUsers.map(u=><option key={u.user_id} value={u.user_id}>{u.display_name||u.email||u.user_id.slice(0,8)}{u.user_id===form.linked_user_id?" (مرتبط)":""}</option>)}</select><span style={{fontSize:11,color:MUTED,fontWeight:400}}>الربط لا يمنح الحساب صلاحية تلقائيًا، ويُقبل فقط لمستخدم نشط داخل هذه المساحة.</span></Field>
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Btn type="submit" disabled={saving}>{saving?"جارٍ الحفظ…":editing?"حفظ التعديلات":"إضافة الفرد"}</Btn>{editing&&<Btn secondary type="button" onClick={resetMember}>إلغاء التعديل</Btn>}</div>
         </form></Card>}
         <Card><h3 style={{marginTop:0}}>أفراد الأسرة ({members.length})</h3>{!members.length?<div style={{fontSize:13,color:MUTED,lineHeight:1.8}}>لا يوجد أفراد بعد. أضف أفراد الأسرة لتتمكن من إعداد الميزانيات والمخصصات.</div>:<div style={{display:"grid",gap:9}}>{members.map(m=><div key={m.id} style={{border:"1px solid "+LINE,borderRadius:11,padding:12,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
