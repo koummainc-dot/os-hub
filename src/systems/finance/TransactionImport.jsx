@@ -56,7 +56,7 @@ export default function TransactionImport({ws,accounts,categories,existingTransa
    if(!type)errors.push("النوع يجب أن يكون دخلًا أو مصروفًا؛ التحويلات غير مدعومة هنا");
    if(!(amount>0)||!Number.isFinite(amount))errors.push("المبلغ غير صالح");
    if(!account)errors.push("اختر حسابًا افتراضيًا أو اربط عمود الحساب");
-   if(!/^[A-Z]{3}$/.test(currency))errors.push("رمز العملة غير صالح");
+   if(!/^[A-Z]{3}$/.test(currency))errors.push("رمز العملة غير صالح");\n   if(account&&account.currency!==currency)errors.push("عملة الحركة لا تطابق عملة الحساب");\n   if(category&&category.kind!=="Both"&&category.kind!==type)errors.push("التصنيف لا يطابق نوع الحركة");
    const row={index,raw,date,name,type,amount,currency,account,category,merchant:value("merchant"),notes:value("notes"),errors};
    const key=signature({local_date:date,name,amount,currency,from_account_id:account?.id});
    if(!errors.length&&(existingKeys.has(key)||seen.has(key))){row.duplicate=true;row.errors.push("تبدو مكررة — لن تُستورد");}
@@ -106,7 +106,7 @@ export default function TransactionImport({ws,accounts,categories,existingTransa
  return <div style={{display:"grid",gap:10}}>
   <div><Button secondary onClick={()=>setOpen(v=>!v)}>{open?"إغلاق استيراد CSV":"⇧ استيراد حركات من CSV"}</Button></div>
   {open&&<div style={{border:"1px solid "+LINE,borderRadius:12,padding:14,display:"grid",gap:12,background:"#FCFDFC"}}>
-   <div><b style={{fontSize:13}}>استيراد حركات مالية من CSV</b><p style={{fontSize:11,color:MUTED,lineHeight:1.8,margin:"5px 0 0"}}>تعمل المعاينة قبل الحفظ. مدعوم: الدخل والمصروف فقط، حتى 500 صف و5 ميجابايت. التحويلات غير مدعومة. لا يُسجَّل سجل استيراد قابل للتراجع كدفعة واحدة في هذه المرحلة.</p></div>
+   <div><b style={{fontSize:13}}>استيراد حركات مالية من CSV</b><p style={{fontSize:11,color:MUTED,lineHeight:1.8,margin:"5px 0 0"}}>تعمل المعاينة قبل الحفظ. مدعوم: الدخل والمصروف فقط، حتى 500 صف و5 ميجابايت. التحويلات غير مدعومة. كشف التكرار المحلي يعتمد على الحركات المحمّلة فقط؛ ويُستخدم مفتاح ثابت لمنع إعادة إرسال الصف نفسه من الملف نفسه. لا يُسجَّل سجل استيراد قابل للتراجع كدفعة واحدة في هذه المرحلة.</p></div>
    <input type="file" accept=".csv,text/csv" onChange={e=>chooseFile(e.target.files?.[0])} style={{font:"inherit",fontSize:12}}/>
    {!!headers.length&&<>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>{fieldNames.map(([key,label])=><label key={key} style={{display:"grid",gap:5,fontSize:11,fontWeight:700,color:INK}}>{label}{key==="account"&&<span style={{fontWeight:400,color:MUTED}}>اختياري إذا اخترت حسابًا افتراضيًا</span>}<select value={mapping[key]} onChange={e=>setMapping(v=>({...v,[key]:e.target.value}))} style={input}><option value="">— غير محدد —</option>{headers.map(h=><option key={h} value={h}>{h}</option>)}</select></label>)}</div>
