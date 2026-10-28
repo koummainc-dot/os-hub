@@ -35,7 +35,7 @@ export default function FinanceFamily({ws,access,isDemo=false,currencies=[]}) {
   const [allowanceForm,setAllowanceForm] = useState({family_member_id:"",amount:"",currency:"EGP",frequency:"Monthly",due_day:"",start_date:today()});
   const familyLevel = access?.sections?.family;
   const canView = !isDemo && (access?.owner || ((access?.level==="view" || access?.level==="edit") && familyLevel!=="none"));
-  const canEdit = !isDemo && (access?.owner || (familyLevel!=="none" && familyLevel!=="view" && (access?.manage || access?.level==="edit")));
+  const canEdit = !isDemo && (access?.owner || (access?.level==="edit" && familyLevel!=="none" && familyLevel!=="view"));
 
   const load = useCallback(async()=>{
     if(isDemo || !ws?.id) { setMembers([]); setBudgets([]); setAllowances([]); setExpenses([]); setLoading(false); return; }
