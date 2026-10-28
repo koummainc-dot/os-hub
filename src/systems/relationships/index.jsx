@@ -104,6 +104,10 @@ export default function RelationshipsSystem(props) {
   const [selectedPersonId, setSelectedPersonId] = useState(null);
   const [followupDraft, setFollowupDraft] = useState({ personId: "", title: "", dueDate: today(), notes: "" });
   const [timelineDraft, setTimelineDraft] = useState({ personId: "", type: "message", date: today(), summary: "", notes: "" });
+  const [editingTimelineId, setEditingTimelineId] = useState(null);
+  const [timelineFilterPerson, setTimelineFilterPerson] = useState("");
+  const [timelineFilterType, setTimelineFilterType] = useState("");
+  const [timelineSearch, setTimelineSearch] = useState("");
   const [occasionDraft, setOccasionDraft] = useState({ personId: "", title: "عيد الميلاد", date: "", recurrence: "yearly", reminderDays: 7, notes: "" });
   const [circleDraft, setCircleDraft] = useState({ name: "", description: "", color: "#DB2777" });
   const [busy, setBusy] = useState(false);
@@ -288,14 +292,29 @@ export default function RelationshipsSystem(props) {
     </Panel>
   </>;
   else if (page === "timeline") content = <>
-    {canEdit && <Panel title="تسجيل تواصل" hint="سجّل الحدث وتاريخه، دون افتراض كيف شعر الطرف الآخر.">
-      <form onSubmit={async (e) => { e.preventDefault(); if (!timelineDraft.personId || !timelineDraft.summary.trim()) return setError("اختر شخصًا واكتب ملخصًا."); const ok = await saveEntity("timeline", { ...timelineDraft, id: makeId() }); if (ok) setTimelineDraft({ personId: "", type: "message", date: today(), summary: "", notes: "" }); }} style={{ display: "grid", gap: 10 }}>
+    {canEdit && <Panel title={editingTimelineId ? "تعديل حدث تواصل" : "تسجيل تواصل"} hint="سجّل الحدث وتاريخه، دون افتراض كيف شعر الطرف الآخر.">
+      <form onSubmit={async (e) => { e.preventDefault(); if (!timelineDraft.personId || !timelineDraft.summary.trim() || !timelineDraft.date) return setError("اختر الشخص واكتب ملخصًا وحدد التاريخ."); const old = data.timeline.find((x) => x.id === editingTimelineId); const ok = await saveEntity("timeline", { ...timelineDraft, id: editingTimelineId || makeId(), createdAt: old?.createdAt || new Date().toISOString() }); if (ok) { setTimelineDraft({ personId: "", type: "message", date: today(), summary: "", notes: "" }); setEditingTimelineId(null); } }} style={{ display: "grid", gap: 10 }}>
         <SelectField label="الشخص" value={timelineDraft.personId} onChange={(v) => setTimelineDraft((p) => ({ ...p, personId: v }))} options={[{ value: "", label: "اختر شخصًا" }, ...data.people.map((p) => ({ value: p.id, label: p.name }))]} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}><SelectField label="نوع التواصل" value={timelineDraft.type} onChange={(v) => setTimelineDraft((p) => ({ ...p, type: v }))} options={[{ value: "message", label: "رسالة" }, { value: "call", label: "مكالمة" }, { value: "meeting", label: "لقاء" }, { value: "email", label: "بريد" }, { value: "other", label: "أخرى" }]} /><Field label="التاريخ" type="date" value={timelineDraft.date} onChange={(v) => setTimelineDraft((p) => ({ ...p, date: v }))} /></div>
-        <Field label="ملخص التواصل" value={timelineDraft.summary} required onChange={(v) => setTimelineDraft((p) => ({ ...p, summary: v }))} /><Field label="ملاحظات" value={timelineDraft.notes} onChange={(v) => setTimelineDraft((p) => ({ ...p, notes: v }))} /><Button kind="primary" disabled={busy}>حفظ التواصل</Button>
+        <Field label="ملخص التواصل" value={timelineDraft.summary} required onChange={(v) => setTimelineDraft((p) => ({ ...p, summary: v }))} /><Field label="ملاحظات" value={timelineDraft.notes} onChange={(v) => setTimelineDraft((p) => ({ ...p, notes: v }))} />
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button kind="primary" disabled={busy}>{editingTimelineId ? "حفظ التعديلات" : "حفظ التواصل"}</Button>{editingTimelineId && <Button onClick={() => { setEditingTimelineId(null); setTimelineDraft({ personId: "", type: "message", date: today(), summary: "", notes: "" }); }}>إلغاء التعديل</Button>}</div>
       </form>
     </Panel>}
-    {list([...data.timeline].sort((a,b) => String(b.date).localeCompare(String(a.date))), "سجل التواصل", (x) => <><strong>{x.summary}</strong><div style={{ color: C.muted, fontSize: 12 }}>{peopleById[x.personId]?.name || "شخص غير محدد"} · {x.date} · {x.type}</div>{x.notes && <p style={{ margin: "6px 0 0", fontSize: 13 }}>{x.notes}</p>}</>, "timeline")}
+    <Panel title="سجل التواصل" hint={"عدد الأحداث: " + data.timeline.length + " · يمكنك التصفية بالشخص أو النوع والبحث في الملخص والملاحظات."}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
+        <Field label="بحث نصي" value={timelineSearch} placeholder="ابحث في الملخص والملاحظات" onChange={setTimelineSearch} />
+        <SelectField label="الشخص" value={timelineFilterPerson} onChange={setTimelineFilterPerson} options={[{ value: "", label: "كل الأشخاص" }, ...data.people.map((p) => ({ value: p.id, label: p.name }))]} />
+        <SelectField label="نوع التواصل" value={timelineFilterType} onChange={setTimelineFilterType} options={[{ value: "", label: "كل الأنواع" }, { value: "message", label: "رسالة" }, { value: "call", label: "مكالمة" }, { value: "meeting", label: "لقاء" }, { value: "email", label: "بريد" }, { value: "other", label: "أخرى" }]} />
+      </div>
+      {(() => {
+        const q = normalizeSearch(timelineSearch);
+        const rows = data.timeline.filter((x) => (!timelineFilterPerson || x.personId === timelineFilterPerson) && (!timelineFilterType || x.type === timelineFilterType) && (!q || normalizeSearch(x.summary).includes(q) || normalizeSearch(x.notes).includes(q))).sort((a,b) => String(b.date).localeCompare(String(a.date)));
+        return rows.length ? <div style={{ display: "grid", gap: 9, marginTop: 12 }}>{rows.map((x) => <div key={x.id} style={{ border: "1px solid " + C.line, borderRadius: 12, padding: 12, display: "flex", gap: 12, justifyContent: "space-between", alignItems: "start", flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 220px" }}><strong>{x.summary}</strong><div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{peopleById[x.personId]?.name || "شخص غير محدد"} · {x.date} · {{ message: "رسالة", call: "مكالمة", meeting: "لقاء", email: "بريد", other: "أخرى" }[x.type] || x.type}</div>{x.notes && <p style={{ margin: "6px 0 0", fontSize: 13, whiteSpace: "pre-wrap" }}>{x.notes}</p>}</div>
+          {canEdit && <div style={{ display: "flex", gap: 6 }}><Button onClick={() => { setEditingTimelineId(x.id); setTimelineDraft({ personId: x.personId || "", type: x.type || "other", date: x.date || today(), summary: x.summary || "", notes: x.notes || "" }); window.scrollTo?.({ top: 0, behavior: "smooth" }); }}>تعديل</Button><Button kind="danger" onClick={() => deleteEntity("timeline", x)}>أرشفة</Button></div>}
+        </div>)}</div> : <Empty>لا توجد أحداث تطابق عوامل التصفية.</Empty>;
+      })()}
+    </Panel>
   </>;
   else if (page === "followups") content = <>
     {canEdit && <Panel title="متابعة جديدة"><form onSubmit={async (e) => { e.preventDefault(); if (!followupDraft.personId || !followupDraft.title.trim()) return setError("اختر شخصًا واكتب عنوان المتابعة."); const ok = await saveEntity("followups", { ...followupDraft, id: makeId(), status: "open", priority: "normal" }); if (ok) setFollowupDraft({ personId: "", title: "", dueDate: today(), notes: "" }); }} style={{ display: "grid", gap: 10 }}><SelectField label="الشخص" value={followupDraft.personId} onChange={(v) => setFollowupDraft((p) => ({ ...p, personId: v }))} options={[{ value: "", label: "اختر شخصًا" }, ...data.people.map((p) => ({ value: p.id, label: p.name }))]} /><Field label="عنوان المتابعة" value={followupDraft.title} required onChange={(v) => setFollowupDraft((p) => ({ ...p, title: v }))} /><Field label="تاريخ الاستحقاق" type="date" value={followupDraft.dueDate} onChange={(v) => setFollowupDraft((p) => ({ ...p, dueDate: v }))} /><Field label="ملاحظات" value={followupDraft.notes} onChange={(v) => setFollowupDraft((p) => ({ ...p, notes: v }))} /><Button kind="primary" disabled={busy}>حفظ المتابعة</Button></form></Panel>}
