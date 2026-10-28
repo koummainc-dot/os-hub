@@ -52,8 +52,8 @@ BEGIN
   ),
   summary AS (
     SELECT
-      coalesce(sum(base_amount) FILTER(WHERE pnl_effect='Income' AND type<>'Transfer'),0) AS income,
-      coalesce(sum(base_amount) FILTER(WHERE pnl_effect='Expense' AND type<>'Transfer'),0) AS expense,
+      coalesce(sum(base_amount) FILTER(WHERE pnl_effect='Income' AND type<>'Transfer' AND base_amount IS NOT NULL AND NOT base_missing),0) AS income,
+      coalesce(sum(base_amount) FILTER(WHERE pnl_effect='Expense' AND type<>'Transfer' AND base_amount IS NOT NULL AND NOT base_missing),0) AS expense,
       count(*) FILTER(WHERE type='Transfer')::int AS transfers,
       count(*) FILTER(WHERE type IN ('Income','Expense') AND (base_amount IS NULL OR base_missing))::int AS unvalued,
       count(*)::int AS transaction_count
@@ -61,8 +61,8 @@ BEGIN
   ),
   previous_summary AS (
     SELECT
-      coalesce(sum(base_amount) FILTER(WHERE pnl_effect='Income' AND type<>'Transfer'),0) AS income,
-      coalesce(sum(base_amount) FILTER(WHERE pnl_effect='Expense' AND type<>'Transfer'),0) AS expense,
+      coalesce(sum(base_amount) FILTER(WHERE pnl_effect='Income' AND type<>'Transfer' AND base_amount IS NOT NULL AND NOT base_missing),0) AS income,
+      coalesce(sum(base_amount) FILTER(WHERE pnl_effect='Expense' AND type<>'Transfer' AND base_amount IS NOT NULL AND NOT base_missing),0) AS expense,
       count(*) FILTER(WHERE type IN ('Income','Expense') AND (base_amount IS NULL OR base_missing))::int AS unvalued,
       count(*) FILTER(WHERE type='Transfer')::int AS transfers,
       count(*)::int AS transaction_count
@@ -70,22 +70,22 @@ BEGIN
   ),
   trend AS (
     SELECT date_trunc('month',local_date)::date AS month,
-      coalesce(sum(base_amount) FILTER(WHERE pnl_effect='Income' AND type<>'Transfer'),0) AS income,
-      coalesce(sum(base_amount) FILTER(WHERE pnl_effect='Expense' AND type<>'Transfer'),0) AS expense,
+      coalesce(sum(base_amount) FILTER(WHERE pnl_effect='Income' AND type<>'Transfer' AND base_amount IS NOT NULL AND NOT base_missing),0) AS income,
+      coalesce(sum(base_amount) FILTER(WHERE pnl_effect='Expense' AND type<>'Transfer' AND base_amount IS NOT NULL AND NOT base_missing),0) AS expense,
       count(*)::int AS transaction_count
     FROM eligible
     GROUP BY date_trunc('month',local_date)::date
   ),
   months AS (
-    SELECT generate_series(trend_start,d-interval '1 day',interval '1 month')::date AS month
+    SELECT generate_series(trend_start,d,interval '1 month')::date AS month
   ),
   lines AS (
-    SELECT t.id AS transaction_id,t.local_date,t.pnl_effect,t.type,t.base_amount AS amount,
+    SELECT t.id AS transaction_id,t.local_date,t.pnl_effect,t.type,CASE WHEN t.base_missing THEN NULL ELSE t.base_amount END AS amount,
       t.category_id,t.base_missing OR t.base_amount IS NULL AS is_unvalued,t.merchant
     FROM current_tx t
     WHERE NOT EXISTS(SELECT 1 FROM public.finance_transaction_splits s WHERE s.transaction_id=t.id)
     UNION ALL
-    SELECT t.id AS transaction_id,t.local_date,t.pnl_effect,t.type,s.base_amount AS amount,
+    SELECT t.id AS transaction_id,t.local_date,t.pnl_effect,t.type,CASE WHEN t.base_missing OR s.base_amount IS NULL THEN NULL ELSE s.base_amount END AS amount,
       s.category_id,t.base_missing OR s.base_amount IS NULL AS is_unvalued,t.merchant
     FROM current_tx t
     JOIN public.finance_transaction_splits s ON s.transaction_id=t.id
@@ -104,7 +104,7 @@ BEGIN
     SELECT coalesce(nullif(btrim(merchant),''),'بدون تاجر') AS merchant,
       coalesce(sum(base_amount),0) AS amount,count(*)::int AS transaction_count
     FROM current_tx
-    WHERE pnl_effect='Expense' AND type<>'Transfer'
+    WHERE pnl_effect='Expense' AND type<>'Transfer' AND base_amount IS NOT NULL AND NOT base_missing
     GROUP BY coalesce(nullif(btrim(merchant),''),'بدون تاجر')
     ORDER BY amount DESC
     LIMIT 10
