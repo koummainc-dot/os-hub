@@ -7,7 +7,8 @@ import FinanceReports from "./Reports.jsx";
 import FinanceProjects from "./Projects.jsx";
 import FinanceAssets from "./Assets.jsx";
 import FinanceNetWorthHistory from "./NetWorthHistory.jsx";
-import FinanceFXRates from "./FXRates.jsx";\nimport TransactionImport from "./TransactionImport.jsx";
+import FinanceFXRates from "./FXRates.jsx";
+import TransactionImport from "./TransactionImport.jsx";
 
 const GREEN = "#059669";
 const INK = "#17211D";
@@ -417,7 +418,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}><div><h3 style={{ margin: 0, fontSize: 16 }}>دفتر الحركات</h3><p style={{ color: MUTED, fontSize: 12, margin: "5px 0 0" }}>المصدر المحاسبي للحسابات والتقارير.</p></div>{canEdit && <Button onClick={() => setShowTx(true)}>＋ إضافة حركة</Button>}</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}><Input placeholder="ابحث بالاسم أو التاجر أو الملاحظات…" value={search} onChange={e => setSearch(e.target.value)} style={{ flex: "1 1 220px" }} /><Select value={filterType} onChange={e => setFilterType(e.target.value)} style={{ width: 150 }}><option value="all">كل الأنواع</option>{TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</Select></div>
         <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 12 }}>
-          <Button secondary onClick={exportVisibleTransactionsCsv} disabled={!visibleTransactions.length}>⇩ تصدير النتائج CSV ({visibleTransactions.length})</Button>\n          <TransactionImport ws={ws} accounts={accounts} categories={categories} existingTransactions={transactions} canEdit={canEdit} onDone={async (message) => { setNotice(message); await load(); }} />
+          <Button secondary onClick={exportVisibleTransactionsCsv} disabled={!visibleTransactions.length}>⇩ تصدير النتائج CSV ({visibleTransactions.length})</Button>
+          <TransactionImport ws={ws} accounts={accounts} categories={categories} existingTransactions={transactions} canEdit={canEdit} onDone={async (message) => { setNotice(message); await load(); }} />
         </div>
         {!visibleTransactions.length ? <Empty title="لا توجد حركات مطابقة" detail="غيّر البحث أو سجّل حركة جديدة." /> : <div style={tableWrap}><table style={{ borderCollapse: "collapse", width: "100%", minWidth: 820 }}><thead><tr>{["الحركة","النوع","التصنيف","الحساب","التاريخ","الحالة","المبلغ","إجراء"].map(x => <th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{visibleTransactions.map(t => <tr key={t.id}><td style={{ ...td, fontWeight: 750 }}>{t.name}<div style={{ color: MUTED, fontSize: 10, marginTop: 3 }}>{t.merchant || ""}</div></td><td style={td}>{TYPES.find(x => x.value === t.type)?.label || t.type}</td><td style={td}>{categoryById[t.category_id]?.name || "—"}</td><td style={td}>{accountById[t.from_account_id]?.name || accountById[t.to_account_id]?.name || "—"}</td><td style={td}>{fmtDate(t.local_date)}</td><td style={td}><span style={{ borderRadius: 20, padding: "4px 8px", background: t.status === "Posted" ? "#ECFDF3" : "#FFFAEB", color: t.status === "Posted" ? "#067647" : "#92400E" }}>{t.status === "Posted" ? "منشورة" : t.status === "Proposed" ? "مقترحة" : t.status}</span></td><td style={{ ...td, fontWeight: 800, color: t.type === "Income" ? "#047857" : t.type === "Expense" ? "#B42318" : INK }}>{money(t.amount, t.currency)}</td><td style={td}>{canEdit && t.status === "Posted" && !t.reversal_of_id ? <Button secondary onClick={() => { setTxAction({ kind: "reverse", transaction: t }); setTxActionReason(""); setError(""); }}>عكس</Button> : canEdit && t.status === "Proposed" ? <Button secondary onClick={() => { setTxAction({ kind: "void", transaction: t }); setTxActionReason(""); setError(""); }}>إلغاء المقترح</Button> : "—"}</td></tr>)}</tbody></table></div>}
       </Card>}
