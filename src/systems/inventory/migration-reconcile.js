@@ -64,6 +64,7 @@ export function reconcileInventoryMigrationPlan(aggregate, plan) {
     blockers.push({ code: "EVENT_RETENTION_MISMATCH", source: sourceEvents, planned: plannedEvents });
   }
   sourceCounts.inventory_audit_log = null; // audit may also include events from other legacy domains
+  plannedCounts.inventory_audit_log = arrays(tables.inventory_audit_log).length;
   plannedCounts.inventory_settings = arrays(tables.inventory_settings).length;
 
   const idSets = {};
