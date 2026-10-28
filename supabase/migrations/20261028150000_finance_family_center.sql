@@ -122,6 +122,9 @@ create table if not exists public.finance_family_budgets (
 );
 create index if not exists finance_family_budgets_ws_period_idx
   on public.finance_family_budgets(workspace_id, period, status);
+create unique index if not exists finance_family_budgets_active_period_uq
+  on public.finance_family_budgets(workspace_id, family_member_id, category_id, period) nulls not distinct
+  where period is not null and status='Active';
 
 create table if not exists public.finance_family_allowances (
   id uuid primary key default gen_random_uuid(),
