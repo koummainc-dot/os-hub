@@ -186,7 +186,7 @@ returns trigger language plpgsql set search_path=public as $$
 begin raise exception 'INVENTORY_HISTORY_APPEND_ONLY' using errcode='42501'; end;
 $$;
 create or replace function public.inventory_p1_stamp_row()
-returns trigger language plpgsql set search_path=public as $$
+returns trigger language plpgsql set search_path=public as $
 begin
  if tg_op='UPDATE' then
   if new.workspace_id is distinct from old.workspace_id then raise exception 'INVENTORY_WORKSPACE_IMMUTABLE' using errcode='42501'; end if;
@@ -195,7 +195,24 @@ begin
   new.created_at:=coalesce(new.created_at,clock_timestamp()); new.updated_at:=new.created_at; new.created_by:=auth.uid(); new.updated_by:=auth.uid();
  end if;
  return new;
-end; $$;
+end; $;
+
+create or replace function public.inventory_p1_stamp_append()
+returns trigger language plpgsql set search_path=public as $
+begin
+ new.created_at:=coalesce(new.created_at,clock_timestamp());
+ new.created_by:=auth.uid();
+ return new;
+end; $;
+drop trigger if exists inventory_ownership_events_stamp_insert on public.inventory_ownership_events;
+create trigger inventory_ownership_events_stamp_insert before insert on public.inventory_ownership_events
+for each row execute function public.inventory_p1_stamp_append();
+drop trigger if exists inventory_valuations_stamp_insert on public.inventory_valuations;
+create trigger inventory_valuations_stamp_insert before insert on public.inventory_valuations
+for each row execute function public.inventory_p1_stamp_append();
+drop trigger if exists inventory_attachments_stamp_insert on public.inventory_attachments;
+create trigger inventory_attachments_stamp_insert before insert on public.inventory_attachments
+for each row execute function public.inventory_p1_stamp_append();
 
 do $$
 declare t text; sec text;
