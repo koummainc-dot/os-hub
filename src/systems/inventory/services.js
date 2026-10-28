@@ -48,13 +48,59 @@ export function prepareInventoryItem(form, data, today, uid) {
     createdAt: old?.createdAt || today,
     updatedAt: today
   };
-  const next = appendInventoryEvent({
+  let next = {
     ...data,
     items: old ? data.items.map(x => x.id === item.id ? item : x) : [item, ...data.items]
-  }, {
-    id: uid(), itemId: item.id, type: old ? "ItemUpdated" : "Acquired", date: today,
-    note: old ? "تم تحديث بيانات الممتلك." : "تم إنشاء سجل الممتلكات."
-  });
+  };
+  if (!old) {
+    next = appendInventoryEvent(next, {
+      id: uid(), itemId: item.id, type: "Acquired", date: today,
+      toLocationId: item.placeId || null, currentStatus: item.status || "Owned",
+      note: "تم إنشاء سجل الممتلكات."
+    });
+    if (item.status && item.status !== "Owned") {
+      const initialType = ({ Loaned: "Loaned", Sold: "Sold", Disposed: "Disposed", Lost: "Lost" })[item.status] || "Corrected";
+      next = appendInventoryEvent(next, {
+        id: uid(), itemId: item.id, type: initialType, date: today,
+        currentStatus: item.status, toLocationId: item.placeId || null,
+        note: "تم تسجيل الحالة الأولية للممتلك."
+      });
+    }
+  } else {
+    const locationChanged = (old.placeId || "") !== (item.placeId || "");
+    const statusChanged = (old.status || "Owned") !== (item.status || "Owned");
+    if (locationChanged) {
+      next = appendInventoryEvent(next, {
+        id: uid(), itemId: item.id, type: "Moved", date: today,
+        fromLocationId: old.placeId || null, toLocationId: item.placeId || null,
+        previousStatus: old.status || "Owned", currentStatus: item.status || "Owned",
+        note: "تم تغيير الموقع الحالي للممتلك."
+      });
+    }
+    if (statusChanged) {
+      const previousStatus = old.status || "Owned";
+      const currentStatus = item.status || "Owned";
+      let type = "Corrected";
+      if (currentStatus === "Loaned") type = "Loaned";
+      else if (previousStatus === "Loaned" && currentStatus === "Owned") type = "Returned";
+      else if (currentStatus === "Sold") type = "Sold";
+      else if (currentStatus === "Disposed") type = "Disposed";
+      else if (currentStatus === "Lost") type = "Lost";
+      else if (previousStatus === "Lost" && currentStatus === "Owned") type = "Found";
+      next = appendInventoryEvent(next, {
+        id: uid(), itemId: item.id, type, date: today,
+        previousStatus, currentStatus,
+        note: "تغيّرت حالة الملكية من " + previousStatus + " إلى " + currentStatus + "."
+      });
+    }
+    if (!locationChanged && !statusChanged) {
+      next = appendInventoryEvent(next, {
+        id: uid(), itemId: item.id, type: "ItemUpdated", date: today,
+        currentStatus: item.status || "Owned",
+        note: "تم تحديث بيانات الممتلك."
+      });
+    }
+  }
   return { errors: [], item, data: next };
 }
 
