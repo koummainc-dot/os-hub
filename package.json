@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "lint": "eslint src",
     "build:test": "vite build --config vite.test.config.js",
-    "test": "npm run build:test && node tests/t_projects_domain.mjs && node tests/t_demo.js && node tests/t_walk.js && node tests/t_perm.js && node tests/t_real.js && node tests/t_projects.js && node tests/t_inventory_domain.mjs && node tests/t_inventory_migration_plan.mjs"
+    "test": "npm run build:test && node tests/t_projects_domain.mjs && node tests/t_demo.js && node tests/t_walk.js && node tests/t_perm.js && node tests/t_real.js && node tests/t_projects.js && node tests/t_inventory_domain.mjs && node tests/t_inventory_migration_plan.mjs && node tests/t_inventory_migration_reconcile.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
