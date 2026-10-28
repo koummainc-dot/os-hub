@@ -70,7 +70,7 @@ export default function FinanceFamily({ws,access,isDemo=false,currencies=[]}) {
   const selectedExpense = expenses.find(t=>t.transaction_id===selectedExpenseId);
   const selectedPrivate = privateDetails.find(p=>p.family_member_id===privateMemberId);
   const reportMonth = reportStart.slice(0,7);
-  const reportFullMonth = /^\\d{4}-(0[1-9]|1[0-2])-\\d{2}$/.test(reportStart) && /^\\d{4}-(0[1-9]|1[0-2])-\\d{2}$/.test(reportEnd) && reportStart===reportMonth+"-01" && reportEnd===new Date(Date.UTC(Number(reportMonth.slice(0,4)),Number(reportMonth.slice(5,7)),0)).toISOString().slice(0,10);
+  const reportFullMonth = /^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(reportStart) && /^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(reportEnd) && reportStart===reportMonth+"-01" && reportEnd===new Date(Date.UTC(Number(reportMonth.slice(0,4)),Number(reportMonth.slice(5,7)),0)).toISOString().slice(0,10);
   const budgetActual = b => reportRows.filter(r=>(!b.family_member_id||r.family_member_id===b.family_member_id)&&(!b.category_id||r.category_id===b.category_id)&&r.currency===b.currency).reduce((sum,r)=>sum+Number(r.actual_amount||0),0);
   const memberName = id => members.find(m=>m.id===id)?.display_name || "ميزانية الأسرة";
   const resetMember = () => {setEditing(null);setForm({display_name:"",nickname:"",relationship_type:"Other",relationship_label:"",color:"#0D9488",default_responsibility:"Unassigned",linked_user_id:""});};
