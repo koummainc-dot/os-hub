@@ -43,6 +43,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [accounts, setAccounts] = useState([]);
   const [currencies, setCurrencies] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [allCategories, setAllCategories] = useState([]);
   const [goals, setGoals] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [reconciliations, setReconciliations] = useState([]);
@@ -72,6 +73,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [showAccount, setShowAccount] = useState(false);
   const [editingAccountId, setEditingAccountId] = useState(null);
   const [showCategory, setShowCategory] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [tx, setTx] = useState(initialTx);
   const [splitMode, setSplitMode] = useState(false);
   const [splitRows, setSplitRows] = useState([{ category_id: "", amount: "" }, { category_id: "", amount: "" }]);
@@ -90,7 +92,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     try {
       const [ar, cr, tr, sr, br, nr, settingsRes, bu, bt, rr, gr, cu, bi] = await Promise.all([
         supabase.from("finance_accounts").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }),
-        supabase.from("finance_categories").select("*").eq("workspace_id", ws.id).eq("archived", false).order("name"),
+        supabase.from("finance_categories").select("*").eq("workspace_id", ws.id).order("name"),
         supabase.from("finance_transactions").select("*").eq("workspace_id", ws.id).order("local_date", { ascending: false }).limit(150),
         supabase.rpc("fin_period_summary", { p_ws: ws.id, p_from: monthStart(), p_to: today() }),
         supabase.rpc("fin_balances", { p_ws: ws.id }),
@@ -104,7 +106,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         supabase.rpc("fin_budget_insights_get", { p_ws: ws.id, p_period: budgetPeriod })
       ]);
       for (const r of [ar, cr, tr]) if (r.error) throw r.error;
-      setAccounts(ar.data || []); setCurrencies(Array.isArray(cu.data) ? cu.data.filter(c => c.is_active) : []); setCategories(cr.data || []); setTransactions(tr.data || []);
+      setAccounts(ar.data || []); setCurrencies(Array.isArray(cu.data) ? cu.data.filter(c => c.is_active) : []); setAllCategories(cr.data || []); setCategories((cr.data || []).filter(c => !c.archived)); setTransactions(tr.data || []);
       setSummary(sr.error ? null : sr.data); setBalances(br.error ? [] : (Array.isArray(br.data) ? br.data : []));
       setNetWorth(nr.error ? null : nr.data); setSettings(settingsRes.data || { base_currency: "EGP", timezone: "Africa/Cairo" });
       setBudgets(bu.error ? [] : (Array.isArray(bu.data) ? bu.data : []));
@@ -123,7 +125,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(""), 5000); return () => clearTimeout(t); }, [notice]);
 
   const accountById = useMemo(() => Object.fromEntries(accounts.map(a => [a.id, a])), [accounts]);
-  const categoryById = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories]);
+  const categoryById = useMemo(() => Object.fromEntries(allCategories.map(c => [c.id, c])), [allCategories]);
   const visibleTransactions = useMemo(() => transactions.filter(t => {
     const text = [t.name, t.merchant, t.notes, categoryById[t.category_id]?.name].join(" ").toLowerCase();
     return (!search || text.includes(search.toLowerCase())) && (filterType === "all" || t.type === filterType);
@@ -274,15 +276,34 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     finally { setSaving(false); }
   }
 
-  async function saveCategory(e) {
-    e.preventDefault(); if (!canEdit || saving) return;
-    if (!categoryForm.name.trim()) { setError("اكتب اسم التصنيف."); return; }
+  function startCategoryCreate() { setEditingCategoryId(null); setCategoryForm({ name: "", kind: "Expense" }); setShowCategory(true); setError(""); }
+  function startCategoryEdit(category) { setEditingCategoryId(category.id); setCategoryForm({ name: category.name, kind: category.kind }); setShowCategory(true); setError(""); }
+  async function toggleCategoryArchive(category) {
+    if (!canEdit || saving) return;
+    const archived = !category.archived;
+    if (archived && category.system_key) { setError("تصنيف نظامي لا يمكن أرشفته."); return; }
     setSaving(true); setError("");
     try {
-      const { error: err } = await supabase.from("finance_categories").insert({ ...categoryForm, workspace_id: ws.id, name: categoryForm.name.trim() });
+      const { error: err } = await supabase.from("finance_categories").update({ archived }).eq("workspace_id", ws.id).eq("id", category.id);
       if (err) throw err;
-      setShowCategory(false); setCategoryForm({ name: "", kind: "Expense" }); setNotice("تم إنشاء التصنيف."); await load();
-    } catch (e) { setError(e?.message || "تعذّر إنشاء التصنيف"); }
+      setNotice(archived ? "تمت أرشفة التصنيف مع الاحتفاظ بالحركات التاريخية." : "تمت إعادة تفعيل التصنيف.");
+      await load();
+    } catch (e) { setError(e?.message || "تعذّر تغيير حالة التصنيف"); }
+    finally { setSaving(false); }
+  }
+  async function saveCategory(e) {
+    e.preventDefault(); if (!canEdit || saving) return;
+    const name = categoryForm.name.trim();
+    if (!name) { setError("اكتب اسم التصنيف."); return; }
+    setSaving(true); setError("");
+    try {
+      const query = editingCategoryId
+        ? supabase.from("finance_categories").update({ name }).eq("workspace_id", ws.id).eq("id", editingCategoryId)
+        : supabase.from("finance_categories").insert({ ...categoryForm, workspace_id: ws.id, name });
+      const { error: err } = await query;
+      if (err) throw err;
+      setShowCategory(false); setEditingCategoryId(null); setCategoryForm({ name: "", kind: "Expense" }); setNotice(editingCategoryId ? "تم تحديث اسم التصنيف." : "تم إنشاء التصنيف."); await load();
+    } catch (e) { setError(e?.message || "تعذّر حفظ التصنيف"); }
     finally { setSaving(false); }
   }
 
@@ -486,8 +507,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         {!accounts.length ? <Empty title="لا توجد حسابات" detail="أنشئ حسابًا قبل تسجيل الحركات." /> : <div style={grid}>{accounts.map(a => { const b = balances.find(x => x.account_id === a.id); return <div key={a.id} style={{ border: "1px solid " + LINE, borderRadius: 13, padding: 16 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><div style={{ fontSize: 15, fontWeight: 800 }}>{a.name}</div><span style={{ color: a.status === "Active" ? "#047857" : MUTED, fontSize: 10 }}>{a.status === "Active" ? "نشط" : a.status}</span></div><div style={{ color: MUTED, fontSize: 11, marginTop: 6 }}>{TYPE_AR[a.account_type] || a.account_type} · {a.currency}</div><div style={{ fontSize: 22, fontWeight: 850, marginTop: 18 }}>{money(b?.balance ?? a.initial_balance, a.currency)}</div><div style={{ color: MUTED, fontSize: 11, marginTop: 6 }}>القيمة بعملة الأساس: {b?.base_value == null ? "غير مُقيّمة" : money(b.base_value, baseCurrency)}</div><div style={{ color: MUTED, fontSize: 10, marginTop: 10 }}> {a.include_in_net_worth ? "✓ داخل صافي الثروة" : "مستبعد من صافي الثروة"}</div>{canEdit && <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginTop: 12 }}><Button secondary onClick={() => startEditAccount(a)}>تعديل</Button><Button secondary disabled={saving} onClick={() => archiveAccount(a)}>{a.status === "Archived" ? "إعادة تفعيل" : "أرشفة"}</Button></div>}</div>; })}</div>}
       </Card>}
 
-      {section === "categories" && <Card><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}><div><h3 style={{ margin: 0, fontSize: 16 }}>التصنيفات</h3><p style={{ color: MUTED, fontSize: 12, margin: "5px 0 0" }}>تصنيفات الدخل والمصروف المستخدمة في دفتر الحركات.</p></div>{canEdit && <Button onClick={() => setShowCategory(true)}>＋ تصنيف جديد</Button>}</div>
-        {!categories.length ? <Empty title="أضف تصنيفاتك" detail="مثال: الطعام، المواصلات، الراتب، العمل الحر." /> : <div style={tableWrap}><table style={{ borderCollapse: "collapse", width: "100%", minWidth: 420 }}><thead><tr>{["اسم التصنيف","النوع","الاستخدام"].map(x => <th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{categories.map(c => <tr key={c.id}><td style={{ ...td, fontWeight: 750 }}>{c.name}</td><td style={td}>{c.kind === "Income" ? "دخل" : c.kind === "Expense" ? "مصروف" : "مشترك"}</td><td style={td}>{transactions.filter(t => t.category_id === c.id).length} حركة</td></tr>)}</tbody></table></div>}
+      {section === "categories" && <Card><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}><div><h3 style={{ margin: 0, fontSize: 16 }}>التصنيفات</h3><p style={{ color: MUTED, fontSize: 12, margin: "5px 0 0" }}>تصنيفات الدخل والمصروف المستخدمة في دفتر الحركات.</p></div>{canEdit && <Button onClick={startCategoryCreate}>＋ تصنيف جديد</Button>}</div>
+        {!allCategories.length ? <Empty title="أضف تصنيفاتك" detail="مثال: الطعام، المواصلات، الراتب، العمل الحر." /> : <div style={tableWrap}><table style={{ borderCollapse: "collapse", width: "100%", minWidth: 620 }}><thead><tr>{["اسم التصنيف","النوع","الاستخدام المحمّل","الحالة","الإجراءات"].map(x => <th key={x} style={th}>{x}</th>)}</tr></thead><tbody>{allCategories.map(c => <tr key={c.id}><td style={{ ...td, fontWeight: 750 }}>{c.name}{c.system_key&&<div style={{fontSize:10,color:MUTED}}>تصنيف نظامي</div>}</td><td style={td}>{c.kind === "Income" ? "دخل" : c.kind === "Expense" ? "مصروف" : "مشترك"}</td><td style={td}>{transactions.filter(t => t.category_id === c.id).length} حركة من آخر 150</td><td style={td}><span style={{color:c.archived?MUTED:GREEN}}>{c.archived?"مؤرشف":"نشط"}</span></td><td style={td}>{canEdit&&<div style={{display:"flex",gap:6}}>{!c.archived&&<Button secondary onClick={()=>startCategoryEdit(c)}>تعديل الاسم</Button>}<Button secondary disabled={saving||!!c.system_key} onClick={()=>toggleCategoryArchive(c)}>{c.archived?"إعادة تفعيل":"أرشفة"}</Button></div>}</td></tr>)}</tbody></table></div>}
       </Card>}
 
       {section === "budgets" && <Card>
@@ -592,6 +613,6 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
 
     {showAccount && <div onMouseDown={e => { if (e.target === e.currentTarget) setShowAccount(false); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#14251DB8", display: "grid", placeItems: "center", padding: 20 }}><div className="fin-modal" role="dialog" aria-modal="true" style={{ background: "#fff", width: "min(560px,100%)", borderRadius: 18, padding: 22, boxSizing: "border-box" }}><h2 style={{ margin: "0 0 16px", fontSize: 19 }}>{editingAccountId ? "تعديل الحساب المالي" : "إنشاء حساب مالي"}</h2><p style={{ color: MUTED, fontSize: 12, lineHeight: 1.7, marginTop: -8 }}>لا يمكن تغيير العملة أو الرصيد الافتتاحي بعد وجود حركات دفتر مرتبطة بالحساب. أرشف الحساب بدل حذفه للحفاظ على السجل.</p><form onSubmit={saveAccount} style={{ display: "grid", gap: 13 }}><div style={formGrid}><Field label="اسم الحساب *"><Input required value={accountForm.name} onChange={e => setAccountForm({ ...accountForm, name: e.target.value })} placeholder="مثال: حساب البنك" /></Field><Field label="نوع الحساب"><Select value={accountForm.account_type} onChange={e => setAccountForm({ ...accountForm, account_type: e.target.value })}>{ACCOUNT_TYPES.map(t => <option key={t} value={t}>{TYPE_AR[t] || t}</option>)}</Select></Field><Field label="العملة"><Select required value={accountForm.currency} onChange={e => setAccountForm({ ...accountForm, currency: e.target.value })}>{!currencies.some(c => c.currency === accountForm.currency) && accountForm.currency && <option value={accountForm.currency}>{accountForm.currency} · العملة الحالية</option>}{currencies.map(c => <option key={c.currency} value={c.currency}>{c.currency} · {c.display_name}</option>)}</Select></Field><Field label="الرصيد الافتتاحي"><Input type="number" step="0.01" value={accountForm.initial_balance} onChange={e => setAccountForm({ ...accountForm, initial_balance: e.target.value })} /></Field></div><label style={{ display: "flex", gap: 9, alignItems: "center", fontSize: 12 }}><input type="checkbox" checked={accountForm.include_in_net_worth} onChange={e => setAccountForm({ ...accountForm, include_in_net_worth: e.target.checked })} /> تضمين الحساب في صافي الثروة</label><div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><Button secondary onClick={() => { setShowAccount(false); setEditingAccountId(null); }}>إلغاء</Button><Button type="submit" disabled={saving}>{saving ? "جارٍ الحفظ…" : editingAccountId ? "حفظ التعديلات" : "إنشاء الحساب"}</Button></div></form></div></div>}
 
-    {showCategory && <div onMouseDown={e => { if (e.target === e.currentTarget) setShowCategory(false); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#14251DB8", display: "grid", placeItems: "center", padding: 20 }}><div className="fin-modal" role="dialog" aria-modal="true" style={{ background: "#fff", width: "min(500px,100%)", borderRadius: 18, padding: 22, boxSizing: "border-box" }}><h2 style={{ margin: "0 0 16px", fontSize: 19 }}>تصنيف جديد</h2><form onSubmit={saveCategory} style={{ display: "grid", gap: 13 }}><Field label="اسم التصنيف *"><Input required value={categoryForm.name} onChange={e => setCategoryForm({ ...categoryForm, name: e.target.value })} placeholder="مثال: الطعام" /></Field><Field label="نوع التصنيف"><Select value={categoryForm.kind} onChange={e => setCategoryForm({ ...categoryForm, kind: e.target.value })}><option value="Expense">مصروف</option><option value="Income">دخل</option><option value="Both">مشترك</option></Select></Field><div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><Button secondary onClick={() => setShowCategory(false)}>إلغاء</Button><Button type="submit" disabled={saving}>{saving ? "جارٍ الحفظ…" : "حفظ التصنيف"}</Button></div></form></div></div>}
+    {showCategory && <div onMouseDown={e => { if (e.target === e.currentTarget) setShowCategory(false); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#14251DB8", display: "grid", placeItems: "center", padding: 20 }}><div className="fin-modal" role="dialog" aria-modal="true" style={{ background: "#fff", width: "min(500px,100%)", borderRadius: 18, padding: 22, boxSizing: "border-box" }}><h2 style={{ margin: "0 0 16px", fontSize: 19 }}>{editingCategoryId?"تعديل اسم التصنيف":"تصنيف جديد"}</h2><form onSubmit={saveCategory} style={{ display: "grid", gap: 13 }}><Field label="اسم التصنيف *"><Input required value={categoryForm.name} onChange={e => setCategoryForm({ ...categoryForm, name: e.target.value })} placeholder="مثال: الطعام" /></Field><Field label="نوع التصنيف"><Select disabled={!!editingCategoryId} value={categoryForm.kind} onChange={e => setCategoryForm({ ...categoryForm, kind: e.target.value })}><option value="Expense">مصروف</option><option value="Income">دخل</option><option value="Both">مشترك</option></Select></Field><div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><Button secondary onClick={() => {setShowCategory(false);setEditingCategoryId(null);}}>إلغاء</Button><Button type="submit" disabled={saving}>{saving ? "جارٍ الحفظ…" : editingCategoryId?"حفظ الاسم":"حفظ التصنيف"}</Button></div></form></div></div>}
   </div>;
 }
