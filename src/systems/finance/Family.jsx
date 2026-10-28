@@ -6,7 +6,7 @@ const input = { width:"100%", minWidth:0, boxSizing:"border-box", border:"1px so
 const RELATIONSHIPS = [{v:"Spouse",l:"زوج/زوجة"},{v:"Child",l:"ابن/ابنة"},{v:"Parent",l:"أب/أم"},{v:"Sibling",l:"أخ/أخت"},{v:"Relative",l:"قريب"},{v:"Other",l:"أخرى"}];
 const RESPONSIBILITIES = [{v:"Personal",l:"شخصي"},{v:"Shared",l:"مشترك"},{v:"Unassigned",l:"غير محدد"}];
 function Field({label,children}) { return <label style={{display:"grid",gap:6,color:"#46544B",fontSize:12,fontWeight:700}}>{label}{children}</label>; }
-function Btn({children,secondary=false,...props}) { return <button {...props} style={{border:secondary?"1px solid "+LINE:"1px solid "+GREEN,background:secondary?"#fff":GREEN,color:secondary?INK:"#fff",borderRadius:9,padding:"10px 13px",fontWeight:750,cursor:props.disabled?"not-allowed":"pointer",opacity:props.disabled?.6:1,fontFamily:"inherit",fontSize:12}}>{children}</button>; }
+function Btn({children,secondary=false,...props}) { return <button {...props} style={{border:secondary?"1px solid "+LINE:"1px solid "+GREEN,background:secondary?"#fff":GREEN,color:secondary?INK:"#fff",borderRadius:9,padding:"10px 13px",fontWeight:750,cursor:props.disabled?"not-allowed":"pointer",opacity:props.disabled ? 0.6 : 1,fontFamily:"inherit",fontSize:12}}>{children}</button>; }
 function Card({children,style={}}) { return <div style={{background:"#fff",border:"1px solid "+LINE,borderRadius:14,padding:16,...style}}>{children}</div>; }
 const today = () => new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"});
 const money = (v,c="EGP") => { try { return new Intl.NumberFormat("ar-EG",{style:"currency",currency:c,maximumFractionDigits:2}).format(Number(v||0)); } catch { return String(v||0)+" "+c; } };
@@ -24,8 +24,9 @@ export default function FinanceFamily({ws,access,isDemo=false,currencies=[]}) {
   const [form,setForm] = useState({display_name:"",nickname:"",relationship_type:"Other",relationship_label:"",color:"#0D9488",default_responsibility:"Unassigned",linked_user_id:""});
   const [budgetForm,setBudgetForm] = useState({family_member_id:"",period:today().slice(0,7),amount:"",currency:"EGP",rollover_rule:"None"});
   const [allowanceForm,setAllowanceForm] = useState({family_member_id:"",amount:"",currency:"EGP",frequency:"Monthly",due_day:"",start_date:today()});
-  const canView = !isDemo && (access?.owner || access?.level==="view" || access?.level==="edit") && (access?.sections?.family!=="none");
-  const canEdit = !isDemo && (access?.owner || access?.manage || (access?.level==="edit" && access?.sections?.family!=="view" && access?.sections?.family!=="none"));
+  const familyLevel = access?.sections?.family;
+  const canView = !isDemo && (access?.owner || ((access?.level==="view" || access?.level==="edit") && familyLevel!=="none"));
+  const canEdit = !isDemo && (access?.owner || (familyLevel!=="none" && familyLevel!=="view" && (access?.manage || access?.level==="edit")));
   const isOwner = !!(access?.owner || access?.manage);
 
   const load = useCallback(async()=>{
