@@ -33,9 +33,9 @@ export default function FinanceAssets({ws,access,isDemo=false,currencies=[]}){
    ]);
    if(a.error)throw a.error;
    if(ac.error)throw ac.error;
-   if(tx.error)throw tx.error;
-   setAssets(a.data||[]);setAccounts(ac.data||[]);setIncomeTransactions(tx.data||[]);setNetWorth(nw.error?null:nw.data);
-   if(nw.error)setNotice("تم تحميل الأصول، لكن تعذّر تحميل ملخص صافي الثروة: "+nw.error.message);
+   setAssets(a.data||[]);setAccounts(ac.data||[]);setIncomeTransactions(tx.error?[]:(tx.data||[]));setNetWorth(nw.error?null:nw.data);
+   if(tx.error)setNotice("تم تحميل الأصول، لكن قائمة حركات الدخل غير متاحة؛ يلزم صلاحية عرض الدفتر لربط متحصلات البيع.");
+   else if(nw.error)setNotice("تم تحميل الأصول، لكن تعذّر تحميل ملخص صافي الثروة: "+nw.error.message);
   }catch(e){setError(e?.message||"تعذّر تحميل الأصول");}
   finally{setLoading(false);}
  },[ws?.id,isDemo]);
@@ -93,7 +93,7 @@ export default function FinanceAssets({ws,access,isDemo=false,currencies=[]}){
     {canEdit&&<div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:11}}><Btn secondary onClick={()=>openHistory(a)}>سجل التقييم</Btn>{a.status==="Held"&&<><Btn secondary onClick={()=>startEdit(a)}>تعديل</Btn>{!a.valuation_confirmed&&<Btn onClick={()=>{setConfirmTarget(a);setConfirmForm({current_value:String(a.current_value??0),reason:""});}}>تأكيد التقييم</Btn>}<Btn secondary onClick={()=>openDisposal(a,"Sold")}>بيع الأصل</Btn><Btn secondary onClick={()=>openDisposal(a,"WrittenOff")}>شطب الأصل</Btn></>}</div>}{a.status!=="Held"&&<div style={{fontSize:11,color:MUTED,marginTop:8}}>السبب: {a.status_reason||"—"}{a.sale_transaction_id&&" · حركة البيع: "+(incomeTransactions.find(t=>t.id===a.sale_transaction_id)?.name||"مرتبطة")}</div>}
    </div>)}</div>}
   </Card>
-  {disposalTarget&&<Card><h3 style={{marginTop:0}}>{disposalForm.status==="Sold"?"تسجيل بيع الأصل":"شطب الأصل"}</h3><p style={{fontSize:12,color:MUTED,lineHeight:1.8}}>{disposalForm.status==="Sold"?"سجّل متحصلات البيع كحركة دخل منشورة في دفتر الحركات أولًا، ثم اخترها هنا لربطها بالأصل. لن ينشئ هذا الإجراء حركة دخل ثانية.":"الشطب يستبعد الأصل من صافي الثروة ويصفّر قيمته الحالية، دون إنشاء حركة نقدية."}</p><form onSubmit={saveDisposal} style={{display:"grid",gap:12}}><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
+  {disposalTarget&&<Card><h3 style={{marginTop:0}}>{disposalForm.status==="Sold"?"تسجيل بيع الأصل":"شطب الأصل"}</h3><p style={{fontSize:12,color:MUTED,lineHeight:1.8}}>{disposalForm.status==="Sold"?"سجّل متحصلات البيع كحركة دخل منشورة في دفتر الحركات أولًا، ثم اخترها هنا لربطها بالأصل. لن ينشئ هذا الإجراء حركة دخل ثانية؛ وسيظل المبلغ مصنفًا كدخل شخصي، ولا يحسب النظام ربح/خسارة البيع المحاسبية بشكل مستقل.":"الشطب يستبعد الأصل من صافي الثروة ويصفّر قيمته الحالية، دون إنشاء حركة نقدية."}</p><form onSubmit={saveDisposal} style={{display:"grid",gap:12}}><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
    {disposalForm.status==="Sold"?<Field label="حركة الدخل التي تمثل متحصلات البيع *"><select required style={input} value={disposalForm.sale_transaction_id} onChange={e=>setDisposalForm({...disposalForm,sale_transaction_id:e.target.value})}><option value="">اختر حركة دخل منشورة بنفس العملة</option>{incomeTransactions.filter(t=>t.currency===disposalTarget.currency).map(t=><option key={t.id} value={t.id}>{t.local_date} · {t.name} · {money(t.amount,t.currency)}</option>)}</select></Field>:<Field label="تاريخ الشطب"><input required type="date" max={today()} style={input} value={disposalForm.effective_date} onChange={e=>setDisposalForm({...disposalForm,effective_date:e.target.value})}/></Field>}
    <Field label="السبب *"><input required minLength={3} maxLength={300} style={input} value={disposalForm.reason} onChange={e=>setDisposalForm({...disposalForm,reason:e.target.value})}/></Field>
   </div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Btn type="submit" disabled={saving}>{saving?"جارٍ الحفظ…":disposalForm.status==="Sold"?"تأكيد البيع":"تأكيد الشطب"}</Btn><Btn secondary type="button" onClick={()=>setDisposalTarget(null)}>إلغاء</Btn></div></form></Card>}
