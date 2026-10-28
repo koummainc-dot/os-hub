@@ -12,7 +12,7 @@ export function deriveWarrantyState(warranty, today) {
 }
 
 export function deriveLoanState(loan, today) {
-  if (loan?.returnedAt) return "Returned";
+  if (loan?.returnedAt || loan?.status === "Returned") return "Returned";
   if (!loan?.loanedAt) return "Unknown";
   if (loan.dueDate && loan.dueDate < today) return "Overdue";
   return "Open";
