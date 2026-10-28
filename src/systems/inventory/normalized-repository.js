@@ -11,8 +11,8 @@ function requireUuid() {
   throw new Error("Secure UUID generation is unavailable; cannot create a stable Inventory migration mapping.");
 }
 function makeIdResolver(map) {
-  return (oldId) => {
-    const key = String(oldId);
+  return (oldId, entityType) => {
+    const key = `${entityType || "entity"}:${String(oldId)}`;
     if (map[key]) return map[key];
     map[key] = requireUuid();
     return map[key];
@@ -26,7 +26,7 @@ export function buildNormalizedInventorySnapshot(aggregate, workspaceId) {
   const idMap = { ...(settings._inventoryIdMap || {}) };
   const plan = planInventoryAggregateMigration(source, {
     workspaceId,
-    resolveId: (oldId) => makeIdResolver(idMap)(oldId)
+    resolveId: (oldId, entityType) => makeIdResolver(idMap)(oldId, entityType)
   });
   if (!plan.safeToApply) {
     const error = new Error("Inventory migration is blocked; resolve the reported data issues before saving normalized tables.");
@@ -56,11 +56,12 @@ export function normalizedInventorySnapshotToAggregate(snapshot, normalize) {
   const t = mapRows(snapshot);
   const settingsRow = list(t.inventory_settings)[0] || {};
   const preferences = settingsRow.preferences && typeof settingsRow.preferences === "object" ? settingsRow.preferences : {};
+  const idMap = preferences.inventory_id_map || {};
   const settings = {
     currency: settingsRow.default_currency || "EGP",
     timezone: settingsRow.timezone || "Africa/Cairo",
     warrantyReminderDays: list(settingsRow.warranty_reminder_days).length ? settingsRow.warranty_reminder_days : [30, 7, 1],
-    _inventoryIdMap: preferences.inventory_id_map || {}
+    _inventoryIdMap: idMap
   };
   const common = (r) => ({
     createdAt: camelStamp(r.created_at), updatedAt: camelStamp(r.updated_at),
@@ -121,7 +122,7 @@ export function normalizedInventorySnapshotToAggregate(snapshot, normalize) {
     const metadata = r.metadata && typeof r.metadata === "object" ? r.metadata : {};
     events.push({
       id: metadata.legacy_event_id || `audit-${r.id}`,
-      itemId: metadata.legacy_item_id || (r.entity_type === "item" ? r.entity_id : null),
+      itemId: (metadata.legacy_item_id && idMap[`item:${metadata.legacy_item_id}`]) || metadata.legacy_item_id || (r.entity_type === "item" ? r.entity_id : null),
       entityType: r.entity_type, entityId: r.entity_id, type: r.action || "LegacyEvent",
       date: camelDate(r.occurred_at), note: metadata.note || "", sensitivity: r.sensitivity || "Normal",
       createdAt: camelStamp(r.occurred_at)
