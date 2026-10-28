@@ -1,5 +1,5 @@
 begin;
-select plan(23);
+select plan(26);
 
 select ok(to_regclass('public.finance_family_members') is not null, 'family members table exists');
 select ok(to_regclass('public.finance_family_member_private') is not null, 'private member details table exists separately');
@@ -17,6 +17,9 @@ select ok(exists(select 1 from information_schema.columns where table_schema='pu
 select ok(to_regprocedure('public.fin_family_set_transaction_allocation(uuid,uuid,text,uuid,jsonb,boolean)') is not null, 'transaction allocation RPC exists');
 select ok(to_regprocedure('public.fin_family_list_expenses(uuid,integer)') is not null, 'family expense list RPC exists');
 select ok(to_regprocedure('public.fin_family_spending_report(uuid,date,date,uuid)') is not null, 'family spending report RPC exists');
+select ok(to_regprocedure('public.fin_family_invalidate_allocation_on_transaction_change()') is not null, 'ledger-change invalidation trigger function exists');
+select ok(exists(select 1 from pg_trigger where tgrelid='public.finance_transactions'::regclass and tgname='finance_family_invalidate_allocation_trg' and not tgisinternal), 'ledger changes invalidate stale family allocations');
+select ok(exists(select 1 from pg_indexes where schemaname='public' and tablename='finance_family_budgets' and indexname='finance_family_budgets_active_period_uq'), 'duplicate active family budgets per period are prevented');
 
 select ok((select relrowsecurity from pg_class where oid='public.finance_family_members'::regclass), 'RLS enabled on family members');
 select ok((select relrowsecurity from pg_class where oid='public.finance_family_member_private'::regclass), 'RLS enabled on private details');
