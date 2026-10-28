@@ -12,7 +12,7 @@ import {
 const C = { ink: "#172033", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#DB2777", soft: "#FCE7F3", green: "#047857", amber: "#B45309", red: "#B91C1C" };
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 const makeId = () => globalThis.crypto?.randomUUID?.() || "rel-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
-const COLLECTIONS = ["people", "timeline", "followups", "occasions", "gifts", "circles"];
+const COLLECTIONS = ["people", "timeline", "followups", "occasions", "gifts", "circles", "settings"];
 
 async function loadRecords(workspaceId) {
   const { data, error } = await supabase.from("workspace_records")
@@ -21,7 +21,8 @@ async function loadRecords(workspaceId) {
   if (error) throw error;
   const result = emptyRelationshipsData();
   for (const row of data || []) {
-    if (COLLECTIONS.includes(row.collection) && row.data && typeof row.data === "object") result[row.collection].push({ ...row.data, id: row.id });
+    if (row.collection === "settings" && row.data && typeof row.data === "object") result.settings = { ...result.settings, ...row.data };
+    else if (COLLECTIONS.includes(row.collection) && row.collection !== "settings" && row.data && typeof row.data === "object") result[row.collection].push({ ...row.data, id: row.id });
   }
   return result;
 }
@@ -92,9 +93,8 @@ export default function RelationshipsSystem(props) {
   const [occasionDraft, setOccasionDraft] = useState({ personId: "", title: "عيد الميلاد", date: "", recurrence: "yearly", reminderDays: 7, notes: "" });
   const [circleDraft, setCircleDraft] = useState({ name: "", description: "", color: "#DB2777" });
   const [busy, setBusy] = useState(false);
-  const [readOnly, setReadOnly] = useState(false);
   const currentLevel = osSectionLevel(access, page);
-  const canEdit = currentLevel === "edit" && !readOnly;
+  const canEdit = currentLevel === "edit";
 
   const reload = useCallback(async () => {
     setError(""); setReady(false);
@@ -121,12 +121,14 @@ export default function RelationshipsSystem(props) {
       if (isDemo) {
         const result = await api.save(next);
         if (result && result.ok === false) throw new Error("تعذر حفظ بيانات الوضع التجريبي.");
+      } else {
+        await saveRecord(ws.id, "settings", { id: "settings", ...next.settings });
       }
       setData(normalizeRelationshipsData(next));
       setNotice("تم الحفظ.");
     } catch (e) { setError(e?.message || "تعذر حفظ التغيير."); }
     finally { setBusy(false); }
-  }, [api, isDemo]);
+  }, [api, isDemo, ws?.id]);
 
   const saveEntity = useCallback(async (collection, record) => {
     setBusy(true); setError(""); setNotice("");
