@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {
   emptyRelationshipsData, normalizeRelationshipsData, validatePerson,
-  findPossibleDuplicates, dueFollowups, validateRelationshipsImport
+  findPossibleDuplicates, dueFollowups, validateRelationshipsImport, upcomingRelationshipEvents
 } from "../src/systems/relationships/domain.js";
 import { buildRelationshipsSeed } from "../src/systems/relationships/demo.js";
 
@@ -52,3 +52,23 @@ assert.equal(validateRelationshipsImport({ random: [] }).ok, false);
 assert.equal(validateRelationshipsImport({ people: [{ name: "بلا معرّف" }] }).ok, false);
 assert.equal(validateRelationshipsImport({ people: [{ id: "p", name: "" }] }).ok, false);
 console.log("Relationships OS import validation tests passed.");
+
+const upcoming = upcomingRelationshipEvents(
+  [{ id: "p1", name: "مها", birthday: "1990-10-30" }, { id: "p2", name: "أحمد", birthday: "1990-11-30" }],
+  [
+    { id: "o1", personId: "p1", title: "ذكرى سنوية", date: "2020-11-02", recurrence: "yearly" },
+    { id: "o2", personId: "p2", title: "حدث منتهي", date: "2026-10-20", recurrence: "once" },
+    { id: "o3", personId: "p2", title: "موعد بعيد", date: "2026-12-20", recurrence: "once" }
+  ],
+  "2026-10-28",
+  30
+);
+assert.deepEqual(upcoming.map((x) => [x.id, x.daysAway]), [
+  ["birthday:p1", 2],
+  ["occasion:o1", 5],
+  ["birthday:p2", 33]
+].filter(([, days]) => days <= 30));
+assert.equal(upcoming.some((x) => x.id === "occasion:o2"), false);
+assert.equal(upcoming.some((x) => x.id === "occasion:o3"), false);
+assert.deepEqual(upcomingRelationshipEvents([{ id: "p", name: "شخص", birthday: "1990-02-29" }], [], "2027-02-01", 30).map((x) => x.date), ["2027-03-01"]);
+console.log("Relationships OS upcoming reminder tests passed.");
