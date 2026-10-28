@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createInventoryRepository } from "./repository.js";
-import { appendInventoryEvent, deriveLoanState, deriveReplacementState, deriveWarrantyState } from "./domain.js";
+import { deriveLoanState, deriveReplacementState, deriveWarrantyState } from "./domain.js";
 import { inventoryToday, prepareInventoryItem, prepareInventoryCategory, prepareInventoryPlace, archiveInventoryItem, restoreInventoryItem, archiveInventoryReference, prepareRelatedInventoryRecord, returnInventoryLoan } from "./services.js";
 import { osSectionLevel } from "../../core/core.js";
 import { AccessDenied } from "../../core/ui.jsx";
@@ -294,7 +294,6 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
     {body}
     {notice && page !== "home" && <div role="status" style={{ position: "fixed", bottom: 20, insetInlineEnd: 20, zIndex: 9000, background: "#211A10", color: "#fff", padding: "12px 16px", borderRadius: 10, fontSize: 12, boxShadow: "0 8px 25px #0002" }}>{notice}</div>}
     {editor && (editor.kind === "warranty" || editor.kind === "loan" || editor.kind === "replacement" || editor.kind === "service") && <SimpleEntityForm kind={editor.kind} value={editor} items={items} currency={data.settings.currency || "EGP"} onClose={() => setEditor(null)} onSave={async f => {
-      const key = f.kind === "warranty" ? "warranties" : f.kind === "loan" ? "loans" : f.kind === "replacement" ? "replacements" : "services";
       const prepared = prepareRelatedInventoryRecord(f.kind, f, data, today(), uid);
       if (prepared.error) { tell(prepared.error); return; }
       const saved = await persist(prepared.data, "تم حفظ السجل");
