@@ -57,6 +57,7 @@ export function reconcileInventoryMigrationPlan(aggregate, plan) {
   ).length;
   plannedCounts.inventory_ownership_events = arrays(tables.inventory_ownership_events).length;
   // Legacy non-ownership events intentionally move to audit, so compare combined event retention.
+  plannedCounts.inventory_audit_log = arrays(tables.inventory_audit_log).length;
   const sourceEvents = arrays(source.events).length;
   const plannedEvents = plannedCounts.inventory_ownership_events + plannedCounts.inventory_audit_log;
   if (sourceEvents !== plannedEvents) {
