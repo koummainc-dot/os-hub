@@ -78,8 +78,8 @@ begin
       raise exception 'INVENTORY_TABLE_ROWS_MUST_BE_ARRAY: %', v_table_name using errcode='22023';
     end if;
     if exists (
-      select 1 from jsonb_array_elements(rows_json) row_json
-      where row_json->>'workspace_id' is distinct from p_workspace_id::text
+      select 1 from jsonb_array_elements(rows_json) as entry(row_json)
+      where entry.row_json->>'workspace_id' is distinct from p_workspace_id::text
     ) then
       raise exception 'INVENTORY_WORKSPACE_MISMATCH: %', v_table_name using errcode='42501';
     end if;
