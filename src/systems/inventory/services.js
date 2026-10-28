@@ -12,6 +12,15 @@ export function inventoryToday(timeZone = "Africa/Cairo") {
   return part("year") + "-" + part("month") + "-" + part("day");
 }
 
+export function inventoryDateOffset(days, timeZone = "Africa/Cairo") {
+  const [year, month, day] = inventoryToday(timeZone).split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + Number(days || 0), 12, 0, 0));
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  return y + "-" + m + "-" + d;
+}
+
 function validOptionalAmount(value) {
   if (value === "" || value === null || value === undefined) return true;
   const text = String(value).trim();
