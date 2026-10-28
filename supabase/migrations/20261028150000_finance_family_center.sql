@@ -4,6 +4,10 @@
 
 begin;
 
+-- Composite uniqueness enables workspace-safe foreign keys, preventing cross-workspace links.
+create unique index if not exists finance_transactions_workspace_id_uq on public.finance_transactions(workspace_id, id);
+create unique index if not exists finance_categories_workspace_id_uq on public.finance_categories(workspace_id, id);
+
 create table if not exists public.finance_family_members (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
@@ -47,7 +51,7 @@ create index if not exists finance_family_private_ws_member_idx
 
 create table if not exists public.finance_family_transaction_meta (
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
-  transaction_id uuid not null references public.finance_transactions(id) on delete cascade,
+  transaction_id uuid not null,
   responsibility_type text not null default 'Unassigned'
     check (responsibility_type in ('Personal','Shared','Unassigned','Reimbursement')),
   primary_family_member_id uuid,
@@ -60,6 +64,7 @@ create table if not exists public.finance_family_transaction_meta (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (workspace_id, transaction_id),
+  foreign key (workspace_id, transaction_id) references public.finance_transactions(workspace_id, id) on delete cascade,
   foreign key (workspace_id, primary_family_member_id)
     references public.finance_family_members(workspace_id, id) on delete restrict
 );
@@ -113,7 +118,7 @@ create table if not exists public.finance_family_budgets (
   updated_at timestamptz not null default now(),
   foreign key (workspace_id, family_member_id)
     references public.finance_family_members(workspace_id, id) on delete restrict,
-  foreign key (category_id) references public.finance_categories(id) on delete restrict,
+  foreign key (workspace_id, category_id) references public.finance_categories(workspace_id, id) on delete restrict,
   check ((period is not null and period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' and start_date is null and end_date is null)
       or (period is null and start_date is not null and end_date is not null and end_date >= start_date)),
   check (rollover_cap is null or rollover_cap >= 0),
@@ -258,7 +263,26 @@ create policy finance_family_allowances_upd on public.finance_family_allowances 
   using (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit')
   with check (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit' and (updated_by is null or updated_by = auth.uid()));
 
+-- Enforce that linked users belong to the same workspace; a profile link is not an access grant.
+create or replace function public.fin_family_validate_linked_user()
+returns trigger language plpgsql security definer set search_path to ''
+as $function$
+begin
+  if new.linked_user_id is not null
+     and not exists (select 1 from public.workspaces w where w.id = new.workspace_id and w.owner_id = new.linked_user_id)
+     and not exists (select 1 from public.workspace_members m where m.workspace_id = new.workspace_id and m.user_id = new.linked_user_id and m.status = 'active') then
+    raise exception 'FAMILY_LINK_USER_NOT_IN_WORKSPACE' using errcode = 'P0001';
+  end if;
+  return new;
+end
+$function$;
+drop trigger if exists finance_family_validate_linked_user_trg on public.finance_family_members;
+create trigger finance_family_validate_linked_user_trg
+before insert or update of linked_user_id, workspace_id on public.finance_family_members
+for each row execute function public.fin_family_validate_linked_user();
+
 revoke all on function public.fin_family_need(uuid,text,boolean) from public;
+revoke all on function public.fin_family_validate_linked_user() from public;
 grant execute on function public.fin_family_need(uuid,text,boolean) to authenticated;
 
 commit;
