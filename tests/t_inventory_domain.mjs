@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { deriveLoanState } from "../src/systems/inventory/domain.js";
 import {
   inventoryToday, inventoryDateOffset, prepareInventoryItem,
   prepareInventoryCategory, prepareInventoryPlace, archiveInventoryReference,
@@ -9,6 +10,7 @@ const today = inventoryToday("Africa/Cairo");
 assert.match(today, /^\d{4}-\d{2}-\d{2}$/);
 assert.match(inventoryDateOffset(30, "Africa/Cairo"), /^\d{4}-\d{2}-\d{2}$/);
 assert.ok(inventoryDateOffset(30, "Africa/Cairo") > today);
+assert.equal(deriveLoanState({ status: "Returned", returnedAt: "" }, today), "Returned");
 
 const uid = (() => { let n = 0; return () => "test-" + (++n); })();
 const blank = () => ({
