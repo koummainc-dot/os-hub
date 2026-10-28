@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createInventoryRepository } from "./repository.js";
-import { appendInventoryEvent, deriveLoanState, deriveReplacementState, deriveWarrantyState, validateInventoryRecord } from "./domain.js";
+import { appendInventoryEvent, deriveLoanState, deriveReplacementState, deriveWarrantyState } from "./domain.js";
+import { inventoryToday, prepareInventoryItem, prepareInventoryCategory, prepareInventoryPlace, archiveInventoryItem, restoreInventoryItem, archiveInventoryReference, prepareRelatedInventoryRecord, returnInventoryLoan } from "./services.js";
 import { osSectionLevel } from "../../core/core.js";
 import { AccessDenied } from "../../core/ui.jsx";
 
@@ -9,7 +10,7 @@ const INK = "#211A10";
 const MUTED = "#766B5B";
 const LINE = "#E8E0D4";
 const BG = "#FBF8F2";
-const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+const today = () => inventoryToday("Africa/Cairo");
 const uid = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : "inv-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 9));
 const blank = () => ({ schemaVersion: 1, items: [], categories: [], places: [], warranties: [], loans: [], replacements: [], events: [], services: [], settings: { currency: "EGP", warrantyReminderDays: [30, 7, 1] } });
 const buildDemoData = () => ({
@@ -132,40 +133,34 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   }, [items, visibleItems, showSecretItems, query, categoryFilter, statusFilter]);
 
   const saveItem = async (form) => {
-    const name = String(form.name || "").trim();
-    if (!name) return tell("اكتب اسم العنصر أولاً");
-    const old = data.items.find(x => x.id === form.id);
-    const item = { ...form, id: form.id || uid(), name, quantity: form.quantity === "" ? null : Math.max(0, Number(form.quantity)), purchasePrice: form.purchasePrice === "" ? "" : String(form.purchasePrice), estimatedValue: form.estimatedValue === "" ? "" : String(form.estimatedValue), createdAt: old?.createdAt || today(), updatedAt: today() };
-    const next = appendInventoryEvent({ ...data, items: old ? data.items.map(x => x.id === item.id ? item : x) : [item, ...data.items] }, { id: uid(), itemId: item.id, type: old ? "ItemUpdated" : "Acquired", date: today(), note: old ? "تم تحديث بيانات الممتلك." : "تم إنشاء سجل الممتلكات." });
-    const saved = await persist(next, "تم حفظ العنصر");
+    const prepared = prepareInventoryItem(form, data, today(), uid);
+    if (prepared.errors.length) return tell(prepared.errors[0]);
+    const saved = await persist(prepared.data, "تم حفظ العنصر");
     if (!saved) return;
-    setEditor(null); setSelectedId(item.id); setPage("items");
+    setEditor(null); setSelectedId(prepared.item.id); setPage("items");
   };
   const saveCategory = async (form) => {
-    const name = String(form.name || "").trim();
-    if (!name) return tell("اكتب اسم التصنيف");
-    const row = { ...form, id: form.id || uid(), name, createdAt: form.createdAt || today() };
-    await persist({ ...data, categories: form.id ? data.categories.map(x => x.id === row.id ? row : x) : [row, ...data.categories] }, "تم حفظ التصنيف");
-    setCategoryEditor(null);
+    const prepared = prepareInventoryCategory(form, data, today(), uid);
+    if (prepared.error) return tell(prepared.error);
+    const saved = await persist(prepared.data, "تم حفظ التصنيف");
+    if (saved) setCategoryEditor(null);
   };
   const savePlace = async (form) => {
-    const name = String(form.name || "").trim();
-    if (!name) return tell("اكتب اسم المكان");
-    const row = { ...form, id: form.id || uid(), name, createdAt: form.createdAt || today() };
-    await persist({ ...data, places: form.id ? data.places.map(x => x.id === row.id ? row : x) : [row, ...data.places] }, "تم حفظ المكان");
-    setPlaceEditor(null);
+    const prepared = prepareInventoryPlace(form, data, today(), uid);
+    if (prepared.error) return tell(prepared.error);
+    const saved = await persist(prepared.data, "تم حفظ المكان");
+    if (saved) setPlaceEditor(null);
   };
   const removeItem = async (id) => {
-    const row = data.items.find(x => x.id === id);
-    if (!row) return;
-    await persist({ ...data, items: data.items.map(x => x.id === id ? { ...x, deletedAt: today(), updatedAt: today() } : x), events: [{ id: uid(), itemId: id, type: "Archived", date: today(), note: "نُقل العنصر إلى الأرشيف." }, ...data.events] }, "تم نقل العنصر إلى الأرشيف");
-    setConfirmDelete(null); setSelectedId(null);
+    const prepared = archiveInventoryItem(data, id, today(), uid);
+    if (prepared.error) return tell(prepared.error);
+    const saved = await persist(prepared.data, "تم نقل العنصر إلى الأرشيف");
+    if (saved) { setConfirmDelete(null); setSelectedId(null); }
   };
   const archiveRow = async (kind, id) => {
-    const key = kind === "category" ? "categories" : "places";
-    const used = kind === "category" ? data.items.some(x => x.categoryId === id && !x.deletedAt) : data.items.some(x => x.placeId === id && !x.deletedAt);
-    if (used) return tell("لا يمكن أرشفة هذا السجل قبل نقل العناصر المرتبطة به إلى تصنيف/مكان آخر.");
-    await persist({ ...data, [key]: data[key].map(x => x.id === id ? { ...x, deletedAt: today() } : x) }, "تمت الأرشفة");
+    const prepared = archiveInventoryReference(data, kind, id, today(), uid);
+    if (prepared.error) return tell(prepared.error);
+    await persist(prepared.data, "تمت الأرشفة");
   };
 
   if (!ready) return <div style={{ ...card, padding: 40, textAlign: "center", color: MUTED }}>جاري تحميل الممتلكات…</div>;
@@ -247,7 +242,7 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   </>;
   else if (page === "loans") body = <>
     {header}<div style={card}><PanelTitle title="الإعارات" sub="تتبّع ما أعرتَه أو استعرته وتاريخ الإرجاع." right={canEdit && <Btn onClick={() => setEditor({ kind: "loan", itemId: items[0]?.id || "", person: "", direction: "Lent", loanedAt: today(), dueDate: "", returnedAt: "", notes: "" })}>＋ إعارة</Btn>} />
-      {data.loans.map(l => <div key={l.id} style={{ padding: "12px 0", borderBottom: "1px solid " + LINE }}><div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><b style={{ fontSize: 13 }}>{items.find(i => i.id === l.itemId)?.name || "عنصر غير موجود"}</b><Badge tone={deriveLoanState(l, today()) === "Returned" ? "good" : deriveLoanState(l, today()) === "Overdue" ? "bad" : "warn"}>{({ Returned: "تم الإرجاع", Overdue: "متأخر", Open: "مفتوح", Unknown: "غير مكتمل" })[deriveLoanState(l, today())]}</Badge></div><div style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>{l.direction === "Borrowed" ? "استعرته من" : "أعرته إلى"} {l.person || "شخص غير محدد"} · الاستحقاق: {l.dueDate || "غير محدد"}</div>{canEdit && !l.returnedAt && <div style={{ marginTop: 8 }}><Btn secondary onClick={() => persist(appendInventoryEvent({ ...data, loans: data.loans.map(x => x.id === l.id ? { ...x, returnedAt: today() } : x) }, { id: uid(), itemId: l.itemId, type: "LoanReturned", date: today(), note: "تم تسجيل إرجاع الإعارة." }), "تم تسجيل الإرجاع")}>تسجيل الإرجاع</Btn></div>}</div>)}
+      {data.loans.map(l => <div key={l.id} style={{ padding: "12px 0", borderBottom: "1px solid " + LINE }}><div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><b style={{ fontSize: 13 }}>{items.find(i => i.id === l.itemId)?.name || "عنصر غير موجود"}</b><Badge tone={deriveLoanState(l, today()) === "Returned" ? "good" : deriveLoanState(l, today()) === "Overdue" ? "bad" : "warn"}>{({ Returned: "تم الإرجاع", Overdue: "متأخر", Open: "مفتوح", Unknown: "غير مكتمل" })[deriveLoanState(l, today())]}</Badge></div><div style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>{l.direction === "Borrowed" ? "استعرته من" : "أعرته إلى"} {l.person || "شخص غير محدد"} · الاستحقاق: {l.dueDate || "غير محدد"}</div>{canEdit && !l.returnedAt && <div style={{ marginTop: 8 }}><Btn secondary onClick={async () => { const prepared = returnInventoryLoan(data, l.id, today(), uid); if (prepared.error) return tell(prepared.error); await persist(prepared.data, "تم تسجيل الإرجاع"); }}>تسجيل الإرجاع</Btn></div>}</div>)}
       {!data.loans.length && <div style={{ padding: 24, textAlign: "center", color: MUTED, fontSize: 12 }}>لا توجد إعارات مسجلة.</div>}
     </div>
   </>;
@@ -282,7 +277,7 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   </>;
   else if (page === "archive") body = <>
     {header}<div style={card}><PanelTitle title="الأرشيف" sub="العناصر المؤرشفة لا تظهر ضمن الجرد النشط." />
-      {data.items.filter(i => i.deletedAt && i.sensitivity !== "Secret").map(i => <div key={i.id} style={{ padding: "12px 0", borderBottom: "1px solid " + LINE, display: "flex", gap: 8, alignItems: "center" }}><span style={{ flex: 1, fontSize: 13 }}>{i.name}</span>{canEdit && <Btn secondary onClick={() => persist(appendInventoryEvent({ ...data, items: data.items.map(x => x.id === i.id ? { ...x, deletedAt: null, updatedAt: today() } : x) }, { id: uid(), itemId: i.id, type: "Restored", date: today(), note: "تمت استعادة العنصر من الأرشيف." }), "تمت استعادة العنصر")}>استعادة</Btn>}</div>)}
+      {data.items.filter(i => i.deletedAt && i.sensitivity !== "Secret").map(i => <div key={i.id} style={{ padding: "12px 0", borderBottom: "1px solid " + LINE, display: "flex", gap: 8, alignItems: "center" }}><span style={{ flex: 1, fontSize: 13 }}>{i.name}</span>{canEdit && <Btn secondary onClick={async () => { const prepared = restoreInventoryItem(data, i.id, today(), uid); if (prepared.error) return tell(prepared.error); await persist(prepared.data, "تمت استعادة العنصر"); }}>استعادة</Btn>}</div>)}
       {!data.items.some(i => i.deletedAt && i.sensitivity !== "Secret") && <div style={{ color: MUTED, padding: 24, textAlign: "center", fontSize: 12 }}>الأرشيف فارغ.</div>}
     </div>
   </>;
@@ -300,13 +295,10 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
     {notice && page !== "home" && <div role="status" style={{ position: "fixed", bottom: 20, insetInlineEnd: 20, zIndex: 9000, background: "#211A10", color: "#fff", padding: "12px 16px", borderRadius: 10, fontSize: 12, boxShadow: "0 8px 25px #0002" }}>{notice}</div>}
     {editor && (editor.kind === "warranty" || editor.kind === "loan" || editor.kind === "replacement" || editor.kind === "service") && <SimpleEntityForm kind={editor.kind} value={editor} items={items} currency={data.settings.currency || "EGP"} onClose={() => setEditor(null)} onSave={async f => {
       const key = f.kind === "warranty" ? "warranties" : f.kind === "loan" ? "loans" : f.kind === "replacement" ? "replacements" : "services";
-      const validation = validateInventoryRecord(f.kind, f, data);
-      if (validation.length) { tell(validation[0]); return; }
-      const isNew = !f.id || !data[key].some(x => x.id === f.id);
-      const row = { ...f, id: f.id || uid(), updatedAt: today(), ...(isNew ? { createdAt: today() } : {}) }; delete row.kind;
-      const nextRows = !isNew ? data[key].map(x => x.id === row.id ? row : x) : [row, ...data[key]];
-      const itemEvent = { id: uid(), itemId: row.itemId, type: isNew ? ({ warranty: "WarrantyAdded", loan: "LoanCreated", replacement: "ReplacementPlanned", service: "ServiceRecorded" })[f.kind] : ({ warranty: "WarrantyUpdated", loan: "LoanUpdated", replacement: "ReplacementUpdated", service: "ServiceUpdated" })[f.kind], date: today(), note: isNew ? "تم إنشاء سجل " + ({ warranty: "ضمان", loan: "إعارة", replacement: "استبدال", service: "صيانة" })[f.kind] + "." : "تم تحديث سجل " + ({ warranty: "ضمان", loan: "إعارة", replacement: "استبدال", service: "صيانة" })[f.kind] + "." };
-      const saved = await persist(appendInventoryEvent({ ...data, [key]: nextRows }, itemEvent), "تم حفظ السجل"); if (saved) setEditor(null);
+      const prepared = prepareRelatedInventoryRecord(f.kind, f, data, today(), uid);
+      if (prepared.error) { tell(prepared.error); return; }
+      const saved = await persist(prepared.data, "تم حفظ السجل");
+      if (saved) setEditor(null);
     }} />}
     {editor && !["warranty","loan","replacement","service"].includes(editor.kind) && <InventoryItemForm categories={categories} places={places} value={editor} onClose={() => setEditor(null)} onSave={saveItem} />}
     {categoryEditor && <InventorySimpleForm kind="category" categories={categories} places={places} value={categoryEditor} onClose={() => setCategoryEditor(null)} onSave={saveCategory} />}
