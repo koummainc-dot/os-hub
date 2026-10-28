@@ -192,13 +192,37 @@ export function prepareRelatedInventoryRecord(kind, form, data, today, uid) {
   if (kind === "warranty" && row.startDate && row.endDate && row.endDate < row.startDate) {
     return { error: "تاريخ نهاية الضمان لا يمكن أن يسبق تاريخ بدايته." };
   }
+  if (kind === "loan" && isNew) {
+    const openLoan = data.loans.some(x => x.itemId === row.itemId && !x.returnedAt && x.status !== "Returned");
+    if (openLoan) return { error: "لهذا العنصر إعارة مفتوحة بالفعل؛ سجّل إرجاعها أولًا." };
+    if (row.direction !== "Borrowed") {
+      const item = data.items.find(x => x.id === row.itemId && active(x));
+      if (item?.status === "Loaned") return { error: "العنصر مسجل بالفعل على أنه مُعار." };
+      if (item && item.status !== "Owned") return { error: "لا يمكن إعارة عنصر حالته الحالية " + item.status + "." };
+    }
+  }
   const typeByKind = { warranty: "Warranty", loan: "Loan", replacement: "Replacement", service: "Service" };
   const type = typeByKind[kind] + (isNew ? ({ warranty: "Added", loan: "Created", replacement: "Planned", service: "Recorded" })[kind] : "Updated");
   const label = ({ warranty: "ضمان", loan: "إعارة", replacement: "استبدال", service: "صيانة" })[kind];
-  const next = appendInventoryEvent({
+  let next = {
     ...data,
     [key]: isNew ? [row, ...data[key]] : data[key].map(x => x.id === row.id ? row : x)
-  }, { id: uid(), itemId: row.itemId, type, date: today, note: isNew ? "تم إنشاء سجل " + label + "." : "تم تحديث سجل " + label + "." });
+  };
+  next = appendInventoryEvent(next, {
+    id: uid(), itemId: row.itemId, type, date: today,
+    note: isNew ? "تم إنشاء سجل " + label + "." : "تم تحديث سجل " + label + "."
+  });
+  if (kind === "loan" && isNew && row.direction !== "Borrowed") {
+    next = {
+      ...next,
+      items: next.items.map(item => item.id === row.itemId ? { ...item, status: "Loaned", updatedAt: today } : item)
+    };
+    next = appendInventoryEvent(next, {
+      id: uid(), itemId: row.itemId, type: "Loaned", date: today,
+      previousStatus: "Owned", currentStatus: "Loaned",
+      note: "تم إعارة الممتلك وتحديث حالته إلى مُعار."
+    });
+  }
   return { row, data: next, isNew };
 }
 
@@ -207,8 +231,26 @@ export function returnInventoryLoan(data, loanId, today, uid) {
   if (!loan) return { error: "سجل الإعارة غير موجود." };
   if (loan.returnedAt || loan.status === "Returned") return { error: "تم تسجيل إرجاع هذه الإعارة بالفعل." };
   if (loan.loanedAt && today < loan.loanedAt) return { error: "تاريخ الإرجاع لا يمكن أن يسبق تاريخ الإعارة." };
-  return { data: appendInventoryEvent({
+  let next = {
     ...data,
     loans: data.loans.map(x => x.id === loanId ? { ...x, returnedAt: today, updatedAt: today } : x)
-  }, { id: uid(), itemId: loan.itemId, type: "LoanReturned", date: today, note: "تم تسجيل إرجاع الإعارة." }) };
+  };
+  if (loan.direction !== "Borrowed") {
+    const item = next.items.find(x => x.id === loan.itemId && active(x));
+    if (item?.status === "Loaned") {
+      next = {
+        ...next,
+        items: next.items.map(x => x.id === loan.itemId ? { ...x, status: "Owned", updatedAt: today } : x)
+      };
+      next = appendInventoryEvent(next, {
+        id: uid(), itemId: loan.itemId, type: "Returned", date: today,
+        previousStatus: "Loaned", currentStatus: "Owned",
+        note: "عاد الممتلك بعد الإعارة وتحدّثت حالته إلى مملوك."
+      });
+    }
+  }
+  next = appendInventoryEvent(next, {
+    id: uid(), itemId: loan.itemId, type: "LoanReturned", date: today, note: "تم تسجيل إرجاع الإعارة."
+  });
+  return { data: next };
 }
