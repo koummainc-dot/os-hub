@@ -4,10 +4,6 @@
 
 begin;
 
--- Composite uniqueness enables workspace-safe foreign keys, preventing cross-workspace links.
-create unique index if not exists finance_transactions_workspace_id_uq on public.finance_transactions(workspace_id, id);
-create unique index if not exists finance_categories_workspace_id_uq on public.finance_categories(workspace_id, id);
-
 create table if not exists public.finance_family_members (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
