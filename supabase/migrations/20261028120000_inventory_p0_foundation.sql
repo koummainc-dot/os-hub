@@ -148,6 +148,10 @@ begin
     end if;
     new.created_at := old.created_at;
     new.created_by := old.created_by;
+    -- The submitting actor is immutable after an operation is queued.
+    if tg_table_name = 'inventory_sync_operations' then
+      new.actor_id := old.actor_id;
+    end if;
     new.updated_at := clock_timestamp();
     new.updated_by := auth.uid();
   else
