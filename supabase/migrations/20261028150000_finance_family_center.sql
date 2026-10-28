@@ -229,7 +229,7 @@ create policy finance_family_members_sel on public.finance_family_members for se
   using (public.ws_access_level(workspace_id, 'finance', 'family') in ('view','edit'));
 drop policy if exists finance_family_members_ins on public.finance_family_members;
 create policy finance_family_members_ins on public.finance_family_members for insert
-  with check (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit' and (created_by is null or created_by = auth.uid()));
+  with check (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit' and (created_by is null or created_by = auth.uid()) and (updated_by is null or updated_by = auth.uid()));
 drop policy if exists finance_family_members_upd on public.finance_family_members;
 create policy finance_family_members_upd on public.finance_family_members for update
   using (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit')
@@ -344,5 +344,6 @@ revoke all on function public.fin_family_has_sensitive_access(uuid,text) from pu
 revoke all on function public.fin_family_need(uuid,text,boolean) from public;
 revoke all on function public.fin_family_validate_linked_user() from public;
 grant execute on function public.fin_family_need(uuid,text,boolean) to authenticated;
+grant execute on function public.fin_family_has_sensitive_access(uuid,text) to authenticated;
 
 commit;
