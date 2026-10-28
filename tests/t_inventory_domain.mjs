@@ -59,6 +59,17 @@ const returned = returnInventoryLoan(data, "loan-test", today, uid);
 assert.equal(returned.error, undefined);
 assert.equal(returned.data.loans[0].returnedAt, today);
 assert.ok(returned.data.events.some(event => event.type === "LoanReturned"));
+assert.equal(returned.data.items.find(x => x.id === item.id).status, "Owned");
+
+const createdLoan = prepareRelatedInventoryRecord("loan", {
+  itemId: item.id, person: "شخص آخر", direction: "Lent", loanedAt: today, dueDate: ""
+}, returned.data, today, uid);
+assert.equal(createdLoan.error, undefined);
+assert.equal(createdLoan.data.items.find(x => x.id === item.id).status, "Loaned");
+const duplicateLoan = prepareRelatedInventoryRecord("loan", {
+  itemId: item.id, person: "شخص ثالث", direction: "Lent", loanedAt: today, dueDate: ""
+}, createdLoan.data, today, uid);
+assert.ok(duplicateLoan.error);
 
 const archiveUsedPlace = archiveInventoryReference(data, "place", room.row.id, today, uid);
 assert.ok(archiveUsedPlace.error);
