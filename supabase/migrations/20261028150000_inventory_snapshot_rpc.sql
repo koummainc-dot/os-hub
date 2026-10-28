@@ -45,7 +45,7 @@ security invoker
 set search_path = public
 as $$
 declare
-  table_name text;
+  v_table_name text;
   update_columns text;
   rows_json jsonb;
   allowed_tables constant text[] := array[
@@ -107,20 +107,20 @@ begin
 
   -- Upsert mutable domain rows. No absent row is physically deleted: archive state is
   -- represented by deleted_at, and rows outside a caller's section permissions survive.
-  foreach table_name in array allowed_tables loop
-    rows_json := coalesce(p_snapshot->'tables'->table_name, '[]'::jsonb);
+  foreach v_table_name in array allowed_tables loop
+    rows_json := coalesce(p_snapshot->'tables'->v_table_name, '[]'::jsonb);
     if jsonb_typeof(rows_json) <> 'array' then
-      raise exception 'INVENTORY_TABLE_ROWS_MUST_BE_ARRAY: %', table_name using errcode='22023';
+      raise exception 'INVENTORY_TABLE_ROWS_MUST_BE_ARRAY: %', v_table_name using errcode='22023';
     end if;
     select string_agg(format('%I = excluded.%I', c.column_name, c.column_name), ', ' order by c.ordinal_position)
       into update_columns
     from information_schema.columns c
-    where c.table_schema='public' and c.table_name=table_name
+    where c.table_schema='public' and c.table_name=v_table_name
       and c.column_name not in ('id','workspace_id','created_at','created_by');
     if jsonb_array_length(rows_json) > 0 then
       execute format(
         'insert into public.%I select * from jsonb_populate_recordset(null::public.%I, $1) on conflict (workspace_id,id) do update set %s',
-        table_name, table_name, update_columns
+        v_table_name, v_table_name, update_columns
       ) using rows_json;
     end if;
   end loop;
