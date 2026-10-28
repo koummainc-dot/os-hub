@@ -26,7 +26,7 @@ Depends on: `20261028120000_inventory_p0_foundation.sql`
 
 ## Review blockers (not tested)
 1. Confirm `ws_access_level` recognizes each section ID and uses the expected `view`/`edit` values.
-2. Review PostgreSQL behavior for composite self-referential foreign keys using `ON DELETE SET NULL`; ensure it does not attempt to null the workspace key. If necessary, replace with explicit parent nullification logic.
+2. Physical deletes for categories/locations referenced by other rows are restricted to preserve workspace-bound composite foreign keys. UI should use soft-delete/archive and offer a clear explanation when a category/location is still referenced.
 3. Review the P0/P1 row-stamping conventions and ensure the application never trusts client-supplied actor or owner IDs.
 4. Derived values such as current location and ownership status are not calculated from the event log yet. Do not expose the event log as if it automatically controls current state.
 5. Duplicate identifier policy (workspace-wide vs per item) remains open; current schema does not add a unique constraint.
