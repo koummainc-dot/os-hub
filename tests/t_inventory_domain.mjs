@@ -71,6 +71,25 @@ const duplicateLoan = prepareRelatedInventoryRecord("loan", {
 }, createdLoan.data, today, uid);
 assert.ok(duplicateLoan.error);
 
+// Returning a lent item restores ownership; borrowing an item from someone
+// else must never mutate this user's ownership status.
+const returnedLentLoan = returnInventoryLoan(createdLoan.data, createdLoan.row.id, today, uid);
+assert.equal(returnedLentLoan.error, undefined);
+assert.equal(returnedLentLoan.data.items.find(x => x.id === item.id).status, "Owned");
+const borrowedLoan = prepareRelatedInventoryRecord("loan", {
+  itemId: item.id, person: "صاحب العنصر", direction: "Borrowed", loanedAt: today, dueDate: ""
+}, returnedLentLoan.data, today, uid);
+assert.equal(borrowedLoan.error, undefined);
+assert.equal(borrowedLoan.data.items.find(x => x.id === item.id).status, "Owned");
+const returnedBorrowedLoan = returnInventoryLoan(borrowedLoan.data, borrowedLoan.row.id, today, uid);
+assert.equal(returnedBorrowedLoan.error, undefined);
+assert.equal(returnedBorrowedLoan.data.items.find(x => x.id === item.id).status, "Owned");
+
+const invalidLoanDates = prepareRelatedInventoryRecord("loan", {
+  itemId: item.id, person: "شخص", direction: "Borrowed", loanedAt: "2026-05-02", dueDate: "2026-05-01"
+}, returnedBorrowedLoan.data, today, uid);
+assert.ok(invalidLoanDates.error);
+
 const archiveUsedPlace = archiveInventoryReference(data, "place", room.row.id, today, uid);
 assert.ok(archiveUsedPlace.error);
 
