@@ -224,7 +224,8 @@ create policy finance_family_private_ins on public.finance_family_member_private
     and (exists (select 1 from public.workspaces w where w.id = workspace_id and w.owner_id = auth.uid())
       or exists (select 1 from public.workspace_members m where m.workspace_id = workspace_id and m.user_id = auth.uid() and m.status='active'
         and (coalesce(m.access->'systems'->'finance'->'sections'->>'family_sensitive','none') = 'edit'
-          or coalesce((m.access->'systems'->'finance'->>'manage')::boolean,false))));
+          or coalesce((m.access->'systems'->'finance'->>'manage')::boolean,false))))
+    and (updated_by is null or updated_by = auth.uid());
 drop policy if exists finance_family_private_upd on public.finance_family_member_private;
 create policy finance_family_private_upd on public.finance_family_member_private for update
   using (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit'
@@ -232,7 +233,12 @@ create policy finance_family_private_upd on public.finance_family_member_private
       or exists (select 1 from public.workspace_members m where m.workspace_id = workspace_id and m.user_id = auth.uid() and m.status='active'
         and (coalesce(m.access->'systems'->'finance'->'sections'->>'family_sensitive','none') = 'edit'
           or coalesce((m.access->'systems'->'finance'->>'manage')::boolean,false))))
-  with check (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit');
+  with check (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit'
+    and (exists (select 1 from public.workspaces w where w.id = workspace_id and w.owner_id = auth.uid())
+      or exists (select 1 from public.workspace_members m where m.workspace_id = workspace_id and m.user_id = auth.uid() and m.status='active'
+        and (coalesce(m.access->'systems'->'finance'->'sections'->>'family_sensitive','none') = 'edit'
+          or coalesce((m.access->'systems'->'finance'->>'manage')::boolean,false))))
+    and (updated_by is null or updated_by = auth.uid()));
 
 -- Family transaction attribution is readable only with family access. Writes are RPC-only
 -- in the next implementation phase so split totals can be validated transactionally.
@@ -281,6 +287,47 @@ create trigger finance_family_validate_linked_user_trg
 before insert or update of linked_user_id, workspace_id on public.finance_family_members
 for each row execute function public.fin_family_validate_linked_user();
 
+-- Audit family records without copying private birth dates or notes into the audit trail.
+create or replace function public.fin_family_audit_row()
+returns trigger language plpgsql security definer set search_path to ''
+as $function$
+declare
+  ws uuid;
+  entity_id text;
+  action_name text;
+  before_data jsonb;
+  after_data jsonb;
+begin
+  ws := coalesce(new.workspace_id, old.workspace_id);
+  entity_id := coalesce(new.id::text, old.id::text);
+  action_name := case when tg_op = 'INSERT' then 'create' when tg_op = 'DELETE' then 'delete' else 'update' end;
+  if tg_table_name = 'finance_family_member_private' then
+    entity_id := coalesce(new.family_member_id::text, old.family_member_id::text);
+    before_data := case when tg_op = 'INSERT' then null else jsonb_build_object('private_details_changed', true) end;
+    after_data := case when tg_op = 'DELETE' then null else jsonb_build_object('private_details_changed', true) end;
+  else
+    before_data := case when tg_op = 'INSERT' then null else to_jsonb(old) - 'linked_user_id' end;
+    after_data := case when tg_op = 'DELETE' then null else to_jsonb(new) - 'linked_user_id' end;
+  end if;
+  perform public.fin__audit(ws, auth.uid(), tg_table_name, entity_id, action_name, null, before_data, after_data);
+  return coalesce(new, old);
+end
+$function$;
+
+drop trigger if exists finance_family_members_audit_trg on public.finance_family_members;
+create trigger finance_family_members_audit_trg after insert or update on public.finance_family_members
+for each row execute function public.fin_family_audit_row();
+drop trigger if exists finance_family_private_audit_trg on public.finance_family_member_private;
+create trigger finance_family_private_audit_trg after insert or update on public.finance_family_member_private
+for each row execute function public.fin_family_audit_row();
+drop trigger if exists finance_family_budgets_audit_trg on public.finance_family_budgets;
+create trigger finance_family_budgets_audit_trg after insert or update on public.finance_family_budgets
+for each row execute function public.fin_family_audit_row();
+drop trigger if exists finance_family_allowances_audit_trg on public.finance_family_allowances;
+create trigger finance_family_allowances_audit_trg after insert or update on public.finance_family_allowances
+for each row execute function public.fin_family_audit_row();
+
+revoke all on function public.fin_family_audit_row() from public;
 revoke all on function public.fin_family_need(uuid,text,boolean) from public;
 revoke all on function public.fin_family_validate_linked_user() from public;
 grant execute on function public.fin_family_need(uuid,text,boolean) to authenticated;
