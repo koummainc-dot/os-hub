@@ -11,7 +11,7 @@ create table if not exists public.inventory_categories (
  created_at timestamptz not null default now(), updated_at timestamptz not null default now(), deleted_at timestamptz,
  created_by uuid references auth.users(id) on delete set null, updated_by uuid references auth.users(id) on delete set null,
  unique(workspace_id,id), unique(workspace_id,slug),
- foreign key(workspace_id,parent_id) references public.inventory_categories(workspace_id,id) on delete set null
+ foreign key(workspace_id,parent_id) references public.inventory_categories(workspace_id,id) on delete restrict
 );
 create index if not exists inventory_categories_parent_idx on public.inventory_categories(workspace_id,parent_id,sort_order);
 
@@ -24,7 +24,7 @@ create table if not exists public.inventory_locations (
  created_at timestamptz not null default now(), updated_at timestamptz not null default now(), deleted_at timestamptz,
  created_by uuid references auth.users(id) on delete set null, updated_by uuid references auth.users(id) on delete set null,
  unique(workspace_id,id),
- foreign key(workspace_id,parent_id) references public.inventory_locations(workspace_id,id) on delete set null
+ foreign key(workspace_id,parent_id) references public.inventory_locations(workspace_id,id) on delete restrict
 );
 create index if not exists inventory_locations_parent_idx on public.inventory_locations(workspace_id,parent_id);
 
@@ -51,8 +51,8 @@ create table if not exists public.inventory_items (
  created_at timestamptz not null default now(), updated_at timestamptz not null default now(), deleted_at timestamptz,
  created_by uuid references auth.users(id) on delete set null, updated_by uuid references auth.users(id) on delete set null,
  unique(workspace_id,id),
- foreign key(workspace_id,category_id) references public.inventory_categories(workspace_id,id) on delete set null,
- foreign key(workspace_id,current_location_id) references public.inventory_locations(workspace_id,id) on delete set null
+ foreign key(workspace_id,category_id) references public.inventory_categories(workspace_id,id) on delete restrict,
+ foreign key(workspace_id,current_location_id) references public.inventory_locations(workspace_id,id) on delete restrict
 );
 create index if not exists inventory_items_name_idx on public.inventory_items(workspace_id,lower(name)) where deleted_at is null;
 create index if not exists inventory_items_category_idx on public.inventory_items(workspace_id,category_id) where deleted_at is null;
@@ -65,6 +65,7 @@ create table if not exists public.inventory_identifiers (
  identifier_value text not null check(length(trim(identifier_value)) between 1 and 240),
  is_primary boolean not null default false, sensitivity text not null default 'Sensitive' check(sensitivity in ('Normal','Sensitive','Secret')),
  notes text, created_at timestamptz not null default now(), updated_at timestamptz not null default now(), deleted_at timestamptz,
+ created_by uuid references auth.users(id) on delete set null, updated_by uuid references auth.users(id) on delete set null,
  unique(workspace_id,id), foreign key(workspace_id,item_id) references public.inventory_items(workspace_id,id) on delete cascade
 );
 create index if not exists inventory_identifiers_item_idx on public.inventory_identifiers(workspace_id,item_id) where deleted_at is null;
@@ -79,8 +80,8 @@ create table if not exists public.inventory_ownership_events (
  sensitivity text not null default 'Normal' check(sensitivity in ('Normal','Sensitive','Secret')),
  created_at timestamptz not null default now(), created_by uuid references auth.users(id) on delete set null,
  unique(workspace_id,id), foreign key(workspace_id,item_id) references public.inventory_items(workspace_id,id) on delete restrict,
- foreign key(workspace_id,from_location_id) references public.inventory_locations(workspace_id,id) on delete set null,
- foreign key(workspace_id,to_location_id) references public.inventory_locations(workspace_id,id) on delete set null
+ foreign key(workspace_id,from_location_id) references public.inventory_locations(workspace_id,id) on delete restrict,
+ foreign key(workspace_id,to_location_id) references public.inventory_locations(workspace_id,id) on delete restrict
 );
 create index if not exists inventory_ownership_timeline_idx on public.inventory_ownership_events(workspace_id,item_id,occurred_at desc);
 
