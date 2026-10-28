@@ -1,0 +1,2 @@
+-- Add the explicit bank-interest income subcategory under Investments.
+INSERT INTO public.finance_categories(workspace_id,name,kind,parent_id) SELECT w.id,'فوائد بنكية','Income',p.id FROM public.workspaces w JOIN public.finance_categories p ON p.workspace_id=w.id AND p.name='استثمار' AND p.kind='Income' AND p.parent_id IS NULL WHERE NOT EXISTS (SELECT 1 FROM public.finance_categories c WHERE c.workspace_id=w.id AND c.parent_id=p.id AND c.name='فوائد بنكية' AND c.kind='Income');
