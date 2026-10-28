@@ -100,6 +100,27 @@ function osMakeApi(wsId,systemId,part){
   part=part||"main"; const lk=osLocalKey(wsId,systemId,part); let uidCache=null;
   const readLocal=(err)=>{try{const ls=localStorage.getItem(lk);if(ls)return{data:JSON.parse(ls),source:"localStorage",updatedAt:null,error:err||null};}catch(e){}return{data:null,source:"unavailable",updatedAt:null,error:err||null};};
   return {
+    workspaceId: wsId,
+    async loadNormalizedInventory(){
+      try {
+        const {data,error}=await supabase.rpc("inventory_load_snapshot",{p_workspace_id:wsId});
+        if(error){
+          if(["PGRST202","42883"].includes(error.code)||/function .*inventory_load_snapshot.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,error};
+        }
+        return {available:true,data,source:"normalized"};
+      } catch(error) { return {available:true,error}; }
+    },
+    async saveNormalizedInventory(snapshot){
+      try {
+        const {data,error}=await supabase.rpc("inventory_save_snapshot",{p_workspace_id:wsId,p_snapshot:snapshot});
+        if(error){
+          if(["PGRST202","42883"].includes(error.code)||/function .*inventory_save_snapshot.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,ok:false,error};
+        }
+        return {available:true,ok:true,updatedAt:data||null};
+      } catch(error) { return {available:true,ok:false,error}; }
+    },
     async load(){
       try{
         const timeout=new Promise(r=>setTimeout(()=>r({ok:false,error:{message:"Supabase request timed out"}}),12000));

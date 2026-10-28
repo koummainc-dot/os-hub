@@ -160,11 +160,13 @@ export function planInventoryAggregateMigration(aggregate, options = {}) {
     const eventType = String(r.type || "");
     const occurred = stamp(r.date || r.createdAt);
     if (OWNERSHIP_EVENTS.has(eventType) && itemId) {
+      if (!occurred) blockers.push({ code: "OWNERSHIP_EVENT_DATE_UNKNOWN", oldId: text(r.id), detail: "An ownership-history date is required; do not invent a historical timestamp." });
       ownership.push({
         id: resolveId(r.id, "ownership_event"), workspace_id: workspaceId, item_id: itemId,
         event_type: eventType, occurred_at: occurred || undefined,
         from_location_id: ref(idMaps.place, r.fromLocationId, "event.fromLocationId"),
         to_location_id: ref(idMaps.place, r.toLocationId, "event.toLocationId"),
+        person_ref_snapshot: r.person && typeof r.person === "object" ? r.person : (r.person ? { name: String(r.person) } : {}),
         event_note: text(r.note), source_system: "inventory_aggregate",
         source_ref_id: text(r.id), sensitivity: privacy(r.sensitivity || items.find(x => x.id === itemId)?.source?.sensitivity)
       });
@@ -195,7 +197,8 @@ export function planInventoryAggregateMigration(aggregate, options = {}) {
       warranty_type: ["Manufacturer", "Seller", "Extended", "ServicePlan", "Other"].includes(r.warrantyType) ? r.warrantyType : "Manufacturer",
       start_date: date(r.startDate), end_date: date(r.endDate), policy_number: text(r.policyNumber),
       reminder_days: reminderDaysOrDefault(source.settings?.warrantyReminderDays),
-      notes: text(r.notes), sensitivity: privacy(r.sensitivity, "Sensitive"), version: 1
+      notes: text(r.notes), sensitivity: privacy(r.sensitivity, "Sensitive"),
+      document_ref_state: "Missing", document_ref_snapshot: {}, version: 1
     });
   }
   for (const { source: r, id } of loans) if (id) {
