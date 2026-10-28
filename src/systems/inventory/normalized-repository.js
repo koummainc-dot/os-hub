@@ -1,7 +1,6 @@
 import { planInventoryAggregateMigration } from "./migration-plan.js";
 
 const list = (value) => Array.isArray(value) ? value : [];
-const value = (row, key, fallback = null) => row?.[key] === undefined ? fallback : row[key];
 const camelDate = (v) => v ? String(v).slice(0, 10) : "";
 const camelStamp = (v) => v || "";
 const mapRows = (snapshot) => snapshot?.tables && typeof snapshot.tables === "object" ? snapshot.tables : {};
@@ -24,9 +23,10 @@ export function buildNormalizedInventorySnapshot(aggregate, workspaceId) {
   const source = aggregate && typeof aggregate === "object" ? aggregate : {};
   const settings = source.settings && typeof source.settings === "object" ? source.settings : {};
   const idMap = { ...(settings._inventoryIdMap || {}) };
+  const resolveId = makeIdResolver(idMap);
   const plan = planInventoryAggregateMigration(source, {
     workspaceId,
-    resolveId: (oldId, entityType) => makeIdResolver(idMap)(oldId, entityType)
+    resolveId
   });
   if (!plan.safeToApply) {
     const error = new Error("Inventory migration is blocked; resolve the reported data issues before saving normalized tables.");
