@@ -100,14 +100,17 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
         setData(previousData);
         setError(result.conflict ? "توجد نسخة أحدث على الخادم. أعد تحميل البيانات قبل الحفظ لتجنب الكتابة فوقها." : "تعذر تأكيد الحفظ على الخادم. قد تكون النسخة المحلية أحدث.");
         tell("⚠ لم يتأكد الحفظ على الخادم؛ تم التراجع عن التغيير المحلي. راجع الاتصال ثم أعد المحاولة.");
+        return false;
       } else {
         setError("");
         tell(isDemo ? "تم الحفظ داخل الوضع التجريبي" : success);
+        return true;
       }
     } catch (e) {
       setData(previousData);
       setError(e?.message || "تعذر حفظ البيانات");
       tell("⚠ تعذر تأكيد الحفظ؛ تم التراجع عن التغيير المحلي.");
+      return false;
     } finally { setSaving(false); }
   }, [repository, isDemo, tell, data]);
 
@@ -133,8 +136,9 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
     if (!name) return tell("اكتب اسم العنصر أولاً");
     const old = data.items.find(x => x.id === form.id);
     const item = { ...form, id: form.id || uid(), name, quantity: form.quantity === "" ? null : Math.max(0, Number(form.quantity)), purchasePrice: form.purchasePrice === "" ? "" : String(form.purchasePrice), estimatedValue: form.estimatedValue === "" ? "" : String(form.estimatedValue), createdAt: old?.createdAt || today(), updatedAt: today() };
-    const next = { ...data, items: old ? data.items.map(x => x.id === item.id ? item : x) : [item, ...data.items], events: old ? data.events : [{ id: uid(), itemId: item.id, type: "Acquired", date: today(), note: "تم إنشاء سجل الممتلكات." }, ...data.events] };
-    await persist(next, "تم حفظ العنصر");
+    const next = appendInventoryEvent({ ...data, items: old ? data.items.map(x => x.id === item.id ? item : x) : [item, ...data.items] }, { id: uid(), itemId: item.id, type: old ? "ItemUpdated" : "Acquired", date: today(), note: old ? "تم تحديث بيانات الممتلك." : "تم إنشاء سجل الممتلكات." });
+    const saved = await persist(next, "تم حفظ العنصر");
+    if (!saved) return;
     setEditor(null); setSelectedId(item.id); setPage("items");
   };
   const saveCategory = async (form) => {
@@ -278,7 +282,7 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   </>;
   else if (page === "archive") body = <>
     {header}<div style={card}><PanelTitle title="الأرشيف" sub="العناصر المؤرشفة لا تظهر ضمن الجرد النشط." />
-      {data.items.filter(i => i.deletedAt && i.sensitivity !== "Secret").map(i => <div key={i.id} style={{ padding: "12px 0", borderBottom: "1px solid " + LINE, display: "flex", gap: 8, alignItems: "center" }}><span style={{ flex: 1, fontSize: 13 }}>{i.name}</span>{canEdit && <Btn secondary onClick={() => persist({ ...data, items: data.items.map(x => x.id === i.id ? { ...x, deletedAt: null, updatedAt: today() } : x) }, "تمت استعادة العنصر")}>استعادة</Btn>}</div>)}
+      {data.items.filter(i => i.deletedAt && i.sensitivity !== "Secret").map(i => <div key={i.id} style={{ padding: "12px 0", borderBottom: "1px solid " + LINE, display: "flex", gap: 8, alignItems: "center" }}><span style={{ flex: 1, fontSize: 13 }}>{i.name}</span>{canEdit && <Btn secondary onClick={() => persist(appendInventoryEvent({ ...data, items: data.items.map(x => x.id === i.id ? { ...x, deletedAt: null, updatedAt: today() } : x) }, { id: uid(), itemId: i.id, type: "Restored", date: today(), note: "تمت استعادة العنصر من الأرشيف." }), "تمت استعادة العنصر")}>استعادة</Btn>}</div>)}
       {!data.items.some(i => i.deletedAt && i.sensitivity !== "Secret") && <div style={{ color: MUTED, padding: 24, textAlign: "center", fontSize: 12 }}>الأرشيف فارغ.</div>}
     </div>
   </>;
@@ -302,7 +306,7 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
       const row = { ...f, id: f.id || uid(), updatedAt: today(), ...(isNew ? { createdAt: today() } : {}) }; delete row.kind;
       const nextRows = !isNew ? data[key].map(x => x.id === row.id ? row : x) : [row, ...data[key]];
       const itemEvent = { id: uid(), itemId: row.itemId, type: isNew ? ({ warranty: "WarrantyAdded", loan: "LoanCreated", replacement: "ReplacementPlanned", service: "ServiceRecorded" })[f.kind] : ({ warranty: "WarrantyUpdated", loan: "LoanUpdated", replacement: "ReplacementUpdated", service: "ServiceUpdated" })[f.kind], date: today(), note: isNew ? "تم إنشاء سجل " + ({ warranty: "ضمان", loan: "إعارة", replacement: "استبدال", service: "صيانة" })[f.kind] + "." : "تم تحديث سجل " + ({ warranty: "ضمان", loan: "إعارة", replacement: "استبدال", service: "صيانة" })[f.kind] + "." };
-      await persist(appendInventoryEvent({ ...data, [key]: nextRows }, itemEvent), "تم حفظ السجل"); setEditor(null);
+      const saved = await persist(appendInventoryEvent({ ...data, [key]: nextRows }, itemEvent), "تم حفظ السجل"); if (saved) setEditor(null);
     }} />}
     {editor && !["warranty","loan","replacement","service"].includes(editor.kind) && <InventoryItemForm categories={categories} places={places} value={editor} onClose={() => setEditor(null)} onSave={saveItem} />}
     {categoryEditor && <InventorySimpleForm kind="category" categories={categories} places={places} value={categoryEditor} onClose={() => setCategoryEditor(null)} onSave={saveCategory} />}
