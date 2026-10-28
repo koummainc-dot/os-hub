@@ -103,3 +103,48 @@ export function validateRelationshipsImport(value) {
   if (badPerson) return { ok: false, error: "يوجد شخص غير صالح في الملف: " + (badPerson.name || "اسم غير معروف") };
   return { ok: true, value: normalized };
 }
+
+function isoDateUTC(year, month, day) {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.toISOString().slice(0, 10);
+}
+
+function daysBetweenISO(from, to) {
+  const a = Date.parse(from + "T00:00:00Z");
+  const b = Date.parse(to + "T00:00:00Z");
+  return Number.isFinite(a) && Number.isFinite(b) ? Math.round((b - a) / 86400000) : null;
+}
+
+function nextAnnualDate(value, today) {
+  const match = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(String(value || ""));
+  if (!match || !/^\\d{4}-\\d{2}-\\d{2}$/.test(today)) return null;
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const year = Number(today.slice(0, 4));
+  let candidate = isoDateUTC(year, month, day);
+  if (candidate < today) candidate = isoDateUTC(year + 1, month, day);
+  return candidate;
+}
+
+export function upcomingRelationshipEvents(people, occasions, today, horizonDays = 30) {
+  const events = [];
+  for (const person of Array.isArray(people) ? people : []) {
+    if (!person?.birthday) continue;
+    const nextDate = nextAnnualDate(person.birthday, today);
+    if (!nextDate) continue;
+    const daysAway = daysBetweenISO(today, nextDate);
+    if (daysAway !== null && daysAway >= 0 && daysAway <= horizonDays) {
+      events.push({ id: "birthday:" + person.id, personId: person.id, title: "عيد ميلاد " + String(person.name || "شخص"), date: nextDate, daysAway, kind: "birthday" });
+    }
+  }
+  for (const occasion of Array.isArray(occasions) ? occasions : []) {
+    if (!occasion?.date) continue;
+    const nextDate = occasion.recurrence === "yearly" ? nextAnnualDate(occasion.date, today) : occasion.date;
+    if (!nextDate) continue;
+    const daysAway = daysBetweenISO(today, nextDate);
+    if (daysAway !== null && daysAway >= 0 && daysAway <= horizonDays) {
+      events.push({ id: "occasion:" + occasion.id, personId: occasion.personId, title: String(occasion.title || "مناسبة"), date: nextDate, daysAway, kind: "occasion" });
+    }
+  }
+  return events.sort((a, b) => a.daysAway - b.daysAway || a.title.localeCompare(b.title));
+}
