@@ -10,7 +10,7 @@ const BG = "#FBF8F2";
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 const uid = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : "inv-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 9));
 const blank = () => ({ schemaVersion: 1, items: [], categories: [], places: [], warranties: [], loans: [], replacements: [], events: [], services: [], settings: { currency: "EGP", warrantyReminderDays: [30, 7, 1] } });
-const demoSeed = () => ({
+const buildDemoData = () => ({
   ...blank(),
   categories: [
     { id: "cat-tech", name: "أجهزة إلكترونية", color: "#2563EB", createdAt: today() },
@@ -72,7 +72,7 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
       try {
         const result = await api.load();
         if (!alive) return;
-        const loaded = result?.data ? normalize(result.data) : (isDemo ? normalize(demoSeed()) : blank());
+        const loaded = result?.data ? normalize(result.data) : (isDemo ? normalize(buildDemoData()) : blank());
         setData(loaded);
         setSource(result?.source || (isDemo ? "demo" : "empty"));
         setError(result?.error?.message || "");
@@ -347,8 +347,6 @@ function SimpleEntityForm({ kind, value, items, currency, onClose, onSave }) {
   </form></div>;
 }
 
-export const demoSeed = () => normalizeDemoSeed();
-function normalizeDemoSeed() { return demoSeedInternal(); }
-function demoSeedInternal() { return { ...blank(), categories: [], places: [], items: [], warranties: [], loans: [], replacements: [], events: [], services: [] }; }
+export const demoSeed = () => normalize(buildDemoData());
 
 export default InventorySystem;
