@@ -201,10 +201,11 @@ export function planInventoryAggregateMigration(aggregate, options = {}) {
     if (!itemId) { blockers.push({ code: "LOAN_ITEM_REQUIRED", oldId: r.id }); continue; }
     const direction = r.direction === "Borrowed" ? "Borrowed" : "Lent";
     const returnedAt = date(r.returnedAt);
+    if (!date(r.loanedAt) && !date(r.createdAt)) blockers.push({ code: "LOAN_DATE_UNKNOWN", oldId: r.id, detail: "Do not invent a historical loan date; review before applying." });
     tables.inventory_loans.push({
       ...base(r, id), item_id: itemId, loan_direction: direction,
       person_ref_snapshot: r.person && typeof r.person === "object" ? r.person : (r.person ? { name: String(r.person) } : {}),
-      person_ref_state: "Missing", loaned_at: date(r.loanedAt) || date(r.createdAt) || "2000-01-01",
+      person_ref_state: "Missing", loaned_at: date(r.loanedAt) || date(r.createdAt) || undefined,
       due_date: date(r.dueDate), returned_at: returnedAt,
       status: returnedAt || r.status === "Returned" ? "Returned" : ["Overdue", "Lost", "Cancelled"].includes(r.status) ? r.status : "Open",
       notes: text(r.notes), sensitivity: privacy(r.sensitivity, "Sensitive"), version: 1
@@ -224,8 +225,9 @@ export function planInventoryAggregateMigration(aggregate, options = {}) {
     const itemId = ref(idMaps.item, r.itemId, "service.itemId");
     if (!itemId) { blockers.push({ code: "SERVICE_ITEM_REQUIRED", oldId: r.id }); continue; }
     const serviceType = ["Maintenance", "Repair", "Inspection", "Cleaning", "Upgrade", "Other"].includes(r.serviceType) ? r.serviceType : "Other";
+    if (!date(r.serviceDate || r.date || r.createdAt)) blockers.push({ code: "SERVICE_DATE_UNKNOWN", oldId: r.id, detail: "Do not invent a historical service date; review before applying." });
     tables.inventory_service_logs.push({
-      ...base(r, id), item_id: itemId, service_date: date(r.serviceDate || r.date || r.createdAt) || "2000-01-01",
+      ...base(r, id), item_id: itemId, service_date: date(r.serviceDate || r.date || r.createdAt) || undefined,
       service_type: serviceType, provider_name: text(r.provider || r.providerName), cost: amount(r.cost),
       currency: currency(r.currency || source.settings?.currency), next_due_date: date(r.nextDueDate),
       notes: text(r.notes), version: 1
