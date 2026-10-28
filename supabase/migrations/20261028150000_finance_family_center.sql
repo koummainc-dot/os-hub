@@ -193,6 +193,30 @@ begin
 end
 $function$;
 
+-- Evaluate sensitive access through a definer function to avoid RLS recursion
+-- and ensure the membership lookup is scoped to the requested workspace.
+create or replace function public.fin_family_has_sensitive_access(p_workspace_id uuid, p_level text default 'view')
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path to ''
+as $function$
+declare a jsonb;
+begin
+  if auth.uid() is null then return false; end if;
+  if exists (select 1 from public.workspaces w where w.id = p_workspace_id and w.owner_id = auth.uid()) then return true; end if;
+  select m.access into a from public.workspace_members m
+   where m.workspace_id = p_workspace_id and m.user_id = auth.uid() and m.status = 'active';
+  if a is null then return false; end if;
+  if coalesce((a->'systems'->'finance'->>'manage')::boolean, false) then return true; end if;
+  if p_level = 'edit' then
+    return coalesce(a->'systems'->'finance'->'sections'->>'family_sensitive','none') = 'edit';
+  end if;
+  return coalesce(a->'systems'->'finance'->'sections'->>'family_sensitive','none') in ('view','edit');
+end
+$function$;
+
 alter table public.finance_family_members enable row level security;
 alter table public.finance_family_member_private enable row level security;
 alter table public.finance_family_transaction_meta enable row level security;
@@ -214,30 +238,18 @@ create policy finance_family_members_upd on public.finance_family_members for up
 drop policy if exists finance_family_private_sel on public.finance_family_member_private;
 create policy finance_family_private_sel on public.finance_family_member_private for select
   using (public.ws_access_level(workspace_id, 'finance', 'family') in ('view','edit')
-    and (exists (select 1 from public.workspaces w where w.id = finance_family_member_private.workspace_id and w.owner_id = auth.uid())
-      or exists (select 1 from public.workspace_members m where m.workspace_id = finance_family_member_private.workspace_id and m.user_id = auth.uid() and m.status='active'
-        and (coalesce(m.access->'systems'->'finance'->'sections'->>'family_sensitive','none') in ('view','edit')
-          or coalesce((m.access->'systems'->'finance'->>'manage')::boolean,false)))));
+    and public.fin_family_has_sensitive_access(workspace_id, 'view'));
 drop policy if exists finance_family_private_ins on public.finance_family_member_private;
 create policy finance_family_private_ins on public.finance_family_member_private for insert
   with check (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit'
-    and (exists (select 1 from public.workspaces w where w.id = finance_family_member_private.workspace_id and w.owner_id = auth.uid())
-      or exists (select 1 from public.workspace_members m where m.workspace_id = finance_family_member_private.workspace_id and m.user_id = auth.uid() and m.status='active'
-        and (coalesce(m.access->'systems'->'finance'->'sections'->>'family_sensitive','none') = 'edit'
-          or coalesce((m.access->'systems'->'finance'->>'manage')::boolean,false))))
-    and (updated_by is null or updated_by = auth.uid());
+    and public.fin_family_has_sensitive_access(workspace_id, 'edit')
+    and (updated_by is null or updated_by = auth.uid()));
 drop policy if exists finance_family_private_upd on public.finance_family_member_private;
 create policy finance_family_private_upd on public.finance_family_member_private for update
   using (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit'
-    and (exists (select 1 from public.workspaces w where w.id = finance_family_member_private.workspace_id and w.owner_id = auth.uid())
-      or exists (select 1 from public.workspace_members m where m.workspace_id = finance_family_member_private.workspace_id and m.user_id = auth.uid() and m.status='active'
-        and (coalesce(m.access->'systems'->'finance'->'sections'->>'family_sensitive','none') = 'edit'
-          or coalesce((m.access->'systems'->'finance'->>'manage')::boolean,false))))
+    and public.fin_family_has_sensitive_access(workspace_id, 'edit'))
   with check (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit'
-    and (exists (select 1 from public.workspaces w where w.id = finance_family_member_private.workspace_id and w.owner_id = auth.uid())
-      or exists (select 1 from public.workspace_members m where m.workspace_id = finance_family_member_private.workspace_id and m.user_id = auth.uid() and m.status='active'
-        and (coalesce(m.access->'systems'->'finance'->'sections'->>'family_sensitive','none') = 'edit'
-          or coalesce((m.access->'systems'->'finance'->>'manage')::boolean,false))))
+    and public.fin_family_has_sensitive_access(workspace_id, 'edit')
     and (updated_by is null or updated_by = auth.uid()));
 
 -- Family transaction attribution is readable only with family access. Writes are RPC-only
@@ -328,6 +340,7 @@ create trigger finance_family_allowances_audit_trg after insert or update on pub
 for each row execute function public.fin_family_audit_row();
 
 revoke all on function public.fin_family_audit_row() from public;
+revoke all on function public.fin_family_has_sensitive_access(uuid,text) from public;
 revoke all on function public.fin_family_need(uuid,text,boolean) from public;
 revoke all on function public.fin_family_validate_linked_user() from public;
 grant execute on function public.fin_family_need(uuid,text,boolean) to authenticated;
