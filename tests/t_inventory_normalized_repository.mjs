@@ -58,4 +58,35 @@ assert.throws(
   () => buildNormalizedInventorySnapshot(unknownHistory, workspaceId),
   error => error.code === "INVENTORY_MIGRATION_BLOCKED" && error.blockers.some(x => x.code === "OWNERSHIP_EVENT_DATE_UNKNOWN")
 );
+
+const calls = { legacySaves: 0, normalizedSaves: 0 };
+let serverSnapshot = { schema_version: 1, tables: { inventory_settings: [] } };
+let legacyData = source;
+const mockApi = {
+  workspaceId,
+  async load() { return { data: legacyData, source: "supabase", updatedAt: null, error: null }; },
+  async save(data) { calls.legacySaves++; legacyData = data; return { ok: true, conflict: false, updatedAt: "legacy" }; },
+  async loadNormalizedInventory() { return { available: true, data: serverSnapshot, source: "normalized" }; },
+  async saveNormalizedInventory(snapshot) {
+    calls.normalizedSaves++;
+    serverSnapshot = structuredClone(snapshot);
+    return { available: true, ok: true, updatedAt: "normalized" };
+  }
+};
+const { createNormalizedInventoryRepository } = await import("../src/systems/inventory/normalized-repository.js");
+const repoAdapter = createNormalizedInventoryRepository(mockApi, value => value);
+const beforeMigration = await repoAdapter.load();
+assert.equal(beforeMigration.source, "supabase");
+const saved = await repoAdapter.save(source);
+assert.equal(saved.ok, true);
+assert.equal(calls.legacySaves, 1, "first normalized save persists the durable ID map to the legacy aggregate");
+assert.equal(calls.normalizedSaves, 1);
+assert.equal(legacyData.settings._inventoryIdMap["item:item-old"], serverSnapshot.tables.inventory_items[0].id);
+const loadedNormalized = await repoAdapter.load();
+assert.equal(loadedNormalized.source, "normalized");
+assert.equal(loadedNormalized.data.items[0].id, serverSnapshot.tables.inventory_items[0].id);
+const secondSave = await repoAdapter.save(loadedNormalized.data);
+assert.equal(secondSave.ok, true);
+assert.equal(calls.normalizedSaves, 2, "after activation, saves use normalized snapshot RPC");
+
 console.log("Inventory normalized repository mapping tests passed.");
