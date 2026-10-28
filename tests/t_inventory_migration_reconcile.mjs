@@ -35,7 +35,7 @@ assert.equal(first.safeToApply, true);
 assert.equal(compareInventoryMigrationPlans(first, second).deterministic, true);
 const reconciliation = reconcileInventoryMigrationPlan(aggregate, first);
 assert.equal(reconciliation.mode, "read-only-reconciliation");
-assert.equal(reconciliation.safeToApply, true);
+assert.equal(reconciliation.safeToApply, true, JSON.stringify({ blockers: reconciliation.blockers, planBlockers: first.blockers, countDifferences: reconciliation.countDifferences }, null, 2));
 assert.deepEqual(reconciliation.countDifferences, []);
 assert.equal(reconciliation.sourceCounts.inventory_items, 1);
 assert.equal(reconciliation.plannedCounts.inventory_items, 1);
