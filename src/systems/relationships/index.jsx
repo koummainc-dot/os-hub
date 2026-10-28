@@ -6,7 +6,7 @@ import { buildRelationshipsSeed } from "./demo.js";
 import {
   RELATIONSHIP_SECTIONS, RELATIONSHIP_TYPES, RELATIONSHIP_TYPE_LABELS,
   emptyRelationshipsData, normalizeRelationshipsData, validatePerson,
-  normalizeSearch, findPossibleDuplicates, dueFollowups, validateRelationshipsImport
+  normalizeSearch, findPossibleDuplicates, dueFollowups, validateRelationshipsImport, upcomingRelationshipEvents
 } from "./domain.js";
 
 const C = { ink: "#172033", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#DB2777", soft: "#FCE7F3", green: "#047857", amber: "#B45309", red: "#B91C1C" };
@@ -187,6 +187,7 @@ export default function RelationshipsSystem(props) {
   }, [data.people, query]);
   const overdue = useMemo(() => dueFollowups(data.followups, today()), [data.followups]);
   const duplicates = useMemo(() => findPossibleDuplicates(data.people), [data.people]);
+  const upcomingEvents = useMemo(() => upcomingRelationshipEvents(data.people, data.occasions, today(), 30), [data.people, data.occasions]);
 
   const startNewPerson = () => { setEditingPerson(null); setPersonDraft(blankPerson()); };
   const savePerson = async (event) => {
@@ -229,6 +230,9 @@ export default function RelationshipsSystem(props) {
     </div>
     <Panel title="متابعات تحتاج إلى اهتمام" hint="قائمة عملية، وليست حكمًا على جودة العلاقة.">
       {overdue.length ? overdue.slice(0, 5).map((f) => <div key={f.id} style={{ padding: "10px 0", borderBottom: "1px solid " + C.line }}><strong>{f.title}</strong><div style={{ color: C.muted, fontSize: 12 }}>{peopleById[f.personId]?.name || "شخص غير محدد"} · {f.dueDate}</div></div>) : <Empty>لا توجد متابعات متأخرة.</Empty>}
+    </Panel>
+    <Panel title="مناسبات وأعياد ميلاد قريبة" hint="يعرض المناسبات خلال الثلاثين يومًا القادمة. هذه تنبيهات داخل التطبيق وليست إشعارات هاتفية.">
+      {upcomingEvents.length ? upcomingEvents.slice(0, 8).map((event) => <div key={event.id} style={{ padding: "10px 0", borderBottom: "1px solid " + C.line }}><strong>{event.title}</strong><div style={{ color: C.muted, fontSize: 12 }}>{peopleById[event.personId]?.name || "مناسبة شخصية"} · {event.date} · {event.daysAway === 0 ? "اليوم" : "بعد " + event.daysAway + " يوم"}</div></div>) : <Empty>لا توجد مناسبات خلال الثلاثين يومًا القادمة. أضف تواريخ الميلاد أو المناسبات المهمة لتظهر هنا.</Empty>}
     </Panel>
     <Panel title="أضيفوا العلاقات المهمة بشكل واعٍ" hint="سجّل ما تريد تذكّره، وتجنب تخزين معلومات لا تحتاجها.">
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button kind="primary" onClick={() => setPage("people")}>إضافة شخص</Button><Button onClick={() => setPage("followups")}>إنشاء متابعة</Button><Button onClick={() => setPage("occasions")}>إضافة مناسبة</Button></div>
