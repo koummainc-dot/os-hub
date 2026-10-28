@@ -33,6 +33,9 @@ assert.equal(first.snapshot.tables.inventory_warranties[0].item_id, first.snapsh
 assert.equal(first.snapshot.tables.inventory_items[0].category_id, first.snapshot.tables.inventory_categories[0].id);
 assert.equal(first.snapshot.tables.inventory_items[0].current_location_id, first.snapshot.tables.inventory_locations[0].id);
 assert.equal(first.snapshot.tables.inventory_settings[0].preferences.normalized_storage_version, 1);
+assert.deepEqual(first.snapshot.tables.inventory_warranties[0].document_ref_snapshot, {});
+assert.equal(first.snapshot.tables.inventory_warranties[0].document_ref_state, "Missing");
+assert.deepEqual(first.snapshot.tables.inventory_ownership_events[0].person_ref_snapshot, {});
 assert.equal(first.snapshot.tables.inventory_settings[0].preferences.inventory_id_map["item:item-old"], first.snapshot.tables.inventory_items[0].id);
 assert.equal(first.snapshot.tables.inventory_items[0].purchase_price, "123.4500");
 assert.equal(first.snapshot.tables.inventory_items[0].estimated_current_value, null);
