@@ -35,7 +35,7 @@ export default function FinanceReports({ ws, isDemo = false, baseCurrency = "EGP
  const totals = { income: Number(summary.income || 0), expense: Number(summary.expense || 0), net: Number(summary.net || 0), transfers: Number(summary.transfers || 0), unvalued: Number(summary.unvalued || 0), count: Number(summary.transaction_count || 0) };
  const previousTotals = { income: Number(previous.income || 0), expense: Number(previous.expense || 0), net: Number(previous.net || 0), transfers: Number(previous.transfers || 0), unvalued: Number(previous.unvalued || 0), count: Number(previous.transaction_count || 0) };
  const previousPeriod = useMemo(() => changePeriod(period, -1), [period]);
- const savingsRate = totals.income > 0 ? totals.net / totals.income * 100 : null;
+ const savingsRate = type === "All" && !search && totals.income > 0 ? totals.net / totals.income * 100 : null;
  const percentChange = (current, prev) => prev === 0 ? (current === 0 ? 0 : null) : (current - prev) / Math.abs(prev) * 100;
  const months = report?.months || [];
  const expenseCategories = (report?.expense_categories || []).map(x => ({ ...x, amount: Number(x.amount || 0), count: Number(x.transaction_count || 0), unvalued: Number(x.unvalued_count || 0) }));
