@@ -1241,3 +1241,35 @@ RTL كامل؛ أرقام عربية/لاتينية حسب الإعداد؛ تو
 - **Habit:** يستهلك `relationships.interaction.logged` اختياريًا؛ **Spiritual:** `GET /relationships/summary` أعداد فقط.
 
 **غير مؤكد:** قاعدة People الجذرية في Notion، خوارزمية الهجري، انطباق قانون 151 على بيانات الأطراف الثالثة، وتحويل الأسماء بين الحروف.
+
+
+---
+
+# Appendix — Financially Linked Occasions & Gifts (future implementation scope)
+
+> **Implementation trigger:** Build this appendix when Relationships OS implementation begins. Do not create an occasions/gifts center or its tables inside Finance OS.
+
+## Product behavior
+- Occasion records: weddings, engagements, births, graduations, visits, holidays, condolences, and custom events.
+- Each occasion may have title/type, person or people, date/date range, location, relationship context, RSVP/attendance, reminder plan, notes, privacy level, and status.
+- Gift records cover planned, given, received, returned, and cancelled gifts; item/experience, recipient or giver, occasion link, date, notes, optional value/currency, and optional receipt/photo.
+- Group contribution records support contributors, promised amount, received amount, outstanding amount, and settlement state.
+- Gift history belongs to the person timeline; occasion records can link to relationship follow-ups and the shared calendar.
+- Provide private-by-default notes, Arabic RTL, searchable timelines, reminders, and exports according to Relationships OS permissions.
+
+## Finance integration contract
+- Relationships OS owns the occasion, gift intention, recipient/giver context, and social history.
+- Finance OS remains the only source of account balances and actual money movements.
+- A planned gift or pledge is not a posted financial transaction.
+- A gift actually paid may store a nullable finance_transaction_id reference to one existing posted Finance transaction. Never duplicate the amount as a second ledger entry.
+- A received gift may reference an income transaction only when the user explicitly records it as income in Finance OS.
+- Optional planned_value / currency are planning metadata only; do not sum them into account balances or financial reports.
+- Do not add Finance-specific gift tables. Use a stable cross-system ID/API event contract and preserve workspace isolation.
+- If the linked transaction is reversed, voided, or refunded, reflect its status in the relationship view without deleting the relationship history.
+
+## Acceptance criteria
+- One person can have multiple occasions and a searchable given/received gift history.
+- Group contributions reconcile pledged, received, and still-due amounts without implying that an unfulfilled promise is cash.
+- Creating or editing a gift does not create a Finance transaction automatically.
+- Linking an actual payment to Finance does not post a second movement.
+- Cross-workspace and unauthorized relationship access is denied; sensitive occasion notes respect Relationships OS privacy permissions.
