@@ -57,6 +57,13 @@ const blocked = planInventoryAggregateMigration({ items: [{ id: "legacy-not-uuid
 assert.equal(blocked.safeToApply, false);
 assert.ok(blocked.blockers.some(x => x.code === "UNRESOLVED_LEGACY_ID"));
 assert.equal(blocked.tables.inventory_items.length, 0);
+const unknownHistoricalDate = planInventoryAggregateMigration({
+  items: [{ id: ids.item, name: "عنصر" }],
+  loans: [{ id: ids.loan, itemId: ids.item, direction: "Lent" }]
+}, { workspaceId });
+assert.equal(unknownHistoricalDate.safeToApply, false);
+assert.ok(unknownHistoricalDate.blockers.some(x => x.code === "LOAN_DATE_UNKNOWN"));
+
 const badWorkspace = planInventoryAggregateMigration({}, { workspaceId: "not-a-uuid" });
 assert.ok(badWorkspace.blockers.some(x => x.code === "INVALID_WORKSPACE_UUID"));
 console.log("Inventory migration-plan tests passed.");
