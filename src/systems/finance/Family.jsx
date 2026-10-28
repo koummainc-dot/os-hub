@@ -46,7 +46,8 @@ export default function FinanceFamily({ws,access,isDemo=false,currencies=[]}) {
   const canSensitiveEdit = !isDemo && (access?.owner || (access?.level==="edit" && familyLevel!=="none" && familyLevel!=="view" && (sensitiveLevel==="edit" || access?.manage)));
 
   const load = useCallback(async()=>{
-    if(isDemo || !ws?.id) { setMembers([]); setBudgets([]); setCategories([]); setAllowances([]); setExpenses([]); setLoading(false); return; }
+    if(isDemo || !ws?.id) { setMembers([]); setBudgets([]); setCategories([]); setAllowances([]); setExpenses([]); setPrivateDetails([]); setWorkspaceUsers([]); setReportRows([]); setLoading(false); return; }
+    setMembers([]); setBudgets([]); setCategories([]); setAllowances([]); setExpenses([]); setPrivateDetails([]); setWorkspaceUsers([]); setReportRows([]);
     setLoading(true); setError("");
     try {
       const [m,b,a,x,p,cat,users] = await Promise.all([
@@ -151,7 +152,7 @@ export default function FinanceFamily({ws,access,isDemo=false,currencies=[]}) {
           {form.relationship_type==="Other"&&<Field label="توضيح الصلة"><input style={input} maxLength={100} value={form.relationship_label} onChange={e=>setForm({...form,relationship_label:e.target.value})}/></Field>}
           <Field label="المسؤولية الافتراضية"><select style={input} value={form.default_responsibility} onChange={e=>setForm({...form,default_responsibility:e.target.value})}>{RESPONSIBILITIES.map(r=><option key={r.v} value={r.v}>{r.l}</option>)}</select></Field>
           <Field label="لون التمييز"><input type="color" style={{...input,height:42,padding:4}} value={form.color} onChange={e=>setForm({...form,color:e.target.value})}/></Field>
-          <Field label="ربط بحساب موجود في مساحة العمل (اختياري)"><select style={input} value={form.linked_user_id} onChange={e=>setForm({...form,linked_user_id:e.target.value})}><option value="">بدون ربط</option>{workspaceUsers.map(u=><option key={u.user_id} value={u.user_id}>{u.display_name||u.email||u.user_id.slice(0,8)}{u.user_id===form.linked_user_id?" (مرتبط)":""}</option>)}</select><span style={{fontSize:11,color:MUTED,fontWeight:400}}>الربط لا يمنح الحساب صلاحية تلقائيًا، ويُقبل فقط لمستخدم نشط داخل هذه المساحة.</span></Field>
+          <Field label="ربط بحساب موجود في مساحة العمل (اختياري)"><select style={input} value={form.linked_user_id} onChange={e=>setForm({...form,linked_user_id:e.target.value})}><option value="">بدون ربط</option>{ws?.owner_id&&!workspaceUsers.some(u=>u.user_id===ws.owner_id)&&<option value={ws.owner_id}>مالك المساحة</option>}{workspaceUsers.map(u=><option key={u.user_id} value={u.user_id}>{u.display_name||u.email||u.user_id.slice(0,8)}{u.user_id===form.linked_user_id?" (مرتبط)":""}</option>)}</select><span style={{fontSize:11,color:MUTED,fontWeight:400}}>الربط لا يمنح الحساب صلاحية تلقائيًا، ويُقبل فقط لمستخدم نشط داخل هذه المساحة.</span></Field>
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Btn type="submit" disabled={saving}>{saving?"جارٍ الحفظ…":editing?"حفظ التعديلات":"إضافة الفرد"}</Btn>{editing&&<Btn secondary type="button" onClick={resetMember}>إلغاء التعديل</Btn>}</div>
         </form></Card>}
         <Card><h3 style={{marginTop:0}}>أفراد الأسرة ({members.length})</h3>{!members.length?<div style={{fontSize:13,color:MUTED,lineHeight:1.8}}>لا يوجد أفراد بعد. أضف أفراد الأسرة لتتمكن من إعداد الميزانيات والمخصصات.</div>:<div style={{display:"grid",gap:9}}>{members.map(m=><div key={m.id} style={{border:"1px solid "+LINE,borderRadius:11,padding:12,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
