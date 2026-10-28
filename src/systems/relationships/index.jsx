@@ -101,6 +101,7 @@ export default function RelationshipsSystem(props) {
   const [query, setQuery] = useState("");
   const [personDraft, setPersonDraft] = useState(blankPerson);
   const [editingPerson, setEditingPerson] = useState(null);
+  const [selectedPersonId, setSelectedPersonId] = useState(null);
   const [followupDraft, setFollowupDraft] = useState({ personId: "", title: "", dueDate: today(), notes: "" });
   const [timelineDraft, setTimelineDraft] = useState({ personId: "", type: "message", date: today(), summary: "", notes: "" });
   const [occasionDraft, setOccasionDraft] = useState({ personId: "", title: "عيد الميلاد", date: "", recurrence: "yearly", reminderDays: 7, notes: "" });
@@ -181,6 +182,7 @@ export default function RelationshipsSystem(props) {
   }, [api, data, isDemo, ws?.id]);
 
   const peopleById = useMemo(() => Object.fromEntries(data.people.map((p) => [p.id, p])), [data.people]);
+  const selectedPerson = useMemo(() => data.people.find((p) => p.id === selectedPersonId) || null, [data.people, selectedPersonId]);
   const filteredPeople = useMemo(() => {
     const q = normalizeSearch(query);
     return data.people.filter((p) => !q || [p.name, p.phone, p.email, p.interests, p.matters].some((v) => normalizeSearch(v).includes(q)));
@@ -240,11 +242,47 @@ export default function RelationshipsSystem(props) {
   </>;
   else if (page === "people") content = <>
     {canEdit && <Panel title={editingPerson ? "تعديل بيانات الشخص" : "إضافة شخص"} hint="احفظ الحد الأدنى اللازم فقط.">{personForm}</Panel>}
+    {selectedPerson && <Panel title={"ملف " + selectedPerson.name} hint="ملخص موحّد لبيانات الشخص وسجل التعاملات المرتبط به." action={<Button onClick={() => setSelectedPersonId(null)}>إغلاق الملف</Button>}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
+        <div><div style={{ color: C.muted, fontSize: 12 }}>نوع العلاقة</div><strong>{RELATIONSHIP_TYPE_LABELS[selectedPerson.type] || selectedPerson.type || "غير محدد"}</strong></div>
+        <div><div style={{ color: C.muted, fontSize: 12 }}>الأهمية</div><strong>{selectedPerson.importance === "high" ? "مهمة" : selectedPerson.importance === "low" ? "خفيفة" : "عادية"}</strong></div>
+        <div><div style={{ color: C.muted, fontSize: 12 }}>الدائرة</div><strong>{data.circles.find((x) => x.id === selectedPerson.circleId)?.name || "بدون دائرة"}</strong></div>
+        <div><div style={{ color: C.muted, fontSize: 12 }}>الهاتف</div><strong>{selectedPerson.phone || "غير مسجل"}</strong></div>
+        <div><div style={{ color: C.muted, fontSize: 12 }}>البريد الإلكتروني</div><strong>{selectedPerson.email || "غير مسجل"}</strong></div>
+        <div><div style={{ color: C.muted, fontSize: 12 }}>تاريخ الميلاد</div><strong>{selectedPerson.birthday || "غير مسجل"}</strong></div>
+      </div>
+      {selectedPerson.interests && <p><strong>الاهتمامات:</strong> {selectedPerson.interests}</p>}
+      {selectedPerson.matters && <p><strong>ما يهم هذا الشخص:</strong> {selectedPerson.matters}</p>}
+      {selectedPerson.notes && <p style={{ whiteSpace: "pre-wrap" }}><strong>ملاحظات:</strong> {selectedPerson.notes}</p>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 10, marginTop: 12 }}>
+        <Metric label="أحداث التواصل" value={data.timeline.filter((x) => x.personId === selectedPerson.id).length} />
+        <Metric label="المتابعات المفتوحة" value={data.followups.filter((x) => x.personId === selectedPerson.id && x.status !== "done").length} />
+        <Metric label="المناسبات" value={data.occasions.filter((x) => x.personId === selectedPerson.id).length} />
+        <Metric label="أفكار الهدايا" value={data.gifts.filter((x) => x.personId === selectedPerson.id).length} />
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+        {canEdit && <Button onClick={() => { setEditingPerson(selectedPerson); setPersonDraft({ ...blankPerson(), ...selectedPerson }); }}>تعديل الملف</Button>}
+        {canEdit && <Button onClick={() => { setTimelineDraft({ personId: selectedPerson.id, type: "message", date: today(), summary: "", notes: "" }); setPage("timeline"); }}>تسجيل تواصل</Button>}
+        {canEdit && <Button onClick={() => { setFollowupDraft({ personId: selectedPerson.id, title: "", dueDate: today(), notes: "" }); setPage("followups"); }}>إنشاء متابعة</Button>}
+        <Button onClick={() => setPage("timeline")}>عرض سجل التواصل</Button>
+        <Button onClick={() => setPage("followups")}>عرض المتابعات</Button>
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <h3 style={{ fontSize: 14 }}>آخر أحداث التواصل</h3>
+        {data.timeline.filter((x) => x.personId === selectedPerson.id).sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0,5).map((x) => <div key={x.id} style={{ padding: "8px 0", borderBottom: "1px solid " + C.line }}><strong>{x.summary}</strong><div style={{ color: C.muted, fontSize: 12 }}>{x.date} · {x.type}</div></div>)}
+        {!data.timeline.some((x) => x.personId === selectedPerson.id) && <Empty>لم يتم تسجيل تواصل مع هذا الشخص بعد.</Empty>}
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <h3 style={{ fontSize: 14 }}>المتابعات المفتوحة</h3>
+        {data.followups.filter((x) => x.personId === selectedPerson.id && x.status !== "done").sort((a,b) => String(a.dueDate).localeCompare(String(b.dueDate))).slice(0,5).map((x) => <div key={x.id} style={{ padding: "8px 0", borderBottom: "1px solid " + C.line }}><strong>{x.title}</strong><div style={{ color: C.muted, fontSize: 12 }}>الاستحقاق: {x.dueDate || "غير محدد"}</div></div>)}
+        {!data.followups.some((x) => x.personId === selectedPerson.id && x.status !== "done") && <Empty>لا توجد متابعات مفتوحة لهذا الشخص.</Empty>}
+      </div>
+    </Panel>}
     <Panel title="دليل الأشخاص" hint="ابحث بالاسم أو الهاتف أو البريد أو الاهتمامات.">
       <Field label="بحث" value={query} placeholder="اكتب اسمًا أو معلومة..." onChange={setQuery} />
       <div style={{ display: "grid", gap: 9, marginTop: 12 }}>{filteredPeople.map((p) => <div key={p.id} style={{ border: "1px solid " + C.line, borderRadius: 12, padding: 13, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ minWidth: 0, flex: "1 1 220px" }}><strong style={{ color: C.ink }}>{p.name}</strong><div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{RELATIONSHIP_TYPE_LABELS[p.type] || p.type} · {data.circles.find((c) => c.id === p.circleId)?.name || "بدون دائرة"}{p.phone ? " · " + p.phone : ""}</div>{p.interests && <div style={{ marginTop: 7, fontSize: 12 }}>الاهتمامات: {p.interests}</div>}{p.matters && <div style={{ marginTop: 4, fontSize: 12 }}>ما يهمه: {p.matters}</div>}</div>
-        {canEdit && <div style={{ display: "flex", gap: 6, alignItems: "start" }}><Button onClick={() => { setEditingPerson(p); setPersonDraft({ ...blankPerson(), ...p }); }}>تعديل</Button><Button kind="danger" onClick={() => deleteEntity("people", p)}>أرشفة</Button></div>}
+        <div style={{ minWidth: 0, flex: "1 1 220px" }}><button type="button" onClick={() => setSelectedPersonId(p.id)} style={{ border: 0, background: "transparent", color: C.ink, padding: 0, font: "inherit", fontWeight: 750, cursor: "pointer", textAlign: "right" }}>{p.name}</button><div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{RELATIONSHIP_TYPE_LABELS[p.type] || p.type} · {data.circles.find((c) => c.id === p.circleId)?.name || "بدون دائرة"}{p.phone ? " · " + p.phone : ""}</div>{p.interests && <div style={{ marginTop: 7, fontSize: 12 }}>الاهتمامات: {p.interests}</div>}{p.matters && <div style={{ marginTop: 4, fontSize: 12 }}>ما يهمه: {p.matters}</div>}</div>
+        <div style={{ display: "flex", gap: 6, alignItems: "start", flexWrap: "wrap" }}><Button onClick={() => setSelectedPersonId(p.id)}>عرض الملف</Button>{canEdit && <><Button onClick={() => { setEditingPerson(p); setPersonDraft({ ...blankPerson(), ...p }); }}>تعديل</Button><Button kind="danger" onClick={() => deleteEntity("people", p)}>أرشفة</Button></>}</div>
       </div>)}</div>
       {!filteredPeople.length && <Empty>لا توجد نتائج. جرّب تعديل البحث أو أضف شخصًا.</Empty>}
     </Panel>
