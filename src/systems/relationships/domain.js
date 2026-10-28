@@ -82,3 +82,24 @@ export function dueFollowups(followups, today) {
     .filter((item) => item.status !== "done" && item.dueDate && item.dueDate <= today)
     .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)));
 }
+
+export function validateRelationshipsImport(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ok: false, error: "ملف الاستيراد يجب أن يحتوي على كائن JSON." };
+  }
+  const source = value.data && typeof value.data === "object" ? value.data : value;
+  const known = ["people", "timeline", "followups", "occasions", "gifts", "circles"];
+  if (!known.some((key) => Array.isArray(source[key]))) {
+    return { ok: false, error: "لم نعثر على مجموعات بيانات علاقات معروفة داخل الملف." };
+  }
+  const normalized = normalizeRelationshipsData(source);
+  for (const key of known) {
+    if (normalized[key].length > 10000) return { ok: false, error: "عدد السجلات في " + key + " يتجاوز الحد المسموح (10000)." };
+    if (!normalized[key].every((record) => record && typeof record === "object" && !Array.isArray(record) && String(record.id || "").trim())) {
+      return { ok: false, error: "توجد سجلات بدون معرّف صالح داخل مجموعة " + key + "." };
+    }
+  }
+  const badPerson = normalized.people.find((person) => !validatePerson(person).ok);
+  if (badPerson) return { ok: false, error: "يوجد شخص غير صالح في الملف: " + (badPerson.name || "اسم غير معروف") };
+  return { ok: true, value: normalized };
+}
