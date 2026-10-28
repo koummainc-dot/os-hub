@@ -45,7 +45,7 @@ begin
    for update;
   if not found then raise exception 'TRANSACTION_NOT_FOUND' using errcode = 'P0001'; end if;
   if tx.type <> 'Expense' then raise exception 'FAMILY_ALLOCATION_EXPENSES_ONLY' using errcode = 'P0001'; end if;
-  if tx.status in ('Voided','Reversed') then raise exception 'FAMILY_CANNOT_ALLOCATE_VOIDED_TRANSACTION' using errcode = 'P0001'; end if;
+  if tx.status <> 'Posted' then raise exception 'FAMILY_TRANSACTION_MUST_BE_POSTED' using errcode = 'P0001'; end if;
 
   if p_primary_family_member_id is not null and not exists (
     select 1 from public.finance_family_members fm
