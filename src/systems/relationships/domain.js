@@ -116,8 +116,8 @@ function daysBetweenISO(from, to) {
 }
 
 function nextAnnualDate(value, today) {
-  const match = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(String(value || ""));
-  if (!match || !/^\\d{4}-\\d{2}-\\d{2}$/.test(today)) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+  if (!match || !/^\d{4}-\d{2}-\d{2}$/.test(today)) return null;
   const month = Number(match[2]);
   const day = Number(match[3]);
   const year = Number(today.slice(0, 4));
