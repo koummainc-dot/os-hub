@@ -98,6 +98,7 @@ BEGIN
   IF a.id IS NULL THEN PERFORM public.fin__err('OWNERSHIP_MISMATCH','asset'); END IF;
   IF a.status<>'Held' THEN PERFORM public.fin__err('ASSET_NOT_HELD','Only a held asset can be sold or written off'); END IF;
   IF next_status='Sold' THEN
+    PERFORM public.fin__need(ws,'ledger','view');
     IF sale_tx IS NULL THEN PERFORM public.fin__err('ASSET_SALE_TRANSACTION_REQUIRED','Record the sale proceeds as an income transaction first'); END IF;
     SELECT * INTO t FROM public.finance_transactions
       WHERE workspace_id=ws AND id=sale_tx AND status='Posted' AND type='Income' AND currency=a.currency;
