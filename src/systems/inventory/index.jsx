@@ -58,6 +58,7 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [showSecretItems, setShowSecretItems] = useState(false);
   const [editor, setEditor] = useState(null);
   const [categoryEditor, setCategoryEditor] = useState(null);
   const [placeEditor, setPlaceEditor] = useState(null);
@@ -114,11 +115,14 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   const visibleItems = items.filter(x => x.sensitivity !== "Secret");
   const getCategory = id => categories.find(x => x.id === id)?.name || "بدون تصنيف";
   const getPlace = id => places.find(x => x.id === id)?.name || "غير محدد";
-  const filteredItems = useMemo(() => visibleItems.filter(item => {
+  const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const list = showSecretItems && !q ? items : visibleItems;
+    return list.filter(item => {
     const matches = !q || [item.name, item.brand, item.model].some(v => String(v || "").toLowerCase().includes(q));
     return matches && (!categoryFilter || item.categoryId === categoryFilter) && (!statusFilter || item.status === statusFilter);
-  }), [visibleItems, query, categoryFilter, statusFilter]);
+    });
+  }, [items, visibleItems, showSecretItems, query, categoryFilter, statusFilter]);
 
   const saveItem = async (form) => {
     const name = String(form.name || "").trim();
@@ -204,6 +208,7 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
       <Field label="بحث"><input style={input} placeholder="اسم، علامة تجارية، موديل…" value={query} onChange={e => setQuery(e.target.value)} /></Field>
       <Field label="التصنيف"><select style={input} value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}><option value="">كل التصنيفات</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
       <Field label="حالة الملكية"><select style={input} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="">كل الحالات</option>{Object.entries(statusLabels).map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: MUTED, alignSelf: "end", padding: "10px 0" }}><input type="checkbox" checked={showSecretItems} onChange={e => setShowSecretItems(e.target.checked)} /> إظهار العناصر السرية في قائمة الأصناف فقط</label>
     </div>
     <div style={card}><PanelTitle title={"الأصناف (" + filteredItems.length + ")"} sub="اضغط على عنصر لعرض تفاصيله." right={canEdit && <Btn onClick={() => setEditor({ id: "", name: "", categoryId: "", placeId: "", condition: "Good", status: "Owned", quantity: "1", currency: data.settings.currency || "EGP", sensitivity: "Normal", notes: "" })}>＋ إضافة</Btn>} />
       {filteredItems.map(item => <div key={item.id} style={{ borderBottom: "1px solid " + LINE }}><div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", flexWrap: "wrap" }}><button onClick={() => setSelectedId(selectedId === item.id ? null : item.id)} style={{ flex: 1, minWidth: 190, textAlign: "right", border: 0, background: "transparent", cursor: "pointer", font: "inherit" }}><div style={{ fontWeight: 800, color: INK, fontSize: 13 }}>{item.name}</div><div style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>{getCategory(item.categoryId)} · {getPlace(item.placeId)} · كمية: {item.quantity ?? "غير معروفة"}</div></button><Badge>{conditionLabels[item.condition] || "غير محدد"}</Badge><Badge tone={item.status === "Owned" ? "good" : "warn"}>{statusLabels[item.status] || item.status}</Badge>{canEdit && <Btn secondary onClick={() => setEditor({ ...item })}>تعديل</Btn>}</div>
