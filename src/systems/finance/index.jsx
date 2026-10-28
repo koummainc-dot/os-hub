@@ -50,6 +50,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [lockDate, setLockDate] = useState("");
   const [lockReason, setLockReason] = useState("");
   const [budgets, setBudgets] = useState([]);
+  const [budgetInsights, setBudgetInsights] = useState(null);
   const [budgetTemplates, setBudgetTemplates] = useState([]);
   const [templateName, setTemplateName] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
@@ -87,7 +88,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     if (!ws?.id || isDemo) { setLoading(false); return; }
     setLoading(true); setError("");
     try {
-      const [ar, cr, tr, sr, br, nr, settingsRes, bu, bt, rr, gr, cu] = await Promise.all([
+      const [ar, cr, tr, sr, br, nr, settingsRes, bu, bt, rr, gr, cu, bi] = await Promise.all([
         supabase.from("finance_accounts").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }),
         supabase.from("finance_categories").select("*").eq("workspace_id", ws.id).eq("archived", false).order("name"),
         supabase.from("finance_transactions").select("*").eq("workspace_id", ws.id).order("local_date", { ascending: false }).limit(150),
@@ -99,19 +100,21 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         supabase.rpc("fin_budget_templates_get", { p_ws: ws.id }),
         supabase.from("finance_reconciliations").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }).limit(50),
         supabase.from("finance_goals").select("id,name,currency,status").eq("workspace_id", ws.id).in("status", ["Active","Paused"]).order("name"),
-        supabase.rpc("fin_currencies_get", { p_ws: ws.id })
+        supabase.rpc("fin_currencies_get", { p_ws: ws.id }),
+        supabase.rpc("fin_budget_insights_get", { p_ws: ws.id, p_period: budgetPeriod })
       ]);
       for (const r of [ar, cr, tr]) if (r.error) throw r.error;
       setAccounts(ar.data || []); setCurrencies(Array.isArray(cu.data) ? cu.data.filter(c => c.is_active) : []); setCategories(cr.data || []); setTransactions(tr.data || []);
       setSummary(sr.error ? null : sr.data); setBalances(br.error ? [] : (Array.isArray(br.data) ? br.data : []));
       setNetWorth(nr.error ? null : nr.data); setSettings(settingsRes.data || { base_currency: "EGP", timezone: "Africa/Cairo" });
       setBudgets(bu.error ? [] : (Array.isArray(bu.data) ? bu.data : []));
+      setBudgetInsights(bi.error ? null : bi.data || null);
       setBudgetTemplates(bt.error ? [] : (Array.isArray(bt.data) ? bt.data : []));
       setReconciliations(rr.error ? [] : (Array.isArray(rr.data) ? rr.data : []));
       setGoals(gr.error ? [] : (Array.isArray(gr.data) ? gr.data : []));
       setLockDate(settingsRes.data?.lock_before_date || "");
       const rpcErrors = [sr, br, nr].filter(x => x.error);
-      if (rpcErrors.length || bu.error || bt.error || rr.error || cu.error) setNotice("بعض المؤشرات أو بيانات الميزانية أو العملات غير متاحة حاليًا؛ راجع صلاحيات الوصول.");
+      if (rpcErrors.length || bu.error || bt.error || rr.error || cu.error || bi.error) setNotice("بعض المؤشرات أو بيانات الميزانية أو العملات غير متاحة حاليًا؛ راجع صلاحيات الوصول.");
     } catch (e) { setError(e?.message || "تعذّر تحميل بيانات الماليات"); }
     finally { setLoading(false); }
   }, [ws?.id, isDemo, budgetPeriod]);
@@ -134,6 +137,19 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const net = income - expense;
   const totalLiquid = balances.reduce((sum, b) => sum + (b.base_value == null ? 0 : Number(b.base_value)), 0);
   const netValue = netWorth?.net_worth ?? netWorth?.netWorth ?? null;
+  const budgetInsightCategories = budgetInsights?.categories || [];
+  const overallBudgetInsight = budgetInsights?.overall_budget || budgets.find(b => !b.category_id) || null;
+  const plannedBudgetTotal = overallBudgetInsight
+    ? Number(overallBudgetInsight.budget_amount || 0) + Number(overallBudgetInsight.rollover_in || 0)
+    : budgets.filter(b => b.category_id).reduce((sum, b) => sum + Number(b.budget_amount || 0) + Number(b.rollover_in || 0), 0);
+  const actualBudgetSpend = Number(budgetInsights?.summary?.total_spent ?? budgets.reduce((sum, b) => sum + Number(b.spent || 0), 0));
+  const budgetRemaining = plannedBudgetTotal - actualBudgetSpend;
+  const unbudgetedRows = budgetInsightCategories.filter(row => row.is_unbudgeted && Number(row.spent || 0) > 0);
+  const [budgetYear, budgetMonthNumber] = budgetPeriod.split("-").map(Number);
+  const budgetMonthDays = budgetYear && budgetMonthNumber ? new Date(Date.UTC(budgetYear, budgetMonthNumber, 0)).getUTCDate() : 0;
+  const budgetIsCurrentMonth = budgetPeriod === today().slice(0, 7);
+  const budgetDaysLeft = budgetIsCurrentMonth ? Math.max(1, budgetMonthDays - Number(today().slice(8, 10)) + 1) : budgetPeriod > today().slice(0, 7) ? budgetMonthDays : 0;
+  const suggestedDailyLimit = budgetDaysLeft > 0 ? budgetRemaining / budgetDaysLeft : null;
 
   async function saveTransaction(e) {
     e.preventDefault(); if (!canEdit || saving) return;
@@ -471,7 +487,14 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
           <div><h3 style={{ margin: 0, fontSize: 16 }}>الميزانيات الشهرية</h3><p style={{ color: MUTED, fontSize: 12, margin: "5px 0 0" }}>الإنفاق محسوب من الحركات المنشورة بعملة الأساس. القيم غير المقيمة تظهر كتنبيه منفصل.</p></div>
           <Field label="الفترة المالية"><Input type="month" value={budgetPeriod} onChange={e => setBudgetPeriod(e.target.value)} style={{ width: 170 }} /></Field>
         </div>
-        {canEdit && <form onSubmit={saveBudget} style={{ background: BG, border: "1px solid " + LINE, borderRadius: 12, padding: 14, display: "grid", gap: 11, marginBottom: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(175px,1fr))", gap: 10, marginBottom: 16 }}>
+          <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 12, padding: 14 }}><div style={{ color: MUTED, fontSize: 11 }}>المخطط للإنفاق</div><b style={{ display: "block", fontSize: 20, marginTop: 6 }}>{money(plannedBudgetTotal, baseCurrency)}</b><div style={{ color: MUTED, fontSize: 10, marginTop: 5 }}>{overallBudgetInsight ? "الميزانية الإجمالية" : "مجموع حدود التصنيفات"}</div></div>
+          <div style={{ border: "1px solid " + LINE, borderRadius: 12, padding: 14 }}><div style={{ color: MUTED, fontSize: 11 }}>المصروف الفعلي</div><b style={{ display: "block", fontSize: 20, marginTop: 6 }}>{money(actualBudgetSpend, baseCurrency)}</b><div style={{ color: MUTED, fontSize: 10, marginTop: 5 }}>{Number(budgetInsights?.summary?.transaction_count || 0)} حركة منشورة</div></div>
+          <div style={{ border: "1px solid " + (budgetRemaining < 0 ? "#FDA29B" : LINE), borderRadius: 12, padding: 14, background: budgetRemaining < 0 ? "#FEF3F2" : "#fff" }}><div style={{ color: MUTED, fontSize: 11 }}>المتبقي من الخطة</div><b style={{ display: "block", fontSize: 20, marginTop: 6, color: budgetRemaining < 0 ? "#B42318" : GREEN }}>{money(budgetRemaining, baseCurrency)}</b><div style={{ color: MUTED, fontSize: 10, marginTop: 5 }}>{plannedBudgetTotal > 0 ? Math.round(actualBudgetSpend / plannedBudgetTotal * 100) + "% من الخطة" : "لم تُحدد ميزانية بعد"}</div></div>
+          <div style={{ border: "1px solid " + LINE, borderRadius: 12, padding: 14 }}><div style={{ color: MUTED, fontSize: 11 }}>متوسط متاح يوميًا</div><b style={{ display: "block", fontSize: 20, marginTop: 6 }}>{suggestedDailyLimit == null ? "—" : money(suggestedDailyLimit, baseCurrency)}</b><div style={{ color: MUTED, fontSize: 10, marginTop: 5 }}>{budgetDaysLeft > 0 ? "على " + budgetDaysLeft + " يوم متبقٍ" : "الفترة انتهت"}</div></div>
+        </div>
+        {Number(budgetInsights?.summary?.unvalued_transactions || 0) > 0 && <div style={{ background: "#FFFAEB", border: "1px solid #FEDF89", borderRadius: 10, padding: 11, color: "#92400E", fontSize: 12, marginBottom: 14 }}>توجد {budgetInsights.summary.unvalued_transactions} حركة مصروف غير مقيمة بعملة الأساس؛ إجمالي المصروف الفعلي قد يكون أقل من الحقيقة حتى تضيف سعر الصرف.</div>}
+        {canEdit && <form id="budget-editor" onSubmit={saveBudget} style={{ background: BG, border: "1px solid " + LINE, borderRadius: 12, padding: 14, display: "grid", gap: 11, marginBottom: 16 }}>
           <b style={{ fontSize: 13 }}>إضافة ميزانية أو تعديلها</b><div style={formGrid}>
             <Field label="النطاق"><Select value={budgetForm.category_id} onChange={e => setBudgetForm({ ...budgetForm, category_id: e.target.value })}><option value="">ميزانية إجمالية</option>{categories.filter(c => c.kind === "Expense" || c.kind === "Both").map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></Field>
             <Field label={"الحد المالي (" + baseCurrency + ") *"}><Input required type="number" min="0" step="0.01" value={budgetForm.budget_amount} onChange={e => setBudgetForm({ ...budgetForm, budget_amount: e.target.value })} placeholder="مثال: 5000" /></Field>
@@ -502,7 +525,12 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 8, fontSize: 11, color: over ? "#B42318" : warn ? "#B54708" : MUTED }}><span>{pct == null ? "لم تُحدد ميزانية موجبة" : pct.toFixed(1) + "% مستخدم"}</span><span>المتبقي: {money(Number(b.remaining || 0), b.currency || baseCurrency)}</span></div>
           {Number(b.unvalued_count || 0) > 0 && <div style={{ color: "#92400E", background: "#FFFAEB", padding: 8, borderRadius: 8, fontSize: 11, marginTop: 8 }}>تنبيه: توجد {b.unvalued_count} حركة مصروف غير مقيمة بعملة الأساس.</div>}
           {b.notes && <div style={{ color: MUTED, fontSize: 11, marginTop: 8 }}>{b.notes}</div>}
+          {canEdit && <div style={{ display: "flex", gap: 7, marginTop: 10 }}><Button secondary onClick={() => { setBudgetForm({ category_id: b.category_id || "", budget_amount: String(b.budget_amount || 0), notes: b.notes || "" }); document.getElementById("budget-editor")?.scrollIntoView({ behavior: "smooth", block: "center" }); }}>تعديل الحد</Button></div>}
         </div>; })}</div>}
+        {unbudgetedRows.length > 0 && <div style={{ border: "1px solid #FEDF89", borderRadius: 12, padding: 14, marginTop: 14, background: "#FFFCF5" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}><div><b>إنفاق خارج الميزانية</b><div style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>تصنيفات صُرف عليها خلال الشهر ولم تُحدد لها ميزانية بعد.</div></div><b>{money(unbudgetedRows.reduce((sum, row) => sum + Number(row.spent || 0), 0), baseCurrency)}</b></div>
+          <div style={{ display: "grid", gap: 8, marginTop: 10 }}>{unbudgetedRows.map(row => <div key={row.category_id || "uncategorized"} style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", borderTop: "1px solid #FDE7B2", paddingTop: 8 }}><div><b style={{ fontSize: 12 }}>{row.category_name}</b><div style={{ color: MUTED, fontSize: 10, marginTop: 3 }}>{row.transaction_count} حركة</div></div><div style={{ display: "flex", alignItems: "center", gap: 8 }}><b style={{ fontSize: 12 }}>{money(row.spent, baseCurrency)}</b>{canEdit && row.category_id && <Button secondary onClick={() => { setBudgetForm({ category_id: row.category_id, budget_amount: String(Math.ceil(Number(row.spent || 0) * 100) / 100), notes: "" }); document.getElementById("budget-editor")?.scrollIntoView({ behavior: "smooth", block: "center" }); }}>تحديد ميزانية</Button>}</div></div>)}</div>
+        </div>
       </Card>}
 
       {section === "reconciliation" && <Card>
