@@ -30,7 +30,7 @@ function parseDate(value){
  if(m){const a=Number(m[1]),b=Number(m[2]),y=Number(m[3]);const d=a>12?a:b>12?b:a;const mo=a>12?b:b>12?a:b;return y+"-"+String(mo).padStart(2,"0")+"-"+String(d).padStart(2,"0");}
  return "";
 }
-function parseAmount(value){const s=String(value??"").replace(/[\s\u00a0]/g,"").replace(/,/g,"").replace(/[£$€ر.سجنيه]/g,"");if(!/^\d+(\.\d+)?$/.test(s))return NaN;return Number(s);}
+function parseAmount(value){const s=String(value??"").replace(/[\s\u00a0]/g,"").replace(/(EGP|USD|SAR|جنيه|ج\.م|ر\.س|£|\$|€)/gi,"").replace(/,/g,"");if(!/^\d+(\.\d+)?$/.test(s))return NaN;return Number(s);}
 function normalizeType(value){const s=String(value||"").trim().toLowerCase();if(["income","دخل","إيراد","ايراد","credit","deposit"].includes(s))return "Income";if(["expense","مصروف","مصروفات","debit","withdrawal"].includes(s))return "Expense";return "";}
 function signature(t){return [t.local_date,String(t.name||"").trim().toLowerCase(),Number(t.amount||0).toFixed(2),String(t.currency||"").toUpperCase(),t.from_account_id||t.to_account_id||""].join("|");}
 async function fingerprint(text){if(globalThis.crypto?.subtle){const digest=await globalThis.crypto.subtle.digest("SHA-256",new TextEncoder().encode(text));return [...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,"0")).join("");}let h=2166136261;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(16).padStart(8,"0");}
