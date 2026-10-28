@@ -12,11 +12,11 @@ Status: **implemented on the review branch; untested; not deployed**.
 - Uses the existing system API contract and permission model; UI edit controls are gated by section access.
 
 ## Important integration boundary
-The UI currently persists the aggregate through the existing `workspace_data` adapter (one Inventory `main` part), because the P1 normalized tables are still only draft migrations and have not been applied. This is an interim integration path, not the final normalized repository. A dedicated repository/service layer must migrate the aggregate into the `inventory_*` tables after review and database rollout.
+The UI now uses `src/systems/inventory/repository.js` as a repository boundary. That repository currently delegates to the existing `workspace_data` adapter (one Inventory `main` part), because the P1 normalized tables are still draft migrations and have not been applied. The boundary validates the aggregate shape and isolates screens from the storage adapter; it does **not** yet read/write the normalized `inventory_*` tables.
 
 ## Known limitations
 - The current application slice is not tested, per request.
-- Sensitive/Secret suppression in search and notifications is not fully implemented; avoid entering highly sensitive details until that control is added.
+- Secret items are excluded from dashboard, collection views, document references, archive lists, and text-search results. An explicit checkbox can reveal them in the item list only; broad views remain filtered. Search does not index notes. This is UI-level privacy handling, not a replacement for server-side item-level authorization or encryption.
 - Warranty/loan/replacement/service records are initial forms, not yet complete lifecycle workflows.
 - Document section displays references status only; Core Files upload integration is not connected.
 - Event history is an application-level aggregate log; server-enforced append-only normalized history is not active until the migration is reviewed and applied.
