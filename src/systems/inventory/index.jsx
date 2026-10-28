@@ -36,6 +36,17 @@ const normalize = (v) => {
 const conditionLabels = { New: "جديد", Good: "جيد", Fair: "مقبول", Poor: "ضعيف", Damaged: "تالف" };
 const statusLabels = { Owned: "مملوك", Loaned: "مُعار", Sold: "مباع", Disposed: "تم التخلص منه", Lost: "مفقود" };
 const privacyLabels = { Normal: "عادي", Sensitive: "حساس", Secret: "سري" };
+const eventLabels = {
+  Acquired: "إضافة ممتلك", ItemUpdated: "تحديث بيانات", Archived: "أرشفة ممتلك", Restored: "استعادة ممتلك",
+  Moved: "نقل بين الأماكن", Loaned: "إعارة ممتلك", Returned: "استرجاع ممتلك", Sold: "بيع ممتلك",
+  Disposed: "التخلص من ممتلك", Lost: "فقدان ممتلك", Found: "العثور على ممتلك", Corrected: "تصحيح حالة",
+  CategoryCreated: "إنشاء تصنيف", CategoryUpdated: "تحديث تصنيف", CategoryArchived: "أرشفة تصنيف",
+  PlaceCreated: "إنشاء مكان", PlaceUpdated: "تحديث مكان", PlaceArchived: "أرشفة مكان",
+  WarrantyAdded: "إضافة ضمان", WarrantyUpdated: "تحديث ضمان", LoanCreated: "تسجيل إعارة", LoanUpdated: "تحديث إعارة",
+  LoanReturned: "تسجيل إرجاع", ReplacementPlanned: "خطة استبدال", ReplacementUpdated: "تحديث خطة استبدال",
+  ServiceRecorded: "تسجيل صيانة", ServiceUpdated: "تحديث سجل صيانة"
+};
+const statusTransitionLabels = { Owned: "مملوك", Loaned: "مُعار", Sold: "مباع", Disposed: "تم التخلص منه", Lost: "مفقود" };
 const money = (value, currency = "EGP") => {
   if (value === "" || value === null || value === undefined) return "غير مُسجّل";
   try { return new Intl.NumberFormat("ar-EG", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(value)); } catch { return String(value) + " " + currency; }
@@ -183,9 +194,9 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   const metric = (label, value, icon, detail) => <div key={label} style={{ ...card, minWidth: 0 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12, color: MUTED }}>{label}</span><span style={{ fontSize: 20 }}>{icon}</span></div><div style={{ fontSize: 28, fontWeight: 850, color: INK, marginTop: 8 }}>{value}</div><div style={{ fontSize: 11, color: MUTED, marginTop: 3 }}>{detail}</div></div>;
   const itemRow = item => <div key={item.id} onClick={() => { setSelectedId(item.id); setPage("items"); }} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 10, alignItems: "center", padding: "12px 0", borderBottom: "1px solid " + LINE, cursor: "pointer" }}><div style={{ minWidth: 0 }}><div style={{ fontWeight: 750, fontSize: 13, color: INK, overflowWrap: "anywhere" }}>{item.name}</div><div style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>{getCategory(item.categoryId)} · {getPlace(item.placeId)}</div></div><div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "flex-end" }}><Badge>{conditionLabels[item.condition] || item.condition}</Badge><Badge tone={item.status === "Owned" ? "good" : "warn"}>{statusLabels[item.status] || item.status}</Badge></div></div>;
 
-  const warrantyDue = data.warranties.filter(w => w.endDate && w.endDate >= today() && w.endDate <= inventoryDateOffset(30, "Africa/Cairo"));
-  const openLoans = data.loans.filter(l => !l.returnedAt && l.status !== "Returned");
-  const replacementDue = data.replacements.filter(r => r.expectedDate && r.expectedDate <= inventoryDateOffset(60, "Africa/Cairo") && !["Completed","Cancelled"].includes(r.status));
+  const visibleItemIds = new Set(visibleItems.map(item => item.id));\n  const warrantyDue = data.warranties.filter(w => visibleItemIds.has(w.itemId) && w.endDate && w.endDate >= today() && w.endDate <= inventoryDateOffset(30, "Africa/Cairo"));
+  const openLoans = data.loans.filter(l => visibleItemIds.has(l.itemId) && !l.returnedAt && l.status !== "Returned");
+  const replacementDue = data.replacements.filter(r => visibleItemIds.has(r.itemId) && r.expectedDate && r.expectedDate <= inventoryDateOffset(60, "Africa/Cairo") && !["Completed","Cancelled"].includes(r.status));
 
   let body;
   if (page === "home") body = <>
@@ -254,7 +265,7 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   </>;
   else if (page === "history" || page === "audit") body = <>
     {header}<div style={card}><PanelTitle title={page === "audit" ? "مراجعة الجرد" : "سجل التاريخ"} sub="سجل التطبيق الحالي للأحداث. سجل التدقيق المركزي يُفعّل مع طبقة الخدمات." />
-      {[...data.events].filter(e => !e.itemId || !data.items.some(x => x.id === e.itemId && x.sensitivity === "Secret")).sort((a,b) => String(b.date || "").localeCompare(String(a.date || ""))).map(e => <div key={e.id} style={{ display: "flex", gap: 10, padding: "12px 0", borderBottom: "1px solid " + LINE }}><div style={{ width: 32, height: 32, borderRadius: 9, background: BG, display: "grid", placeItems: "center" }}>🕘</div><div style={{ flex: 1 }}><div style={{ fontWeight: 750, fontSize: 12 }}>{visibleItems.find(i => i.id === e.itemId)?.name || (e.itemId && data.items.some(x => x.id === e.itemId && x.sensitivity === "Secret") ? "سجل خاص مخفي" : "سجل عنصر سابق")}</div><div style={{ color: MUTED, fontSize: 11, marginTop: 3 }}>{e.type} · {e.note || "—"}</div></div><span style={{ color: MUTED, fontSize: 11 }}>{e.date || "—"}</span></div>)}
+      {[...data.events].filter(e => !e.itemId || !data.items.some(x => x.id === e.itemId && x.sensitivity === "Secret")).sort((a,b) => String(b.date || "").localeCompare(String(a.date || ""))).map(e => <div key={e.id} style={{ display: "flex", gap: 10, padding: "12px 0", borderBottom: "1px solid " + LINE }}><div style={{ width: 32, height: 32, borderRadius: 9, background: BG, display: "grid", placeItems: "center" }}>🕘</div><div style={{ flex: 1 }}><div style={{ fontWeight: 750, fontSize: 12 }}>{visibleItems.find(i => i.id === e.itemId)?.name || (e.itemId && data.items.some(x => x.id === e.itemId && x.sensitivity === "Secret") ? "سجل خاص مخفي" : "سجل عنصر سابق")}</div><div style={{ color: MUTED, fontSize: 11, marginTop: 3 }}>{eventLabels[e.type] || e.type} · {e.note || "—"}{e.type === "Moved" && <span style={{ display: "block", marginTop: 3 }}>من: {getPlace(e.fromLocationId)} ← إلى: {getPlace(e.toLocationId)}</span>}{e.previousStatus && e.currentStatus && <span style={{ display: "block", marginTop: 3 }}>{statusTransitionLabels[e.previousStatus] || e.previousStatus} ← {statusTransitionLabels[e.currentStatus] || e.currentStatus}</span>}</div></div><span style={{ color: MUTED, fontSize: 11 }}>{e.date || "—"}</span></div>)}
       {!data.events.length && <div style={{ padding: 24, textAlign: "center", color: MUTED, fontSize: 12 }}>لا توجد أحداث بعد.</div>}
     </div>
   </>;
