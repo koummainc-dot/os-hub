@@ -102,7 +102,12 @@ export default function RelationshipsSystem(props) {
   const [personDraft, setPersonDraft] = useState(blankPerson);
   const [editingPerson, setEditingPerson] = useState(null);
   const [selectedPersonId, setSelectedPersonId] = useState(null);
-  const [followupDraft, setFollowupDraft] = useState({ personId: "", title: "", dueDate: today(), notes: "" });
+  const [followupDraft, setFollowupDraft] = useState({ personId: "", title: "", dueDate: today(), notes: "", priority: "normal" });
+  const [editingFollowupId, setEditingFollowupId] = useState(null);
+  const [followupFilterStatus, setFollowupFilterStatus] = useState("open");
+  const [followupFilterPerson, setFollowupFilterPerson] = useState("");
+  const [followupFilterPriority, setFollowupFilterPriority] = useState("");
+  const [followupSearch, setFollowupSearch] = useState("");
   const [timelineDraft, setTimelineDraft] = useState({ personId: "", type: "message", date: today(), summary: "", notes: "" });
   const [editingTimelineId, setEditingTimelineId] = useState(null);
   const [timelineFilterPerson, setTimelineFilterPerson] = useState("");
@@ -317,8 +322,41 @@ export default function RelationshipsSystem(props) {
     </Panel>
   </>;
   else if (page === "followups") content = <>
-    {canEdit && <Panel title="متابعة جديدة"><form onSubmit={async (e) => { e.preventDefault(); if (!followupDraft.personId || !followupDraft.title.trim()) return setError("اختر شخصًا واكتب عنوان المتابعة."); const ok = await saveEntity("followups", { ...followupDraft, id: makeId(), status: "open", priority: "normal" }); if (ok) setFollowupDraft({ personId: "", title: "", dueDate: today(), notes: "" }); }} style={{ display: "grid", gap: 10 }}><SelectField label="الشخص" value={followupDraft.personId} onChange={(v) => setFollowupDraft((p) => ({ ...p, personId: v }))} options={[{ value: "", label: "اختر شخصًا" }, ...data.people.map((p) => ({ value: p.id, label: p.name }))]} /><Field label="عنوان المتابعة" value={followupDraft.title} required onChange={(v) => setFollowupDraft((p) => ({ ...p, title: v }))} /><Field label="تاريخ الاستحقاق" type="date" value={followupDraft.dueDate} onChange={(v) => setFollowupDraft((p) => ({ ...p, dueDate: v }))} /><Field label="ملاحظات" value={followupDraft.notes} onChange={(v) => setFollowupDraft((p) => ({ ...p, notes: v }))} /><Button type="submit" kind="primary" disabled={busy}>حفظ المتابعة</Button></form></Panel>}
-    {list([...data.followups].sort((a,b) => String(a.dueDate).localeCompare(String(b.dueDate))), "كل المتابعات", (x) => <><strong>{x.title}</strong><div style={{ color: C.muted, fontSize: 12 }}>{peopleById[x.personId]?.name || "شخص غير محدد"} · الاستحقاق {x.dueDate} · {x.status === "done" ? "مكتملة" : "مفتوحة"}</div>{x.notes && <p style={{ margin: "6px 0 0", fontSize: 13 }}>{x.notes}</p>}{canEdit && x.status !== "done" && <div style={{ marginTop: 8 }}><Button onClick={() => saveEntity("followups", { ...x, status: "done" })}>تمت المتابعة</Button></div>}</>, "followups")}
+    {canEdit && <Panel title={editingFollowupId ? "تعديل متابعة" : "متابعة جديدة"} hint="اربط كل متابعة بشخص، وحدد الأولوية وموعد الاستحقاق لتظهر في لوحة المتابعة.">
+      <form onSubmit={async (e) => { e.preventDefault(); if (!followupDraft.personId || !followupDraft.title.trim()) return setError("اختر شخصًا واكتب عنوان المتابعة."); const old = data.followups.find((x) => x.id === editingFollowupId); const ok = await saveEntity("followups", { ...followupDraft, id: editingFollowupId || makeId(), status: old?.status || "open", priority: followupDraft.priority || "normal", createdAt: old?.createdAt || new Date().toISOString() }); if (ok) { setFollowupDraft({ personId: "", title: "", dueDate: today(), notes: "", priority: "normal" }); setEditingFollowupId(null); } }} style={{ display: "grid", gap: 10 }}>
+        <SelectField label="الشخص" value={followupDraft.personId} onChange={(v) => setFollowupDraft((p) => ({ ...p, personId: v }))} options={[{ value: "", label: "اختر شخصًا" }, ...data.people.map((p) => ({ value: p.id, label: p.name }))]} />
+        <Field label="عنوان المتابعة" value={followupDraft.title} required onChange={(v) => setFollowupDraft((p) => ({ ...p, title: v }))} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
+          <Field label="تاريخ الاستحقاق" type="date" value={followupDraft.dueDate} onChange={(v) => setFollowupDraft((p) => ({ ...p, dueDate: v }))} />
+          <SelectField label="الأولوية" value={followupDraft.priority || "normal"} onChange={(v) => setFollowupDraft((p) => ({ ...p, priority: v }))} options={[{ value: "low", label: "منخفضة" }, { value: "normal", label: "عادية" }, { value: "high", label: "عالية" }]} />
+        </div>
+        <Field label="ملاحظات" value={followupDraft.notes} onChange={(v) => setFollowupDraft((p) => ({ ...p, notes: v }))} />
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button type="submit" kind="primary" disabled={busy}>{editingFollowupId ? "حفظ التعديلات" : "حفظ المتابعة"}</Button>{editingFollowupId && <Button onClick={() => { setEditingFollowupId(null); setFollowupDraft({ personId: "", title: "", dueDate: today(), notes: "", priority: "normal" }); }}>إلغاء التعديل</Button>}</div>
+      </form>
+    </Panel>}
+    <Panel title="إدارة المتابعات" hint={"إجمالي المتابعات: " + data.followups.length + " · يمكنك البحث والتصفية وإعادة فتح المكتمل أو تأجيل الموعد."}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 }}>
+        <Field label="بحث" value={followupSearch} placeholder="عنوان أو ملاحظات" onChange={setFollowupSearch} />
+        <SelectField label="الحالة" value={followupFilterStatus} onChange={setFollowupFilterStatus} options={[{ value: "open", label: "المفتوحة" }, { value: "done", label: "المكتملة" }, { value: "all", label: "كل الحالات" }]} />
+        <SelectField label="الشخص" value={followupFilterPerson} onChange={setFollowupFilterPerson} options={[{ value: "", label: "كل الأشخاص" }, ...data.people.map((p) => ({ value: p.id, label: p.name }))]} />
+        <SelectField label="الأولوية" value={followupFilterPriority} onChange={setFollowupFilterPriority} options={[{ value: "", label: "كل الأولويات" }, { value: "low", label: "منخفضة" }, { value: "normal", label: "عادية" }, { value: "high", label: "عالية" }]} />
+      </div>
+      {(() => {
+        const q = normalizeSearch(followupSearch);
+        const rows = data.followups.filter((x) => (followupFilterStatus === "all" || (followupFilterStatus === "done" ? x.status === "done" : x.status !== "done")) && (!followupFilterPerson || x.personId === followupFilterPerson) && (!followupFilterPriority || (x.priority || "normal") === followupFilterPriority) && (!q || normalizeSearch(x.title).includes(q) || normalizeSearch(x.notes).includes(q))).sort((a,b) => String(a.dueDate || "9999-12-31").localeCompare(String(b.dueDate || "9999-12-31")));
+        return rows.length ? <div style={{ display: "grid", gap: 9, marginTop: 12 }}>{rows.map((x) => {
+          const overdueItem = x.status !== "done" && x.dueDate && x.dueDate < today();
+          return <div key={x.id} style={{ border: "1px solid " + (overdueItem ? "#FECACA" : C.line), borderRadius: 12, padding: 12, display: "flex", gap: 12, justifyContent: "space-between", alignItems: "start", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 220px" }}><strong>{x.title}</strong><div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{peopleById[x.personId]?.name || "شخص غير محدد"} · الاستحقاق {x.dueDate || "غير محدد"} · {x.status === "done" ? "مكتملة" : overdueItem ? "متأخرة" : "مفتوحة"} · الأولوية: {({ low: "منخفضة", normal: "عادية", high: "عالية" })[x.priority || "normal"]}</div>{x.notes && <p style={{ margin: "6px 0 0", fontSize: 13, whiteSpace: "pre-wrap" }}>{x.notes}</p>}</div>
+            {canEdit && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <Button onClick={() => { setEditingFollowupId(x.id); setFollowupDraft({ personId: x.personId || "", title: x.title || "", dueDate: x.dueDate || "", notes: x.notes || "", priority: x.priority || "normal" }); }}>تعديل</Button>
+              {x.status !== "done" ? <><Button onClick={() => saveEntity("followups", { ...x, status: "done", completedAt: new Date().toISOString() })}>تمت</Button><Button onClick={() => saveEntity("followups", { ...x, dueDate: (() => { const d = new Date((x.dueDate || today()) + "T12:00:00"); d.setDate(d.getDate() + 1); return d.toISOString().slice(0,10); })() })}>تأجيل يوم</Button></> : <Button onClick={() => saveEntity("followups", { ...x, status: "open", completedAt: null })}>إعادة فتح</Button>}
+              <Button kind="danger" onClick={() => deleteEntity("followups", x)}>أرشفة</Button>
+            </div>}
+          </div>;
+        })}</div> : <Empty>لا توجد متابعات تطابق عوامل التصفية.</Empty>;
+      })()}
+    </Panel>
   </>;
   else if (page === "occasions") content = <>
     {canEdit && <Panel title="إضافة مناسبة"><form onSubmit={async (e) => { e.preventDefault(); if (!occasionDraft.personId || !occasionDraft.title.trim() || !occasionDraft.date) return setError("أكمل الشخص واسم المناسبة والتاريخ."); const ok = await saveEntity("occasions", { ...occasionDraft, id: makeId(), reminderDays: Number(occasionDraft.reminderDays) }); if (ok) setOccasionDraft({ personId: "", title: "عيد الميلاد", date: "", recurrence: "yearly", reminderDays: 7, notes: "" }); }} style={{ display: "grid", gap: 10 }}><SelectField label="الشخص" value={occasionDraft.personId} onChange={(v) => setOccasionDraft((p) => ({ ...p, personId: v }))} options={[{ value: "", label: "اختر شخصًا" }, ...data.people.map((p) => ({ value: p.id, label: p.name }))]} /><Field label="اسم المناسبة" value={occasionDraft.title} onChange={(v) => setOccasionDraft((p) => ({ ...p, title: v }))} /><Field label="التاريخ" type="date" value={occasionDraft.date} onChange={(v) => setOccasionDraft((p) => ({ ...p, date: v }))} /><SelectField label="التكرار" value={occasionDraft.recurrence} onChange={(v) => setOccasionDraft((p) => ({ ...p, recurrence: v }))} options={[{ value: "yearly", label: "سنوي" }, { value: "once", label: "مرة واحدة" }]} /><Field label="التذكير قبلها بأيام" type="number" value={occasionDraft.reminderDays} onChange={(v) => setOccasionDraft((p) => ({ ...p, reminderDays: v }))} /><Button type="submit" kind="primary" disabled={busy}>حفظ المناسبة</Button></form></Panel>}
