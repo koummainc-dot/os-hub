@@ -264,7 +264,7 @@ create policy finance_family_budgets_sel on public.finance_family_budgets for se
   using (public.ws_access_level(workspace_id, 'finance', 'family') in ('view','edit'));
 drop policy if exists finance_family_budgets_ins on public.finance_family_budgets;
 create policy finance_family_budgets_ins on public.finance_family_budgets for insert
-  with check (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit' and (created_by is null or created_by = auth.uid()));
+  with check (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit' and (created_by is null or created_by = auth.uid()) and (updated_by is null or updated_by = auth.uid()));
 drop policy if exists finance_family_budgets_upd on public.finance_family_budgets;
 create policy finance_family_budgets_upd on public.finance_family_budgets for update
   using (public.ws_access_level(workspace_id, 'finance', 'family') = 'edit')
