@@ -32,7 +32,7 @@ declare
 begin
   perform public.fin_family_need(p_workspace_id, 'edit', false);
 
-  if p_responsibility_type not in ('Personal','Shared','Unassigned','Reimbursement') then
+  if p_responsibility_type is null or p_responsibility_type not in ('Personal','Shared','Unassigned','Reimbursement') then
     raise exception 'FAMILY_INVALID_RESPONSIBILITY' using errcode = 'P0001';
   end if;
   if p_allocations is null or jsonb_typeof(p_allocations) <> 'array' then
@@ -60,6 +60,9 @@ begin
   end if;
   if p_responsibility_type='Shared' and jsonb_array_length(p_allocations)=0 then
     raise exception 'FAMILY_SHARED_REQUIRES_ALLOCATIONS' using errcode = 'P0001';
+  end if;
+  if p_mark_reviewed and p_responsibility_type='Unassigned' then
+    raise exception 'FAMILY_CANNOT_REVIEW_UNASSIGNED' using errcode = 'P0001';
   end if;
 
   for item in select value from jsonb_array_elements(p_allocations)
@@ -190,15 +193,31 @@ begin
   ) then raise exception 'FAMILY_MEMBER_NOT_IN_WORKSPACE' using errcode='P0001'; end if;
 
   return query
+  with attributed as (
+    select a.workspace_id,a.transaction_id,a.family_member_id,
+           case when a.allocation_method='Fixed' then a.amount else t.amount*a.percentage/100 end as actual_amount
+      from public.finance_family_allocations a
+      join public.finance_transactions t on t.workspace_id=a.workspace_id and t.id=a.transaction_id
+      join public.finance_family_transaction_meta m on m.workspace_id=a.workspace_id and m.transaction_id=t.id
+     where m.allocation_status in ('Allocated','Reviewed')
+       and t.status='Posted' and t.type='Expense'
+    union all
+    select m.workspace_id,m.transaction_id,m.primary_family_member_id,t.amount
+      from public.finance_family_transaction_meta m
+      join public.finance_transactions t on t.workspace_id=m.workspace_id and t.id=m.transaction_id
+     where m.allocation_status in ('Allocated','Reviewed')
+       and m.responsibility_type in ('Personal','Reimbursement')
+       and m.primary_family_member_id is not null
+       and not exists (select 1 from public.finance_family_allocations a where a.workspace_id=m.workspace_id and a.transaction_id=m.transaction_id)
+       and t.status='Posted' and t.type='Expense'
+  )
   select fm.id, fm.display_name, t.category_id, coalesce(c.name,'غير مصنف'), t.currency,
-         sum(case when a.allocation_method='Fixed' then a.amount else t.amount*a.percentage/100 end)::numeric,
-         count(distinct t.id)
-    from public.finance_family_allocations a
-    join public.finance_transactions t on t.workspace_id=a.workspace_id and t.id=a.transaction_id
-    join public.finance_family_members fm on fm.workspace_id=a.workspace_id and fm.id=a.family_member_id
+         sum(attributed.actual_amount)::numeric, count(distinct t.id)
+    from attributed
+    join public.finance_transactions t on t.workspace_id=attributed.workspace_id and t.id=attributed.transaction_id
+    join public.finance_family_members fm on fm.workspace_id=attributed.workspace_id and fm.id=attributed.family_member_id
     left join public.finance_categories c on c.workspace_id=t.workspace_id and c.id=t.category_id
-   join public.finance_family_transaction_meta valid_meta on valid_meta.workspace_id=a.workspace_id and valid_meta.transaction_id=t.id and valid_meta.allocation_status in ('Allocated','Reviewed')
-   where a.workspace_id=p_workspace_id and t.status='Posted' and t.type='Expense'
+   where attributed.workspace_id=p_workspace_id
      and t.local_date between p_start_date and p_end_date
      and (p_family_member_id is null or fm.id=p_family_member_id)
    group by fm.id,fm.display_name,t.category_id,c.name,t.currency
