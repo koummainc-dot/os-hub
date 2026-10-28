@@ -37,7 +37,7 @@ const OS_SYSTEMS=[
 {id:"home",group:"life",scope:"shared",icon:"🏠",color:"#F97316",name:"Home OS",title:"إدارة البيت",status:"planned",phase:"المرحلة 6",sensitive:false,plan:"Home_OS_v4_Unified_Master_Plan.md",
  desc:"الغرف والمخزون المنزلي ومهام البيت والصيانة والمشتريات.",
  sections:osSec("dashboard:الرئيسية:⌂|rooms:الغرف:🚪|inventory:المخزون:📦|tasks:المهام والجدول:✅|maintenance:الصيانة:🔧|shopping:المشتريات:🛒|reports:التقارير:📑|settings:الإعدادات:⚙️")},
-{id:"inventory",group:"money",scope:"shared",icon:"🧳",color:"#A16207",name:"Personal Inventory OS",title:"الممتلكات الشخصية",status:"planned",phase:"المرحلة 7",sensitive:false,plan:"PERSONAL_INVENTORY_OS_UNIFIED_MASTER_PLAN_v4.md",
+{id:"inventory",group:"money",scope:"shared",icon:"🧳",color:"#A16207",name:"Personal Inventory OS",title:"الممتلكات الشخصية",status:"live",phase:"المرحلة 7 · نسخة أولية",sensitive:false,plan:"PERSONAL_INVENTORY_OS_UNIFIED_MASTER_PLAN_v4.md",
  desc:"جرد ممتلكاتك والضمان والاستبدال والإعارات والمستندات.",
  sections:osSec("home:الرئيسية:⌂|items:الأصناف:📦|categories:التصنيفات:🗂️|places:الأماكن:📍|warranty:الضمان:🛡️|replacement:الاستبدال:♻️|documents:المستندات:📄|loans:الإعارات:🤝|history:التاريخ:🕘|audit:الجرد:☑️|collections:المجموعات:🎒|maintenance:الصيانة:🔧|archive:الأرشيف:🗄️|settings:الإعدادات:⚙️")},
 {id:"shopping",group:"money",scope:"shared",icon:"🛒",color:"#E11D48",name:"Shopping & Wishlist OS",title:"التسوق وقوائم الرغبات",status:"planned",phase:"المرحلة 8",sensitive:false,plan:"PERSONAL_SHOPPING_WISHLIST_OS_UNIFIED_MASTER_PLAN_v4.md",
