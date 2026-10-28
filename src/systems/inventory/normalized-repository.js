@@ -185,7 +185,7 @@ export function createNormalizedInventoryRepository(api, normalize) {
       if (normalizedActive || marker === 1) {
         const built = buildNormalizedInventorySnapshot(aggregate, api.workspaceId);
         const result = await api.saveNormalizedInventory(built.snapshot);
-        if (!result?.available) return api.save(aggregate);
+        if (!result?.available) return { ok: false, conflict: false, error: result?.error || new Error("Normalized Inventory storage is unavailable; refusing to write to the legacy store after activation."), updatedAt: null };
         if (!result.ok) return { ok: false, conflict: false, error: result.error, updatedAt: null };
         normalizedActive = true;
         return { ok: true, conflict: false, updatedAt: result.updatedAt || null };
