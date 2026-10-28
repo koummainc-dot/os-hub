@@ -167,42 +167,7 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   const sectionNames = Object.fromEntries(nav.map(n => [n.id, n.label]));
   const header = <PanelTitle title={(nav.find(n => n.id === page)?.icon || "🧳") + " " + (sectionNames[page] || "الممتلكات الشخصية")} sub={ws?.name ? "المساحة: " + ws.name : "جرد ممتلكاتك ومتابعة الضمان والإعارات"} right={<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{saving && <Badge tone="warn">جارٍ الحفظ…</Badge>}<Badge tone={isDemo ? "warn" : "good"}>{isDemo ? "وضع تجريبي" : "بيانات المساحة"}</Badge>{canEdit && <Btn onClick={() => setEditor({ id: "", name: "", categoryId: "", placeId: "", condition: "Good", status: "Owned", quantity: "1", brand: "", model: "", purchaseDate: "", purchasePrice: "", currency: data.settings.currency || "EGP", estimatedValue: "", sensitivity: "Normal", notes: "" })}>＋ إضافة ممتلك</Btn>}</div>} />;
 
-  const ItemForm = ({ value, onClose, onSave }) => {
-    const [form, setForm] = useState(value);
-    const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-    return <div style={{ position: "fixed", inset: 0, background: "rgba(24,19,12,.45)", zIndex: 10000, display: "grid", placeItems: "center", padding: 16 }}><form onSubmit={e => { e.preventDefault(); onSave(form); }} style={{ ...card, width: "min(760px,100%)", maxHeight: "90vh", overflow: "auto", boxSizing: "border-box" }}>
-      <PanelTitle title={form.id ? "تعديل الممتلك" : "إضافة ممتلك جديد"} sub="يمكنك البدء بالاسم فقط وإكمال التفاصيل لاحقاً." />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 12 }}>
-        <Field label="اسم العنصر *"><input style={input} autoFocus value={form.name} onChange={e => set("name", e.target.value)} /></Field>
-        <Field label="التصنيف"><select style={input} value={form.categoryId || ""} onChange={e => set("categoryId", e.target.value)}><option value="">بدون تصنيف</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
-        <Field label="المكان الحالي"><select style={input} value={form.placeId || ""} onChange={e => set("placeId", e.target.value)}><option value="">غير محدد</option>{places.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
-        <Field label="الحالة"><select style={input} value={form.condition || "Good"} onChange={e => set("condition", e.target.value)}>{Object.entries(conditionLabels).map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
-        <Field label="حالة الملكية"><select style={input} value={form.status || "Owned"} onChange={e => set("status", e.target.value)}>{Object.entries(statusLabels).map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
-        <Field label="الكمية"><input style={input} type="number" min="0" step="0.001" value={form.quantity ?? ""} onChange={e => set("quantity", e.target.value)} /></Field>
-        <Field label="العلامة التجارية"><input style={input} value={form.brand || ""} onChange={e => set("brand", e.target.value)} /></Field>
-        <Field label="الموديل"><input style={input} value={form.model || ""} onChange={e => set("model", e.target.value)} /></Field>
-        <Field label="تاريخ الشراء"><input style={input} type="date" value={form.purchaseDate || ""} onChange={e => set("purchaseDate", e.target.value)} /></Field>
-        <Field label="سعر الشراء"><input style={input} type="number" min="0" step="0.01" value={form.purchasePrice || ""} onChange={e => set("purchasePrice", e.target.value)} /></Field>
-        <Field label="العملة"><select style={input} value={form.currency || "EGP"} onChange={e => set("currency", e.target.value)}>{["EGP","USD","SAR","AED","EUR","GBP"].map(c => <option key={c}>{c}</option>)}</select></Field>
-        <Field label="القيمة الحالية (تقدير)"><input style={input} type="number" min="0" step="0.01" value={form.estimatedValue || ""} onChange={e => set("estimatedValue", e.target.value)} /></Field>
-        <Field label="مستوى الخصوصية"><select style={input} value={form.sensitivity || "Normal"} onChange={e => set("sensitivity", e.target.value)}>{Object.entries(privacyLabels).map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
-        <Field label="ملاحظات"><textarea style={{ ...input, minHeight: 72, resize: "vertical" }} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></Field>
-      </div>
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}><Btn type="button" secondary onClick={onClose}>إلغاء</Btn><Btn type="submit">حفظ العنصر</Btn></div>
-    </form></div>;
-  };
 
-  const SimpleForm = ({ kind, value, onClose, onSave }) => {
-    const [form, setForm] = useState(value);
-    const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-    const isCat = kind === "category";
-    return <div style={{ position: "fixed", inset: 0, background: "rgba(24,19,12,.45)", zIndex: 10000, display: "grid", placeItems: "center", padding: 16 }}><form onSubmit={e => { e.preventDefault(); onSave(form); }} style={{ ...card, width: "min(480px,100%)", boxSizing: "border-box" }}>
-      <PanelTitle title={isCat ? "تصنيف" : "مكان"} sub="أدخل الاسم ثم احفظ." />
-      <div style={{ display: "grid", gap: 12 }}><Field label="الاسم *"><input style={input} autoFocus value={form.name || ""} onChange={e => set("name", e.target.value)} /></Field>
-      {isCat ? <Field label="اللون"><input style={{ ...input, height: 42, padding: 4 }} type="color" value={form.color || "#A16207"} onChange={e => set("color", e.target.value)} /></Field> : <><Field label="النوع"><select style={input} value={form.type || "Other"} onChange={e => set("type", e.target.value)}>{[["Home","منزل"],["Room","غرفة"],["Storage","تخزين"],["Vehicle","مركبة"],["Workplace","مكان عمل"],["External","مكان خارجي"],["Other","أخرى"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></Field><Field label="المكان الأب (اختياري)"><select style={input} value={form.parentId || ""} onChange={e => set("parentId", e.target.value)}><option value="">بدون</option>{places.filter(p => p.id !== form.id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field></>}
-      </div><div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}><Btn secondary onClick={onClose}>إلغاء</Btn><Btn type="submit">حفظ</Btn></div>
-    </form></div>;
-  };
 
   const metric = (label, value, icon, detail) => <div key={label} style={{ ...card, minWidth: 0 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12, color: MUTED }}>{label}</span><span style={{ fontSize: 20 }}>{icon}</span></div><div style={{ fontSize: 28, fontWeight: 850, color: INK, marginTop: 8 }}>{value}</div><div style={{ fontSize: 11, color: MUTED, marginTop: 3 }}>{detail}</div></div>;
   const itemRow = item => <div key={item.id} onClick={() => { setSelectedId(item.id); setPage("items"); }} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 10, alignItems: "center", padding: "12px 0", borderBottom: "1px solid " + LINE, cursor: "pointer" }}><div style={{ minWidth: 0 }}><div style={{ fontWeight: 750, fontSize: 13, color: INK, overflowWrap: "anywhere" }}>{item.name}</div><div style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>{getCategory(item.categoryId)} · {getPlace(item.placeId)}</div></div><div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "flex-end" }}><Badge>{conditionLabels[item.condition] || item.condition}</Badge><Badge tone={item.status === "Owned" ? "good" : "warn"}>{statusLabels[item.status] || item.status}</Badge></div></div>;
@@ -322,11 +287,48 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
       const nextRows = row.id && data[key].some(x => x.id === row.id) ? data[key].map(x => x.id === row.id ? row : x) : [row, ...data[key]];
       await persist({ ...data, [key]: nextRows }, "تم حفظ السجل"); setEditor(null);
     }} />}
-    {editor && !["warranty","loan","replacement","service"].includes(editor.kind) && <ItemForm value={editor} onClose={() => setEditor(null)} onSave={saveItem} />}
-    {categoryEditor && <SimpleForm kind="category" value={categoryEditor} onClose={() => setCategoryEditor(null)} onSave={saveCategory} />}
-    {placeEditor && <SimpleForm kind="place" value={placeEditor} onClose={() => setPlaceEditor(null)} onSave={savePlace} />}
+    {editor && !["warranty","loan","replacement","service"].includes(editor.kind) && <InventoryItemForm categories={categories} places={places} value={editor} onClose={() => setEditor(null)} onSave={saveItem} />}
+    {categoryEditor && <InventorySimpleForm kind="category" categories={categories} places={places} value={categoryEditor} onClose={() => setCategoryEditor(null)} onSave={saveCategory} />}
+    {placeEditor && <InventorySimpleForm kind="place" categories={categories} places={places} value={placeEditor} onClose={() => setPlaceEditor(null)} onSave={savePlace} />}
     {confirmDelete && <div style={{ position: "fixed", inset: 0, zIndex: 10001, background: "#211A1080", display: "grid", placeItems: "center", padding: 16 }}><div style={{ ...card, width: "min(420px,100%)" }}><div style={{ fontWeight: 850, fontSize: 16 }}>نقل إلى الأرشيف؟</div><p style={{ fontSize: 12, color: MUTED, lineHeight: 1.8 }}>سيختفي «{confirmDelete.name}» من الجرد النشط، مع الاحتفاظ بسجله.</p><div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn secondary onClick={() => setConfirmDelete(null)}>إلغاء</Btn><Btn onClick={() => removeItem(confirmDelete.id)}>نقل إلى الأرشيف</Btn></div></div></div>}
   </div>;
+}
+
+
+function InventoryItemForm({ categories, places, value, onClose, onSave }) {
+  const [form, setForm] = useState(value);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  return <div style={{ position: "fixed", inset: 0, background: "rgba(24,19,12,.45)", zIndex: 10000, display: "grid", placeItems: "center", padding: 16 }}><form onSubmit={e => { e.preventDefault(); onSave(form); }} style={{ ...card, width: "min(760px,100%)", maxHeight: "90vh", overflow: "auto", boxSizing: "border-box" }}>
+    <PanelTitle title={form.id ? "تعديل الممتلك" : "إضافة ممتلك جديد"} sub="يمكنك البدء بالاسم فقط وإكمال التفاصيل لاحقاً." />
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 12 }}>
+      <Field label="اسم العنصر *"><input style={input} autoFocus value={form.name} onChange={e => set("name", e.target.value)} /></Field>
+      <Field label="التصنيف"><select style={input} value={form.categoryId || ""} onChange={e => set("categoryId", e.target.value)}><option value="">بدون تصنيف</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+      <Field label="المكان الحالي"><select style={input} value={form.placeId || ""} onChange={e => set("placeId", e.target.value)}><option value="">غير محدد</option>{places.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+      <Field label="الحالة"><select style={input} value={form.condition || "Good"} onChange={e => set("condition", e.target.value)}>{Object.entries(conditionLabels).map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+      <Field label="حالة الملكية"><select style={input} value={form.status || "Owned"} onChange={e => set("status", e.target.value)}>{Object.entries(statusLabels).map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+      <Field label="الكمية"><input style={input} type="number" min="0" step="0.001" value={form.quantity ?? ""} onChange={e => set("quantity", e.target.value)} /></Field>
+      <Field label="العلامة التجارية"><input style={input} value={form.brand || ""} onChange={e => set("brand", e.target.value)} /></Field>
+      <Field label="الموديل"><input style={input} value={form.model || ""} onChange={e => set("model", e.target.value)} /></Field>
+      <Field label="تاريخ الشراء"><input style={input} type="date" value={form.purchaseDate || ""} onChange={e => set("purchaseDate", e.target.value)} /></Field>
+      <Field label="سعر الشراء"><input style={input} type="number" min="0" step="0.01" value={form.purchasePrice || ""} onChange={e => set("purchasePrice", e.target.value)} /></Field>
+      <Field label="العملة"><select style={input} value={form.currency || "EGP"} onChange={e => set("currency", e.target.value)}>{["EGP","USD","SAR","AED","EUR","GBP"].map(c => <option key={c}>{c}</option>)}</select></Field>
+      <Field label="القيمة الحالية (تقدير)"><input style={input} type="number" min="0" step="0.01" value={form.estimatedValue || ""} onChange={e => set("estimatedValue", e.target.value)} /></Field>
+      <Field label="مستوى الخصوصية"><select style={input} value={form.sensitivity || "Normal"} onChange={e => set("sensitivity", e.target.value)}>{Object.entries(privacyLabels).map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+      <Field label="ملاحظات"><textarea style={{ ...input, minHeight: 72, resize: "vertical" }} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></Field>
+    </div>
+    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}><Btn type="button" secondary onClick={onClose}>إلغاء</Btn><Btn type="submit">حفظ العنصر</Btn></div>
+  </form></div>;
+}
+function InventorySimpleForm({ kind, categories, places, value, onClose, onSave }) {
+  const [form, setForm] = useState(value);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const isCat = kind === "category";
+  return <div style={{ position: "fixed", inset: 0, background: "rgba(24,19,12,.45)", zIndex: 10000, display: "grid", placeItems: "center", padding: 16 }}><form onSubmit={e => { e.preventDefault(); onSave(form); }} style={{ ...card, width: "min(480px,100%)", boxSizing: "border-box" }}>
+    <PanelTitle title={isCat ? "تصنيف" : "مكان"} sub="أدخل الاسم ثم احفظ." />
+    <div style={{ display: "grid", gap: 12 }}><Field label="الاسم *"><input style={input} autoFocus value={form.name || ""} onChange={e => set("name", e.target.value)} /></Field>
+    {isCat ? <Field label="اللون"><input style={{ ...input, height: 42, padding: 4 }} type="color" value={form.color || "#A16207"} onChange={e => set("color", e.target.value)} /></Field> : <><Field label="النوع"><select style={input} value={form.type || "Other"} onChange={e => set("type", e.target.value)}>{[["Home","منزل"],["Room","غرفة"],["Storage","تخزين"],["Vehicle","مركبة"],["Workplace","مكان عمل"],["External","مكان خارجي"],["Other","أخرى"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></Field><Field label="المكان الأب (اختياري)"><select style={input} value={form.parentId || ""} onChange={e => set("parentId", e.target.value)}><option value="">بدون</option>{places.filter(p => p.id !== form.id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field></>}
+    </div><div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}><Btn secondary onClick={onClose}>إلغاء</Btn><Btn type="submit">حفظ</Btn></div>
+  </form></div>;
 }
 
 function SimpleEntityForm({ kind, value, items, currency, onClose, onSave }) {
