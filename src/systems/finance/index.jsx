@@ -530,7 +530,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         {unbudgetedRows.length > 0 && <div style={{ border: "1px solid #FEDF89", borderRadius: 12, padding: 14, marginTop: 14, background: "#FFFCF5" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}><div><b>إنفاق خارج الميزانية</b><div style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>تصنيفات صُرف عليها خلال الشهر ولم تُحدد لها ميزانية بعد.</div></div><b>{money(unbudgetedRows.reduce((sum, row) => sum + Number(row.spent || 0), 0), baseCurrency)}</b></div>
           <div style={{ display: "grid", gap: 8, marginTop: 10 }}>{unbudgetedRows.map(row => <div key={row.category_id || "uncategorized"} style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", borderTop: "1px solid #FDE7B2", paddingTop: 8 }}><div><b style={{ fontSize: 12 }}>{row.category_name}</b><div style={{ color: MUTED, fontSize: 10, marginTop: 3 }}>{row.transaction_count} حركة</div></div><div style={{ display: "flex", alignItems: "center", gap: 8 }}><b style={{ fontSize: 12 }}>{money(row.spent, baseCurrency)}</b>{canEdit && row.category_id && <Button secondary onClick={() => { setBudgetForm({ category_id: row.category_id, budget_amount: String(Math.ceil(Number(row.spent || 0) * 100) / 100), notes: "" }); document.getElementById("budget-editor")?.scrollIntoView({ behavior: "smooth", block: "center" }); }}>تحديد ميزانية</Button>}</div></div>)}</div>
-        </div>
+        </div>}
       </Card>}
 
       {section === "reconciliation" && <Card>
