@@ -92,4 +92,19 @@ const secondSave = await repoAdapter.save(loadedNormalized.data);
 assert.equal(secondSave.ok, true);
 assert.equal(calls.normalizedSaves, 2, "after activation, saves use normalized snapshot RPC");
 
+
+let legacyWritesAfterActivation = 0;
+const activeApi = {
+  workspaceId,
+  async load() { return { data: source, source: "supabase", updatedAt: null, error: null }; },
+  async save() { legacyWritesAfterActivation++; return { ok: true }; },
+  async loadNormalizedInventory() { return { available: true, data: serverSnapshot, source: "normalized" }; },
+  async saveNormalizedInventory() { return { available: false, error: new Error("RPC unavailable") }; }
+};
+const activeRepository = createNormalizedInventoryRepository(activeApi, value => value);
+await activeRepository.load();
+const refusedFallback = await activeRepository.save(loadedNormalized.data);
+assert.equal(refusedFallback.ok, false);
+assert.equal(legacyWritesAfterActivation, 0, "active normalized workspaces must not silently fall back to legacy writes");
+
 console.log("Inventory normalized repository mapping tests passed.");
