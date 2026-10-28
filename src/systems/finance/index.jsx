@@ -539,11 +539,11 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
 
       {section === "networth" && <FinanceNetWorthHistory ws={ws} access={access} isDemo={isDemo} />}
 
-      {section === "debts" && <FinanceDebts ws={ws} access={access} isDemo={isDemo} />}
-      {section === "goals" && <FinanceGoals ws={ws} access={access} isDemo={isDemo} />}
-      {section === "recurring" && <FinanceRecurring ws={ws} access={access} isDemo={isDemo} />}
-      {section === "projects" && <FinanceProjects ws={ws} access={access} isDemo={isDemo} />}
-      {section === "assets" && <FinanceAssets ws={ws} access={access} isDemo={isDemo} />}
+      {section === "debts" && <FinanceDebts ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+      {section === "goals" && <FinanceGoals ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+      {section === "recurring" && <FinanceRecurring ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+      {section === "projects" && <FinanceProjects ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+      {section === "assets" && <FinanceAssets ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
       {section === "fx" && <FinanceFXRates ws={ws} access={access} isDemo={isDemo} baseCurrency={baseCurrency} />}
       {section === "reports" && <FinanceReports ws={ws} isDemo={isDemo} baseCurrency={baseCurrency} />}
 
