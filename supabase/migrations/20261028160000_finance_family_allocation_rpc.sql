@@ -86,6 +86,9 @@ begin
     end if;
   end loop;
 
+  if p_responsibility_type='Personal' and item_count>0 and (item_count<>1 or (select (value->>'family_member_id')::uuid from jsonb_array_elements(p_allocations) limit 1)<>p_primary_family_member_id) then
+    raise exception 'FAMILY_PERSONAL_ALLOCATION_MUST_MATCH_PRIMARY_MEMBER' using errcode = 'P0001';
+  end if;
   if item_count > 0 and first_method='Fixed' and abs(fixed_total-tx.amount)>0.0001 then
     raise exception 'FAMILY_FIXED_ALLOCATIONS_MUST_EQUAL_TRANSACTION_AMOUNT' using detail = 'allocated='||fixed_total||'; transaction='||tx.amount, errcode = 'P0001';
   end if;
