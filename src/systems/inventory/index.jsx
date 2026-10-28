@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { createInventoryRepository } from "./repository.js";
 import { osSectionLevel } from "../../core/core.js";
 import { AccessDenied } from "../../core/ui.jsx";
 
@@ -28,7 +29,7 @@ const buildDemoData = () => ({
 const normalize = (v) => {
   const d = v && typeof v === "object" ? v : {};
   const b = blank();
-  return { ...b, ...d, items: Array.isArray(d.items) ? d.items : [], categories: Array.isArray(d.categories) ? d.categories : [], places: Array.isArray(d.places) ? d.places : [], warranties: Array.isArray(d.warranties) ? d.warranties : [], loans: Array.isArray(d.loans) ? d.loans : [], replacements: Array.isArray(d.replacements) ? d.replacements : [], events: Array.isArray(d.events) ? d.events : [], services: Array.isArray(d.services) ? d.services : [], settings: { ...b.settings, ...(d.settings || {}) } };
+  return { ...b, ...d, schemaVersion: 1, items: Array.isArray(d.items) ? d.items : [], categories: Array.isArray(d.categories) ? d.categories : [], places: Array.isArray(d.places) ? d.places : [], warranties: Array.isArray(d.warranties) ? d.warranties : [], loans: Array.isArray(d.loans) ? d.loans : [], replacements: Array.isArray(d.replacements) ? d.replacements : [], events: Array.isArray(d.events) ? d.events : [], services: Array.isArray(d.services) ? d.services : [], settings: { ...b.settings, ...(d.settings || {}) } };
 };
 const conditionLabels = { New: "جديد", Good: "جيد", Fair: "مقبول", Poor: "ضعيف", Damaged: "تالف" };
 const statusLabels = { Owned: "مملوك", Loaned: "مُعار", Sold: "مباع", Disposed: "تم التخلص منه", Lost: "مفقود" };
@@ -48,6 +49,7 @@ function Badge({ children, tone = "neutral" }) { const colors = tone === "good" 
 
 function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPage, shell }) {
   const [data, setData] = useState(blank);
+  const repository = useMemo(() => createInventoryRepository(api, normalize), [api]);
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [source, setSource] = useState("");
@@ -70,7 +72,7 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
     let alive = true;
     (async () => {
       try {
-        const result = await api.load();
+        const result = await repository.load();
         if (!alive) return;
         const loaded = result?.data ? normalize(result.data) : (isDemo ? normalize(buildDemoData()) : blank());
         setData(loaded);
@@ -84,13 +86,13 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
       } finally { if (alive) setReady(true); }
     })();
     return () => { alive = false; };
-  }, [api, isDemo]);
+  }, [repository, isDemo]);
 
   const persist = useCallback(async (next, success = "تم حفظ التغييرات") => {
     setData(next);
     setSaving(true);
     try {
-      const result = await api.save(next);
+      const result = await repository.save(next);
       if (result && result.ok === false) {
         setError(result.conflict ? "توجد نسخة أحدث على الخادم. أعد تحميل البيانات قبل الحفظ لتجنب الكتابة فوقها." : "تعذر تأكيد الحفظ على الخادم. قد تكون النسخة المحلية أحدث.");
         tell("⚠ لم يتأكد الحفظ على الخادم؛ راجع حالة الاتصال قبل المتابعة.");
@@ -102,19 +104,21 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
       setError(e?.message || "تعذر حفظ البيانات");
       tell("⚠ تعذر تأكيد الحفظ");
     } finally { setSaving(false); }
-  }, [api, isDemo, tell]);
+  }, [repository, isDemo, tell]);
 
   const categories = data.categories.filter(x => !x.deletedAt);
   const places = data.places.filter(x => !x.deletedAt);
   const items = data.items.filter(x => !x.deletedAt);
-  const selected = items.find(x => x.id === selectedId) || null;
+  // Secret items are intentionally excluded from broad lists and search until
+  // item-level authorization and secure detail handling are implemented.
+  const visibleItems = items.filter(x => x.sensitivity !== "Secret");
   const getCategory = id => categories.find(x => x.id === id)?.name || "بدون تصنيف";
   const getPlace = id => places.find(x => x.id === id)?.name || "غير محدد";
-  const filteredItems = useMemo(() => items.filter(item => {
+  const filteredItems = useMemo(() => visibleItems.filter(item => {
     const q = query.trim().toLowerCase();
-    const matches = !q || [item.name, item.brand, item.model, item.notes].some(v => String(v || "").toLowerCase().includes(q));
+    const matches = !q || [item.name, item.brand, item.model].some(v => String(v || "").toLowerCase().includes(q));
     return matches && (!categoryFilter || item.categoryId === categoryFilter) && (!statusFilter || item.status === statusFilter);
-  }), [items, query, categoryFilter, statusFilter]);
+  }), [visibleItems, query, categoryFilter, statusFilter]);
 
   const saveItem = async (form) => {
     const name = String(form.name || "").trim();
@@ -182,13 +186,13 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
     {error && <div role="status" style={{ ...card, marginBottom: 12, borderColor: "#E5B7A7", color: "#9A3412", fontSize: 12 }}>{error}</div>}
     {notice && <div role="status" style={{ ...card, marginBottom: 12, borderColor: "#B8D8BE", color: "#166534", fontSize: 12 }}>{notice}</div>}
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(165px,1fr))", gap: 12, marginBottom: 16 }}>
-      {metric("إجمالي الممتلكات", items.length, "📦", "العناصر النشطة")}
+      {metric("إجمالي الممتلكات", visibleItems.length, "📦", "العناصر النشطة · العناصر السرية مخفية") }
       {metric("التصنيفات", categories.length, "🗂️", "تصنيفات متاحة")}
       {metric("الضمانات القريبة", warrantyDue.length, "🛡️", "خلال 30 يومًا")}
       {metric("إعارات مفتوحة", openLoans.length, "🤝", "بانتظار الإرجاع")}
     </div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 14 }}>
-      <div style={card}><PanelTitle title="آخر الممتلكات" sub="افتح العنصر لمشاهدة التفاصيل" right={<Btn secondary onClick={() => setPage("items")}>عرض الكل</Btn>} />{items.slice(0,5).map(itemRow)}{!items.length && <div style={{ color: MUTED, fontSize: 12, padding: 18, textAlign: "center" }}>لم تضف أي ممتلكات بعد.</div>}</div>
+      <div style={card}><PanelTitle title="آخر الممتلكات" sub="افتح العنصر لمشاهدة التفاصيل" right={<Btn secondary onClick={() => setPage("items")}>عرض الكل</Btn>} />{visibleItems.slice(0,5).map(itemRow)}{!visibleItems.length && <div style={{ color: MUTED, fontSize: 12, padding: 18, textAlign: "center" }}>لم تضف أي ممتلكات بعد.</div>}</div>
       <div style={card}><PanelTitle title="اختصارات" sub="ابدأ بالحد الأدنى ثم أكمل التفاصيل" />{[{id:"items",label:"إضافة أو استعراض الممتلكات",icon:"📦"},{id:"categories",label:"تنظيم التصنيفات",icon:"🗂️"},{id:"places",label:"تحديد أماكن التخزين",icon:"📍"},{id:"warranty",label:"متابعة الضمان",icon:"🛡️"},{id:"history",label:"مراجعة سجل التغييرات",icon:"🕘"}].map(x=><button key={x.id} onClick={() => setPage(x.id)} style={{ display: "flex", width: "100%", gap: 10, alignItems: "center", textAlign: "right", border: 0, borderBottom: "1px solid " + LINE, background: "transparent", padding: "12px 0", cursor: "pointer", font: "inherit", color: INK }}><span>{x.icon}</span><span style={{ flex: 1, fontSize: 12, fontWeight: 700 }}>{x.label}</span><span style={{ color: MUTED }}>←</span></button>)}<div style={{ marginTop: 12, fontSize: 11, color: MUTED, lineHeight: 1.8 }}>القيم المالية هنا تقديرية للتوثيق فقط، ولا تُضاف إلى صافي الثروة أو معاملات النظام المالي.</div></div>
     </div>
   </>;
@@ -211,7 +215,7 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   else if (page === "categories") body = <>
     {header}{notice && <div style={{ ...card, marginBottom: 12, color: "#166534", fontSize: 12 }}>{notice}</div>}
     <div style={card}><PanelTitle title="التصنيفات" sub="استخدم التصنيفات لتسهيل البحث والتقارير." right={canEdit && <Btn onClick={() => setCategoryEditor({ name: "", color: "#A16207" })}>＋ تصنيف</Btn>} />
-      {categories.map(c => <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0", borderBottom: "1px solid " + LINE }}><span style={{ width: 10, height: 10, borderRadius: 4, background: c.color || GOLD }} /><span style={{ flex: 1, fontWeight: 750, fontSize: 13 }}>{c.name}</span><Badge>{items.filter(i => i.categoryId === c.id).length} عنصر</Badge>{canEdit && <><Btn secondary onClick={() => setCategoryEditor({ ...c })}>تعديل</Btn><Btn secondary onClick={() => archiveRow("category", c.id)}>أرشفة</Btn></>}</div>)}
+      {categories.map(c => <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0", borderBottom: "1px solid " + LINE }}><span style={{ width: 10, height: 10, borderRadius: 4, background: c.color || GOLD }} /><span style={{ flex: 1, fontWeight: 750, fontSize: 13 }}>{c.name}</span><Badge>{visibleItems.filter(i => i.categoryId === c.id).length} عنصر</Badge>{canEdit && <><Btn secondary onClick={() => setCategoryEditor({ ...c })}>تعديل</Btn><Btn secondary onClick={() => archiveRow("category", c.id)}>أرشفة</Btn></>}</div>)}
       {!categories.length && <div style={{ padding: 24, textAlign: "center", color: MUTED, fontSize: 12 }}>لم تُنشأ تصنيفات بعد.</div>}
     </div>
   </>;
@@ -260,13 +264,13 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   </>;
   else if (page === "collections") body = <>
     {header}<div style={card}><PanelTitle title="المجموعات" sub="عرض أولي للممتلكات بحسب التصنيف." />
-      {categories.map(c => <div key={c.id} style={{ marginBottom: 14 }}><div style={{ fontWeight: 800, fontSize: 13, marginBottom: 5 }}>{c.name}</div>{items.filter(i => i.categoryId === c.id).map(itemRow)}{!items.some(i => i.categoryId === c.id) && <div style={{ color: MUTED, fontSize: 11 }}>لا توجد عناصر في المجموعة.</div>}</div>)}
+      {categories.map(c => <div key={c.id} style={{ marginBottom: 14 }}><div style={{ fontWeight: 800, fontSize: 13, marginBottom: 5 }}>{c.name}</div>{visibleItems.filter(i => i.categoryId === c.id).map(itemRow)}{!visibleItems.some(i => i.categoryId === c.id) && <div style={{ color: MUTED, fontSize: 11 }}>لا توجد عناصر في المجموعة.</div>}</div>)}
     </div>
   </>;
   else if (page === "archive") body = <>
     {header}<div style={card}><PanelTitle title="الأرشيف" sub="العناصر المؤرشفة لا تظهر ضمن الجرد النشط." />
-      {data.items.filter(i => i.deletedAt).map(i => <div key={i.id} style={{ padding: "12px 0", borderBottom: "1px solid " + LINE, display: "flex", gap: 8, alignItems: "center" }}><span style={{ flex: 1, fontSize: 13 }}>{i.name}</span>{canEdit && <Btn secondary onClick={() => persist({ ...data, items: data.items.map(x => x.id === i.id ? { ...x, deletedAt: null, updatedAt: today() } : x) }, "تمت استعادة العنصر")}>استعادة</Btn>}</div>)}
-      {!data.items.some(i => i.deletedAt) && <div style={{ color: MUTED, padding: 24, textAlign: "center", fontSize: 12 }}>الأرشيف فارغ.</div>}
+      {data.items.filter(i => i.deletedAt && i.sensitivity !== "Secret").map(i => <div key={i.id} style={{ padding: "12px 0", borderBottom: "1px solid " + LINE, display: "flex", gap: 8, alignItems: "center" }}><span style={{ flex: 1, fontSize: 13 }}>{i.name}</span>{canEdit && <Btn secondary onClick={() => persist({ ...data, items: data.items.map(x => x.id === i.id ? { ...x, deletedAt: null, updatedAt: today() } : x) }, "تمت استعادة العنصر")}>استعادة</Btn>}</div>)}
+      {!data.items.some(i => i.deletedAt && i.sensitivity !== "Secret") && <div style={{ color: MUTED, padding: 24, textAlign: "center", fontSize: 12 }}>الأرشيف فارغ.</div>}
     </div>
   </>;
   else if (page === "settings") body = <>
