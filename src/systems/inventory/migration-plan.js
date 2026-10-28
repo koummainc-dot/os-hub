@@ -160,6 +160,7 @@ export function planInventoryAggregateMigration(aggregate, options = {}) {
     const eventType = String(r.type || "");
     const occurred = stamp(r.date || r.createdAt);
     if (OWNERSHIP_EVENTS.has(eventType) && itemId) {
+      if (!occurred) blockers.push({ code: "OWNERSHIP_EVENT_DATE_UNKNOWN", oldId: text(r.id), detail: "An ownership-history date is required; do not invent a historical timestamp." });
       ownership.push({
         id: resolveId(r.id, "ownership_event"), workspace_id: workspaceId, item_id: itemId,
         event_type: eventType, occurred_at: occurred || undefined,
