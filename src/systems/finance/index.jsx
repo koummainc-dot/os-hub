@@ -67,7 +67,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [showTx, setShowTx] = useState(false);
   const [txAction, setTxAction] = useState(null);
   const [txActionReason, setTxActionReason] = useState("");
-  const [showAccount, setShowAccount] = useState(false);\n  const [editingAccountId, setEditingAccountId] = useState(null);
+  const [showAccount, setShowAccount] = useState(false);
+  const [editingAccountId, setEditingAccountId] = useState(null);
   const [showCategory, setShowCategory] = useState(false);
   const [tx, setTx] = useState(initialTx);
   const [splitMode, setSplitMode] = useState(false);
