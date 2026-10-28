@@ -197,6 +197,7 @@ begin
     join public.finance_transactions t on t.workspace_id=a.workspace_id and t.id=a.transaction_id
     join public.finance_family_members fm on fm.workspace_id=a.workspace_id and fm.id=a.family_member_id
     left join public.finance_categories c on c.workspace_id=t.workspace_id and c.id=t.category_id
+   join public.finance_family_transaction_meta valid_meta on valid_meta.workspace_id=a.workspace_id and valid_meta.transaction_id=t.id and valid_meta.allocation_status in ('Allocated','Reviewed')
    where a.workspace_id=p_workspace_id and t.status='Posted' and t.type='Expense'
      and t.local_date between p_start_date and p_end_date
      and (p_family_member_id is null or fm.id=p_family_member_id)
@@ -255,6 +256,52 @@ begin
    limit greatest(1,least(coalesce(p_limit,50),200));
 end
 $function$;
+
+
+create or replace function public.fin_family_invalidate_allocation_on_transaction_change()
+returns trigger
+language plpgsql
+security definer
+set search_path to ''
+as $function$
+declare
+  prior_meta jsonb;
+begin
+  if new.amount is not distinct from old.amount
+     and new.currency is not distinct from old.currency
+     and new.type is not distinct from old.type
+     and new.status is not distinct from old.status then
+    return new;
+  end if;
+
+  select to_jsonb(m) into prior_meta
+    from public.finance_family_transaction_meta m
+   where m.workspace_id=new.workspace_id and m.transaction_id=new.id;
+  if prior_meta is null then return new; end if;
+
+  update public.finance_family_transaction_meta
+     set allocation_status='Unassigned',
+         reviewed_at=null,
+         reviewed_by=null,
+         updated_by=auth.uid(),
+         updated_at=now()
+   where workspace_id=new.workspace_id and transaction_id=new.id;
+
+  perform public.fin__audit(new.workspace_id,auth.uid(),'finance_family_transaction_meta',new.id::text,
+    'invalidate_allocation','transaction amount/currency/type/status changed',prior_meta,
+    jsonb_build_object('allocation_status','Unassigned','old_amount',old.amount,'new_amount',new.amount,
+      'old_currency',old.currency,'new_currency',new.currency,'old_type',old.type,'new_type',new.type,
+      'old_status',old.status,'new_status',new.status));
+  return new;
+end
+$function$;
+
+drop trigger if exists finance_family_invalidate_allocation_trg on public.finance_transactions;
+create trigger finance_family_invalidate_allocation_trg
+after update of amount,currency,type,status on public.finance_transactions
+for each row execute function public.fin_family_invalidate_allocation_on_transaction_change();
+
+revoke all on function public.fin_family_invalidate_allocation_on_transaction_change() from public;
 
 revoke all on function public.fin_family_list_expenses(uuid,integer) from public;
 grant execute on function public.fin_family_list_expenses(uuid,integer) to authenticated;
