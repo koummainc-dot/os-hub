@@ -10,7 +10,8 @@ function Btn({children,secondary=false,...props}){return <button {...props} styl
 function Card({children,style={}}){return <div style={{background:"#fff",border:"1px solid "+LINE,borderRadius:14,padding:15,...style}}>{children}</div>}
 
 export default function FinanceFXRates({ws,access,isDemo=false,baseCurrency="EGP"}){
- const [rates,setRates]=useState([]),[currencies,setCurrencies]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);\n const [currencyForm,setCurrencyForm]=useState({currency:"USD",display_name:"US Dollar",symbol:"$",minor_units:"2"}),[editingCurrency,setEditingCurrency]=useState("");
+ const [rates,setRates]=useState([]),[currencies,setCurrencies]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
+ const [currencyForm,setCurrencyForm]=useState({currency:"USD",display_name:"US Dollar",symbol:"$",minor_units:"2"}),[editingCurrency,setEditingCurrency]=useState("");
  const [error,setError]=useState(""),[notice,setNotice]=useState(""),[form,setForm]=useState({currency:"USD",rate_to_base:"",effective_on:today(),source:"manual"});
  const [previewAmount,setPreviewAmount]=useState("1"),[previewCurrency,setPreviewCurrency]=useState("USD");
  const canEdit=!isDemo&&(access?.level==="edit"||access?.manage||access?.owner);
