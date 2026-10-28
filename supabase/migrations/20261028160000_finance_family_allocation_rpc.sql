@@ -26,6 +26,8 @@ declare
   item_count integer := 0;
   before_meta jsonb;
   after_meta jsonb;
+  before_allocations jsonb;
+  after_allocations jsonb;
   result jsonb;
 begin
   perform public.fin_family_need(p_workspace_id, 'edit', false);
@@ -98,6 +100,13 @@ begin
 
   select to_jsonb(m) into before_meta from public.finance_family_transaction_meta m
    where m.workspace_id=p_workspace_id and m.transaction_id=p_transaction_id;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'family_member_id',a.family_member_id,'allocation_method',a.allocation_method,
+    'amount',a.amount,'percentage',a.percentage,'currency',a.currency
+  ) order by a.family_member_id),'[]'::jsonb)
+    into before_allocations
+    from public.finance_family_allocations a
+   where a.workspace_id=p_workspace_id and a.transaction_id=p_transaction_id;
 
   insert into public.finance_family_transaction_meta(
     workspace_id,transaction_id,responsibility_type,primary_family_member_id,
@@ -136,8 +145,16 @@ begin
 
   select to_jsonb(m) into after_meta from public.finance_family_transaction_meta m
    where m.workspace_id=p_workspace_id and m.transaction_id=p_transaction_id;
-  perform public.fin__audit(p_workspace_id,auth.uid(),'finance_family_transaction_meta',p_transaction_id::text,'allocate',null,before_meta,
-    jsonb_build_object('meta',after_meta,'allocation_count',item_count,'allocation_method',first_method));
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'family_member_id',a.family_member_id,'allocation_method',a.allocation_method,
+    'amount',a.amount,'percentage',a.percentage,'currency',a.currency
+  ) order by a.family_member_id),'[]'::jsonb)
+    into after_allocations
+    from public.finance_family_allocations a
+   where a.workspace_id=p_workspace_id and a.transaction_id=p_transaction_id;
+  perform public.fin__audit(p_workspace_id,auth.uid(),'finance_family_transaction_meta',p_transaction_id::text,'allocate',null,
+    jsonb_build_object('meta',before_meta,'allocations',before_allocations),
+    jsonb_build_object('meta',after_meta,'allocation_count',item_count,'allocation_method',first_method,'allocations',after_allocations));
   result := jsonb_build_object('transaction_id',p_transaction_id,'allocation_count',item_count,'allocation_method',first_method,'currency',tx.currency);
   return result;
 end
