@@ -24,7 +24,7 @@ function Field({ label, children }) { return <label style={{ display: "grid", ga
 function Btn({ children, secondary, ...props }) { return <button {...props} style={{ border: secondary ? "1px solid " + LINE : "1px solid " + GREEN, background: secondary ? "#fff" : GREEN, color: secondary ? INK : "#fff", borderRadius: 9, padding: "10px 13px", fontWeight: 750, cursor: props.disabled ? "not-allowed" : "pointer", opacity: props.disabled ? .6 : 1, fontFamily: "inherit", fontSize: 12 }}>{children}</button>; }
 function Card({ children }) { return <div style={{ background: "#fff", border: "1px solid " + LINE, borderRadius: 14, padding: 16 }}>{children}</div>; }
 
-export default function FinanceDebts({ ws, access, isDemo = false }) {
+export default function FinanceDebts({ ws, access, isDemo = false, currencies = [] }) {
   const [debts, setDebts] = useState([]), [movements, setMovements] = useState([]), [accounts, setAccounts] = useState([]), [installments, setInstallments] = useState([]);
   const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [showCreate, setShowCreate] = useState(false), [payDebt, setPayDebt] = useState(null);
@@ -121,7 +121,7 @@ export default function FinanceDebts({ ws, access, isDemo = false }) {
       <Field label="الشخص / الجهة"><input style={input} value={form.counterparty} onChange={e => setForm({ ...form, counterparty: e.target.value })} /></Field>
       <Field label="الاتجاه"><select style={input} value={form.direction} onChange={e => setForm({ ...form, direction: e.target.value, disbursement_account_id: "" })}><option value="IOwe">دين عليّ</option><option value="OwedToMe">مبلغ مستحق لي</option></select></Field>
       <Field label="أصل الدين *"><input required type="number" min="0.01" step="0.01" style={input} value={form.principal} onChange={e => setForm({ ...form, principal: e.target.value })} /></Field>
-      <Field label="العملة"><input required maxLength={3} style={input} value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value.toUpperCase() })} /></Field>
+      <Field label="العملة"><select required style={input} value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>{!currencies.some(c => c.currency === form.currency) && form.currency && <option value={form.currency}>{form.currency} · العملة الحالية</option>}{currencies.filter(c => c.is_active).map(c => <option key={c.currency} value={c.currency}>{c.currency} · {c.display_name}</option>)}</select></Field>
       <Field label="تاريخ بدء الدين"><input required type="date" style={input} value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} /></Field>
       <Field label="طريقة الفائدة"><select style={input} value={form.interest_method} onChange={e => setForm({ ...form, interest_method: e.target.value })}><option value="None">بدون فائدة</option></select></Field>
       <Field label="حساب صرف المبلغ (اختياري)"><select style={input} value={form.disbursement_account_id} onChange={e => setForm({ ...form, disbursement_account_id: e.target.value })}><option value="">عدم إنشاء حركة صرف تلقائية</option>{accounts.filter(a => a.status === "Active" && a.currency === form.currency && (form.direction === "IOwe" ? a.nature !== "LIABILITY" : true)).map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></Field>

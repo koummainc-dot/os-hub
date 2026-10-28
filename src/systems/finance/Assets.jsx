@@ -13,7 +13,7 @@ function Btn({children,secondary=false,...props}){return <button {...props} styl
 function Card({children,style={}}){return <div style={{background:"#fff",border:"1px solid "+LINE,borderRadius:14,padding:15,...style}}>{children}</div>}
 const emptyForm=(currency="EGP")=>({name:"",asset_type:"Other",currency,purchase_value:"",current_value:"",valuation_date:today(),valuation_source:"manual",inventory_item_ref:"",account_id:"",include_in_net_worth:true});
 
-export default function FinanceAssets({ws,access,isDemo=false}){
+export default function FinanceAssets({ws,access,isDemo=false,currencies=[]}){
  const [assets,setAssets]=useState([]),[accounts,setAccounts]=useState([]),[netWorth,setNetWorth]=useState(null);
  const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [showForm,setShowForm]=useState(false),[editingId,setEditingId]=useState(null),[form,setForm]=useState(emptyForm());
@@ -84,7 +84,7 @@ export default function FinanceAssets({ws,access,isDemo=false}){
   {showForm&&<Card><h3 style={{marginTop:0}}>{editingId?"تعديل الأصل":"إضافة أصل"}</h3><form onSubmit={save} style={{display:"grid",gap:12}}><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:12}}>
    <Field label="اسم الأصل *"><input required maxLength={160} style={input} value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="مثال: لابتوب العمل"/></Field>
    <Field label="نوع الأصل"><select style={input} value={form.asset_type} onChange={e=>setForm({...form,asset_type:e.target.value,account_id:e.target.value==="Cash-like"?"":form.account_id})}>{ASSET_TYPES.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></Field>
-   <Field label="العملة"><input required maxLength={3} disabled={!!editingId} style={{...input,background:editingId?"#F2F4F7":"#fff"}} value={form.currency} onChange={e=>setForm({...form,currency:e.target.value.toUpperCase()})}/></Field>
+   <Field label="العملة"><select required disabled={!!editingId} style={{...input,background:editingId?"#F2F4F7":"#fff"}} value={form.currency} onChange={e=>setForm({...form,currency:e.target.value})}>{!currencies.some(c=>c.currency===form.currency)&&form.currency&&<option value={form.currency}>{form.currency} · العملة الحالية</option>}{currencies.filter(c=>c.is_active).map(c=><option key={c.currency} value={c.currency}>{c.currency} · {c.display_name}</option>)}</select></Field>
    <Field label="قيمة الشراء"><input required type="number" min="0" step="0.01" style={input} value={form.purchase_value} onChange={e=>setForm({...form,purchase_value:e.target.value})}/></Field>
    <Field label="القيمة الحالية *"><input required type="number" min="0" step="0.01" style={input} value={form.current_value} onChange={e=>setForm({...form,current_value:e.target.value})}/></Field>
    <Field label="تاريخ التقييم"><input type="date" style={input} value={form.valuation_date} onChange={e=>setForm({...form,valuation_date:e.target.value})}/></Field>
