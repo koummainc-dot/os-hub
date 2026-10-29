@@ -258,7 +258,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
       {canW && <Btn kind="primary" onClick={() => save()} disabled={busy}>💾 حفظ</Btn>}
       {canW && d.status !== "Ready for Review" && <Btn onClick={requestReview}>📤 طلب مراجعة</Btn>}
       {can("prd.approve", project) && d.status === "Ready for Review" && <Btn kind="primary" onClick={approve}>✔ اعتماد</Btn>}
-      {d.status === "Approved" && can("prd.write", project) && <Btn onClick={newVersion}>🆕 نسخة جديدة</Btn>}
+      {d.status === "Approved" && can("prd.approve", project) && <Btn onClick={newVersion}>🆕 نسخة جديدة</Btn>}
       {canW && <Btn onClick={risksFromSection}>⚠️ حوّل المخاطر إلى سجلات</Btn>}
       {d.status === "Ready for Review" && can("prd.write", project) && <Btn onClick={() => save({ status: "In Progress", submitted_for_review_at: null })}>↩ إرجاع للمسودة</Btn>}
       {!locked && can("prd.write", project) && <Btn danger onClick={async () => { await act.del("prds", d.id, d.title); onClose(); }}>🗑</Btn>}</>}>
