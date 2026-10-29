@@ -44,7 +44,7 @@ export function ProjectForm({ initial, onClose }) {
 
 // ── Task form ───────────────────────────────────────────────────────
 export function TaskForm({ initial, projectId, parentId, onClose }) {
-  const { A: act, people, data, idx, projectsById, toast, can } = useP(); const isNew = !initial || !initial.id;
+  const { A: act, people, data, idx, projectsById, toast, can } = useP(); const isNew = !initial || !initial.id; const [showAdvanced, setShowAdvanced] = useState(false);
   const base = { project_id: projectId || (initial && initial.project_id) || "", parent_task_id: parentId || null, priority: "Medium", planning_bucket: "Inbox", status: "Not Started", ...initial };
   const isParent = !isNew && !idx.isLeaf(initial.id); const dv = isParent ? idx.derived[initial.id] : null;
   const initVals = isParent ? { ...base, status: dv.status, estimated_minutes: dv.estimated, due_date: dv.dueMax } : base;
@@ -52,22 +52,22 @@ export function TaskForm({ initial, projectId, parentId, onClose }) {
   const fields = [
     { key: "title", label: "عنوان المهمة", required: true, span: 2 },
     { key: "project_id", label: "المشروع", type: "select", allowEmpty: false, options: projOpts(data.projects), disabled: () => !isNew && !!initial.id, hint: "لنقل المهمة لمشروع آخر استخدم «نقل الشجرة»" },
-    { key: "parent_task_id", label: "المهمة الأب", type: "select", emptyLabel: "— مستوى أعلى —", options: (v) => idx.list.filter((t) => t.project_id === v.project_id && !descIds.includes(t.id)).map((t) => ({ v: t.id, l: "  ".repeat(idx.derived[t.id] ? idx.derived[t.id].depth : 0) + t.title })) },
-    { key: "status", label: isParent ? "الحالة (مشتقة)" : "الحالة", type: "select", allowEmpty: false, options: opts(L.taskStatus), disabled: () => isParent },
-    { key: "cancelled_reason", label: "سبب الإلغاء", required: true, show: (v) => v.status === "Cancelled" && !isParent },
     { key: "priority", label: "الأولوية", type: "select", options: opts(L.priority), allowEmpty: false },
-    { key: "planning_bucket", label: "تخطيط الأسبوع", type: "select", options: opts(L.bucket), allowEmpty: false, show: () => !isParent },
-    { key: "assignee_id", label: "المسؤول", type: "select", options: mOpts(people), emptyLabel: "— غير مسند —", hint: "لا يُورَّث من الأب" },
     { key: "due_date", label: isParent ? "الموعد (مشتق من الأبناء)" : "الموعد النهائي", type: "date", disabled: () => isParent },
-    { key: "estimated_minutes", label: isParent ? "التقدير (مجموع الأبناء)" : "التقدير (دقائق)", type: "number", min: 0, disabled: () => isParent },
-    { key: "prd_id", label: "المواصفة (PRD)", type: "select", emptyLabel: "— بلا —", options: (v) => data.prds.filter((p) => p.project_id === v.project_id).map((p) => ({ v: p.id, l: p.title })), hint: "يجب أن تتبع نفس المشروع" },
-    { key: "discovery_ids", label: "عناصر الاكتشاف (لماذا وُجدت؟)", type: "multi", options: (v) => data.discovery.filter((d) => !d.project_ids?.length || d.project_ids.includes(v.project_id)).map((d) => ({ v: d.id, l: d.title })) },
-    { key: "blocked", label: "متعطّلة؟", type: "bool", checkLabel: "المهمة متعطّلة (لا يغيّر التقدم)" },
-    { key: "blocked_reason", label: "سبب التعطّل", show: (v) => !!v.blocked },
-    { key: "description", label: "الوصف", type: "textarea" }, { key: "result_note", label: "النتيجة السريعة (نص/رابط)", type: "textarea", rows: 2 },
+    { key: "status", label: isParent ? "الحالة (مشتقة)" : "الحالة", type: "select", allowEmpty: false, options: opts(L.taskStatus), disabled: () => isParent, show: () => !showAdvanced },
+    { key: "parent_task_id", label: "المهمة الأب", type: "select", emptyLabel: "— مستوى أعلى —", options: (v) => idx.list.filter((t) => t.project_id === v.project_id && !descIds.includes(t.id)).map((t) => ({ v: t.id, l: "  ".repeat(idx.derived[t.id] ? idx.derived[t.id].depth : 0) + t.title })), show: () => showAdvanced },
+    { key: "cancelled_reason", label: "سبب الإلغاء", required: true, show: (v) => showAdvanced && v.status === "Cancelled" && !isParent },
+    { key: "planning_bucket", label: "تخطيط الأسبوع", type: "select", options: opts(L.bucket), allowEmpty: false, show: () => showAdvanced && !isParent },
+    { key: "assignee_id", label: "المسؤول", type: "select", options: mOpts(people), emptyLabel: "— غير مسند —", hint: "لا يُورَّث من الأب", show: () => showAdvanced },
+    { key: "estimated_minutes", label: isParent ? "التقدير (مجموع الأبناء)" : "التقدير (دقائق)", type: "number", min: 0, disabled: () => isParent, show: () => showAdvanced },
+    { key: "prd_id", label: "المواصفة (PRD)", type: "select", emptyLabel: "— بلا —", options: (v) => data.prds.filter((p) => p.project_id === v.project_id).map((p) => ({ v: p.id, l: p.title })), hint: "يجب أن تتبع نفس المشروع", show: () => showAdvanced },
+    { key: "discovery_ids", label: "عناصر الاكتشاف (لماذا وُجدت؟)", type: "multi", options: (v) => data.discovery.filter((d) => !d.project_ids?.length || d.project_ids.includes(v.project_id)).map((d) => ({ v: d.id, l: d.title })), show: () => showAdvanced },
+    { key: "blocked", label: "متعطّلة؟", type: "bool", checkLabel: "المهمة متعطّلة (لا يغيّر التقدم)", show: () => showAdvanced },
+    { key: "blocked_reason", label: "سبب التعطّل", show: (v) => showAdvanced && !!v.blocked },
+    { key: "description", label: "الوصف", type: "textarea", show: () => showAdvanced }, { key: "result_note", label: "النتيجة السريعة (نص/رابط)", type: "textarea", rows: 2, show: () => showAdvanced },
   ];
   return <FormModal title={isNew ? (parentId ? "مهمة فرعية جديدة" : "مهمة جديدة") : "تعديل المهمة"} wide fields={fields} initial={initVals}
-    onSubmit={async (v) => { const out = { ...v }; if (isParent) { out.status = initial.status; out.estimated_minutes = initial.estimated_minutes; out.due_date = initial.due_date; } if (out.status !== "Cancelled") out.cancelled_reason = null; const saved = await act.saveTask(out, isNew); if (saved === null) return false; toast("✅ تم الحفظ"); onClose(); }} onClose={onClose} />;
+    onSubmit={async (v) => { const out = { ...v }; if (isParent) { out.status = initial.status; out.estimated_minutes = initial.estimated_minutes; out.due_date = initial.due_date; } if (out.status !== "Cancelled") out.cancelled_reason = null; const saved = await act.saveTask(out, isNew); if (saved === null) return false; toast("✅ تم الحفظ"); onClose(); }} onClose={onClose}>{() => <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid " + C.line }}><Btn small onClick={() => setShowAdvanced((v) => !v)}>{showAdvanced ? "إخفاء التفاصيل الإضافية" : "⚙ تفاصيل إضافية"}</Btn><span style={{ marginInlineStart: 8, fontSize: 11, color: C.muted }}>ابدأ بالعنوان والأولوية والموعد؛ بقية الحقول اختيارية.</span></div>}</FormModal>;
 }
 
 // ── Task tree ───────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter }) {
           {t.assignee_id && <Who id={t.assignee_id} size={18} />}
           <DueChip date={leaf ? t.due_date : d.dueMax} status={status} today={today} />
           {(d.estimated > 0) && <span style={{ fontSize: 10.5, color: C.muted }}>⏱ {fmtMinutes(d.actual)}/{fmtMinutes(d.estimated)}</span>}
-          {canWrite && <button aria-label="خيارات" onClick={() => setMenu(menu === t.id ? null : t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 16 }}>⋯</button>}
+          {canWrite && <><button type="button" aria-label={"إضافة مهمة فرعية إلى " + t.title} title="إضافة مهمة فرعية" onClick={() => setForm({ parentId: t.id })} style={{ background: "none", border: "1px solid " + C.line, borderRadius: 6, cursor: "pointer", color: C.info, fontSize: 11, padding: "3px 5px", whiteSpace: "nowrap" }}>＋ فرعية</button><button aria-label="خيارات" onClick={() => setMenu(menu === t.id ? null : t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 16 }}>⋯</button></>}
         </div>
         {menu === t.id && canWrite && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "6px 8px", paddingInlineStart: 30 + depth * 22, background: "rgba(0,0,0,0.03)" }}>
@@ -115,7 +115,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter }) {
   };
   return (
     <div>
-      {canWrite && <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}><Btn kind="primary" small onClick={() => setForm({})}>➕ مهمة جديدة</Btn><span style={{ fontSize: 11, color: C.muted }}>اسحب مهمة وأفلتها على مهمة أخرى لتصبح فرعاً لها</span></div>}
+      {canWrite && <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}><Btn kind="primary" small onClick={() => setForm({})}>➕ مهمة جديدة</Btn><span style={{ fontSize: 11, color: C.muted }}>يمكنك استخدام «＋ فرعية» أو خيارات المهمة لنقلها؛ السحب اختياري.</span></div>}
       {roots.length === 0 && <Empty icon="✅" title="لا توجد مهام بعد" sub="أضف أول مهمة أو أنشئ المشروع من قالب جاهز." />}
       <div style={{ ...S.card, padding: 0, overflow: "hidden", display: roots.length ? "block" : "none" }}
         onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => { const id = e.dataTransfer.getData("text/plain"); if (id && e.target === e.currentTarget) await act.reparent(id, null); }}>
