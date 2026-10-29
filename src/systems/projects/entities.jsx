@@ -19,6 +19,15 @@ export function OutputsView({ projectId }) {
   const canNew = projectId ? can("output.write", projectsById[projectId]) : data.projects.some((p) => can("output.write", p));
   const submit = async (v) => {
     const project = projectsById[v.project_id]; const prev = v.id ? data.outputs.find((o) => o.id === v.id) : null; const rec = { ...v, id: v.id || uid() };
+    if (!project || project.is_system) throw new Error("اختر مشروعًا صالحًا قبل حفظ المخرج.");
+    if (rec.task_id) {
+      const task = idx.byId[rec.task_id];
+      if (!task || task.project_id !== rec.project_id) throw new Error("المهمة المرتبطة يجب أن تكون من المشروع نفسه.");
+    }
+    if (rec.prd_id) {
+      const prd = data.prds.find((x) => x.id === rec.prd_id);
+      if (!prd || prd.project_id !== rec.project_id) throw new Error("المواصفة المرتبطة يجب أن تكون من المشروع نفسه.");
+    }
     if (prev?.approval === "Final") throw new Error("المخرج النهائي مقفل؛ أنشئ مخرجاً جديداً للنسخة المعدلة.");
     if (rec.approval === "Final" && (!prev || prev.approval !== "Final")) {
       if (!can("output.approve", project)) throw new Error("اعتماد المخرج النهائي للقائد أو المراجع فقط");
