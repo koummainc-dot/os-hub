@@ -13,7 +13,7 @@ for (const method of ["completeAll", "archiveTree", "deleteTree"]) {
   assert.doesNotMatch(body, /for\s*\([^)]*\)\s*await R\.(put|softDelete)/, `${method} must not sequentially write records`);
   assert.match(body, /catch \(error\)/, `${method} must surface batch failures`);
 }
-assert.match(records, /if \(!\["tasks", "outputs", "projects", "risks", "issues", "decisions", "prds", "updates"\]\.includes\(coll\) \|\| !rec\?\.id\)/);
+assert.match(records, /if \(!\["tasks", "outputs", "projects", "risks", "issues", "decisions", "prds", "updates", "discovery"\]\.includes\(coll\) \|\| !rec\?\.id\)/);
 const saveStart = store.indexOf("async saveTask(v, isNew)");
 const saveEnd = store.indexOf("async setTaskStatus(t, to, reason)", saveStart);
 const saveBody = store.slice(saveStart, saveEnd);
