@@ -33,7 +33,7 @@ export function emptyRelationshipsData() {
     occasions: [],
     gifts: [],
     circles: [],
-    settings: { reminderDays: [7, 1], defaultFollowupDays: 30, privacyLock: true }
+    settings: { reminderDays: [7, 1], birthdayReminderDays: 7, neglectedAfterDays: 30, defaultFollowupDays: 30, privacyLock: true }
   };
 }
 
