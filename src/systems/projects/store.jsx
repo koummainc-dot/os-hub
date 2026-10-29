@@ -117,18 +117,30 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     },
     async setProjectStatus(p, to) {
       const chk = D.canChangeProjectStatus(p, to, idx); if (!chk.ok) { toast("⛔ " + chk.error); return false; }
+      let plan = null;
       if (to === "Completed") {
-        const plan = D.completionPlan(p, idx);
+        plan = D.completionPlan(p, idx);
         if (plan.needsDecision) {
           const affected = plan.openLeaves.slice(0, 12).map((t) => `• ${t.title}${t.assignee_id ? " — " + nameOf(t.assignee_id) : ""}${t.due_date ? " — " + t.due_date : ""}`).join("\n");
           const more = plan.openLeaves.length > 12 ? `\n… و${plan.openLeaves.length - 12} مهام أخرى` : "";
           const choice = await confirm(`يوجد ${plan.openLeaves.length} مهمة مفتوحة ستُلغى ولن تدخل في التقدم:\n\n${affected}${more}\n\nهل تريد إلغاء كل المهام المفتوحة ثم إكمال المشروع؟`, { title: "راجع المهام المتأثرة", ok: "إلغاء المهام المفتوحة وإكمال المشروع", cancel: "رجوع", danger: true });
           if (!choice) return false;
-          for (const t of plan.openLeaves) await R.put("tasks", { ...t, status: "Cancelled", cancelled_reason: "أُلغيت عند إكمال المشروع", completed_at: null });
         }
       }
       if (to === "Cancelled" && !(await confirm("إلغاء المشروع؟ سيبقى في السجل ولا يدخل في الصحة.", { danger: true }))) return false;
-      await R.put("projects", { ...p, status: to, status_changed_at: nowIso(), completed_at: to === "Completed" ? nowIso() : p.completed_at || null }); act("projects", p.id, "status", p.status + " → " + to); return true;
+      const at = nowIso();
+      const ops = [];
+      if (to === "Completed" && plan) {
+        for (const t of plan.openLeaves) ops.push({ coll: "tasks", rec: { ...t, status: "Cancelled", cancelled_reason: "أُلغيت عند إكمال المشروع", completed_at: null } });
+      }
+      ops.push({ coll: "projects", rec: { ...p, status: to, status_changed_at: at, completed_at: to === "Completed" ? at : p.completed_at || null } });
+      try {
+        await R.putAtomic(ops);
+      } catch (error) {
+        toast("⛔ لم يتغير وضع المشروع: " + (error?.message || "فشل الحفظ") + ". لم تُحفظ مجموعة جزئية.");
+        return false;
+      }
+      act("projects", p.id, "status", p.status + " → " + to); return true;
     },
     async archiveProject(p) { if (p.archived_at) return; await R.put("projects", { ...p, archived_from_status: p.status === "Archived" ? (p.archived_from_status || "Planned") : p.status, status: "Archived", archived_at: nowIso() }); act("projects", p.id, "archived", p.name); },
     async restoreProject(p) { const { archived_from_status, ...rest } = p; const restoredStatus = archived_from_status || "Planned"; await R.put("projects", { ...rest, status: restoredStatus, archived_at: null }); act("projects", p.id, "restored", p.name + " → " + restoredStatus); },
