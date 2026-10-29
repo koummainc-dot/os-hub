@@ -260,7 +260,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
       {can("prd.approve", project) && d.status === "Ready for Review" && <Btn kind="primary" onClick={approve}>✔ اعتماد</Btn>}
       {d.status === "Approved" && can("prd.approve", project) && <Btn onClick={newVersion}>🆕 نسخة جديدة</Btn>}
       {canW && <Btn onClick={risksFromSection}>⚠️ حوّل المخاطر إلى سجلات</Btn>}
-      {d.status === "Ready for Review" && can("prd.write", project) && <Btn onClick={() => save({ status: "In Progress", submitted_for_review_at: null })}>↩ إرجاع للمسودة</Btn>}
+      {d.status === "Ready for Review" && can("prd.approve", project) && <Btn onClick={() => save({ status: "In Progress", submitted_for_review_at: null })}>↩ إرجاع للمسودة</Btn>}
       {!locked && can("prd.write", project) && <Btn danger onClick={async () => { await act.del("prds", d.id, d.title); onClose(); }}>🗑</Btn>}</>}>
       <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}><Chip color={d.status === "Approved" ? C.ok : C.info}>{L.prdStatus[d.status]}</Chip><ProjectName id={d.project_id} />{locked && <span style={{ fontSize: 11, color: C.muted }}>🔒 {d.status === "Ready for Review" ? "قيد المراجعة — أعدها للمسودة قبل التعديل" : "نسخة معتمدة/مستبدلة — أنشئ نسخة جديدة للتعديل"}</span>}</div>
       <Tabs small value={tab} onChange={setTab} tabs={[{ id: "doc", label: "المواصفة" }, { id: "meta", label: "البيانات والمراجعة" }, { id: "tasks", label: "المهام", count: linkedTasks.length }]} />
