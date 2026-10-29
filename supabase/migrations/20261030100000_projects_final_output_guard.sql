@@ -211,3 +211,127 @@ before insert or update of data on public.workspace_records
 for each row execute function public.projects_guard_work_sessions();
 
 revoke all on function public.projects_guard_work_sessions() from public, anon;
+
+-- Keep task hierarchy and PRD references inside the same workspace/project.
+-- Validate only when creating a task or changing a relationship; ordinary edits,
+-- trash/restore, and lifecycle updates must remain possible for historical records.
+create or replace function public.projects_guard_task_references()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $function$
+declare
+  refs_changed boolean := false;
+  project_data jsonb;
+  parent_data jsonb;
+  prd_data jsonb;
+  parent_id text;
+  has_cycle boolean := false;
+begin
+  if new.system_id <> 'projects' or new.collection <> 'tasks' then
+    return new;
+  end if;
+
+  if tg_op = 'INSERT' then
+    refs_changed := true;
+  elsif tg_op = 'UPDATE' then
+    refs_changed :=
+      (new.data->>'project_id') is distinct from (old.data->>'project_id')
+      or (new.data->>'parent_task_id') is distinct from (old.data->>'parent_task_id')
+      or (new.data->>'prd_id') is distinct from (old.data->>'prd_id');
+  end if;
+  if not refs_changed then
+    return new;
+  end if;
+
+  if nullif(new.data->>'project_id', '') is null then
+    raise exception 'A task must belong to a project' using errcode = '22023';
+  end if;
+  select p.data into project_data
+    from public.workspace_records p
+   where p.workspace_id = new.workspace_id
+     and p.system_id = 'projects'
+     and p.collection = 'projects'
+     and p.id = new.data->>'project_id'
+     and p.deleted = false
+   limit 1;
+  if project_data is null or project_data->>'deleted_at' is not null then
+    raise exception 'Task project does not exist or is in the trash' using errcode = '22023';
+  end if;
+
+  parent_id := nullif(new.data->>'parent_task_id', '');
+  if parent_id is not null then
+    if parent_id = new.id then
+      raise exception 'A task cannot be its own parent' using errcode = '22023';
+    end if;
+    parent_data := null;
+    select p.data into parent_data
+      from public.workspace_records p
+     where p.workspace_id = new.workspace_id
+       and p.system_id = 'projects'
+       and p.collection = 'tasks'
+       and p.id = parent_id
+       and p.deleted = false
+     limit 1;
+    if parent_data is null
+       or parent_data->>'project_id' is distinct from new.data->>'project_id'
+       or parent_data->>'deleted_at' is not null
+       or parent_data->>'archived_at' is not null then
+      raise exception 'Task parent must be active and belong to the same project' using errcode = '22023';
+    end if;
+
+    with recursive ancestors(id, parent_task_id, path, cycle) as (
+      select p.id, p.data->>'parent_task_id', array[p.id], false
+        from public.workspace_records p
+       where p.workspace_id = new.workspace_id
+         and p.system_id = 'projects'
+         and p.collection = 'tasks'
+         and p.id = parent_id
+         and p.deleted = false
+      union all
+      select p.id, p.data->>'parent_task_id', a.path || p.id, p.id = any(a.path)
+        from ancestors a
+        join public.workspace_records p
+          on p.workspace_id = new.workspace_id
+         and p.system_id = 'projects'
+         and p.collection = 'tasks'
+         and p.id = a.parent_task_id
+         and p.deleted = false
+       where a.parent_task_id is not null
+         and not a.cycle
+         and cardinality(a.path) < 100
+    )
+    select exists (select 1 from ancestors where id = new.id or cycle) into has_cycle;
+    if has_cycle then
+      raise exception 'Task hierarchy cannot contain a cycle' using errcode = '22023';
+    end if;
+  end if;
+
+  if nullif(new.data->>'prd_id', '') is not null then
+    prd_data := null;
+    select d.data into prd_data
+      from public.workspace_records d
+     where d.workspace_id = new.workspace_id
+       and d.system_id = 'projects'
+       and d.collection = 'prds'
+       and d.id = new.data->>'prd_id'
+       and d.deleted = false
+     limit 1;
+    if prd_data is null
+       or prd_data->>'project_id' is distinct from new.data->>'project_id'
+       or prd_data->>'deleted_at' is not null then
+      raise exception 'Task PRD must be active and belong to the same project' using errcode = '22023';
+    end if;
+  end if;
+
+  return new;
+end;
+$function$;
+
+drop trigger if exists projects_guard_task_references_trg on public.workspace_records;
+create trigger projects_guard_task_references_trg
+before insert or update of data on public.workspace_records
+for each row execute function public.projects_guard_task_references();
+
+revoke all on function public.projects_guard_task_references() from public, anon;
