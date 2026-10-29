@@ -13,6 +13,14 @@ assert.ok(action.includes("existing.project_id !== projectId"), "conversion retr
 assert.ok(action.includes('link.kind + ":" + link.id'), "resolution links must be deduplicated");
 assert.ok(entities.includes("act.convertDiscoveryToIssue(d.id, pid, today)"), "discovery UI must use atomic conversion action");
 assert.ok(!entities.includes('await act.put("issues", { id, title: d.title, project_id: pid'), "UI must not separately persist issue then discovery");
+const riskStart = store.indexOf("async convertRiskToIssue(riskId)");
+assert.ok(riskStart >= 0, "store must expose risk-to-issue conversion");
+const riskEnd = store.indexOf("async convertDiscoveryToTask(discoveryId, projectId)", riskStart);
+const riskAction = store.slice(riskStart, riskEnd);
+assert.ok(riskAction.includes('R.putAtomic([{ coll: "issues", rec: issue }, { coll: "risks", rec: riskPatch }])'), "risk and generated issue must persist atomically");
+assert.ok(riskAction.includes("D.issueForRisk(risk, data.issues)"), "retry must find the existing issue before creating another");
+assert.ok(entities.includes("act.convertRiskToIssue(r.id)"), "risk UI must use the atomic conversion action");
+assert.ok(!entities.includes('await act.put("issues", { id: iid, title: r.title'), "risk UI must not persist issue and risk in separate writes");
 const taskStart = store.indexOf("async convertDiscoveryToTask(discoveryId, projectId)");
 assert.ok(taskStart >= 0, "store must expose discovery-to-task conversion");
 const taskEnd = store.indexOf("async convertDiscoveryToIssue(discoveryId, projectId, discoveredAt)", taskStart);
