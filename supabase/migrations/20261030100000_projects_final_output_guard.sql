@@ -385,9 +385,6 @@ declare
   prior_prd_data jsonb;
   can_review boolean := false;
   can_approve boolean := false;
-  prd_version text;
-  reviewer_id text;
-  section_key text;
 begin
   if new.system_id <> 'projects' or new.collection <> 'prds' then
     return new;
