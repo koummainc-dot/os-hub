@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 
 const store = await readFile(new URL("../src/systems/projects/store.jsx", import.meta.url), "utf8");
 const records = await readFile(new URL("../src/core/records.jsx", import.meta.url), "utf8");
+const batchMigration = await readFile(new URL("../supabase/migrations/20261029180000_projects_atomic_trash_batch.sql", import.meta.url), "utf8");
 
 for (const method of ["completeAll", "archiveTree", "deleteTree"]) {
   const start = store.indexOf(`    async ${method}(`);
@@ -14,6 +15,7 @@ for (const method of ["completeAll", "archiveTree", "deleteTree"]) {
   assert.match(body, /catch \(error\)/, `${method} must surface batch failures`);
 }
 assert.match(records, /if \(!\["tasks", "outputs", "projects", "risks", "issues", "decisions", "prds", "updates", "discovery"\]\.includes\(coll\) \|\| !rec\?\.id\)/);
+assert.ok(/collection_name not in \([^)]*\x27discovery\x27/.test(batchMigration), "server RPC migration must allow discovery in atomic record batches");
 const saveStart = store.indexOf("async saveTask(v, isNew)");
 const saveEnd = store.indexOf("async setTaskStatus(t, to, reason)", saveStart);
 const saveBody = store.slice(saveStart, saveEnd);
