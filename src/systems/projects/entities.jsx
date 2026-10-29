@@ -278,7 +278,8 @@ function PrdEditor({ prd, onClose, onOpen }) {
 // ═════ Discovery (PIO) ═════
 export function DiscoveryView() {
   const { data, A: act, can, projectsById, people, toast, me, today, settings, confirm, openProject, idx, nameOf } = useP();
-  const [form, setForm] = useState(null); const [mode, setMode] = useState("board"); const [q, setQ] = useState(""); const [type, setType] = useState(""); const [conv, setConv] = useState(null);
+  const [form, setForm] = useState(null); const [mode, setMode] = useState("board"); const [q, setQ] = useState(""); const [type, setType] = useState(""); const [conv, setConv] = useState(null); const convertingDiscoveryIds = useRef(new Set());
+  const runDiscoveryConversionOnce = async (id, work) => { if (convertingDiscoveryIds.current.has(id)) { toast("التحويل جارٍ بالفعل؛ انتظر اكتماله قبل إعادة المحاولة."); return null; } convertingDiscoveryIds.current.add(id); try { return await work(); } finally { convertingDiscoveryIds.current.delete(id); } };
   const list = data.discovery.filter((d) => (!type || d.type === type) && (!q || d.title.toLowerCase().includes(q.toLowerCase())));
   const statuses = Object.keys(L.discoveryStatus);
   const stale = (d) => d.status === "Inbox" && d.logged_at && diffDays(today, d.logged_at) > settings.inboxStaleDays;
@@ -302,7 +303,8 @@ export function DiscoveryView() {
     if (kind === "task") {
       if (!pid) return toast("اربط الاكتشاف بمشروع أولاً");
       try {
-        const task = await act.convertDiscoveryToTask(d.id, pid);
+        const task = await runDiscoveryConversionOnce(d.id, () => act.convertDiscoveryToTask(d.id, pid));
+        if (!task) return;
         toast(task ? "✅ تم إنشاء المهمة أو استكمال ربطها ذريًا" : "تعذّر تحويل الاكتشاف");
       } catch (error) {
         toast("⛔ لم يتم تحويل الاكتشاف: " + (error?.message || "فشل الحفظ"));
@@ -312,7 +314,8 @@ export function DiscoveryView() {
     if (kind === "prd") {
       if (!pid) return toast("اربط الاكتشاف بمشروع أولاً");
       try {
-        const prd = await act.convertDiscoveryToPrd(d.id, pid);
+        const prd = await runDiscoveryConversionOnce(d.id, () => act.convertDiscoveryToPrd(d.id, pid));
+        if (!prd) return;
         toast(prd ? "✅ تم إنشاء المواصفة أو استكمال ربطها ذريًا" : "تعذّر تحويل الاكتشاف");
       } catch (error) {
         toast("⛔ لم يتم إنشاء المواصفة: " + (error?.message || "فشل الحفظ"));
@@ -320,7 +323,8 @@ export function DiscoveryView() {
       }
     }
     if (kind === "project") { const existing = data.projects.find((p) => p.source_discovery_id === d.id); if (existing) { await act.put("discovery", { ...d, project_ids: [...new Set([...(d.project_ids || []), existing.id])], status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "project", id: existing.id }] }); toast("تم العثور على المشروع المرتبط مسبقاً واستكمال الربط."); setConv(null); return; } const pid = uid(); await act.saveProject({ id: pid, name: d.title, type: "أخرى", status: "Idea", priority: d.impact_level === "Critical" ? "High" : "Medium", description: d.description || "", visibility: "workspace", source_discovery_id: d.id }, true); await act.put("discovery", { ...d, project_ids: [...(d.project_ids || []), pid], status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "project", id: pid }] }); toast("✅ أُنشئ مشروع كفكرة"); }
-    if (kind === "issue") { if (!pid) return toast("اربط الاكتشاف بمشروع أولاً"); try { const issue = await act.convertDiscoveryToIssue(d.id, pid, today); toast(issue ? "✅ تم إنشاء المشكلة أو استكمال ربطها ذريًا" : "تعذّر تحويل الاكتشاف"); } catch (error) { toast("⛔ لم يتم تحويل الاكتشاف: " + (error?.message || "فشل الحفظ")); return; } }
+    if (kind === "issue") { if (!pid) return toast("اربط الاكتشاف بمشروع أولاً"); try { const issue = await runDiscoveryConversionOnce(d.id, () => act.convertDiscoveryToIssue(d.id, pid, today));
+      if (!issue) return; toast(issue ? "✅ تم إنشاء المشكلة أو استكمال ربطها ذريًا" : "تعذّر تحويل الاكتشاف"); } catch (error) { toast("⛔ لم يتم تحويل الاكتشاف: " + (error?.message || "فشل الحفظ")); return; } }
     setConv(null);
   }
   const card = (d) => (
