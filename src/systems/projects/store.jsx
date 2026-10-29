@@ -228,6 +228,35 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       act("projects", r.project.id, "created_from_template", tpl.name); return r.project;
     },
     // Convert a discovery to an issue and complete its source link in one server transaction.
+    async convertRiskToIssue(riskId) {
+      const risk = (data.risks || []).find((item) => item.id === riskId);
+      const project = risk && projectsById[risk.project_id];
+      if (!risk || !project || project.is_system || project.archived_at) throw new Error("الخطر أو المشروع غير صالح.");
+      const existing = D.issueForRisk(risk, data.issues);
+      if (existing) {
+        if (existing.project_id !== risk.project_id) throw new Error("المشكلة المرتبطة بالخطر موجودة في مشروع مختلف؛ لم يتم تغيير الارتباط.");
+        const riskPatch = { ...risk, status: "Materialized", converted_issue_id: existing.id };
+        await R.putAtomic([{ coll: "risks", rec: riskPatch }]);
+        return existing;
+      }
+      if (risk.status === "Materialized" || risk.converted_issue_id) throw new Error("الخطر معلّم كمحوّل لكن المشكلة المرتبطة غير موجودة؛ راجع السجلات قبل إعادة التحويل.");
+      const issueId = uid();
+      const issue = {
+        id: issueId,
+        title: risk.title,
+        project_id: risk.project_id,
+        severity: D.riskScore(risk) >= settings.riskHigh ? "High" : "Medium",
+        status: "Open",
+        discovered_at: todayStr(),
+        owner_id: risk.owner_id || null,
+        description: risk.notes || risk.mitigation || "",
+        from_risk_id: risk.id,
+      };
+      const riskPatch = { ...risk, status: "Materialized", converted_issue_id: issueId };
+      await R.putAtomic([{ coll: "issues", rec: issue }, { coll: "risks", rec: riskPatch }]);
+      act("risks", risk.id, "materialized", risk.title);
+      return issue;
+    },
     async convertDiscoveryToTask(discoveryId, projectId) {
       const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
       const project = projectsById[projectId];
