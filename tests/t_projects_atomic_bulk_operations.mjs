@@ -14,5 +14,12 @@ for (const method of ["completeAll", "archiveTree", "deleteTree"]) {
   assert.match(body, /catch \(error\)/, `${method} must surface batch failures`);
 }
 assert.match(records, /if \(!\["tasks", "outputs", "projects", "risks", "issues", "decisions", "prds", "updates"\]\.includes\(coll\) \|\| !rec\?\.id\)/);
+const saveStart = store.indexOf("async saveTask(v, isNew)");
+const saveEnd = store.indexOf("async setTaskStatus(t, to, reason)", saveStart);
+const saveBody = store.slice(saveStart, saveEnd);
+assert.ok(saveBody.includes("firstChildParentPatch"), "first-child conversion must retain the parent patch until child creation");
+assert.ok(saveBody.includes('R.putAtomic([\n          { coll: "tasks", rec: { ...stamp(firstChildParentPatch)'), "parent state and first child must be saved in one atomic batch");
+assert.ok(!saveBody.includes("await R.put(\"tasks\", fc.patch)"), "parent state must not be written before the child task is persisted");
+
 assert.match(records, /does not enqueue offline changes/i);
 console.log("Projects task bulk atomic-operation contract tests passed.");
