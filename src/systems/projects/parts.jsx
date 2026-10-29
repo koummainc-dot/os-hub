@@ -56,7 +56,7 @@ export function TaskForm({ initial, projectId, parentId, onClose }) {
     { key: "due_date", label: isParent ? "الموعد (مشتق من الأبناء)" : "الموعد النهائي", type: "date", disabled: () => isParent },
     { key: "status", label: isParent ? "الحالة (مشتقة)" : "الحالة", type: "select", allowEmpty: false, options: opts(L.taskStatus), disabled: () => isParent, show: () => !showAdvanced },
     { key: "parent_task_id", label: "المهمة الأب", type: "select", emptyLabel: "— مستوى أعلى —", options: (v) => idx.list.filter((t) => t.project_id === v.project_id && !descIds.includes(t.id)).map((t) => ({ v: t.id, l: "  ".repeat(idx.derived[t.id] ? idx.derived[t.id].depth : 0) + t.title })), show: () => showAdvanced },
-    { key: "cancelled_reason", label: "سبب الإلغاء", required: true, show: (v) => showAdvanced && v.status === "Cancelled" && !isParent },
+    { key: "cancelled_reason", label: "سبب الإلغاء", required: true, show: (v) => v.status === "Cancelled" && !isParent },
     { key: "planning_bucket", label: "تخطيط الأسبوع", type: "select", options: opts(L.bucket), allowEmpty: false, show: () => showAdvanced && !isParent },
     { key: "assignee_id", label: "المسؤول", type: "select", options: mOpts(people), emptyLabel: "— غير مسند —", hint: "لا يُورَّث من الأب", show: () => showAdvanced },
     { key: "estimated_minutes", label: isParent ? "التقدير (مجموع الأبناء)" : "التقدير (دقائق)", type: "number", min: 0, disabled: () => isParent, show: () => showAdvanced },
