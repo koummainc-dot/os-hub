@@ -13,6 +13,6 @@ for (const method of ["completeAll", "archiveTree", "deleteTree"]) {
   assert.doesNotMatch(body, /for\s*\([^)]*\)\s*await R\.(put|softDelete)/, `${method} must not sequentially write records`);
   assert.match(body, /catch \(error\)/, `${method} must surface batch failures`);
 }
-assert.match(records, /if \(!\["tasks", "outputs"\]\.includes\(coll\) \|\| !rec\?\.id\)/);
+assert.match(records, /if \(!\["tasks", "outputs", "projects"\]\.includes\(coll\) \|\| !rec\?\.id\)/);
 assert.match(records, /does not enqueue offline changes/i);
 console.log("Projects task bulk atomic-operation contract tests passed.");
