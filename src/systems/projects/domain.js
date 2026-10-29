@@ -167,14 +167,32 @@ export function canReparent(taskId, newParentId, idx) {
   if (idx.descendants(taskId).includes(newParentId)) return { ok: false, error: "V-03: لا يمكن نقل المهمة تحت أحد أحفادها (دورة)" };
   return { ok: true, warnDepth: idx.ancestors(newParentId).length + 1 > 8 };
 }
-// moving a whole tree to another project: returns the patches to apply (plan §9.3)
-export function planTreeMove(taskId, targetProjectId, idx, prdsById) {
-  const ids = [taskId, ...idx.descendants(taskId)]; const patches = [];
-  ids.forEach((id) => {
-    const t = idx.byId[id]; const p = { ...t, project_id: targetProjectId };
+// Moving a whole tree preserves hierarchy, including archived descendants. Invalid project-scoped references are cleared.
+export function planTreeMove(taskId, targetProjectId, idx, prdsById, allTasks, discoveriesById = {}) {
+  if (!idx.byId[taskId]) throw new Error("المهمة غير موجودة");
+  const sourceTasks = (allTasks || idx.list).filter((t) => !t.deleted_at);
+  const byId = Object.fromEntries(sourceTasks.map((t) => [t.id, t]));
+  const children = {};
+  sourceTasks.forEach((t) => { if (t.parent_task_id && byId[t.parent_task_id]) (children[t.parent_task_id] = children[t.parent_task_id] || []).push(t.id); });
+  const ids = [];
+  const seen = new Set();
+  const walk = (id) => {
+    if (seen.has(id) || !byId[id]) return;
+    seen.add(id); ids.push(id);
+    (children[id] || []).forEach(walk);
+  };
+  walk(taskId);
+  const patches = ids.map((id) => {
+    const t = byId[id]; const p = { ...t, project_id: targetProjectId };
     if (id === taskId) p.parent_task_id = null;
     if (t.prd_id && (!prdsById[t.prd_id] || prdsById[t.prd_id].project_id !== targetProjectId)) p.prd_id = null;
-    patches.push(p);
+    if (t.discovery_ids && t.discovery_ids.length) {
+      p.discovery_ids = t.discovery_ids.filter((discoveryId) => {
+        const discovery = discoveriesById[discoveryId];
+        return !!discovery && (!(discovery.project_ids || []).length || discovery.project_ids.includes(targetProjectId));
+      });
+    }
+    return p;
   });
   return { ids, patches };
 }
