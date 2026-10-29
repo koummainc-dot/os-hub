@@ -39,6 +39,8 @@ begin
      and p.collection = 'projects'
      and p.id = new.data->>'project_id'
      and p.deleted = false
+     and (p.visible_to is null or auth.uid() = any(p.visible_to))
+     and public.ws_access_level(new.workspace_id, 'projects', 'projects') in ('view','edit')
    limit 1;
   if project_data is null
      or project_data->>'deleted_at' is not null
@@ -97,6 +99,9 @@ begin
          and p.system_id = 'projects'
          and p.collection = 'projects'
          and p.id = new.data->>'project_id'
+         and p.deleted = false
+         and (p.visible_to is null or auth.uid() = any(p.visible_to))
+         and public.ws_access_level(new.workspace_id, 'projects', 'projects') in ('view','edit')
        limit 1;
 
       if project_data is not null then
@@ -267,6 +272,8 @@ begin
      and p.collection = 'projects'
      and p.id = new.data->>'project_id'
      and p.deleted = false
+     and (p.visible_to is null or auth.uid() = any(p.visible_to))
+     and public.ws_access_level(new.workspace_id, 'projects', 'projects') in ('view','edit')
    limit 1;
   if project_data is null or project_data->>'deleted_at' is not null then
     raise exception 'Task project does not exist or is in the trash' using errcode = '22023';
