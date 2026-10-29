@@ -8,6 +8,10 @@ assert.match(migration, /create trigger projects_guard_risk_issue_links_trg\s+be
   "risk/issue linkage must be enforced for direct writes and atomic RPC batches");
 assert.match(migration, /Only one active issue may be linked to a risk/,
   "database must reject duplicate active issues for one risk");
+assert.match(migration, /Remove the previous risk backlink atomically before changing this issue risk/,
+  "database must reject switching an issue away from a risk that still points to it");
+assert.match(migration, /Remove the previous issue backlink atomically before changing this risk issue/,
+  "database must reject switching a risk away from an issue that still points back");
 assert.match(migration, /Remove the risk backlink atomically before unlinking this issue/,
   "database must prevent removing only one side of an active risk/issue link");
 assert.match(migration, /Remove the issue backlink atomically before unlinking this risk/,
