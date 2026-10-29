@@ -12,4 +12,13 @@ assert.ok(action.includes("item.from_discovery_id === discoveryId"), "conversion
 assert.ok(action.includes('link.kind + ":" + link.id'), "resolution links must be deduplicated");
 assert.ok(entities.includes("act.convertDiscoveryToIssue(d.id, pid, today)"), "discovery UI must use atomic conversion action");
 assert.ok(!entities.includes('await act.put("issues", { id, title: d.title, project_id: pid'), "UI must not separately persist issue then discovery");
-console.log("Projects atomic discovery-to-issue contract tests passed.");
+const taskStart = store.indexOf("async convertDiscoveryToTask(discoveryId, projectId)");
+assert.ok(taskStart >= 0, "store must expose discovery-to-task conversion");
+const taskEnd = store.indexOf("async convertDiscoveryToIssue(discoveryId, projectId, discoveredAt)", taskStart);
+const taskAction = store.slice(taskStart, taskEnd);
+assert.ok(taskAction.includes('R.putAtomic([{ coll: "tasks", rec: task }, { coll: "discovery", rec: { ...discovery, status: "Completed", resolution_links: links } }])'), "task and source resolution link must persist atomically");
+assert.ok(taskAction.includes("(discovery.project_ids || []).length && !linkedProjects.includes(projectId)"), "task target must be an active project linked to discovery when links exist");
+assert.ok(taskAction.includes("existing.project_id !== projectId"), "retry must not silently reuse a task from another project");
+assert.ok(entities.includes("act.convertDiscoveryToTask(d.id, pid)"), "discovery UI must use atomic task conversion");
+assert.ok(!entities.includes('await act.put("discovery", { ...d, status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "task"'), "UI must not separately persist task resolution links");
+console.log("Projects atomic discovery-to-task and issue contract tests passed.");
