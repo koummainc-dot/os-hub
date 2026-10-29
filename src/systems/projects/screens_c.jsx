@@ -11,7 +11,7 @@ import { TemplatePicker } from "./screens_b.jsx";
 
 // ═════ OKRs ═════
 export function Okrs() {
-  const { data, A: act, projectProgress, today, settings, people, me, can, toast, role, nameOf, confirm } = useP();
+  const { data, A: act, projectProgress, today, settings, people, me, toast, role, nameOf, confirm } = useP();
   const [oForm, setOForm] = useState(null); const [kForm, setKForm] = useState(null); const [ci, setCi] = useState(null); const [hist, setHist] = useState(null); const [filter, setFilter] = useState("Active");
   const objs = data.objectives.filter((o) => filter === "all" || o.status === filter);
   const canEditObj = (o) => role === "Owner" || role === "Admin" || !o || o.owner_id === me || o.created_by === me;
@@ -32,7 +32,7 @@ export function Okrs() {
               <div key={k.id} style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.5fr) minmax(110px,1fr) 100px auto", gap: 8, padding: "7px 0", borderTop: `1px solid ${C.line}`, alignItems: "center", fontSize: 12.5 }}>
                 <div><b>{k.name}</b><div style={{ fontSize: 10.5, color: C.muted }}>{k.type === "Numeric" ? `${k.initial_value ?? 0} → ${k.target_value} ${k.unit || ""} · الحالي ${k.current_value ?? k.initial_value ?? 0}` : `${(k.project_ids || []).length} مشروع`}{raw != null && raw > 1 ? ` · تجاوز الهدف ${Math.round(raw * 100)}%` : ""}</div></div>
                 <Progress value={val} /><Chip color={D.PACE_META[kp].color}>{D.PACE_META[kp].label}</Chip>
-                <span style={{ display: "inline-flex", gap: 4 }}>{k.type === "Numeric" && (can("okr.write") ) && <Btn small onClick={() => setCi({ kr: k, value: k.current_value ?? k.initial_value ?? 0 })}>📍 Check-in</Btn>}<Btn small onClick={() => setHist(k)}>سجل</Btn>{canEditObj(o) && <><Btn small onClick={() => setKForm(k)}>✎</Btn><Btn small danger onClick={() => act.del("krs", k.id, k.name)}>🗑</Btn></>}</span>
+                <span style={{ display: "inline-flex", gap: 4 }}>{k.type === "Numeric" && canEditObj(o) && <Btn small onClick={() => setCi({ kr: k, value: k.current_value ?? k.initial_value ?? 0 })}>📍 Check-in</Btn>}<Btn small onClick={() => setHist(k)}>سجل</Btn>{canEditObj(o) && <><Btn small onClick={() => setKForm(k)}>✎</Btn><Btn small danger onClick={() => act.del("krs", k.id, k.name)}>🗑</Btn></>}</span>
               </div>); })}{!krs.length && <div style={{ fontSize: 12, color: C.muted }}>لا نتائج رئيسية بعد</div>}</div>
           </div>);
       })}
