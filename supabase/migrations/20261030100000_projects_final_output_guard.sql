@@ -8,6 +8,8 @@ set search_path = public
 as $function$
 declare
   project_data jsonb;
+  output_task_data jsonb;
+  output_prd_data jsonb;
   can_approve boolean := false;
 begin
   if new.system_id <> 'projects' or new.collection <> 'outputs' then
@@ -24,6 +26,59 @@ begin
         using errcode = '42501';
     end if;
     return new;
+  end if;
+
+  -- Validate output project/task/PRD references on the server, not only in the UI.
+  if nullif(new.data->>'project_id', '') is null then
+    raise exception 'An output must belong to a project' using errcode = '22023';
+  end if;
+  select p.data into project_data
+    from public.workspace_records p
+   where p.workspace_id = new.workspace_id
+     and p.system_id = 'projects'
+     and p.collection = 'projects'
+     and p.id = new.data->>'project_id'
+     and p.deleted = false
+   limit 1;
+  if project_data is null
+     or project_data->>'deleted_at' is not null
+     or project_data->>'is_system' = 'true' then
+    raise exception 'Output must reference an active non-system project' using errcode = '22023';
+  end if;
+
+  if nullif(new.data->>'task_id', '') is not null then
+    output_task_data := null;
+    select t.data into output_task_data
+      from public.workspace_records t
+     where t.workspace_id = new.workspace_id
+       and t.system_id = 'projects'
+       and t.collection = 'tasks'
+       and t.id = new.data->>'task_id'
+       and t.deleted = false
+     limit 1;
+    if output_task_data is null
+       or output_task_data->>'project_id' is distinct from new.data->>'project_id'
+       or output_task_data->>'deleted_at' is not null
+       or output_task_data->>'archived_at' is not null then
+      raise exception 'Output task must be active and belong to the selected project' using errcode = '22023';
+    end if;
+  end if;
+
+  if nullif(new.data->>'prd_id', '') is not null then
+    output_prd_data := null;
+    select d.data into output_prd_data
+      from public.workspace_records d
+     where d.workspace_id = new.workspace_id
+       and d.system_id = 'projects'
+       and d.collection = 'prds'
+       and d.id = new.data->>'prd_id'
+       and d.deleted = false
+     limit 1;
+    if output_prd_data is null
+       or output_prd_data->>'project_id' is distinct from new.data->>'project_id'
+       or output_prd_data->>'deleted_at' is not null then
+      raise exception 'Output PRD must be active and belong to the selected project' using errcode = '22023';
+    end if;
   end if;
 
   -- Only workspace owners or the project's Lead/Reviewer may create an output
