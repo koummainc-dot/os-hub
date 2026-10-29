@@ -76,5 +76,20 @@ const {makeEnv,sleep,appJs}=require('./harness');
   console.log('— permissions (view as Sara = Admin on projects)');
   await viewAs('demo_sara'); await toToday(); await openProjects(); await goSection('المشاريع'); ok(!!btn('➕ مشروع'),'Sara (manager): can create projects'); await goSection('الإعدادات'); ok(!!btn('حفظ الإعدادات'),'Sara (manager): can save settings');
   ok(errors.length===0,'no errors in permission views ('+errors.length+')'); if(errors.length)console.log(errors.slice(0,4));
+
+  console.log('— unsaved form changes');
+  await viewAs('demo_sara'); await toToday(); await openProjects(); await goSection('مهامي');
+  await click('➕ مهمة'); await sleep(120);
+  const dirtyDlg=doc.querySelector('[role=dialog]');
+  if(dirtyDlg){
+    const dirtyInput=all('input',dirtyDlg).find(i=>i.type==='text'||!i.type);
+    if(dirtyInput) await setVal(dirtyInput,'تغيير لم يتم حفظه');
+    let confirmCalls=0; w.confirm=()=>{confirmCalls++;return false;};
+    await click('إلغاء',dirtyDlg,100);
+    ok(!!doc.querySelector('[role=dialog]')&&confirmCalls===1,'cancel warns and keeps dirty form open when discard is declined');
+    w.confirm=()=>{confirmCalls++;return true;};
+    await click('إلغاء',doc.querySelector('[role=dialog]'),100);
+    ok(!doc.querySelector('[role=dialog]')&&confirmCalls===2,'dirty form closes only after discard is confirmed');
+  } else ok(false,'task form opens for unsaved-change acceptance test');
   console.log('FAILS',fails); process.exit(fails?1:0);
 })().catch(e=>{console.log('HARNESS ERR',e);process.exit(2);});
