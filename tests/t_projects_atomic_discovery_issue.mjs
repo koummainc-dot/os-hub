@@ -37,4 +37,5 @@ const prdAction = store.slice(prdStart, prdEnd);
 assert.ok(prdAction.includes('R.putAtomic([\n        { coll: "prds", rec: prd },\n        { coll: "discovery", rec: { ...discovery, status: "Completed", resolution_links: links } },\n      ])'), "PRD and discovery resolution link must persist atomically");
 assert.ok(prdAction.includes("existing.project_id !== projectId"), "PRD retry must reject an existing PRD in another project");
 assert.ok(entities.includes("act.convertDiscoveryToPrd(d.id, pid)"), "discovery UI must use atomic PRD conversion");
+assert.ok(entities.includes("runDiscoveryConversionOnce(d.id"), "discovery conversion actions must ignore a double-click while a conversion is in flight");
 console.log("Projects atomic discovery conversion contract tests passed.");
