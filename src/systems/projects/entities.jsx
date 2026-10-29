@@ -77,34 +77,18 @@ export function RisksView({ projectId }) {
     const p = projectsById[r.project_id];
     if (to === "Closed") return setClosing(r);
     if (to === "Materialized") {
-      // Prevent same-mount double clicks and recover from a previous partial write.
       if (convertingRiskIds.current.has(r.id)) return;
       convertingRiskIds.current.add(r.id);
       try {
         const linkedIssue = D.issueForRisk(r, data.issues);
-        if (linkedIssue) {
-          if (r.status !== "Materialized" || r.converted_issue_id !== linkedIssue.id) {
-            await act.put("risks", { ...r, status: "Materialized", converted_issue_id: linkedIssue.id }, p);
-          }
-          toast("تم العثور على المشكلة المرتبطة بالفعل؛ لم يتم إنشاء نسخة أخرى.");
-          return;
+        if (!linkedIssue && !(r.status === "Materialized" || r.converted_issue_id)) {
+          if (!(await confirm(`تحويل الخطر «${r.title}» إلى مشكلة؟ سيُنشأ سجل مشكلة مفتوحة ويُربط به.`))) return;
         }
-        if (r.status === "Materialized" || r.converted_issue_id) {
-          toast("الخطر مُحوّل بالفعل، لكن سجل المشكلة المرتبطة غير موجود. راجع السجلات قبل إعادة التحويل.");
-          return;
-        }
-        if (!(await confirm(`تحويل الخطر «${r.title}» إلى مشكلة؟ سيُنشأ سجل مشكلة مفتوحة ويُربط به.`))) return;
-        // Re-check after confirmation in case the view updated while the dialog was open.
-        const existing = D.issueForRisk(r, data.issues);
-        if (existing) {
-          await act.put("risks", { ...r, status: "Materialized", converted_issue_id: existing.id }, p);
-          toast("تم العثور على المشكلة المرتبطة بالفعل؛ لم يتم إنشاء نسخة أخرى.");
-          return;
-        }
-        const iid = uid();
-        await act.put("issues", { id: iid, title: r.title, project_id: r.project_id, severity: D.riskScore(r) >= settings.riskHigh ? "High" : "Medium", status: "Open", discovered_at: new Date().toISOString().slice(0, 10), owner_id: r.owner_id, description: r.notes || r.mitigation || "", from_risk_id: r.id }, p);
-        await act.put("risks", { ...r, status: "Materialized", converted_issue_id: iid }, p);
-        act.act("risks", r.id, "materialized", r.title); toast("✅ تحوّل إلى مشكلة");
+        const issue = await act.convertRiskToIssue(r.id);
+        toast(linkedIssue ? "تم العثور على المشكلة المرتبطة بالفعل؛ لم يتم إنشاء نسخة أخرى." : issue ? "✅ تحوّل الخطر إلى مشكلة بعملية ذرية" : "تعذّر تحويل الخطر");
+        return;
+      } catch (error) {
+        toast("⛔ لم يتم تحويل الخطر: " + (error?.message || "فشل الحفظ"));
         return;
       } finally {
         convertingRiskIds.current.delete(r.id);
