@@ -29,6 +29,8 @@ assert.match(migration, /create trigger projects_guard_prd_review_trg\s+before i
   "PRD lifecycle rules must apply to direct writes and atomic record batches");
 assert.match(migration, /Generic store writes update version\/timestamps[\s\S]*?Allow those no-op data updates in every/i,
   "metadata-only record updates must not break visibility changes on locked PRDs");
+assert.match(migration, /new\.data - 'deleted_at' - 'deleted_by' - 'v' - 'updated_at' - 'created_at' - 'updated_by_member'/,
+  "PRD trash/restore and metadata-only writes must remain possible across project lifecycle batches");
 assert.match(migration, /Approved or superseded PRDs are immutable/,
   "approved and superseded PRDs must not be edited in place");
 assert.match(migration, /A submitted PRD is locked/,
