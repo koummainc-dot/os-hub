@@ -641,6 +641,7 @@ set search_path = public
 as $function$
 declare
   risk_data jsonb;
+  old_risk_data jsonb;
   issue_data jsonb;
   risk_id text;
   issue_id text;
@@ -686,6 +687,23 @@ begin
       return new;
     end if;
 
+    if tg_op = 'UPDATE'
+       and nullif(old.data->>'from_risk_id', '') is not null
+       and nullif(old.data->>'from_risk_id', '') is distinct from risk_id then
+      old_risk_data := null;
+      select r.data into old_risk_data
+        from public.workspace_records r
+       where r.workspace_id = new.workspace_id
+         and r.system_id = 'projects'
+         and r.collection = 'risks'
+         and r.id = old.data->>'from_risk_id'
+         and r.deleted = false
+       limit 1;
+      if old_risk_data->>'converted_issue_id' = new.id then
+        raise exception 'Remove the previous risk backlink atomically before changing this issue risk' using errcode = '22023';
+      end if;
+    end if;
+
     risk_data := null;
     select r.data into risk_data
       from public.workspace_records r
@@ -726,6 +744,23 @@ begin
   if new.data->>'status' = 'Materialized' and issue_id is null then
     raise exception 'A materialized risk must reference its converted issue' using errcode = '22023';
   end if;
+  if tg_op = 'UPDATE'
+     and nullif(old.data->>'converted_issue_id', '') is not null
+     and nullif(old.data->>'converted_issue_id', '') is distinct from issue_id then
+    if exists (
+      select 1 from public.workspace_records linked_issue
+       where linked_issue.workspace_id = new.workspace_id
+         and linked_issue.system_id = 'projects'
+         and linked_issue.collection = 'issues'
+         and linked_issue.id = old.data->>'converted_issue_id'
+         and linked_issue.deleted = false
+         and linked_issue.data->>'deleted_at' is null
+         and linked_issue.data->>'from_risk_id' = new.id
+    ) then
+      raise exception 'Remove the previous issue backlink atomically before changing this risk issue' using errcode = '22023';
+    end if;
+  end if;
+
   if issue_id is null then
     if tg_op = 'UPDATE' and nullif(old.data->>'converted_issue_id', '') is not null then
       if exists (
