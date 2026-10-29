@@ -14,6 +14,10 @@ assert.match(migration, /public\.is_ws_owner\(new\.workspace_id\)/,
   "workspace owner may approve final outputs");
 assert.match(migration, /member->>'role' in \('Lead', 'Reviewer'\)/,
   "project Lead and Reviewer are the only project roles allowed to approve");
+assert.match(migration, /security definer\s+set search_path = public/i,
+  "database guards must validate linked records without depending on caller row visibility");
+assert.match(migration, /new\.data := jsonb_set[\s\S]*?approved_by[\s\S]*?approved_at/,
+  "approval metadata must be stamped server-side rather than trusted from the client");
 assert.match(migration, /using errcode = '42501'/,
   "unauthorized finalization/edit must fail as a permission error");
 assert.match(ui, /prev\?\.approval === "Final"/,
