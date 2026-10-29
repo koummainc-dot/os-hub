@@ -137,14 +137,15 @@ function nextAnnualDate(value, today) {
   return candidate;
 }
 
-export function upcomingRelationshipEvents(people, occasions, today, horizonDays = 30) {
+export function upcomingRelationshipEvents(people, occasions, today, horizonDays = 30, settings = {}) {
   const events = [];
   for (const person of Array.isArray(people) ? people : []) {
     if (!person?.birthday) continue;
     const nextDate = nextAnnualDate(person.birthday, today);
     if (!nextDate) continue;
     const daysAway = daysBetweenISO(today, nextDate);
-    if (daysAway !== null && daysAway >= 0 && daysAway <= horizonDays) {
+    const birthdayReminderDays = Math.max(0, Math.min(365, Number(settings.birthdayReminderDays ?? horizonDays) || 0));
+    if (daysAway !== null && daysAway >= 0 && daysAway <= horizonDays && daysAway <= birthdayReminderDays) {
       events.push({ id: "birthday:" + person.id, personId: person.id, title: "عيد ميلاد " + String(person.name || "شخص"), date: nextDate, daysAway, kind: "birthday" });
     }
   }
