@@ -28,6 +28,14 @@ begin
     return new;
   end if;
 
+  -- Trash/restore and metadata-only updates do not change the artifact or its links.
+  -- Permit them even when a linked task is being trashed in the same atomic project batch.
+  if tg_op = 'UPDATE'
+     and (new.data - 'deleted_at' - 'deleted_by' - 'v' - 'updated_at' - 'created_at' - 'updated_by_member')
+         is not distinct from (old.data - 'deleted_at' - 'deleted_by' - 'v' - 'updated_at' - 'created_at' - 'updated_by_member') then
+    return new;
+  end if;
+
   -- Validate output project/task/PRD references on the server, not only in the UI.
   if nullif(new.data->>'project_id', '') is null then
     raise exception 'An output must belong to a project' using errcode = '22023';
@@ -425,8 +433,8 @@ begin
   -- change is record visibility metadata. Allow those no-op data updates in every
   -- lifecycle state; all actual PRD content/status changes remain guarded below.
   if tg_op = 'UPDATE'
-     and (new.data - 'v' - 'updated_at' - 'created_at' - 'updated_by_member')
-         is not distinct from (old.data - 'v' - 'updated_at' - 'created_at' - 'updated_by_member') then
+     and (new.data - 'deleted_at' - 'deleted_by' - 'v' - 'updated_at' - 'created_at' - 'updated_by_member')
+         is not distinct from (old.data - 'deleted_at' - 'deleted_by' - 'v' - 'updated_at' - 'created_at' - 'updated_by_member') then
     return new;
   end if;
 
