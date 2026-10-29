@@ -99,6 +99,7 @@ export default function RelationshipsSystem(props) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
+  const [globalSearch, setGlobalSearch] = useState("");
   const [personDraft, setPersonDraft] = useState(blankPerson);
   const [editingPerson, setEditingPerson] = useState(null);
   const [selectedPersonId, setSelectedPersonId] = useState(null);
@@ -498,9 +499,56 @@ export default function RelationshipsSystem(props) {
     {list(data.circles, "الدوائر", (x) => <><strong>{x.name}</strong><div style={{ color: C.muted, fontSize: 12 }}>{x.description} · {data.people.filter((p) => p.circleId === x.id).length} أشخاص</div></>, "circles")}
   </>;
   else if (page === "networking") content = <Panel title="العلاقات المهنية" hint="نظّم سياق العلاقة المهنية، جهة العمل، الدور، مصدر التعارف، وآخر تواصل مسجل.">{list(data.people.filter((p) => ["Professional", "Colleague", "Client", "Mentor"].includes(p.type) || p.organization || p.role || p.professionalUrl), "الأشخاص المهنيون", (p) => <><strong>{p.name}</strong><div style={{ color: C.muted, fontSize: 12 }}>{[RELATIONSHIP_TYPE_LABELS[p.type] || p.type, p.role, p.organization, p.email].filter(Boolean).join(" · ")}</div>{p.metThrough && <div style={{ color: C.muted, fontSize: 12 }}>مصدر التعارف: {p.metThrough}</div>}{p.professionalUrl && <div style={{ marginTop: 5 }}><a href={p.professionalUrl} target="_blank" rel="noreferrer">فتح الرابط المهني</a></div>}<div style={{ marginTop: 7 }}><Button onClick={() => { setSelectedPersonId(p.id); setPage("people"); }}>فتح الملف</Button></div></>, "people")}</Panel>;
-  else if (page === "insights") content = <>
-    <Panel title="مؤشرات تنظيمية" hint="هذه مؤشرات عن اكتمال السجلات والمتابعات، وليست تقييمًا لمشاعر أو نوايا الناس."><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 10 }}><Metric label="بلا وسيلة تواصل" value={data.people.filter((p) => !p.phone && !p.email).length} /><Metric label="بلا تاريخ تواصل مسجل" value={data.people.filter((p) => !data.timeline.some((t) => t.personId === p.id)).length} /><Metric label="متابعات مفتوحة" value={data.followups.filter((f) => f.status !== "done").length} /><Metric label="مناسبات بلا تاريخ" value={data.occasions.filter((o) => !o.date).length} /></div></Panel>
-  </>;
+  else if (page === "insights") {
+    const q = normalizeSearch(globalSearch);
+    const searchMatches = (values) => !q || values.some((value) => normalizeSearch(value).includes(q));
+    const peopleHits = data.people.filter((p) => searchMatches([p.name, p.phone, p.email, p.interests, p.matters, p.organization, p.role, p.metThrough]));
+    const timelineHits = data.timeline.filter((x) => searchMatches([x.summary, x.notes, peopleById[x.personId]?.name, x.type]));
+    const followupHits = data.followups.filter((x) => searchMatches([x.title, x.notes, peopleById[x.personId]?.name]));
+    const occasionHits = data.occasions.filter((x) => searchMatches([x.title, x.notes, peopleById[x.personId]?.name]));
+    const giftHits = data.gifts.filter((x) => searchMatches([x.idea, x.notes, peopleById[x.personId]?.name]));
+    const latestContactByPerson = Object.fromEntries(data.people.map((person) => {
+      const dates = data.timeline.filter((entry) => entry.personId === person.id && entry.date).map((entry) => String(entry.date)).sort();
+      return [person.id, dates[dates.length - 1] || ""];
+    }));
+    const thresholdDays = Math.max(1, Math.min(3650, Number(data.settings?.neglectedAfterDays) || 30));
+    const todayTime = Date.parse(today() + "T00:00:00Z");
+    const neglectedPeople = data.people.map((person) => {
+      const lastDate = latestContactByPerson[person.id];
+      const daysSince = lastDate ? Math.floor((todayTime - Date.parse(lastDate + "T00:00:00Z")) / 86400000) : null;
+      return { person, lastDate, daysSince };
+    }).filter((x) => x.daysSince === null || x.daysSince >= thresholdDays)
+      .sort((a, b) => (a.daysSince === null ? -1 : b.daysSince === null ? 1 : b.daysSince - a.daysSince));
+    const resultCount = peopleHits.length + timelineHits.length + followupHits.length + occasionHits.length + giftHits.length;
+    const resultButton = (label, onClick) => <Button onClick={onClick}>{label}</Button>;
+    content = <>
+      <Panel title="بحث شامل في العلاقات" hint="ابحث في الأشخاص، وسجل التواصل، والمتابعات، والمناسبات، والهدايا. النتائج لا تتجاوز صلاحيات القسم الحالية.">
+        <Field label="عبارة البحث" value={globalSearch} onChange={setGlobalSearch} placeholder="اسم، بريد، جهة عمل، ملاحظة، مناسبة أو هدية..." />
+        {q && <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+          <div style={{ color: C.muted, fontSize: 12 }}>إجمالي النتائج المطابقة: {resultCount}</div>
+          {peopleHits.length > 0 && <div><strong>الأشخاص ({peopleHits.length})</strong><div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 7 }}>{peopleHits.slice(0, 20).map((p) => <span key={p.id}>{resultButton(p.name, () => { setSelectedPersonId(p.id); setPage("people"); })}</span>)}</div></div>}
+          {timelineHits.length > 0 && <div><strong>سجل التواصل ({timelineHits.length})</strong><div style={{ display: "grid", gap: 6, marginTop: 7 }}>{timelineHits.slice(0, 10).map((x) => <div key={x.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", borderBottom: "1px solid " + C.line, paddingBottom: 7 }}><span>{x.summary || "تواصل"} · {peopleById[x.personId]?.name || "شخص غير محدد"} · {x.date || "بدون تاريخ"}</span>{resultButton("فتح سجل التواصل", () => { setTimelineFilterPerson(x.personId || ""); setPage("timeline"); })}</div>)}</div></div>}
+          {followupHits.length > 0 && <div><strong>المتابعات ({followupHits.length})</strong><div style={{ display: "grid", gap: 6, marginTop: 7 }}>{followupHits.slice(0, 10).map((x) => <div key={x.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", borderBottom: "1px solid " + C.line, paddingBottom: 7 }}><span>{x.title} · {peopleById[x.personId]?.name || "شخص غير محدد"} · {x.dueDate || "بدون موعد"}</span>{resultButton("فتح المتابعات", () => { setFollowupFilterPerson(x.personId || ""); setPage("followups"); })}</div>)}</div></div>}
+          {occasionHits.length > 0 && <div><strong>المناسبات ({occasionHits.length})</strong><div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 7 }}>{occasionHits.slice(0, 15).map((x) => <span key={x.id}>{resultButton(x.title + (peopleById[x.personId]?.name ? " · " + peopleById[x.personId].name : ""), () => { setOccasionFilterPerson(x.personId || ""); setPage("occasions"); })}</span>)}</div></div>}
+          {giftHits.length > 0 && <div><strong>الهدايا ({giftHits.length})</strong><div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 7 }}>{giftHits.slice(0, 15).map((x) => <span key={x.id}>{resultButton(x.idea, () => setPage("gifts"))}</span>)}</div></div>}
+          {resultCount === 0 && <Empty>لا توجد نتائج مطابقة. جرّب كلمة أقصر أو صيغة مختلفة.</Empty>}
+        </div>}
+      </Panel>
+      <Panel title="مؤشرات تنظيمية" hint="هذه مؤشرات عن اكتمال السجلات والمتابعات، وليست تقييمًا لمشاعر أو نوايا الناس.">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 10 }}>
+          <Metric label="بلا وسيلة تواصل" value={data.people.filter((p) => !p.phone && !p.email).length} />
+          <Metric label="بلا تاريخ تواصل مسجل" value={data.people.filter((p) => !latestContactByPerson[p.id]).length} />
+          <Metric label="متابعات مفتوحة" value={data.followups.filter((f) => f.status !== "done").length} />
+          <Metric label="مناسبات بلا تاريخ" value={data.occasions.filter((o) => !o.date).length} />
+          <Metric label="هدايا غير مقدمة" value={data.gifts.filter((g) => g.status !== "given").length} />
+          <Metric label="علاقات بلا تواصل منذ " value={neglectedPeople.length} detail={thresholdDays + " يومًا أو بلا سجل تواصل"} />
+        </div>
+      </Panel>
+      <Panel title="أشخاص يحتاجون إلى مراجعة التواصل" hint={"يعرض من لم يسجل لهم تواصل أو مرّ " + thresholdDays + " يومًا على آخر سجل. هذا تذكير تنظيمي فقط، وليس تقييمًا للعلاقة."}>
+        {neglectedPeople.length ? <div style={{ display: "grid", gap: 8 }}>{neglectedPeople.slice(0, 30).map(({ person, lastDate, daysSince }) => <div key={person.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", borderBottom: "1px solid " + C.line, padding: "8px 0" }}><div><strong>{person.name}</strong><div style={{ color: C.muted, fontSize: 12 }}>{lastDate ? "آخر تواصل: " + lastDate + " · منذ " + daysSince + " يومًا" : "لم يُسجل تواصل بعد"}{person.importance === "high" ? " · علاقة مهمة" : ""}</div></div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{resultButton("عرض الملف", () => { setSelectedPersonId(person.id); setPage("people"); })}{canEdit && resultButton("إنشاء متابعة", () => { setFollowupDraft((p) => ({ ...p, personId: person.id })); setPage("followups"); })}</div></div>)}</div> : <Empty>لا توجد علاقات تتجاوز حد المراجعة الحالي.</Empty>}
+      </Panel>
+    </>;
+  }
   else if (page === "merge") content = <Panel title="مراجعة التكرارات" hint="لا يتم الدمج تلقائيًا؛ راجع السجلات يدويًا قبل أي تعديل.">{duplicates.length ? duplicates.map((d) => <div key={d.key} style={{ padding: 10, borderBottom: "1px solid " + C.line }}>{d.first.name} ↔ {d.duplicate.name} <span style={{ color: C.muted, fontSize: 12 }}>({d.key})</span></div>) : <Empty>لم نعثر على تكرارات واضحة باستخدام الاسم أو الهاتف أو البريد.</Empty>}</Panel>;
   else if (page === "import") content = <Panel title="الاستيراد والتصدير" hint="الاستيراد يدمج السجلات حسب المعرّف؛ لا يحذف السجلات الحالية."><div style={{ display: "grid", gap: 12 }}>
     <div><Button onClick={() => { const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "relationships-export.json"; a.click(); URL.revokeObjectURL(url); }}>تصدير البيانات (JSON)</Button></div>
