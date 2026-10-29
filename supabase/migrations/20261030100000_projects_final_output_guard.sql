@@ -477,6 +477,45 @@ begin
       if not can_approve then
         raise exception 'Only the project lead, reviewer, or workspace owner may approve a PRD' using errcode = '42501';
       end if;
+      if coalesce(trim(new.data->>'tldr'), '') = ''
+         or not exists (
+           select 1 from jsonb_array_elements(
+             case when jsonb_typeof(coalesce(new.data->'sections','[]'::jsonb)) = 'array'
+                  then coalesce(new.data->'sections','[]'::jsonb) else '[]'::jsonb end
+           ) s(value)
+           where s.value->>'key' = 'problem_overview' and coalesce(trim(s.value->>'content'), '') <> ''
+         )
+         or not exists (
+           select 1 from jsonb_array_elements(
+             case when jsonb_typeof(coalesce(new.data->'sections','[]'::jsonb)) = 'array'
+                  then coalesce(new.data->'sections','[]'::jsonb) else '[]'::jsonb end
+           ) s(value)
+           where s.value->>'key' = 'proposed_solution' and coalesce(trim(s.value->>'content'), '') <> ''
+         )
+         or not exists (
+           select 1 from jsonb_array_elements(
+             case when jsonb_typeof(coalesce(new.data->'sections','[]'::jsonb)) = 'array'
+                  then coalesce(new.data->'sections','[]'::jsonb) else '[]'::jsonb end
+           ) s(value)
+           where s.value->>'key' = 'success_metrics' and coalesce(trim(s.value->>'content'), '') <> ''
+         )
+         or exists (
+           select 1 from jsonb_array_elements(
+             case when jsonb_typeof(coalesce(new.data->'reviewer_ids','[]'::jsonb)) = 'array'
+                  then coalesce(new.data->'reviewer_ids','[]'::jsonb) else '[]'::jsonb end
+           ) r(value)
+           where not exists (
+             select 1 from jsonb_array_elements(
+               case when jsonb_typeof(coalesce(new.data->'approvals','[]'::jsonb)) = 'array'
+                    then coalesce(new.data->'approvals','[]'::jsonb) else '[]'::jsonb end
+             ) a(value)
+             where a.value->>'reviewer_id' = r.value #>> '{}'
+               and a.value->>'decision' = 'approve'
+               and a.value->>'version' = coalesce(new.data->>'version', '1')
+           )
+         ) then
+        raise exception 'PRD cannot be approved until required content and current-version reviewer approvals are complete' using errcode = '22023';
+      end if;
     elsif new.data->>'status' = 'Ready for Review' then
       if not can_review
          or (new.data - 'approvals' - 'updated_by_member')
