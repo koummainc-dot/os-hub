@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {
   emptyRelationshipsData, normalizeRelationshipsData, validatePerson,
-  findPossibleDuplicates, dueFollowups, validateRelationshipsImport, upcomingRelationshipEvents, planPersonMerge
+  findPossibleDuplicates, dueFollowups, validateRelationshipsImport, upcomingRelationshipEvents, planPersonMerge, planRelationshipsImport
 } from "../src/systems/relationships/domain.js";
 import { buildRelationshipsSeed } from "../src/systems/relationships/demo.js";
 
@@ -108,3 +108,29 @@ assert.equal(mergeSource.people.length, 2, "planner must not mutate source data"
 assert.equal(planPersonMerge(mergeSource, "keep", "keep").ok, false);
 assert.equal(planPersonMerge(mergeSource, "keep", "missing").ok, false);
 console.log("Relationships OS safe merge-plan tests passed.");
+
+const importCurrent = {
+  people: [{ id: "p1", name: "أحمد", phone: "111" }, { id: "p2", name: "منى" }],
+  timeline: [{ id: "t1", personId: "p1", summary: "قديم" }],
+  followups: [], occasions: [], gifts: [], circles: [], settings: {}
+};
+const importIncoming = {
+  people: [{ id: "p1", name: "أحمد محدث", phone: "222" }, { id: "p3", name: "ليلى" }],
+  timeline: [{ id: "t2", personId: "p3", summary: "جديد" }],
+  followups: [], occasions: [], gifts: [], circles: [], settings: {}
+};
+const importPlan = planRelationshipsImport(importCurrent, importIncoming);
+assert.equal(importPlan.ok, true);
+assert.equal(importPlan.summary.totalAdded, 2);
+assert.equal(importPlan.summary.totalConflicts, 1);
+assert.equal(importPlan.value.people.find((p) => p.id === "p1").name, "أحمد", "conflicts must preserve current records by default");
+assert.equal(importPlan.writes.people.some((p) => p.id === "p1"), false, "conflicts are not written by default");
+assert.equal(importPlan.value.people.some((p) => p.id === "p3"), true);
+assert.equal(importCurrent.people.length, 2, "import planner must not mutate current data");
+const overwritePlan = planRelationshipsImport(importCurrent, importIncoming, { overwriteConflicts: true });
+assert.equal(overwritePlan.value.people.find((p) => p.id === "p1").name, "أحمد محدث");
+assert.equal(overwritePlan.summary.totalOverwritten, 1);
+assert.equal(overwritePlan.writes.people.some((p) => p.id === "p1"), true);
+assert.equal(validateRelationshipsImport({ people: [{ id: "dup", name: "أحمد" }, { id: "dup", name: "محمود" }] }).ok, false, "duplicate IDs inside imported collection must be rejected");
+assert.equal(planRelationshipsImport(importCurrent, { unknown: [] }).ok, false);
+console.log("Relationships OS import-preview planner tests passed.");
