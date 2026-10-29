@@ -2,6 +2,7 @@ import React, { createContext, useContext, useMemo, useState, useEffect, useCall
 import { useRecordStore, uid, nowIso, arr } from "../../core/records.jsx";
 import { todayStr, dateOf, weekStart } from "../../core/dates.js";
 import * as D from "./domain.js";
+import { persistTemplateBundle } from "./templateWrites.js";
 import { DEFAULT_LOOKUPS, BUILTIN_TEMPLATES, PRD_TEMPLATE } from "./lookups.js";
 import { useConfirm } from "../../core/kit.jsx";
 
@@ -150,20 +151,12 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     },
     async createFromTemplate(tpl, opts) {
       const r = D.instantiateProjectTemplate(tpl, opts, uid); r.project.created_by = me; if (!r.project.members.length) r.project.members = [{ member_id: me, role: "Lead" }], r.project.lead_id = me;
-      const written = { projects: false, tasks: [], risks: [] };
-      try {
-        await R.put("projects", stamp(r.project)); written.projects = true;
-        for (const t of r.tasks) { await R.put("tasks", stamp(t)); written.tasks.push(t.id); }
-        for (const k of r.risks) { await R.put("risks", stamp(k)); written.risks.push(k.id); }
-        act("projects", r.project.id, "created_from_template", tpl.name); return r.project;
-      } catch (error) {
-        const cleanupErrors = [];
-        for (const id of [...written.risks].reverse()) { try { await R.softDelete("risks", id, me); } catch (e) { cleanupErrors.push(e); } }
-        for (const id of [...written.tasks].reverse()) { try { await R.softDelete("tasks", id, me); } catch (e) { cleanupErrors.push(e); } }
-        if (written.projects) { try { await R.softDelete("projects", r.project.id, me); } catch (e) { cleanupErrors.push(e); } }
-        if (cleanupErrors.length) throw new Error("فشل إنشاء المشروع من القالب، وفشلت استعادة بعض السجلات الجزئية. راجع سلة Projects OS قبل إعادة المحاولة.");
-        throw new Error("لم يكتمل إنشاء المشروع من القالب؛ أُلغي ما أمكن من السجلات الجزئية. " + (error?.message || "حاول مرة أخرى."));
-      }
+      await persistTemplateBundle({
+        project: r.project, tasks: r.tasks, risks: r.risks, stamp, actorId: me,
+        put: (collection, record) => R.put(collection, record),
+        softDelete: (collection, id, actorId) => R.softDelete(collection, id, actorId),
+      });
+      act("projects", r.project.id, "created_from_template", tpl.name); return r.project;
     },
     // tasks
     async saveTask(v, isNew) {
