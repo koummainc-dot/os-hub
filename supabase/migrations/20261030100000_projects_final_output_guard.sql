@@ -55,6 +55,8 @@ begin
        and t.collection = 'tasks'
        and t.id = new.data->>'task_id'
        and t.deleted = false
+       and (t.visible_to is null or auth.uid() = any(t.visible_to))
+       and public.ws_access_level(new.workspace_id, 'projects', 'tasks') in ('view','edit')
      limit 1;
     if output_task_data is null
        or output_task_data->>'project_id' is distinct from new.data->>'project_id'
@@ -73,6 +75,8 @@ begin
        and d.collection = 'prds'
        and d.id = new.data->>'prd_id'
        and d.deleted = false
+       and (d.visible_to is null or auth.uid() = any(d.visible_to))
+       and public.ws_access_level(new.workspace_id, 'projects', 'prds') in ('view','edit')
      limit 1;
     if output_prd_data is null
        or output_prd_data->>'project_id' is distinct from new.data->>'project_id'
@@ -181,6 +185,8 @@ begin
        and t.collection = 'tasks'
        and t.id = task_record_id
        and t.deleted = false
+       and (t.visible_to is null or auth.uid() = any(t.visible_to))
+       and public.ws_access_level(new.workspace_id, 'projects', 'tasks') in ('view','edit')
      limit 1;
 
     if task_data is null
@@ -279,6 +285,8 @@ begin
        and p.collection = 'tasks'
        and p.id = parent_id
        and p.deleted = false
+       and (p.visible_to is null or auth.uid() = any(p.visible_to))
+       and public.ws_access_level(new.workspace_id, 'projects', 'tasks') in ('view','edit')
      limit 1;
     if parent_data is null
        or parent_data->>'project_id' is distinct from new.data->>'project_id'
@@ -322,6 +330,8 @@ begin
        and d.collection = 'prds'
        and d.id = new.data->>'prd_id'
        and d.deleted = false
+       and (d.visible_to is null or auth.uid() = any(d.visible_to))
+       and public.ws_access_level(new.workspace_id, 'projects', 'prds') in ('view','edit')
      limit 1;
     if prd_data is null
        or prd_data->>'project_id' is distinct from new.data->>'project_id'
