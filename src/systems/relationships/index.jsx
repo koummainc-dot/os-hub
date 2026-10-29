@@ -119,6 +119,12 @@ export default function RelationshipsSystem(props) {
   const [occasionFilterPerson, setOccasionFilterPerson] = useState("");
   const [occasionFilterRecurrence, setOccasionFilterRecurrence] = useState("");
   const [occasionSearch, setOccasionSearch] = useState("");
+  const blankGift = () => ({ personId: "", idea: "", occasionId: "", status: "idea", budget: "", currency: "EGP", targetDate: "", notes: "" });
+  const [giftDraft, setGiftDraft] = useState(blankGift);
+  const [editingGiftId, setEditingGiftId] = useState(null);
+  const [giftFilterPerson, setGiftFilterPerson] = useState("");
+  const [giftFilterStatus, setGiftFilterStatus] = useState("");
+  const [giftSearch, setGiftSearch] = useState("");
   const [circleDraft, setCircleDraft] = useState({ name: "", description: "", color: "#DB2777" });
   const [busy, setBusy] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
@@ -404,6 +410,78 @@ export default function RelationshipsSystem(props) {
           <div style={{ flex: "1 1 220px" }}><strong>{x.title}</strong><div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{peopleById[x.personId]?.name || "شخص غير محدد"} · {x.date} · {(x.recurrence || "yearly") === "yearly" ? "تتكرر سنويًا" : "مرة واحدة"}</div><div style={{ color: C.muted, fontSize: 12, marginTop: 3 }}>{x.reminderEnabled === false ? "التذكير معطل" : "تذكير قبل " + (Number(x.reminderDays) || 0) + " يوم"}{x.notes ? " · " + x.notes : ""}</div></div>
           {canEdit && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><Button onClick={() => { setEditingOccasionId(x.id); setOccasionDraft({ ...blankOccasion(), ...x, reminderDays: x.reminderDays ?? 7, reminderEnabled: x.reminderEnabled !== false }); window.scrollTo?.({ top: 0, behavior: "smooth" }); }}>تعديل</Button><Button onClick={() => saveEntity("occasions", { ...x, reminderEnabled: x.reminderEnabled === false ? true : false })}>{x.reminderEnabled === false ? "تفعيل التذكير" : "إيقاف التذكير"}</Button><Button kind="danger" onClick={() => deleteEntity("occasions", x)}>أرشفة</Button></div>}
         </div>)}</div> : <Empty>لا توجد مناسبات تطابق عوامل التصفية. أضف مناسبة أو غيّر عوامل البحث.</Empty>}
+      </Panel>
+    </>;
+  }
+  else if (page === "gifts") {
+    const q = normalizeSearch(giftSearch);
+    const statuses = [
+      { value: "idea", label: "فكرة" },
+      { value: "planned", label: "مخططة" },
+      { value: "purchased", label: "تم الشراء" },
+      { value: "given", label: "تم تقديمها" }
+    ];
+    const statusLabel = Object.fromEntries(statuses.map((x) => [x.value, x.label]));
+    const visibleGifts = [...data.gifts]
+      .filter((x) => (!giftFilterPerson || x.personId === giftFilterPerson)
+        && (!giftFilterStatus || (x.status || "idea") === giftFilterStatus)
+        && (!q || [x.idea, x.notes, peopleById[x.personId]?.name, data.occasions.find((o) => o.id === x.occasionId)?.title].some((v) => normalizeSearch(v).includes(q))))
+      .sort((a, b) => String(a.targetDate || "").localeCompare(String(b.targetDate || "")));
+    const resetGiftForm = () => { setEditingGiftId(null); setGiftDraft(blankGift()); };
+    content = <>
+      {canEdit && <Panel title={editingGiftId ? "تعديل فكرة هدية" : "إضافة هدية أو فكرة"} hint="اربط الهدية بالشخص والمناسبة، وسجّل الميزانية والحالة حتى تتابعها من الفكرة إلى تقديمها.">
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          if (!giftDraft.personId || !String(giftDraft.idea || "").trim()) return setError("اختر الشخص واكتب فكرة الهدية.");
+          const budgetText = String(giftDraft.budget ?? "").trim();
+          const budget = budgetText === "" ? "" : Number(budgetText);
+          if (budget !== "" && (!Number.isFinite(budget) || budget < 0)) return setError("أدخل ميزانية صحيحة تساوي صفرًا أو أكثر.");
+          const existing = data.gifts.find((x) => x.id === editingGiftId);
+          const record = {
+            ...giftDraft,
+            idea: String(giftDraft.idea).trim(),
+            budget,
+            currency: giftDraft.currency || "EGP",
+            status: statuses.some((x) => x.value === giftDraft.status) ? giftDraft.status : "idea",
+            occasionId: giftDraft.occasionId || "",
+            id: editingGiftId || makeId(),
+            createdAt: existing?.createdAt || new Date().toISOString()
+          };
+          const ok = await saveEntity("gifts", record);
+          if (ok) resetGiftForm();
+        }} style={{ display: "grid", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+            <SelectField label="الشخص" value={giftDraft.personId} onChange={(v) => setGiftDraft((p) => ({ ...p, personId: v }))} options={[{ value: "", label: "اختر شخصًا" }, ...data.people.map((p) => ({ value: p.id, label: p.name }))]} />
+            <Field label="فكرة الهدية" value={giftDraft.idea} required onChange={(v) => setGiftDraft((p) => ({ ...p, idea: v }))} placeholder="كتاب، تجربة، شيء يحتاجه..." />
+            <SelectField label="المناسبة (اختياري)" value={giftDraft.occasionId} onChange={(v) => setGiftDraft((p) => ({ ...p, occasionId: v }))} options={[{ value: "", label: "بدون مناسبة محددة" }, ...data.occasions.filter((o) => !giftDraft.personId || o.personId === giftDraft.personId).map((o) => ({ value: o.id, label: o.title + (o.date ? " · " + o.date : "") }))]} />
+            <SelectField label="الحالة" value={giftDraft.status} onChange={(v) => setGiftDraft((p) => ({ ...p, status: v }))} options={statuses} />
+            <Field label="الميزانية" type="number" value={giftDraft.budget} onChange={(v) => setGiftDraft((p) => ({ ...p, budget: v }))} placeholder="اختياري" />
+            <SelectField label="العملة" value={giftDraft.currency || "EGP"} onChange={(v) => setGiftDraft((p) => ({ ...p, currency: v }))} options={[{ value: "EGP", label: "جنيه مصري EGP" }, { value: "USD", label: "دولار USD" }, { value: "SAR", label: "ريال سعودي SAR" }, { value: "AED", label: "درهم إماراتي AED" }, { value: "EUR", label: "يورو EUR" }, { value: "GBP", label: "جنيه إسترليني GBP" }, { value: "OTHER", label: "أخرى" }]} />
+            <Field label="التاريخ المستهدف (اختياري)" type="date" value={giftDraft.targetDate} onChange={(v) => setGiftDraft((p) => ({ ...p, targetDate: v }))} />
+          </div>
+          <Field label="ملاحظات" value={giftDraft.notes} onChange={(v) => setGiftDraft((p) => ({ ...p, notes: v }))} placeholder="المقاس، تفضيلات الشخص، رابط أو بدائل..." />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button type="submit" kind="primary" disabled={busy}>{editingGiftId ? "حفظ التعديلات" : "حفظ الهدية"}</Button>{editingGiftId && <Button onClick={resetGiftForm}>إلغاء التعديل</Button>}</div>
+        </form>
+      </Panel>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 10, marginBottom: 14 }}>
+        <Metric label="كل الأفكار" value={data.gifts.length} />
+        <Metric label="أفكار جديدة" value={data.gifts.filter((x) => !x.status || x.status === "idea").length} />
+        <Metric label="تم شراؤها" value={data.gifts.filter((x) => x.status === "purchased").length} />
+        <Metric label="تم تقديمها" value={data.gifts.filter((x) => x.status === "given").length} />
+      </div>
+      <Panel title="سجل الهدايا" hint={"عدد النتائج: " + visibleGifts.length + " · الأرشفة لا تحذف السجل نهائيًا"}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 9, marginBottom: 12 }}>
+          <Field label="بحث" value={giftSearch} onChange={setGiftSearch} placeholder="الهدية أو الشخص أو المناسبة أو الملاحظات" />
+          <SelectField label="الشخص" value={giftFilterPerson} onChange={setGiftFilterPerson} options={[{ value: "", label: "كل الأشخاص" }, ...data.people.map((p) => ({ value: p.id, label: p.name }))]} />
+          <SelectField label="الحالة" value={giftFilterStatus} onChange={setGiftFilterStatus} options={[{ value: "", label: "كل الحالات" }, ...statuses]} />
+        </div>
+        {visibleGifts.length ? <div style={{ display: "grid", gap: 9 }}>{visibleGifts.map((x) => {
+          const occasion = data.occasions.find((o) => o.id === x.occasionId);
+          return <div key={x.id} style={{ border: "1px solid " + C.line, borderRadius: 12, padding: 12, display: "flex", gap: 12, justifyContent: "space-between", alignItems: "start", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 220px", minWidth: 0 }}><strong>{x.idea}</strong><div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{peopleById[x.personId]?.name || "شخص غير محدد"} · {statusLabel[x.status || "idea"] || "فكرة"}{occasion ? " · " + occasion.title : ""}</div><div style={{ color: C.muted, fontSize: 12, marginTop: 3 }}>{x.budget !== "" && x.budget != null ? "الميزانية: " + x.budget + " " + (x.currency || "EGP") : "بدون ميزانية محددة"}{x.targetDate ? " · الموعد: " + x.targetDate : ""}{x.notes ? " · " + x.notes : ""}</div></div>
+            {canEdit && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><Button onClick={() => { setEditingGiftId(x.id); setGiftDraft({ ...blankGift(), ...x, status: x.status || "idea", currency: x.currency || "EGP" }); window.scrollTo?.({ top: 0, behavior: "smooth" }); }}>تعديل</Button>{x.status !== "given" && <Button onClick={() => saveEntity("gifts", { ...x, status: statuses[statuses.findIndex((s) => s.value === (x.status || "idea")) + 1]?.value || "given" })}>المرحلة التالية</Button>}<Button kind="danger" onClick={() => deleteEntity("gifts", x)}>أرشفة</Button></div>}
+          </div>;
+        })}</div> : <Empty>لا توجد هدايا تطابق عوامل التصفية. أضف فكرة أو غيّر عوامل البحث.</Empty>}
       </Panel>
     </>;
   }
