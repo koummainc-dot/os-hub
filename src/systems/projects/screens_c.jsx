@@ -72,19 +72,20 @@ export function Updates() {
 }
 function UpdateEditor({ u, onClose }) {
   const { A: act, can, projectsById, toast, metrics, confirm, nameOf, settings, data } = useP(); const project = projectsById[u.project_id]; const published = u.status === "Published"; const canW = can("update.write", project) && !published;
-  const [d, setD] = useState(u); const setSec = (k, v) => setD({ ...d, sections: { ...d.sections, [k]: v } });
+  const [d, setD] = useState(u); const [addendumForm, setAddendumForm] = useState(false); const setSec = (k, v) => setD({ ...d, sections: { ...d.sections, [k]: v } });
   async function publish() {
     if (!(await confirm("نشر التحديث؟ ستُجمَّد الأرقام ولا يمكن تعديله بعد ذلك (يمكنك إضافة ملحق)."))) return;
     const m = metrics[u.project_id]; const snapshot = { progress: m.progress, health: m.health, leafCompleted: m.leafCompleted, leafTotal: m.leafTotal, openRisks: m.openRisks, openIssues: m.openIssues, actualMinutes: m.actual, at: nowIso() };
     await act.put("updates", { ...d, status: "Published", published_at: nowIso(), snapshot }, project); toast("✅ نُشر التحديث"); onClose();
   }
-  const addendum = async () => { const t = window.prompt("نص الملحق"); if (t) await act.put("updates", { ...d, addenda: [...(d.addenda || []), { at: nowIso(), by: nameOf(d.author_id), text: t }] }, project); onClose(); };
-  return <Modal title={d.title} wide onClose={onClose} footer={<>{canW && <Btn kind="primary" onClick={async () => { await act.put("updates", d, project); toast("✅ تم الحفظ"); }}>💾 حفظ</Btn>}{canW && <Btn onClick={publish}>📣 نشر</Btn>}{published && can("update.write", project) && <Btn onClick={addendum}>➕ ملحق</Btn>}{can("update.write", project) && <Btn danger onClick={async () => { await act.del("updates", u.id, u.title); onClose(); }}>🗑</Btn>}</>}>
+  const addendum = async (text) => { const clean = String(text || "").trim(); if (!clean) throw new Error("اكتب نص الملحق أولاً."); const saved = await act.put("updates", { ...d, addenda: [...(d.addenda || []), { at: nowIso(), by: nameOf(d.author_id), text: clean }] }, project); if (saved) { setD(saved); setAddendumForm(false); toast("✅ أُضيف الملحق"); } };
+  return <Modal title={d.title} wide onClose={onClose} footer={<>{canW && <Btn kind="primary" onClick={async () => { await act.put("updates", d, project); toast("✅ تم الحفظ"); }}>💾 حفظ</Btn>}{canW && <Btn onClick={publish}>📣 نشر</Btn>}{published && can("update.write", project) && <Btn onClick={() => setAddendumForm(true)}>➕ ملحق</Btn>}{can("update.write", project) && <Btn danger onClick={async () => { await act.del("updates", u.id, u.title); onClose(); }}>🗑</Btn>}</>}>
     <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}><ProjectName id={u.project_id} /><span style={{ fontSize: 11.5, color: C.muted }}>{fmt(u.period_start)} → {fmt(u.period_end)}</span>{published && <Chip color={C.ok}>🔒 منشور</Chip>}</div>
     <Field label="تقييم القائد"><select disabled={!canW} style={S.sel} value={d.lead_assessment || ""} onChange={(e) => setD({ ...d, lead_assessment: e.target.value })}>{opts(L.assessment).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></Field>
     {UPDATE_SECTIONS.map((s) => <Field key={s.key} label={s.title}><textarea disabled={!canW} style={{ ...S.ta, minHeight: 70 }} value={(d.sections || {})[s.key] || ""} onChange={(e) => setSec(s.key, e.target.value)} /></Field>)}
     {published && d.snapshot && <div style={{ background: "rgba(0,0,0,0.04)", borderRadius: 8, padding: 10, fontSize: 12 }}>لقطة وقت النشر: تقدم {d.snapshot.progress == null ? "—" : Math.round(d.snapshot.progress * 100) + "%"} · {d.snapshot.leafCompleted}/{d.snapshot.leafTotal} · صحة {D.HEALTH_META[d.snapshot.health].label} · مخاطر {d.snapshot.openRisks} · مشاكل {d.snapshot.openIssues}</div>}
     {(d.addenda || []).map((a, i) => <div key={i} style={{ fontSize: 12, marginTop: 6, color: C.dim }}>➕ {a.by}: {a.text}</div>)}
+    {addendumForm && <FormModal title="إضافة ملحق للتحديث المنشور" initial={{ text: "" }} onClose={() => setAddendumForm(false)} onSubmit={(v) => addendum(v.text)} fields={[{ key: "text", label: "نص الملحق", type: "textarea", rows: 4, required: true }]} />}
   </Modal>;
 }
 
