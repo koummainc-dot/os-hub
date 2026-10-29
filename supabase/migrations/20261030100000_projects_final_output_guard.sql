@@ -630,3 +630,116 @@ before insert or update of data on public.workspace_records
 for each row execute function public.projects_guard_prd_review();
 
 revoke all on function public.projects_guard_prd_review() from public, anon, authenticated;
+
+
+-- Enforce risk ↔ issue traceability for direct writes as well as atomic conversion.
+create or replace function public.projects_guard_risk_issue_links()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  risk_data jsonb;
+  issue_data jsonb;
+  risk_id text;
+  issue_id text;
+  refs_changed boolean := false;
+begin
+  if new.system_id <> 'projects' or new.collection not in ('risks','issues') then
+    return new;
+  end if;
+
+  if tg_op = 'UPDATE' then
+    if (new.data - 'deleted_at' - 'deleted_by' - 'v' - 'updated_at' - 'created_at' - 'updated_by_member')
+       is not distinct from
+       (old.data - 'deleted_at' - 'deleted_by' - 'v' - 'updated_at' - 'created_at' - 'updated_by_member') then
+      return new;
+    end if;
+  end if;
+
+  if new.collection = 'issues' then
+    risk_id := nullif(new.data->>'from_risk_id', '');
+    if tg_op = 'INSERT' then
+      refs_changed := risk_id is not null;
+    else
+      refs_changed := risk_id is distinct from nullif(old.data->>'from_risk_id', '')
+        or (new.data->>'project_id') is distinct from (old.data->>'project_id');
+    end if;
+    if not refs_changed or risk_id is null then
+      return new;
+    end if;
+
+    risk_data := null;
+    select r.data into risk_data
+      from public.workspace_records r
+     where r.workspace_id = new.workspace_id
+       and r.system_id = 'projects'
+       and r.collection = 'risks'
+       and r.id = risk_id
+       and r.deleted = false
+       and (r.visible_to is null or auth.uid() = any(r.visible_to))
+       and public.ws_access_level(new.workspace_id, 'projects', 'risks') in ('view','edit')
+     limit 1;
+    if risk_data is null
+       or risk_data->>'project_id' is distinct from new.data->>'project_id'
+       or risk_data->>'deleted_at' is not null then
+      raise exception 'An issue linked to a risk must reference an active visible risk in the same project' using errcode = '22023';
+    end if;
+    if nullif(risk_data->>'converted_issue_id', '') is not null
+       and risk_data->>'converted_issue_id' is distinct from new.id then
+      raise exception 'The risk is already linked to another issue' using errcode = '22023';
+    end if;
+    if exists (
+      select 1 from public.workspace_records other_issue
+       where other_issue.workspace_id = new.workspace_id
+         and other_issue.system_id = 'projects'
+         and other_issue.collection = 'issues'
+         and other_issue.id <> new.id
+         and other_issue.deleted = false
+         and other_issue.data->>'from_risk_id' = risk_id
+         and other_issue.data->>'deleted_at' is null
+    ) then
+      raise exception 'Only one active issue may be linked to a risk' using errcode = '22023';
+    end if;
+    return new;
+  end if;
+
+  risk_id := new.id;
+  issue_id := nullif(new.data->>'converted_issue_id', '');
+  if new.data->>'status' = 'Materialized' and issue_id is null then
+    raise exception 'A materialized risk must reference its converted issue' using errcode = '22023';
+  end if;
+  if issue_id is null then
+    return new;
+  end if;
+
+  issue_data := null;
+  select i.data into issue_data
+    from public.workspace_records i
+   where i.workspace_id = new.workspace_id
+     and i.system_id = 'projects'
+     and i.collection = 'issues'
+     and i.id = issue_id
+     and i.deleted = false
+     and (i.visible_to is null or auth.uid() = any(i.visible_to))
+     and public.ws_access_level(new.workspace_id, 'projects', 'issues') in ('view','edit')
+   limit 1;
+  if issue_data is null
+     or issue_data->>'project_id' is distinct from new.data->>'project_id'
+     or issue_data->>'deleted_at' is not null
+     or (nullif(issue_data->>'from_risk_id', '') is not null
+         and issue_data->>'from_risk_id' is distinct from risk_id) then
+    raise exception 'A risk conversion must reference a visible issue in the same project without conflicting risk ownership' using errcode = '22023';
+  end if;
+
+  return new;
+end;
+$function$;
+
+drop trigger if exists projects_guard_risk_issue_links_trg on public.workspace_records;
+create trigger projects_guard_risk_issue_links_trg
+before insert or update of data on public.workspace_records
+for each row execute function public.projects_guard_risk_issue_links();
+
+revoke all on function public.projects_guard_risk_issue_links() from public, anon, authenticated;
