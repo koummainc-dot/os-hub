@@ -3,7 +3,7 @@
 create or replace function public.projects_guard_final_outputs()
 returns trigger
 language plpgsql
-security invoker
+security definer
 set search_path = public
 as $function$
 declare
@@ -131,7 +131,7 @@ revoke all on function public.projects_guard_final_outputs() from public, anon;
 create or replace function public.projects_guard_work_sessions()
 returns trigger
 language plpgsql
-security invoker
+security definer
 set search_path = public
 as $function$
 declare
@@ -218,7 +218,7 @@ revoke all on function public.projects_guard_work_sessions() from public, anon;
 create or replace function public.projects_guard_task_references()
 returns trigger
 language plpgsql
-security invoker
+security definer
 set search_path = public
 as $function$
 declare
@@ -334,3 +334,8 @@ before insert or update of data on public.workspace_records
 for each row execute function public.projects_guard_task_references();
 
 revoke all on function public.projects_guard_task_references() from public, anon;
+
+-- These trigger functions are intentionally not callable as application RPCs.
+revoke execute on function public.projects_guard_final_outputs() from authenticated;
+revoke execute on function public.projects_guard_work_sessions() from authenticated;
+revoke execute on function public.projects_guard_task_references() from authenticated;
