@@ -20,8 +20,8 @@ begin
   -- soft-delete/restore can still work without editing the approved artifact.
   if tg_op = 'UPDATE' and old.data->>'approval' = 'Final' then
     if new.data->>'approval' is distinct from 'Final'
-       or (new.data - 'deleted_at' - 'deleted_by')
-          is distinct from (old.data - 'deleted_at' - 'deleted_by') then
+       or (new.data - 'deleted_at' - 'deleted_by' - 'v' - 'updated_at' - 'created_at' - 'updated_by_member')
+          is distinct from (old.data - 'deleted_at' - 'deleted_by' - 'v' - 'updated_at' - 'created_at' - 'updated_by_member') then
       raise exception 'Final outputs are immutable; create a new version instead'
         using errcode = '42501';
     end if;
@@ -457,8 +457,8 @@ begin
     if old.data->>'status' = 'Approved'
        and new.data->>'status' = 'Superseded'
        and can_approve
-       and (new.data - 'status' - 'updated_by_member')
-           is not distinct from (old.data - 'status' - 'updated_by_member') then
+       and (new.data - 'status' - 'updated_by_member' - 'v' - 'updated_at' - 'created_at')
+           is not distinct from (old.data - 'status' - 'updated_by_member' - 'v' - 'updated_at' - 'created_at') then
       return new;
     end if;
     raise exception 'Approved or superseded PRDs are immutable; only the project lead, reviewer, or workspace owner may supersede an approved version' using errcode = '42501';
@@ -469,8 +469,8 @@ begin
   if old.data->>'status' = 'Ready for Review' then
     if new.data->>'status' = 'In Progress' then
       if not can_approve
-         or (new.data - 'status' - 'submitted_for_review_at' - 'updated_by_member')
-            is distinct from (old.data - 'status' - 'submitted_for_review_at' - 'updated_by_member') then
+         or (new.data - 'status' - 'submitted_for_review_at' - 'updated_by_member' - 'v' - 'updated_at' - 'created_at')
+            is distinct from (old.data - 'status' - 'submitted_for_review_at' - 'updated_by_member' - 'v' - 'updated_at' - 'created_at') then
         raise exception 'Only the project lead or workspace owner may return an unchanged PRD to draft' using errcode = '42501';
       end if;
       return new;
@@ -478,8 +478,8 @@ begin
       if not can_approve then
         raise exception 'Only the project lead, reviewer, or workspace owner may approve a PRD' using errcode = '42501';
       end if;
-      if (new.data - 'status' - 'approved_at' - 'updated_by_member')
-         is distinct from (old.data - 'status' - 'approved_at' - 'updated_by_member') then
+      if (new.data - 'status' - 'approved_at' - 'updated_by_member' - 'v' - 'updated_at' - 'created_at')
+         is distinct from (old.data - 'status' - 'approved_at' - 'updated_by_member' - 'v' - 'updated_at' - 'created_at') then
         raise exception 'A PRD cannot be edited while it is being approved' using errcode = '42501';
       end if;
       if coalesce(trim(new.data->>'tldr'), '') = ''
@@ -523,8 +523,8 @@ begin
       end if;
     elsif new.data->>'status' = 'Ready for Review' then
       if not can_review
-         or (new.data - 'approvals' - 'updated_by_member')
-            is distinct from (old.data - 'approvals' - 'updated_by_member') then
+         or (new.data - 'approvals' - 'updated_by_member' - 'v' - 'updated_at' - 'created_at')
+            is distinct from (old.data - 'approvals' - 'updated_by_member' - 'v' - 'updated_at' - 'created_at') then
         raise exception 'A submitted PRD is locked; assigned reviewers may change only their own approval' using errcode = '42501';
       end if;
 
