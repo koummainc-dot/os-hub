@@ -118,7 +118,9 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (to === "Completed") {
         const plan = D.completionPlan(p, idx);
         if (plan.needsDecision) {
-          const choice = await confirm(`يوجد ${plan.openLeaves.length} مهمة مفتوحة. لا يمكن إكمال المشروع قبل حسمها.\n\nاختر: إلغاء المهام المفتوحة (تخرج من التقدم) ثم إكمال المشروع، أو ارجع وأكملها.`, { title: "مهام مفتوحة", ok: "إلغاء المهام المفتوحة وإكمال المشروع", cancel: "رجوع", danger: true });
+          const affected = plan.openLeaves.slice(0, 12).map((t) => `• ${t.title}${t.assignee_id ? " — " + nameOf(t.assignee_id) : ""}${t.due_date ? " — " + t.due_date : ""}`).join("\n");
+          const more = plan.openLeaves.length > 12 ? `\n… و${plan.openLeaves.length - 12} مهام أخرى` : "";
+          const choice = await confirm(`يوجد ${plan.openLeaves.length} مهمة مفتوحة ستُلغى ولن تدخل في التقدم:\n\n${affected}${more}\n\nهل تريد إلغاء كل المهام المفتوحة ثم إكمال المشروع؟`, { title: "راجع المهام المتأثرة", ok: "إلغاء المهام المفتوحة وإكمال المشروع", cancel: "رجوع", danger: true });
           if (!choice) return false;
           for (const t of plan.openLeaves) await R.put("tasks", { ...t, status: "Cancelled", cancelled_reason: "أُلغيت عند إكمال المشروع", completed_at: null });
         }
@@ -126,23 +128,48 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (to === "Cancelled" && !(await confirm("إلغاء المشروع؟ سيبقى في السجل ولا يدخل في الصحة.", { danger: true }))) return false;
       await R.put("projects", { ...p, status: to, status_changed_at: nowIso(), completed_at: to === "Completed" ? nowIso() : p.completed_at || null }); act("projects", p.id, "status", p.status + " → " + to); return true;
     },
-    async archiveProject(p) { await R.put("projects", { ...p, status: "Archived", archived_at: nowIso() }); act("projects", p.id, "archived", p.name); },
-    async restoreProject(p) { await R.put("projects", { ...p, status: "Planned", archived_at: null }); act("projects", p.id, "restored", p.name); },
+    async archiveProject(p) { if (p.archived_at) return; await R.put("projects", { ...p, archived_from_status: p.status === "Archived" ? (p.archived_from_status || "Planned") : p.status, status: "Archived", archived_at: nowIso() }); act("projects", p.id, "archived", p.name); },
+    async restoreProject(p) { const { archived_from_status, ...rest } = p; const restoredStatus = archived_from_status || "Planned"; await R.put("projects", { ...rest, status: restoredStatus, archived_at: null }); act("projects", p.id, "restored", p.name + " → " + restoredStatus); },
     async deleteProject(p) {
-      const kids = idx.list.filter((t) => t.project_id === p.id).length;
-      if (!(await confirm(`حذف المشروع «${p.name}»؟ سيُنقل مع مهامه (${kids}) إلى السلة ويمكن استرجاعه.`, { danger: true, ok: "حذف" }))) return false;
+      const kids = idx.list.filter((t) => t.project_id === p.id);
+      const related = {
+        "مهام": kids.length,
+        "مخرجات": data.outputs.filter((x) => x.project_id === p.id && !x.deleted_at).length,
+        "مخاطر": data.risks.filter((x) => x.project_id === p.id && !x.deleted_at).length,
+        "مشاكل": data.issues.filter((x) => x.project_id === p.id && !x.deleted_at).length,
+        "قرارات": data.decisions.filter((x) => x.project_id === p.id && !x.deleted_at).length,
+        "مواصفات": data.prds.filter((x) => x.project_id === p.id && !x.deleted_at).length,
+        "تحديثات": data.updates.filter((x) => x.project_id === p.id && !x.deleted_at).length,
+      };
+      const summary = Object.entries(related).filter(([, count]) => count > 0).map(([label, count]) => `• ${label}: ${count}`).join("\n") || "لا توجد سجلات تابعة ظاهرة.";
+      const sessionCount = data.sessions.filter((session) => kids.some((task) => task.id === session.task_id)).length;
+      const message = `نقل المشروع «${p.name}» إلى السلة؟\n\nالسجلات التي ستُنقل إلى السلة معه:\n${summary}\n\nجلسات الوقت التاريخية: ${sessionCount} — ستبقى محفوظة كسجل تاريخي، ولن تُحذف تلقائيًا. يمكنك استرجاع المشروع وسجلاته من السلة.`;
+      if (!(await confirm(message, { title: "مراجعة أثر حذف المشروع", danger: true, ok: "نقل إلى السلة" }))) return false;
       for (const c of ["tasks", "outputs", "risks", "issues", "decisions", "prds", "updates"]) for (const k of arr(recs, c).filter((x) => x.project_id === p.id && !x.deleted_at)) await R.softDelete(c, k.id, me);
       await del("projects", p.id, p.name); return true;
     },
     async createFromTemplate(tpl, opts) {
       const r = D.instantiateProjectTemplate(tpl, opts, uid); r.project.created_by = me; if (!r.project.members.length) r.project.members = [{ member_id: me, role: "Lead" }], r.project.lead_id = me;
-      await R.put("projects", stamp(r.project)); for (const t of r.tasks) await R.put("tasks", stamp(t)); for (const k of r.risks) await R.put("risks", stamp(k));
-      act("projects", r.project.id, "created_from_template", tpl.name); return r.project;
+      const written = { projects: false, tasks: [], risks: [] };
+      try {
+        await R.put("projects", stamp(r.project)); written.projects = true;
+        for (const t of r.tasks) { await R.put("tasks", stamp(t)); written.tasks.push(t.id); }
+        for (const k of r.risks) { await R.put("risks", stamp(k)); written.risks.push(k.id); }
+        act("projects", r.project.id, "created_from_template", tpl.name); return r.project;
+      } catch (error) {
+        const cleanupErrors = [];
+        for (const id of [...written.risks].reverse()) { try { await R.softDelete("risks", id, me); } catch (e) { cleanupErrors.push(e); } }
+        for (const id of [...written.tasks].reverse()) { try { await R.softDelete("tasks", id, me); } catch (e) { cleanupErrors.push(e); } }
+        if (written.projects) { try { await R.softDelete("projects", r.project.id, me); } catch (e) { cleanupErrors.push(e); } }
+        if (cleanupErrors.length) throw new Error("فشل إنشاء المشروع من القالب، وفشلت استعادة بعض السجلات الجزئية. راجع سلة Projects OS قبل إعادة المحاولة.");
+        throw new Error("لم يكتمل إنشاء المشروع من القالب؛ أُلغي ما أمكن من السجلات الجزئية. " + (error?.message || "حاول مرة أخرى."));
+      }
     },
     // tasks
     async saveTask(v, isNew) {
       const project = projectsById[v.project_id];
       const errs = D.validateTaskRefs({ ...v, id: v.id || "new" }, { projectsById, tasksById: idx.byId, prdsById }); if (errs.length) throw new Error(errs[0]);
+      for (const discoveryId of (v.discovery_ids || [])) { const discovery = data.discovery.find((d) => d.id === discoveryId); if (!discovery) throw new Error("عنصر اكتشاف مرتبط غير موجود"); if ((discovery.project_ids || []).length && !discovery.project_ids.includes(v.project_id)) throw new Error("عنصر الاكتشاف يجب أن يكون مرتبطاً بالمشروع نفسه"); }
       if (D.traceabilityBlocked(settings, project && project.type, project && project.is_system, v)) throw new Error("سياسة التتبع: هذا النوع من المشاريع يتطلب ربط المهمة بمواصفة أو اكتشاف");
       const rec = { ...v, id: v.id || uid(), planning_bucket: v.planning_bucket || "Inbox", status: v.status || "Not Started" };
       const prev = v.id ? idx.byId[v.id] || (recs.tasks || {})[v.id] : null;

@@ -8,7 +8,7 @@ export const L = {
   issueStatus: { Open: "مفتوحة", "In Progress": "قيد الحل", Resolved: "محلولة", Closed: "مغلقة" },
   severity: { Low: "منخفضة", Medium: "متوسطة", High: "عالية", Critical: "حرجة" },
   decisionStatus: { Proposed: "مقترح", Approved: "معتمد", Cancelled: "ملغى", Superseded: "حلّ محله قرار آخر" },
-  discoveryType: { Problem: "مشكلة", Idea: "فكرة", Opportunity: "فرصة" },
+  discoveryType: { Problem: "مشكلة محتملة (اكتشاف)", Idea: "فكرة", Opportunity: "فرصة" },
   discoveryStatus: { Inbox: "الوارد", Prioritized: "مُرتَّب", "Working On": "قيد العمل", Completed: "مكتمل", Icebox: "الثلاجة", Dropped: "مُسقَط" },
   prdStatus: { "Not Started": "لم يبدأ", "In Progress": "قيد الكتابة", "Ready for Review": "جاهز للمراجعة", Approved: "معتمد", Superseded: "تم استبداله" },
   approval: { Draft: "مسودة", Review: "مراجعة", Final: "نهائي" },

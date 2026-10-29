@@ -44,30 +44,30 @@ export function ProjectForm({ initial, onClose }) {
 
 // ── Task form ───────────────────────────────────────────────────────
 export function TaskForm({ initial, projectId, parentId, onClose }) {
-  const { A: act, people, data, idx, projectsById, toast, can } = useP(); const isNew = !initial || !initial.id;
-  const base = { project_id: projectId || (initial && initial.project_id) || "proj_general", parent_task_id: parentId || null, priority: "Medium", planning_bucket: "Inbox", status: "Not Started", ...initial };
+  const { A: act, people, data, idx, projectsById, toast, can } = useP(); const isNew = !initial || !initial.id; const [showAdvanced, setShowAdvanced] = useState(false);
+  const base = { project_id: projectId || (initial && initial.project_id) || "", parent_task_id: parentId || null, priority: "Medium", planning_bucket: "Inbox", status: "Not Started", ...initial };
   const isParent = !isNew && !idx.isLeaf(initial.id); const dv = isParent ? idx.derived[initial.id] : null;
   const initVals = isParent ? { ...base, status: dv.status, estimated_minutes: dv.estimated, due_date: dv.dueMax } : base;
   const descIds = isNew ? [] : [initial.id, ...idx.descendants(initial.id)];
   const fields = [
     { key: "title", label: "عنوان المهمة", required: true, span: 2 },
     { key: "project_id", label: "المشروع", type: "select", allowEmpty: false, options: projOpts(data.projects), disabled: () => !isNew && !!initial.id, hint: "لنقل المهمة لمشروع آخر استخدم «نقل الشجرة»" },
-    { key: "parent_task_id", label: "المهمة الأب", type: "select", emptyLabel: "— مستوى أعلى —", options: (v) => idx.list.filter((t) => t.project_id === v.project_id && !descIds.includes(t.id)).map((t) => ({ v: t.id, l: "  ".repeat(idx.derived[t.id] ? idx.derived[t.id].depth : 0) + t.title })) },
-    { key: "status", label: isParent ? "الحالة (مشتقة)" : "الحالة", type: "select", allowEmpty: false, options: opts(L.taskStatus), disabled: () => isParent },
-    { key: "cancelled_reason", label: "سبب الإلغاء", required: true, show: (v) => v.status === "Cancelled" && !isParent },
     { key: "priority", label: "الأولوية", type: "select", options: opts(L.priority), allowEmpty: false },
-    { key: "planning_bucket", label: "تخطيط الأسبوع", type: "select", options: opts(L.bucket), allowEmpty: false, show: () => !isParent },
-    { key: "assignee_id", label: "المسؤول", type: "select", options: mOpts(people), emptyLabel: "— غير مسند —", hint: "لا يُورَّث من الأب" },
     { key: "due_date", label: isParent ? "الموعد (مشتق من الأبناء)" : "الموعد النهائي", type: "date", disabled: () => isParent },
-    { key: "estimated_minutes", label: isParent ? "التقدير (مجموع الأبناء)" : "التقدير (دقائق)", type: "number", min: 0, disabled: () => isParent },
-    { key: "prd_id", label: "المواصفة (PRD)", type: "select", emptyLabel: "— بلا —", options: (v) => data.prds.filter((p) => p.project_id === v.project_id).map((p) => ({ v: p.id, l: p.title })), hint: "يجب أن تتبع نفس المشروع" },
-    { key: "discovery_ids", label: "عناصر الاكتشاف (لماذا وُجدت؟)", type: "multi", options: data.discovery.map((d) => ({ v: d.id, l: d.title })) },
-    { key: "blocked", label: "متعطّلة؟", type: "bool", checkLabel: "المهمة متعطّلة (لا يغيّر التقدم)" },
-    { key: "blocked_reason", label: "سبب التعطّل", show: (v) => !!v.blocked },
-    { key: "description", label: "الوصف", type: "textarea" }, { key: "result_note", label: "النتيجة السريعة (نص/رابط)", type: "textarea", rows: 2 },
+    { key: "status", label: isParent ? "الحالة (مشتقة)" : "الحالة", type: "select", allowEmpty: false, options: opts(L.taskStatus), disabled: () => isParent, show: () => !showAdvanced },
+    { key: "parent_task_id", label: "المهمة الأب", type: "select", emptyLabel: "— مستوى أعلى —", options: (v) => idx.list.filter((t) => t.project_id === v.project_id && !descIds.includes(t.id)).map((t) => ({ v: t.id, l: "  ".repeat(idx.derived[t.id] ? idx.derived[t.id].depth : 0) + t.title })), show: () => showAdvanced },
+    { key: "cancelled_reason", label: "سبب الإلغاء", required: true, show: (v) => v.status === "Cancelled" && !isParent },
+    { key: "planning_bucket", label: "تخطيط الأسبوع", type: "select", options: opts(L.bucket), allowEmpty: false, show: () => showAdvanced && !isParent },
+    { key: "assignee_id", label: "المسؤول", type: "select", options: mOpts(people), emptyLabel: "— غير مسند —", hint: "لا يُورَّث من الأب", show: () => showAdvanced },
+    { key: "estimated_minutes", label: isParent ? "التقدير (مجموع الأبناء)" : "التقدير (دقائق)", type: "number", min: 0, disabled: () => isParent, show: () => showAdvanced },
+    { key: "prd_id", label: "المواصفة (PRD)", type: "select", emptyLabel: "— بلا —", options: (v) => data.prds.filter((p) => p.project_id === v.project_id).map((p) => ({ v: p.id, l: p.title })), hint: "يجب أن تتبع نفس المشروع", show: () => showAdvanced },
+    { key: "discovery_ids", label: "عناصر الاكتشاف (لماذا وُجدت؟)", type: "multi", options: (v) => data.discovery.filter((d) => !d.project_ids?.length || d.project_ids.includes(v.project_id)).map((d) => ({ v: d.id, l: d.title })), show: () => showAdvanced },
+    { key: "blocked", label: "متعطّلة؟", type: "bool", checkLabel: "المهمة متعطّلة (لا يغيّر التقدم)", show: () => showAdvanced },
+    { key: "blocked_reason", label: "سبب التعطّل", show: (v) => showAdvanced && !!v.blocked },
+    { key: "description", label: "الوصف", type: "textarea", show: () => showAdvanced }, { key: "result_note", label: "النتيجة السريعة (نص/رابط)", type: "textarea", rows: 2, show: () => showAdvanced },
   ];
   return <FormModal title={isNew ? (parentId ? "مهمة فرعية جديدة" : "مهمة جديدة") : "تعديل المهمة"} wide fields={fields} initial={initVals}
-    onSubmit={async (v) => { const out = { ...v }; if (isParent) { out.status = initial.status; out.estimated_minutes = initial.estimated_minutes; out.due_date = initial.due_date; } if (out.status !== "Cancelled") out.cancelled_reason = null; const saved = await act.saveTask(out, isNew); if (saved === null) return false; toast("✅ تم الحفظ"); onClose(); }} onClose={onClose} />;
+    onSubmit={async (v) => { const out = { ...v }; if (isParent) { out.status = initial.status; out.estimated_minutes = initial.estimated_minutes; out.due_date = initial.due_date; } if (out.status !== "Cancelled") out.cancelled_reason = null; const saved = await act.saveTask(out, isNew); if (saved === null) return false; toast("✅ تم الحفظ"); onClose(); }} onClose={onClose}>{() => <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid " + C.line }}><Btn small onClick={() => setShowAdvanced((v) => !v)}>{showAdvanced ? "إخفاء التفاصيل الإضافية" : "⚙ تفاصيل إضافية"}</Btn><span style={{ marginInlineStart: 8, fontSize: 11, color: C.muted }}>ابدأ بالعنوان والأولوية والموعد؛ بقية الحقول اختيارية.</span></div>}</FormModal>;
 }
 
 // ── Task tree ───────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter }) {
           {t.assignee_id && <Who id={t.assignee_id} size={18} />}
           <DueChip date={leaf ? t.due_date : d.dueMax} status={status} today={today} />
           {(d.estimated > 0) && <span style={{ fontSize: 10.5, color: C.muted }}>⏱ {fmtMinutes(d.actual)}/{fmtMinutes(d.estimated)}</span>}
-          {canWrite && <button aria-label="خيارات" onClick={() => setMenu(menu === t.id ? null : t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 16 }}>⋯</button>}
+          {canWrite && <><button type="button" aria-label={"إضافة مهمة فرعية إلى " + t.title} title="إضافة مهمة فرعية" onClick={() => setForm({ parentId: t.id })} style={{ background: "none", border: "1px solid " + C.line, borderRadius: 6, cursor: "pointer", color: C.info, fontSize: 11, padding: "3px 5px", whiteSpace: "nowrap" }}>＋ فرعية</button><button aria-label="خيارات" onClick={() => setMenu(menu === t.id ? null : t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 16 }}>⋯</button></>}
         </div>
         {menu === t.id && canWrite && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "6px 8px", paddingInlineStart: 30 + depth * 22, background: "rgba(0,0,0,0.03)" }}>
@@ -115,7 +115,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter }) {
   };
   return (
     <div>
-      {canWrite && <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}><Btn kind="primary" small onClick={() => setForm({})}>➕ مهمة جديدة</Btn><span style={{ fontSize: 11, color: C.muted }}>اسحب مهمة وأفلتها على مهمة أخرى لتصبح فرعاً لها</span></div>}
+      {canWrite && <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}><Btn kind="primary" small onClick={() => setForm({})}>➕ مهمة جديدة</Btn><span style={{ fontSize: 11, color: C.muted }}>يمكنك استخدام «＋ فرعية» أو خيارات المهمة لنقلها؛ السحب اختياري.</span></div>}
       {roots.length === 0 && <Empty icon="✅" title="لا توجد مهام بعد" sub="أضف أول مهمة أو أنشئ المشروع من قالب جاهز." />}
       <div style={{ ...S.card, padding: 0, overflow: "hidden", display: roots.length ? "block" : "none" }}
         onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => { const id = e.dataTransfer.getData("text/plain"); if (id && e.target === e.currentTarget) await act.reparent(id, null); }}>
@@ -134,15 +134,26 @@ function MoveTreeButton({ t, onDone }) {
 
 // ── Task detail sheet ───────────────────────────────────────────────
 export function TaskSheet() {
-  const { view, closeTask, idx, data, A: act, can, projectsById, today, runningTimer, nameOf, toast, openProject, settings, me } = useP();
-  const t = view.taskId ? (idx.byId[view.taskId] || null) : null; const [tab, setTab] = useState("details"); const [edit, setEdit] = useState(false); const [sessForm, setSessForm] = useState(false); const [cancelReason, setCancelReason] = useState(null);
+  const { view, closeTask, idx, data, A: act, can, projectsById, today, runningTimer, nameOf, toast, openProject, setPage, settings, me } = useP();
+  const t = view.taskId ? (idx.byId[view.taskId] || null) : null; const [tab, setTab] = useState("details"); const [edit, setEdit] = useState(false); const [sessForm, setSessForm] = useState(false); const [cancelReason, setCancelReason] = useState(null); const [outputForm, setOutputForm] = useState(null);
   useEffect(() => { setTab("details"); }, [view.taskId]);
   if (!view.taskId) return null; if (!t) return null;
   const project = projectsById[t.project_id]; const d = idx.derived[t.id]; const leaf = d.isLeaf; const canW = can("task.write", project);
   const sessions = data.sessions.filter((s) => s.task_id === t.id || idx.descendants(t.id).includes(s.task_id)).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  const outs = data.outputs.filter((o) => o.task_id === t.id); const status = leaf ? t.status : d.status;
+  const outs = data.outputs.filter((o) => o.task_id === t.id); const linkedIssues = data.issues.filter((i) => (i.task_ids || []).includes(t.id) || (t.issue_ids || []).includes(i.id)); const canOut = can("output.write", project); const status = leaf ? t.status : d.status;
   const acts = data.activity.filter((a) => a.entity_id === t.id).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 15);
   const tabs = [{ id: "details", label: "التفاصيل" }, { id: "time", label: "الوقت", count: sessions.length }, { id: "outputs", label: "المخرجات", count: outs.length }, { id: "links", label: "الروابط" }, { id: "activity", label: "النشاط" }];
+  async function saveOutput(v) {
+    if (!String(v.name || "").trim()) throw new Error("اسم المخرج مطلوب");
+    const prd = v.prd_id ? data.prds.find((x) => x.id === v.prd_id) : null;
+    if (prd && prd.project_id !== t.project_id) throw new Error("المواصفة يجب أن تتبع نفس مشروع المهمة");
+    const existing = v.id ? data.outputs.find((x) => x.id === v.id) : null;
+    if (existing?.approval === "Final") throw new Error("المخرج النهائي مقفل؛ أنشئ مخرجاً جديداً بدل تعديل النسخة المعتمدة.");
+    if (v.approval === "Final" && !can("output.approve", project)) throw new Error("لا تملك صلاحية اعتماد المخرج نهائياً");
+    await act.put("outputs", { ...v, id: v.id || uid(), project_id: t.project_id, task_id: t.id, approval: v.approval || "Draft", approved_by: v.approval === "Final" ? me : null, approved_at: v.approval === "Final" ? new Date().toISOString() : null }, project);
+    toast(existing ? "✅ تم تحديث المخرج" : "✅ تم إنشاء المخرج وربطه بالمهمة");
+    setOutputForm(null);
+  }
   return (
     <Modal title={t.title} wide onClose={closeTask} footer={<>
       {canW && <Btn onClick={() => setEdit(true)}>✎ تعديل</Btn>}
@@ -162,7 +173,7 @@ export function TaskSheet() {
           <div>التقدير: {fmtMinutes(d.estimated)} · الفعلي: {fmtMinutes(d.actual)} · الفرق: {d.estimated ? fmtMinutes(Math.abs(d.variance)) + (d.variance > 0 ? " زيادة" : " توفير") : "—"}</div>
           {t.description && <div style={{ whiteSpace: "pre-wrap", marginTop: 6 }}>{t.description}</div>}
           {t.cancelled_reason && <div style={{ color: C.bad }}>سبب الإلغاء: {t.cancelled_reason}</div>}
-          {t.result_note && <div style={{ background: "rgba(16,185,129,0.07)", padding: "8px 10px", borderRadius: 8, marginTop: 6 }}><b>النتيجة:</b> {t.result_note}{canW && <div style={{ marginTop: 6 }}><Btn small onClick={() => act.put("outputs", { id: uid(), name: t.title, project_id: t.project_id, task_id: t.id, type: "Other", approval: "Draft", url: /^https?:/.test(t.result_note) ? t.result_note : "", notes: t.result_note }, project).then(() => toast("✅ تم إنشاء مخرج من النتيجة"))}>📦 حوّل إلى مخرج</Btn></div>}</div>}
+          {t.result_note && <div style={{ background: "rgba(16,185,129,0.07)", padding: "8px 10px", borderRadius: 8, marginTop: 6 }}><b>النتيجة السريعة:</b> {t.result_note}{canOut && <div style={{ marginTop: 6 }}>{outs.some((o) => o.source_result_task_id === t.id || (o.name === t.title && o.notes === t.result_note)) ? <Chip color={C.ok}>يوجد مخرج لهذه النتيجة بالفعل</Chip> : <Btn small onClick={() => setOutputForm({ name: t.title, type: "Other", approval: "Draft", url: /^https?:/.test(t.result_note) ? t.result_note : "", notes: t.result_note, source_result_task_id: t.id })}>📦 مراجعة وإنشاء مخرج من النتيجة</Btn>}</div>}</div>}
           {!leaf && <div style={{ marginTop: 6 }}>الأوراق: {d.leafDone}/{d.leafTotal} مكتملة</div>}
         </div>
       )}
@@ -174,26 +185,28 @@ export function TaskSheet() {
           {sessForm && <SessionForm taskId={t.id} onClose={() => setSessForm(false)} />}
         </div>
       )}
-      {tab === "outputs" && (!outs.length ? <Empty icon="📦" title="لا مخرجات مرتبطة" sub="أنشئ مخرجاً من شاشة المخرجات وربطه بهذه المهمة." /> : outs.map((o) => <div key={o.id} style={{ padding: "6px 0", fontSize: 13 }}>📦 {o.name} <Chip color={o.approval === "Final" ? C.ok : C.muted}>{L.approval[o.approval]}</Chip></div>))}
+      {tab === "outputs" && <div>{canOut && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setOutputForm({ name: t.title, type: "Other", approval: "Draft" })}>➕ إضافة مخرج لهذه المهمة</Btn></div>}{!outs.length ? <Empty icon="📦" title="لا مخرجات مرتبطة" sub="أنشئ المخرج هنا وسيُربط بالمشروع والمهمة تلقائياً." /> : outs.map((o) => <div key={o.id} style={{ ...S.card, padding: "9px 11px", marginBottom: 7 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><b style={{ flex: 1 }}>📦 {o.name}</b><Chip color={o.approval === "Final" ? C.ok : o.approval === "Review" ? C.warn : C.muted}>{L.approval[o.approval] || o.approval}</Chip><Chip>{o.type}</Chip>{canOut && o.approval !== "Final" && <Btn small onClick={() => setOutputForm(o)}>تعديل</Btn>}{o.approval === "Final" && <Chip color={C.ok}>🔒 نهائي — مقفل</Chip>}</div>{o.url ? <a href={o.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.info, wordBreak: "break-all" }}>{o.url}</a> : <div style={{ fontSize: 11, color: C.muted }}>لم يُضف رابط بعد — رفع الملفات غير متاح في هذا الإصدار.</div>}{o.prd_id && <div style={{ fontSize: 11.5, color: C.dim }}>المواصفة: {(data.prds.find((x) => x.id === o.prd_id) || {}).title || "—"}</div>}{o.notes && <div style={{ fontSize: 12, color: C.dim, whiteSpace: "pre-wrap" }}>{o.notes}</div>}</div>)}</div>}
       {tab === "links" && (
         <div style={{ fontSize: 13, lineHeight: 2 }}>
-          <div>المواصفة: {t.prd_id ? (data.prds.find((p) => p.id === t.prd_id) || {}).title || "—" : "—"}</div>
-          <div>لماذا وُجدت؟ {(t.discovery_ids || []).length ? (t.discovery_ids || []).map((id) => (data.discovery.find((x) => x.id === id) || {}).title).filter(Boolean).join(" · ") : "—"}</div>
+          <div>المواصفة: {t.prd_id ? (() => { const prd = data.prds.find((p) => p.id === t.prd_id); return prd ? <button type="button" onClick={() => { closeTask(); openProject(prd.project_id, "prds"); }} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>{prd.title} ↗</button> : "مواصفة غير متاحة"; })() : "—"}</div>
+          <div style={{ marginTop: 6 }}>لماذا وُجدت؟ {(t.discovery_ids || []).length ? (t.discovery_ids || []).map((id) => data.discovery.find((x) => x.id === id)).filter(Boolean).map((x) => <button key={x.id} type="button" onClick={() => { closeTask(); setPage("discovery"); }} style={{ border: 0, padding: "0 4px", background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>{x.title} ↗</button>) : "—"}</div><div style={{ marginTop: 6 }}>المشاكل المرتبطة: {linkedIssues.length ? linkedIssues.map((i) => <button key={i.id} type="button" onClick={() => { closeTask(); openProject(i.project_id, "issues"); }} style={{ display: "inline-flex", marginInlineEnd: 6, border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>{i.title} ↗</button>) : "—"}</div>
         </div>
       )}
       {tab === "activity" && (!acts.length ? <Empty icon="🕘" title="لا نشاط مسجَّل" /> : acts.map((a) => <div key={a.id} style={{ fontSize: 12, padding: "4px 0", color: C.dim }}>{dateOf(a.at, settings.timezone)} · {nameOf(a.actor_id)} · {a.action} {a.summary}</div>))}
+      {outputForm && <FormModal title={outputForm.id ? "تعديل المخرج المرتبط بالمهمة" : "إضافة مخرج للمهمة"} wide initial={{ type: "Other", approval: "Draft", ...outputForm }} onClose={() => setOutputForm(null)} onSubmit={saveOutput} fields={[{ key: "name", label: "اسم المخرج", required: true, span: 2 }, { key: "type", label: "النوع", type: "select", allowEmpty: false, options: [{ v: "Design", l: "تصميم" }, { v: "Code", l: "كود" }, { v: "Document", l: "مستند" }, { v: "Sample", l: "عينة" }, { v: "Video", l: "فيديو" }, { v: "Other", l: "أخرى" }] }, { key: "prd_id", label: "المواصفة التي يحققها", type: "select", emptyLabel: "— بلا —", options: data.prds.filter((x) => x.project_id === t.project_id).map((x) => ({ v: x.id, l: x.title })) }, { key: "approval", label: "حالة الاعتماد", type: "select", allowEmpty: false, options: opts(L.approval) }, { key: "url", label: "الرابط", type: "url" }, { key: "notes", label: "ملاحظات", type: "textarea", rows: 2 }]} />}
       {edit && <TaskForm initial={t} onClose={() => setEdit(false)} />}
       {cancelReason !== null && <FormModal title="إلغاء المهمة" fields={[{ key: "r", label: "سبب الإلغاء", required: true, type: "textarea" }]} initial={{ r: "" }} onClose={() => setCancelReason(null)} onSubmit={async (v) => { await act.setTaskStatus(t, "Cancelled", v.r); setCancelReason(null); }} />}
     </Modal>
   );
 }
 export function SessionForm({ taskId, onClose }) {
-  const { A: act, today, toast, data, idx } = useP(); const [gid] = useState(() => uid());
+  const { A: act, today, toast, idx } = useP(); const [gid] = useState(() => uid());
   const leaves = idx.list.filter((t) => idx.isLeaf(t.id)).map((t) => ({ v: t.id, l: t.title }));
-  return <FormModal title="جلسة عمل" initial={{ task_id: taskId, date: today, minutes: 30 }} fields={[
-    { key: "task_id", label: "المهمة", type: "select", options: leaves, allowEmpty: false, required: true },
+  return <FormModal title="جلسة عمل" initial={{ task_id: taskId, choose_other_task: false, date: today, minutes: 30 }} fields={[
+    ...(taskId ? [{ key: "choose_other_task", label: "السياق", type: "bool", checkLabel: "اختيار مهمة أخرى" }] : []),
+    { key: "task_id", label: taskId ? "المهمة المحددة من نافذة المهمة" : "المهمة", type: "select", options: (v) => taskId && !v.choose_other_task ? leaves.filter((t) => t.v === taskId) : leaves, allowEmpty: false, required: true },
     { key: "date", label: "التاريخ", type: "date", required: true }, { key: "minutes", label: "الدقائق (1–1440)", type: "number", min: 1, max: 1440, required: true }, { key: "note", label: "ملاحظة", type: "textarea", rows: 2 }]}
-    onClose={onClose} onSubmit={async (v) => { await act.addSession({ ...v, client_generated_id: gid, id: undefined }); toast("✅ سُجِّلت الجلسة"); onClose(); }} />;
+    onClose={onClose} onSubmit={async (v) => { const { choose_other_task, ...session } = v; await act.addSession({ ...session, client_generated_id: gid, id: undefined }); toast("✅ سُجِّلت الجلسة"); onClose(); }} />;
 }
 export function TimerBar() {
   const { runningTimer, A: act, idx, openTask } = useP(); const [, tick] = useState(0);

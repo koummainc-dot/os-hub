@@ -11,7 +11,7 @@ import { TemplatePicker } from "./screens_b.jsx";
 
 // ═════ OKRs ═════
 export function Okrs() {
-  const { data, A: act, projectProgress, today, settings, people, me, can, toast, role, nameOf, confirm } = useP();
+  const { data, A: act, projectProgress, today, settings, people, me, toast, role, nameOf, confirm } = useP();
   const [oForm, setOForm] = useState(null); const [kForm, setKForm] = useState(null); const [ci, setCi] = useState(null); const [hist, setHist] = useState(null); const [filter, setFilter] = useState("Active");
   const objs = data.objectives.filter((o) => filter === "all" || o.status === filter);
   const canEditObj = (o) => role === "Owner" || role === "Admin" || !o || o.owner_id === me || o.created_by === me;
@@ -32,7 +32,7 @@ export function Okrs() {
               <div key={k.id} style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.5fr) minmax(110px,1fr) 100px auto", gap: 8, padding: "7px 0", borderTop: `1px solid ${C.line}`, alignItems: "center", fontSize: 12.5 }}>
                 <div><b>{k.name}</b><div style={{ fontSize: 10.5, color: C.muted }}>{k.type === "Numeric" ? `${k.initial_value ?? 0} → ${k.target_value} ${k.unit || ""} · الحالي ${k.current_value ?? k.initial_value ?? 0}` : `${(k.project_ids || []).length} مشروع`}{raw != null && raw > 1 ? ` · تجاوز الهدف ${Math.round(raw * 100)}%` : ""}</div></div>
                 <Progress value={val} /><Chip color={D.PACE_META[kp].color}>{D.PACE_META[kp].label}</Chip>
-                <span style={{ display: "inline-flex", gap: 4 }}>{k.type === "Numeric" && (can("okr.write") ) && <Btn small onClick={() => setCi({ kr: k, value: k.current_value ?? k.initial_value ?? 0 })}>📍 Check-in</Btn>}<Btn small onClick={() => setHist(k)}>سجل</Btn>{canEditObj(o) && <><Btn small onClick={() => setKForm(k)}>✎</Btn><Btn small danger onClick={() => act.del("krs", k.id, k.name)}>🗑</Btn></>}</span>
+                <span style={{ display: "inline-flex", gap: 4 }}>{k.type === "Numeric" && canEditObj(o) && <Btn small onClick={() => setCi({ kr: k, value: k.current_value ?? k.initial_value ?? 0 })}>📍 Check-in</Btn>}<Btn small onClick={() => setHist(k)}>سجل</Btn>{canEditObj(o) && <><Btn small onClick={() => setKForm(k)}>✎</Btn><Btn small danger onClick={() => act.del("krs", k.id, k.name)}>🗑</Btn></>}</span>
               </div>); })}{!krs.length && <div style={{ fontSize: 12, color: C.muted }}>لا نتائج رئيسية بعد</div>}</div>
           </div>);
       })}
@@ -72,19 +72,20 @@ export function Updates() {
 }
 function UpdateEditor({ u, onClose }) {
   const { A: act, can, projectsById, toast, metrics, confirm, nameOf, settings, data } = useP(); const project = projectsById[u.project_id]; const published = u.status === "Published"; const canW = can("update.write", project) && !published;
-  const [d, setD] = useState(u); const setSec = (k, v) => setD({ ...d, sections: { ...d.sections, [k]: v } });
+  const [d, setD] = useState(u); const [addendumForm, setAddendumForm] = useState(false); const setSec = (k, v) => setD({ ...d, sections: { ...d.sections, [k]: v } });
   async function publish() {
     if (!(await confirm("نشر التحديث؟ ستُجمَّد الأرقام ولا يمكن تعديله بعد ذلك (يمكنك إضافة ملحق)."))) return;
     const m = metrics[u.project_id]; const snapshot = { progress: m.progress, health: m.health, leafCompleted: m.leafCompleted, leafTotal: m.leafTotal, openRisks: m.openRisks, openIssues: m.openIssues, actualMinutes: m.actual, at: nowIso() };
     await act.put("updates", { ...d, status: "Published", published_at: nowIso(), snapshot }, project); toast("✅ نُشر التحديث"); onClose();
   }
-  const addendum = async () => { const t = window.prompt("نص الملحق"); if (t) await act.put("updates", { ...d, addenda: [...(d.addenda || []), { at: nowIso(), by: nameOf(d.author_id), text: t }] }, project); onClose(); };
-  return <Modal title={d.title} wide onClose={onClose} footer={<>{canW && <Btn kind="primary" onClick={async () => { await act.put("updates", d, project); toast("✅ تم الحفظ"); }}>💾 حفظ</Btn>}{canW && <Btn onClick={publish}>📣 نشر</Btn>}{published && can("update.write", project) && <Btn onClick={addendum}>➕ ملحق</Btn>}{can("update.write", project) && <Btn danger onClick={async () => { await act.del("updates", u.id, u.title); onClose(); }}>🗑</Btn>}</>}>
+  const addendum = async (text) => { const clean = String(text || "").trim(); if (!clean) throw new Error("اكتب نص الملحق أولاً."); const saved = await act.put("updates", { ...d, addenda: [...(d.addenda || []), { at: nowIso(), by: nameOf(d.author_id), text: clean }] }, project); if (saved) { setD(saved); setAddendumForm(false); toast("✅ أُضيف الملحق"); } };
+  return <Modal title={d.title} wide onClose={onClose} footer={<>{canW && <Btn kind="primary" onClick={async () => { await act.put("updates", d, project); toast("✅ تم الحفظ"); }}>💾 حفظ</Btn>}{canW && <Btn onClick={publish}>📣 نشر</Btn>}{published && can("update.write", project) && <Btn onClick={() => setAddendumForm(true)}>➕ ملحق</Btn>}{can("update.write", project) && <Btn danger onClick={async () => { await act.del("updates", u.id, u.title); onClose(); }}>🗑</Btn>}</>}>
     <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}><ProjectName id={u.project_id} /><span style={{ fontSize: 11.5, color: C.muted }}>{fmt(u.period_start)} → {fmt(u.period_end)}</span>{published && <Chip color={C.ok}>🔒 منشور</Chip>}</div>
     <Field label="تقييم القائد"><select disabled={!canW} style={S.sel} value={d.lead_assessment || ""} onChange={(e) => setD({ ...d, lead_assessment: e.target.value })}>{opts(L.assessment).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></Field>
     {UPDATE_SECTIONS.map((s) => <Field key={s.key} label={s.title}><textarea disabled={!canW} style={{ ...S.ta, minHeight: 70 }} value={(d.sections || {})[s.key] || ""} onChange={(e) => setSec(s.key, e.target.value)} /></Field>)}
     {published && d.snapshot && <div style={{ background: "rgba(0,0,0,0.04)", borderRadius: 8, padding: 10, fontSize: 12 }}>لقطة وقت النشر: تقدم {d.snapshot.progress == null ? "—" : Math.round(d.snapshot.progress * 100) + "%"} · {d.snapshot.leafCompleted}/{d.snapshot.leafTotal} · صحة {D.HEALTH_META[d.snapshot.health].label} · مخاطر {d.snapshot.openRisks} · مشاكل {d.snapshot.openIssues}</div>}
     {(d.addenda || []).map((a, i) => <div key={i} style={{ fontSize: 12, marginTop: 6, color: C.dim }}>➕ {a.by}: {a.text}</div>)}
+    {addendumForm && <FormModal title="إضافة ملحق للتحديث المنشور" initial={{ text: "" }} onClose={() => setAddendumForm(false)} onSubmit={(v) => addendum(v.text)} fields={[{ key: "text", label: "نص الملحق", type: "textarea", rows: 4, required: true }]} />}
   </Modal>;
 }
 
@@ -192,19 +193,76 @@ export function Team() {
 }
 
 // ═════ Templates ═════
+const flattenTaskTree = (nodes, depth = 0) => (nodes || []).flatMap((n) => [`${"  ".repeat(depth)}${n.title || ""}${n.estimate_minutes ? " | " + n.estimate_minutes : ""}`, ...flattenTaskTree(n.children || [], depth + 1)]);
+function parseTaskTreeText(value) {
+  const roots = []; const stack = [];
+  for (const raw of String(value || "").split("\n")) {
+    if (!raw.trim()) continue;
+    const indent = (raw.match(/^[ \t]*/) || [""])[0].replace(/\t/g, "  ").length;
+    const depth = Math.floor(indent / 2); const [titlePart, estimatePart] = raw.trim().split(/\s+\|\s+/);
+    const node = { title: titlePart.trim(), children: [] };
+    if (estimatePart && Number.isFinite(Number(estimatePart))) node.estimate_minutes = Math.max(0, Number(estimatePart));
+    if (depth === 0 || !stack[depth - 1]) roots.push(node); else stack[depth - 1].children.push(node);
+    stack[depth] = node; stack.length = depth + 1;
+  }
+  const clean = (nodes) => nodes.map((n) => ({ ...n, ...(n.estimate_minutes == null ? {} : { estimate_minutes: n.estimate_minutes }), children: clean(n.children) }));
+  return clean(roots);
+}
+function validateTaskTreeText(value) {
+  const lines = String(value || "").split("\n").map((raw) => ({ raw, text: raw.trim() })).filter((x) => x.text);
+  let previousDepth = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const { raw, text } = lines[i];
+    const prefix = (raw.match(/^[ \t]*/) || [""])[0].replace(/\t/g, "  ");
+    if (prefix.length % 2 !== 0) return `السطر ${i + 1}: استخدم مسافتين لكل مستوى فرعي.`;
+    const depth = prefix.length / 2;
+    if (i === 0 && depth !== 0) return "ابدأ شجرة المهام بمهمة رئيسية دون مسافات في أول سطر.";
+    if (i > 0 && depth > previousDepth + 1) return `السطر ${i + 1}: لا يمكن تخطي مستوى كامل؛ أضف المهمة الأب أولاً.`;
+    const [title, estimate] = text.split(/\s+\|\s+/);
+    if (!title || !title.trim()) return `السطر ${i + 1}: عنوان المهمة مطلوب.`;
+    if (estimate !== undefined && (!/^\d+(\.\d+)?$/.test(estimate.trim()) || Number(estimate) < 0)) return `السطر ${i + 1}: التقدير بعد | يجب أن يكون رقمًا موجبًا أو صفرًا.`;
+    previousDepth = depth;
+  }
+  return null;
+}
+const flattenRisks = (risks) => (risks || []).map((r) => `${r.title || ""}${r.mitigation ? " — " + r.mitigation : ""}`).join("\n");
+function parseRiskText(value) { return String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [title, ...rest] = line.split(/\s[—-]\s/); return { title: title.trim(), probability: 3, impact: 3, status: "Open", mitigation: rest.join(" — ").trim() }; }); }
 export function Templates() {
-  const { templates, data, A: act, can, toast, role } = useP(); const [use, setUse] = useState(null); const [tab, setTab] = useState("projects");
+  const { templates, data, A: act, can, toast, role } = useP(); const [use, setUse] = useState(null); const [tab, setTab] = useState("projects"); const [templateForm, setTemplateForm] = useState(null); const [previewTpl, setPreviewTpl] = useState(null); const [showArchived, setShowArchived] = useState(false); const canManage = can("project.create") && role !== "Viewer";
+  const beginTemplateForm = (tpl = {}) => setTemplateForm({ id: tpl.id, name: tpl.name || "", description: tpl.description || "", project_type: tpl.project_type || "", duration_days: tpl.duration_days || "", task_tree_text: flattenTaskTree(tpl.task_tree || []).join("\n"), risks_text: flattenRisks(tpl.risks || []) });
   const countN = (n) => n.reduce((a, x) => a + 1 + countN(x.children || []), 0);
   const show = (nodes, depth = 0) => nodes.map((n, i) => <div key={depth + "-" + i + n.title} style={{ paddingInlineStart: depth * 16, fontSize: 12, color: C.dim, lineHeight: 1.8 }}>{depth ? "└ " : "• "}{n.title}{n.estimate_minutes ? ` (${fmtMinutes(n.estimate_minutes)})` : ""}{n.children && show(n.children, depth + 1)}</div>);
   return (
     <div>
       <Head title="القوالب" sub="قوالب المشاريع بشجرة مهام ومخاطر · قوالب المواصفات والتحديثات والاجتماعات" />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: "projects", label: "قوالب المشاريع", count: templates.length }, { id: "prd", label: "قالب المواصفة" }, { id: "update", label: "قالب التحديث" }, { id: "review", label: "قالب المراجعة" }, { id: "meetings", label: "قوالب الاجتماعات" }]} />
-      {tab === "projects" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 10 }}>{templates.map((t) => <div key={t.id} style={{ ...S.card, padding: "12px 14px" }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 14 }}>🧩 {t.name}</b>{t.builtin && <Chip>جاهز</Chip>}</div><div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{t.description}</div><div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>{countN(t.task_tree || [])} مهمة · {(t.risks || []).length} خطر</div><div style={{ maxHeight: 130, overflowY: "auto", marginBottom: 8 }}>{show(t.task_tree || [])}</div><div style={{ display: "flex", gap: 6 }}>{can("project.create") && <Btn kind="primary" small onClick={() => setUse(t)}>إنشاء مشروع</Btn>}{!t.builtin && role !== "Viewer" && <Btn small danger onClick={() => act.del("templates", t.id, t.name)}>🗑</Btn>}</div></div>)}</div>}
+      {tab === "projects" && <div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+          {canManage && <Btn kind="primary" onClick={() => beginTemplateForm()}>＋ إنشاء قالب مخصص</Btn>}
+          <Btn onClick={() => setShowArchived(!showArchived)}>{showArchived ? "عرض القوالب النشطة" : "عرض المؤرشفة"}</Btn>
+          <span style={{ fontSize: 11.5, color: C.muted }}>القوالب المدمجة للنسخ والتخصيص؛ القوالب المرجعية للاجتماعات لا تنشئ اجتماعات.</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 10 }}>{templates.filter((t) => !!t.archived_at === showArchived).map((t) => <div key={t.id} style={{ ...S.card, padding: "12px 14px", opacity: t.archived_at ? .72 : 1 }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 14 }}>🧩 {t.name}</b>{t.builtin && <Chip>مدمج — للنسخ</Chip>}{t.archived_at && <Chip color={C.muted}>مؤرشف</Chip>}</div><div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{t.description}</div><div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>{countN(t.task_tree || [])} مهمة · {(t.risks || []).length} خطر · {t.duration_days || "—"} يوم</div><div style={{ maxHeight: 130, overflowY: "auto", marginBottom: 8 }}>{show(t.task_tree || [])}</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{!t.archived_at && can("project.create") && <Btn kind="primary" small onClick={() => setPreviewTpl(t)}>معاينة</Btn>}{!t.archived_at && can("project.create") && <Btn small onClick={() => setUse(t)}>استخدام</Btn>}{canManage && t.builtin && <Btn small onClick={() => beginTemplateForm({ ...t, id: undefined, name: t.name + " — نسخة مخصصة", builtin: false })}>نسخ وتخصيص</Btn>}{canManage && !t.builtin && !t.archived_at && <Btn small onClick={() => beginTemplateForm(t)}>تعديل</Btn>}{canManage && !t.builtin && !t.archived_at && <Btn small onClick={() => act.put("templates", { ...t, archived_at: nowIso() }).then(() => toast("تمت أرشفة القالب"))}>أرشفة</Btn>}{canManage && !t.builtin && t.archived_at && <Btn small onClick={() => { const { archived_at, ...rest } = t; act.put("templates", rest).then(() => toast("تمت استعادة القالب")); }}>استعادة</Btn>}</div></div>)}</div>
+        {!templates.some((t) => !!t.archived_at === showArchived) && <Empty icon="🧩" title={showArchived ? "لا توجد قوالب مؤرشفة" : "لا توجد قوالب هنا"} sub={canManage ? "أنشئ قالباً مخصصاً أو انسخ قالباً مدمجاً." : "قد لا تملك صلاحية إدارة القوالب."} />}
+      </div>}
       {tab === "prd" && <div style={S.card}>{PRD_TEMPLATE.map((s) => <div key={s.key} style={{ padding: "6px 0", borderBottom: `1px solid ${C.line}` }}><b style={{ fontSize: 13 }}>{s.group} — {s.title}</b>{s.required && <Chip color={C.bad} style={{ marginInlineStart: 6 }}>مطلوب للاعتماد</Chip>}<div style={{ fontSize: 11.5, color: C.muted }}>{s.hint}</div></div>)}</div>}
       {tab === "update" && <div style={S.card}>{UPDATE_SECTIONS.map((s) => <div key={s.key} style={{ padding: "6px 0", fontSize: 13 }}>• {s.title}</div>)}<div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>يُولَّد المسودة من الإنجازات والمهام والمخاطر والأرقام الحية.</div></div>}
       {tab === "review" && <div style={S.card}>{REVIEW_PROMPTS.map(([, l]) => <div key={l} style={{ padding: "5px 0", fontSize: 13 }}>• {l}</div>)}<div style={{ padding: "5px 0", fontSize: 13 }}>• تركيز الأسبوع القادم · ⭐ التقييم · الطاقة</div><div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>أقسام حيّة (إنجازات، ساعات، متأخر…) تُجمَّد كلقطة عند إغلاق المراجعة. تُنشأ مسودة تلقائياً كل أسبوع.</div></div>}
       {tab === "meetings" && <div><div style={{ ...S.card, marginBottom: 10, fontSize: 12.5, lineHeight: 1.9 }}>📌 الاجتماعات يملكها <b>Knowledge OS</b> وتُنشأ وتُدار هناك؛ هذه القوالب للمرجع. عند بناء Knowledge OS ستظهر اجتماعات كل مشروع هنا (قراءة فقط) وتتحوّل بنود الإجراءات إلى مهام.</div><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: 10 }}>{MEETING_TEMPLATES.map((m) => <div key={m.name} style={{ ...S.card, padding: "10px 12px" }}><b>{m.name}</b>{m.sections.map((s) => <div key={s} style={{ fontSize: 12, color: C.dim }}>• {s}</div>)}</div>)}</div></div>}
+      {previewTpl && <Modal title={`معاينة القالب: ${previewTpl.name}`} wide onClose={() => setPreviewTpl(null)} footer={<><Btn onClick={() => setPreviewTpl(null)}>رجوع</Btn><Btn kind="primary" onClick={() => { setUse(previewTpl); setPreviewTpl(null); }}>استخدام هذا القالب</Btn></>}><div style={{ lineHeight: 1.9 }}><p>{previewTpl.description || "لا يوجد وصف."}</p><b>{countN(previewTpl.task_tree || [])} مهمة · {(previewTpl.risks || []).length} خطر · المدة التقديرية {previewTpl.duration_days || "—"} يوماً</b><div style={{ marginTop: 8 }}>{show(previewTpl.task_tree || [])}</div><div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>المعاينة لا تنشئ أي سجلات. تواريخ التنفيذ وحالات المهام الفعلية لا تُنسخ من القالب.</div></div></Modal>}
+      {templateForm && <FormModal title={templateForm.id ? "تعديل قالب مخصص" : "إنشاء قالب مخصص"} wide initial={templateForm} onClose={() => setTemplateForm(null)} onSubmit={async (v) => {
+        const treeError = validateTaskTreeText(v.task_tree_text); if (treeError) throw new Error(treeError);
+        const tree = parseTaskTreeText(v.task_tree_text);
+        const risks = parseRiskText(v.risks_text);
+        const rec = { id: v.id || uid(), name: String(v.name || "").trim(), description: v.description || "", project_type: v.project_type || "أخرى", duration_days: v.duration_days ? Number(v.duration_days) : null, task_tree: tree, risks, builtin: false, updated_at: nowIso() };
+        if (!rec.name) throw new Error("اسم القالب مطلوب");
+        await act.put("templates", rec); toast("✅ تم حفظ القالب المخصص؛ المشاريع السابقة لن تتغير."); setTemplateForm(null);
+      }} fields={[
+        { key: "name", label: "اسم القالب", required: true, span: 2 }, { key: "description", label: "الوصف", type: "textarea", rows: 2 },
+        { key: "project_type", label: "نوع المشروع" }, { key: "duration_days", label: "المدة التقديرية (أيام)", type: "number", min: 1 },
+        { key: "task_tree_text", label: "شجرة المهام", type: "textarea", rows: 9, hint: "كل سطر مهمة. استخدم مسافتين لكل مستوى فرعي. مثال:\nالبحث\n  مقابلات المستخدمين | 120\n  تحليل المنافسين\nالتنفيذ\n  التطوير\n  الاختبار. الرقم بعد | هو تقدير بالدقائق." },
+        { key: "risks_text", label: "المخاطر الافتراضية", type: "textarea", rows: 4, hint: "سطر لكل خطر، ويمكن إضافة خطة التخفيف بعد — . الاحتمال والتأثير الافتراضيان 3 من 5." }
+      ]} />}
       {use && <TemplatePicker tpl={use} onClose={() => setUse(null)} />}
     </div>
   );

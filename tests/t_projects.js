@@ -22,22 +22,44 @@ const {makeEnv,sleep,appJs}=require('./harness');
   }
   ok(errors.length===0,'no console errors while walking sections ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
 
+  console.log('— template editor validation');
+  await goSection('القوالب'); ok(await click('＋ إنشاء قالب مخصص'),'custom template editor opens');
+  let tdlg=doc.querySelector('[role=dialog]');
+  await setVal(all('input',tdlg)[0],'قالب اختبار غير صالح');
+  await setVal(all('textarea',tdlg)[1],'مهمة رئيسية\n    مستوى متخطى');
+  await click('حفظ',tdlg,200);
+  ok(tdlg.textContent.includes('لا يمكن تخطي مستوى كامل'),'invalid task-tree indentation is rejected with a useful message');
+  await click('إلغاء',tdlg,100);
+
+  console.log('— task search recovery');
+  await goSection('مهامي');
+  const taskSearch=all('input').find(i=>i.placeholder==='بحث في المهام…');
+  await setVal(taskSearch,'no-task-will-match-xyz');
+  ok(!!btn('مسح الفلاتر'),'clear-filters action appears after narrowing task search');
+  await click('مسح الفلاتر',null,150);
+  ok(taskSearch.value==='','clear-filters resets the task search input');
+
   console.log('— dashboard health');
   await goSection('الرئيسية'); ok(txt().includes('حرج'),'overdue/past-deadline project is Red (حرج)'); ok(txt().includes('مشاكل حرجة'),'critical issues card');
 
   console.log('— create project from template');
   await goSection('المشاريع'); ok(await click('من قالب'),'template picker opens');
   const card=all('div').find(d=>d.textContent.startsWith('🧩 تطبيق')&&d.style.cursor==='pointer'); card&&card.click(); await sleep(150);
+  await click('متابعة الإعداد',doc.querySelector('[role=dialog]'),150);
   const nameIn=all('input[type=text],input:not([type])').find(i=>i.closest('[role=dialog]')); await setVal(nameIn,'مشروع اختبار القالب');
   await click('حفظ',doc.querySelector('[role=dialog]'),400);
   ok(txt().includes('مشروع اختبار القالب'),'project created and opened'); 
   await click('المهام'); await sleep(200); ok(txt().includes('الاكتشاف')&&txt().includes('كتابة المواصفة'),'template task tree copied (parents + children)');
+  ok(!!btn('＋ فرعية'),'child-task action is visible without opening the overflow menu');
   const checks=all('input[type=checkbox]'); ok(checks.length>10,'leaf checkboxes rendered ('+checks.length+')');
   console.log('— complete a task & progress');
   checks[0].click(); await sleep(250); await click('نظرة عامة'); await sleep(150); ok(/\d+\/\d+ مهمة/.test(txt()),'overview shows leaf counts after completing');
   console.log('— new task form');
   await click('المهام'); await sleep(150); await click('مهمة جديدة'); await sleep(150);
-  const dlg=doc.querySelector('[role=dialog]'); const titleIn=all('input',dlg)[0]; await setVal(titleIn,'مهمة يدوية جديدة'); await click('حفظ',dlg,350);
+  const dlg=doc.querySelector('[role=dialog]');
+  ok(!dlg.textContent.includes('المواصفة (PRD)'),'advanced task fields start collapsed');
+  await click('تفاصيل إضافية',dlg,100); ok(dlg.textContent.includes('المواصفة (PRD)'),'advanced task fields can be expanded');
+  const titleIn=all('input',dlg)[0]; await setVal(titleIn,'مهمة يدوية جديدة'); await click('حفظ',dlg,350);
   ok(txt().includes('مهمة يدوية جديدة'),'task created in tree');
 
   console.log('— task sheet + timer');
@@ -54,5 +76,20 @@ const {makeEnv,sleep,appJs}=require('./harness');
   console.log('— permissions (view as Sara = Admin on projects)');
   await viewAs('demo_sara'); await toToday(); await openProjects(); await goSection('المشاريع'); ok(!!btn('➕ مشروع'),'Sara (manager): can create projects'); await goSection('الإعدادات'); ok(!!btn('حفظ الإعدادات'),'Sara (manager): can save settings');
   ok(errors.length===0,'no errors in permission views ('+errors.length+')'); if(errors.length)console.log(errors.slice(0,4));
+
+  console.log('— unsaved form changes');
+  await viewAs('demo_sara'); await toToday(); await openProjects(); await goSection('مهامي');
+  await click('➕ مهمة'); await sleep(120);
+  const dirtyDlg=doc.querySelector('[role=dialog]');
+  if(dirtyDlg){
+    const dirtyInput=all('input',dirtyDlg).find(i=>i.type==='text'||!i.type);
+    if(dirtyInput) await setVal(dirtyInput,'تغيير لم يتم حفظه');
+    let confirmCalls=0; w.confirm=()=>{confirmCalls++;return false;};
+    await click('إلغاء',dirtyDlg,100);
+    ok(!!doc.querySelector('[role=dialog]')&&confirmCalls===1,'cancel warns and keeps dirty form open when discard is declined');
+    w.confirm=()=>{confirmCalls++;return true;};
+    await click('إلغاء',doc.querySelector('[role=dialog]'),100);
+    ok(!doc.querySelector('[role=dialog]')&&confirmCalls===2,'dirty form closes only after discard is confirmed');
+  } else ok(false,'task form opens for unsaved-change acceptance test');
   console.log('FAILS',fails); process.exit(fails?1:0);
 })().catch(e=>{console.log('HARNESS ERR',e);process.exit(2);});

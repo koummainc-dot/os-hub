@@ -145,7 +145,14 @@ function FieldInput({ f, v, set, values }) {
 // Schema-driven form. fields: [{key,label,type,options,required,hint,show,validate,span,disabled}]
 export function FormModal({ title, fields, initial, onSubmit, onClose, submitLabel, wide, validate, footerExtra, children }) {
   const [values, setValues] = useState(initial || {});
+  const baseline = useRef(JSON.stringify(initial || {}));
   const [errors, setErrors] = useState({}); const [busy, setBusy] = useState(false); const [formErr, setFormErr] = useState("");
+  const dirty = JSON.stringify(values) !== baseline.current;
+  const closeSafely = () => {
+    if (busy) return;
+    if (dirty && typeof window !== "undefined" && !window.confirm("لديك تغييرات غير محفوظة. هل تريد الإغلاق والتخلص منها؟")) return;
+    if (onClose) onClose();
+  };
   const set = (k, v) => setValues((p) => ({ ...p, [k]: v }));
   async function submit() {
     const errs = {};
@@ -160,11 +167,11 @@ export function FormModal({ title, fields, initial, onSubmit, onClose, submitLab
     if (formLevel) { if (typeof formLevel === "string") setFormErr(formLevel); else Object.assign(errs, formLevel); }
     setErrors(errs); if (Object.keys(errs).length || (typeof formLevel === "string" && formLevel)) return;
     setFormErr(""); setBusy(true);
-    try { const r = await onSubmit(values); if (r === false) { setBusy(false); return; } } catch (e) { setFormErr(e && e.message ? e.message : "تعذّر الحفظ"); setBusy(false); return; }
+    try { const r = await onSubmit(values); if (r === false) { setBusy(false); return; } baseline.current = JSON.stringify(values); } catch (e) { setFormErr(e && e.message ? e.message : "تعذّر الحفظ"); setBusy(false); return; }
     setBusy(false);
   }
   return (
-    <Modal title={title} onClose={onClose} wide={wide} footer={<><Btn kind="primary" onClick={submit} disabled={busy}>{busy ? "جاري الحفظ..." : submitLabel || "حفظ"}</Btn><Btn onClick={onClose}>إلغاء</Btn>{footerExtra}</>}>
+    <Modal title={title} onClose={closeSafely} wide={wide} footer={<><Btn kind="primary" onClick={submit} disabled={busy}>{busy ? "جاري الحفظ..." : submitLabel || "حفظ"}</Btn><Btn onClick={closeSafely} disabled={busy}>إلغاء</Btn>{footerExtra}</>}>
       <div style={{ display: "grid", gridTemplateColumns: wide ? "repeat(2,minmax(0,1fr))" : "1fr", gap: "0 14px" }}>
         {fields.filter((f) => !f.show || f.show(values)).map((f) => (
           <div key={f.key} style={{ gridColumn: f.span === 2 || f.type === "textarea" ? "1 / -1" : undefined }}>
