@@ -228,6 +228,42 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       act("projects", r.project.id, "created_from_template", tpl.name); return r.project;
     },
     // Convert a discovery to an issue and complete its source link in one server transaction.
+    async convertDiscoveryToTask(discoveryId, projectId) {
+      const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
+      const project = projectsById[projectId];
+      if (!discovery || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      const linkedProjects = (discovery.project_ids || []).filter((id) => projectsById[id] && !projectsById[id].archived_at);
+      if ((discovery.project_ids || []).length && !linkedProjects.includes(projectId)) throw new Error("المشروع الهدف يجب أن يكون من المشاريع المرتبطة النشطة بالاكتشاف.");
+      const existing = (data.tasks || []).find((item) => (item.discovery_ids || []).includes(discoveryId));
+      if (existing && existing.project_id !== projectId) throw new Error("يوجد بالفعل مسار مهمة لهذا الاكتشاف في مشروع آخر. افتح المهمة الحالية أو حدّث ارتباطها قبل إعادة التحويل.");
+      if (existing) {
+        const links = [...new Map([...(discovery.resolution_links || []), { kind: "task", id: existing.id }].map((link) => [link.kind + ":" + link.id, link])).values()];
+        await R.putAtomic([{ coll: "discovery", rec: { ...discovery, status: "Completed", resolution_links: links } }]);
+        return existing;
+      }
+      if ((discovery.resolution_links || []).some((link) => link.kind === "task")) throw new Error("للاكتشاف رابط مهمة قائم؛ حدّث الرابط بدل إنشاء نسخة جديدة.");
+      const taskId = uid();
+      const task = {
+        id: taskId,
+        title: discovery.title,
+        project_id: projectId,
+        description: discovery.proposed_solution || discovery.description || "",
+        assignee_id: discovery.owner_id || null,
+        priority: discovery.impact_level === "Critical" ? "Urgent" : discovery.impact_level === "High" ? "High" : "Medium",
+        status: "Not Started",
+        planning_bucket: "Inbox",
+        discovery_ids: [discoveryId],
+        created_by: me,
+        sort_order: Date.now(),
+      };
+      const errs = D.validateTaskRefs({ ...task, id: taskId }, { projectsById, tasksById: idx.byId, prdsById });
+      if (errs.length) throw new Error(errs[0]);
+      if (D.traceabilityBlocked(settings, project.type, project.is_system, task)) throw new Error("سياسة التتبع تمنع إنشاء مهمة دون ربط مواصفة أو اكتشاف.");
+      const links = [...new Map([...(discovery.resolution_links || []), { kind: "task", id: taskId }].map((link) => [link.kind + ":" + link.id, link])).values()];
+      await R.putAtomic([{ coll: "tasks", rec: task }, { coll: "discovery", rec: { ...discovery, status: "Completed", resolution_links: links } }]);
+      act("discovery", discovery.id, "converted_to_task", task.title);
+      return task;
+    },
     async convertDiscoveryToIssue(discoveryId, projectId, discoveredAt) {
       const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
       const project = projectsById[projectId];
