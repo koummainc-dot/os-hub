@@ -661,6 +661,7 @@ export default function RelationshipsSystem(props) {
           <span><strong>السماح باستبدال السجلات المتعارضة</strong><br /><span style={{ color: C.muted }}>عند التفعيل، سيحل السجل المستورد محل السجل الحالي إذا تطابق المعرّف واختلفت البيانات. اتركه غير محدد للحفاظ على البيانات الحالية.</span></span>
         </label>}
         <div style={{ color: C.muted, marginTop: 8 }}>السجلات الجديدة فقط ستُضاف افتراضيًا، والسجلات المتطابقة دون تغيير ستُتجاوز. الإعدادات ستُدمج مع الإعدادات الحالية.</div>
+        <div role="note" style={{ color: C.amber, background: "#FFFBEB", border: "1px solid #FDE68A", padding: 9, borderRadius: 8, marginTop: 8 }}>تنبيه: في المساحة الحقيقية، تُحفظ مجموعات البيانات بالتتابع وليس داخل معاملة واحدة. إذا حدث خطأ أثناء الحفظ فقد تُحفظ بعض المجموعات قبل الفشل؛ احتفظ بتصدير احتياطي قبل المتابعة.</div>
         <div style={{ marginTop: 10 }}><Button kind="primary" disabled={busy || importPlan.summary.totalAdded + importPlan.summary.totalOverwritten === 0} onClick={async () => {
           const count = importPlan.summary.totalAdded + importPlan.summary.totalOverwritten;
           if (!globalThis.confirm?.("استيراد " + importPreview.name + "؟ سيُضاف " + importPlan.summary.totalAdded + " سجلًا جديدًا" + (overwriteImportConflicts ? " وسيُستبدل " + importPlan.summary.totalOverwritten + " سجل متعارض" : "، وستُحفظ السجلات المتعارضة الحالية دون تغيير") + ".")) return;
