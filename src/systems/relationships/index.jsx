@@ -6,7 +6,7 @@ import { buildRelationshipsSeed } from "./demo.js";
 import {
   RELATIONSHIP_SECTIONS, RELATIONSHIP_TYPES, RELATIONSHIP_TYPE_LABELS,
   emptyRelationshipsData, normalizeRelationshipsData, validatePerson,
-  normalizeSearch, findPossibleDuplicates, dueFollowups, validateRelationshipsImport, upcomingRelationshipEvents, planPersonMerge
+  normalizeSearch, findPossibleDuplicates, dueFollowups, validateRelationshipsImport, upcomingRelationshipEvents, planPersonMerge, planRelationshipsImport
 } from "./domain.js";
 
 const C = { ink: "#172033", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#DB2777", soft: "#FCE7F3", green: "#047857", amber: "#B45309", red: "#B91C1C" };
@@ -130,9 +130,11 @@ export default function RelationshipsSystem(props) {
   const [editingCircleId, setEditingCircleId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
+  const [overwriteImportConflicts, setOverwriteImportConflicts] = useState(false);
   const [mergeKeepId, setMergeKeepId] = useState("");
   const [mergeDuplicateId, setMergeDuplicateId] = useState("");
   const [mergePreview, setMergePreview] = useState(null);
+  const importPlan = importPreview ? planRelationshipsImport(data, importPreview.data, { overwriteConflicts: overwriteImportConflicts }) : null;
   const currentLevel = osSectionLevel(access, page);
   const canEdit = currentLevel === "edit";
 
@@ -633,7 +635,7 @@ export default function RelationshipsSystem(props) {
       <strong>استيراد نسخة JSON</strong>
       <p style={{ margin: 0, color: C.muted, fontSize: 12 }}>الحد الأقصى 5 ميجابايت. راجع ملخص الملف قبل دمجه. احتفظ بنسخة احتياطية قبل استيراد بيانات مهمة.</p>
       <input type="file" accept=".json,application/json" onChange={async (e) => {
-        const file = e.target.files?.[0]; setImportPreview(null); setError(""); setNotice("");
+        const file = e.target.files?.[0]; setImportPreview(null); setOverwriteImportConflicts(false); setError(""); setNotice("");
         if (!file) return;
         if (file.size > 5 * 1024 * 1024) { setError("حجم الملف أكبر من 5 ميجابايت."); return; }
         try {
@@ -645,33 +647,41 @@ export default function RelationshipsSystem(props) {
           setImportPreview({ data: checked.value, name: file.name, total });
         } catch (err) { setError(err?.message || "تعذر قراءة ملف JSON."); }
       }} />
-      {importPreview && <div style={{ background: C.bg, padding: 12, borderRadius: 10, fontSize: 12 }}>
-        <strong>{importPreview.name}</strong><div style={{ marginTop: 5 }}>عدد السجلات: {importPreview.total} · الأشخاص {importPreview.data.people.length} · التواصل {importPreview.data.timeline.length} · المتابعات {importPreview.data.followups.length} · المناسبات {importPreview.data.occasions.length} · الهدايا {importPreview.data.gifts.length} · الدوائر {importPreview.data.circles.length}</div>
-        <div style={{ color: C.muted, marginTop: 5 }}>عند تكرار المعرّف نفسه، ستُستبدل بيانات ذلك السجل بالنسخة المستوردة. بقية السجلات الحالية ستظل موجودة.</div>
-        <div style={{ marginTop: 10 }}><Button kind="primary" disabled={busy} onClick={async () => {
-          if (!globalThis.confirm?.("دمج " + importPreview.total + " سجلًا من " + importPreview.name + "؟ لن تُحذف السجلات الأخرى، لكن السجلات المتطابقة بالمعرّف ستُحدّث.")) return;
-          const incoming = importPreview.data;
-          const keys = ["people","timeline","followups","occasions","gifts","circles"];
-          const next = { ...data, settings: { ...data.settings, ...incoming.settings } };
-          for (const key of keys) {
-            const byId = new Map(data[key].map((item) => [String(item.id), item]));
-            for (const item of incoming[key]) byId.set(String(item.id), item);
-            next[key] = [...byId.values()];
-          }
+      {importPreview && importPlan?.ok && <div style={{ background: C.bg, padding: 12, borderRadius: 10, fontSize: 12 }}>
+        <strong>{importPreview.name}</strong>
+        <div style={{ marginTop: 5 }}>السجلات داخل الملف: {importPreview.total}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(125px,1fr))", gap: 8, marginTop: 10 }}>
+          <Metric label="سجلات جديدة" value={importPlan.summary.totalAdded} />
+          <Metric label="مطابقة دون تغيير" value={importPlan.summary.totalUnchanged} />
+          <Metric label="تعارضات بالمعرّف" value={importPlan.summary.totalConflicts} />
+          <Metric label="سيتم استبدالها" value={importPlan.summary.totalOverwritten} />
+        </div>
+        {importPlan.summary.totalConflicts > 0 && <label style={{ display: "flex", gap: 8, alignItems: "start", marginTop: 12, padding: 10, background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 8, color: C.ink }}>
+          <input type="checkbox" checked={overwriteImportConflicts} onChange={(e) => setOverwriteImportConflicts(e.target.checked)} />
+          <span><strong>السماح باستبدال السجلات المتعارضة</strong><br /><span style={{ color: C.muted }}>عند التفعيل، سيحل السجل المستورد محل السجل الحالي إذا تطابق المعرّف واختلفت البيانات. اتركه غير محدد للحفاظ على البيانات الحالية.</span></span>
+        </label>}
+        <div style={{ color: C.muted, marginTop: 8 }}>السجلات الجديدة فقط ستُضاف افتراضيًا، والسجلات المتطابقة دون تغيير ستُتجاوز. الإعدادات ستُدمج مع الإعدادات الحالية.</div>
+        <div style={{ marginTop: 10 }}><Button kind="primary" disabled={busy || importPlan.summary.totalAdded + importPlan.summary.totalOverwritten === 0} onClick={async () => {
+          const count = importPlan.summary.totalAdded + importPlan.summary.totalOverwritten;
+          if (!globalThis.confirm?.("استيراد " + importPreview.name + "؟ سيُضاف " + importPlan.summary.totalAdded + " سجلًا جديدًا" + (overwriteImportConflicts ? " وسيُستبدل " + importPlan.summary.totalOverwritten + " سجل متعارض" : "، وستُحفظ السجلات المتعارضة الحالية دون تغيير") + ".")) return;
           setBusy(true); setError(""); setNotice("");
           try {
             if (isDemo) {
-              const result = await api.save(next);
+              const result = await api.save(importPlan.value);
               if (result && result.ok === false) throw new Error("تعذر حفظ الاستيراد في الوضع التجريبي.");
             } else {
-              for (const key of keys) await saveRecords(ws.id, key, incoming[key]);
-              await saveRecord(ws.id, "settings", { id: "settings", ...next.settings });
+              for (const key of ["people","timeline","followups","occasions","gifts","circles"]) {
+                const records = importPlan.writes[key];
+                if (records.length) await saveRecords(ws.id, key, records);
+              }
+              if (importPlan.settingsChanged) await saveRecord(ws.id, "settings", { id: "settings", ...importPlan.value.settings });
             }
-            setData(normalizeRelationshipsData(next)); setImportPreview(null); setNotice("تم دمج البيانات بنجاح.");
+            setData(normalizeRelationshipsData(importPlan.value)); setImportPreview(null); setOverwriteImportConflicts(false);
+            setNotice("اكتمل الاستيراد. أُضيف " + importPlan.summary.totalAdded + " سجلًا جديدًا" + (overwriteImportConflicts ? " واستُبدل " + importPlan.summary.totalOverwritten + " سجل متعارض." : " مع الحفاظ على السجلات المتعارضة الحالية."));
           } catch (err) {
-            setError((err?.message || "تعذر استكمال الاستيراد.") + " قد تكون بعض المجموعات حُفظت بالفعل؛ أعد تحميل البيانات قبل إعادة المحاولة.");
+            setError((err?.message || "تعذر استكمال الاستيراد.") + " قد تكون بعض المجموعات حُفظت بالفعل؛ أعد تحميل البيانات قبل إعادة المحاولة. لا توجد معاملة ذرية لهذا الاستيراد حتى الآن.");
           } finally { setBusy(false); }
-        }}>دمج البيانات المستوردة</Button> <Button onClick={() => setImportPreview(null)}>إلغاء</Button></div>
+        }}>تأكيد الاستيراد</Button> <Button onClick={() => { setImportPreview(null); setOverwriteImportConflicts(false); }}>إلغاء</Button></div>
       </div>}
     </div>}
   </div></Panel>;
