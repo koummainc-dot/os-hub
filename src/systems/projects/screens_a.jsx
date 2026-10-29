@@ -158,8 +158,9 @@ export function Tasks() {
         <select style={{ ...S.sel, width: 150 }} value={proj} onChange={(e) => setProj(e.target.value)}><option value="">كل المشاريع</option>{projOpts(data.projects).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select>
         <select style={{ ...S.sel, width: 120 }} value={st} onChange={(e) => setSt(e.target.value)}><option value="open">مفتوحة</option><option value="done">مكتملة</option><option value="cancelled">ملغاة</option><option value="all">الكل</option></select>
         <label style={{ fontSize: 12, display: "flex", gap: 5, alignItems: "center" }}><input type="checkbox" checked={blocked} onChange={(e) => setBlocked(e.target.checked)} />المتعطّلة فقط</label>
+        {(q || who !== me || proj || st !== "open" || blocked) && <Btn small onClick={() => { setQ(""); setWho(me); setProj(""); setSt("open"); setBlocked(false); }}>مسح الفلاتر</Btn>}
       </SearchBar>
-      {mode === "list" && (!sorted.length ? <Empty icon="✅" title="لا مهام مطابقة" /> : <div style={{ ...S.card, padding: "6px 14px" }}>{sorted.map((t) => <TaskLine key={t.id} t={t} />)}</div>)}
+      {mode === "list" && (!sorted.length ? <Empty icon="🔎" title="لا توجد مهام مطابقة" sub="جرّب تغيير البحث أو الفلاتر؛ يمكنك مسحها لإظهار القائمة كاملة." /> : <div style={{ ...S.card, padding: "6px 14px" }}>{sorted.map((t) => <TaskLine key={t.id} t={t} />)}</div>)}
       {mode === "board" && <Board columns={cols} onMove={(id, to) => { const t = idx.byId[id]; if (t && can("task.write", projectsById[t.project_id])) act.moveBucket(t, to); }} renderCard={card} />}
       {mode === "calendar" && (
         <div style={S.card}>
