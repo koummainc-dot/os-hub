@@ -252,7 +252,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
 }
 
 function stripMeta(rec) {
-  const o = { ...rec }; delete o._vis; delete o._deleted; return o;
+  const o = { ...rec }; delete o._vis; delete o._deleted; delete o._syncPending; return o;
 }
 
 // helpers for screens
