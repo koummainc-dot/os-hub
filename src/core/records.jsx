@@ -35,7 +35,21 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
   const meta = useRef({});          // "coll/id" -> server updated_at (for compare-and-set)
   const chains = useRef({});        // "coll/id" -> promise chain (serialize writes)
   const lastSync = useRef(null);
+  const queueKey = "os-record-write-queue:" + wsId + ":" + systemId;
+  const queued = useRef([]);
+  const replaying = useRef(false);
   const stateRef = useRef(state); stateRef.current = state;
+  const readQueue = () => {
+    try { const raw = typeof localStorage !== "undefined" ? localStorage.getItem(queueKey) : null; return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
+  };
+  const writeQueue = (items) => {
+    queued.current = items;
+    try { if (typeof localStorage !== "undefined") { if (items.length) localStorage.setItem(queueKey, JSON.stringify(items)); else localStorage.removeItem(queueKey); } } catch (e) { toast("⚠️ تعذّر حفظ قائمة المزامنة على هذا الجهاز؛ لا تغلق الصفحة قبل عودة الاتصال."); }
+  };
+  const isNetworkFailure = (e) => {
+    const msg = String((e && (e.message || e.details)) || e || "").toLowerCase();
+    return typeof navigator !== "undefined" && navigator.onLine === false || /failed to fetch|network|offline|load failed|connection|timeout|timed out|fetch error/.test(msg);
+  };
   const toast = onToast || (() => {});
 
   const key = (coll, id) => coll + "/" + id;
@@ -68,8 +82,16 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
         from += page;
       }
       lastSync.current = maxTs;
+      const q = readQueue();
+      q.forEach((item) => { if (!recs[item.coll]) recs[item.coll] = {}; recs[item.coll][item.rec.id] = { ...item.rec, _syncPending: true }; });
+      queued.current = q;
       dispatch({ type: "load", recs });
-    } catch (e) { console.error("records load failed", e); dispatch({ type: "error", error: e }); }
+    } catch (e) {
+      console.error("records load failed", e);
+      const q = readQueue(); queued.current = q;
+      if (q.length) { const recs = {}; q.forEach((item) => { if (!recs[item.coll]) recs[item.coll] = {}; recs[item.coll][item.rec.id] = { ...item.rec, _syncPending: true }; }); dispatch({ type: "load", recs }); toast("⚠️ تعذّر الاتصال بالخادم. عُرضت التعديلات المحلية غير المتزامنة."); }
+      else dispatch({ type: "error", error: e });
+    }
   }, [wsId, systemId, isDemo]);
 
   useEffect(() => { dispatch({ type: "load", recs: {} }); stateRef.current = { ...stateRef.current, ready: false }; loadAll(); }, [loadAll]);
@@ -121,7 +143,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
   }, [wsId, systemId, isDemo, syncSince]);
 
   // ── writes
-  const persist = useCallback((coll, rec, prev) => {
+  const persist = useCallback((coll, rec, prev, fromQueue = false) => {
     const k = key(coll, rec.id);
     const run = async () => {
       const row = { data: stripMeta(rec), deleted: !!rec._deleted, visible_to: rec._vis || null };
@@ -141,6 +163,17 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
         return true;
       } catch (e) {
         console.error("record save failed", e);
+        if (!fromQueue && isNetworkFailure(e)) {
+          const items = readQueue();
+          const existing = items.findIndex((x) => x.coll === coll && x.rec.id === rec.id);
+          const item = { coll, rec: { ...rec, _syncPending: true }, baseTs: meta.current[k] || null, queuedAt: nowIso() };
+          if (existing >= 0) items[existing] = { ...items[existing], rec: item.rec };
+          else items.push(item);
+          writeQueue(items);
+          dispatch({ type: "put", coll, rec: item.rec });
+          toast("📴 تم الاحتفاظ بالتعديل محليًا وسيُعاد إرساله عند عودة الاتصال. لم يؤكد الخادم حفظه بعد.");
+          return "queued";
+        }
         if (prev) dispatch({ type: "put", coll, rec: prev }); else dispatch({ type: "drop", coll, id: rec.id });
         toast("❌ تعذّر الحفظ: " + (e && e.message ? e.message : "خطأ في الاتصال"));
         return false;
@@ -159,13 +192,49 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     return p;
   }, [wsId, systemId, toast]);
 
+  const flushQueue = useCallback(async () => {
+    if (isDemo || SUPABASE_SDK_FAILED || replaying.current || (typeof navigator !== "undefined" && !navigator.onLine)) return;
+    const items = readQueue(); if (!items.length) return;
+    replaying.current = true;
+    try {
+      const remaining = [];
+      for (const item of items) {
+        const k = key(item.coll, item.rec.id);
+        const currentTs = meta.current[k] || null;
+        if (currentTs !== item.baseTs) {
+          remaining.push({ ...item, conflict: true });
+          continue;
+        }
+        const rec = { ...item.rec }; delete rec._syncPending;
+        const prev = (stateRef.current.recs[item.coll] || {})[rec.id] || null;
+        const result = await persist(item.coll, rec, prev, true);
+        if (result === true) {
+          dispatch({ type: "put", coll: item.coll, rec });
+          toast("✅ تمت مزامنة تعديل محفوظ محليًا");
+        } else {
+          remaining.push(item);
+        }
+      }
+      writeQueue(remaining);
+      if (remaining.some((x) => x.conflict)) toast("⚠️ توجد تعديلات محلية تعارضت مع نسخة الخادم. احتفظنا بها ولم نستبدل بيانات الخادم؛ راجعها قبل إعادة المحاولة.");
+    } finally { replaying.current = false; }
+  }, [isDemo, persist, toast, wsId, systemId]);
+
+  useEffect(() => {
+    if (isDemo) return;
+    const onOnline = () => { flushQueue(); syncSince(); };
+    window.addEventListener("online", onOnline);
+    if (typeof navigator === "undefined" || navigator.onLine) flushQueue();
+    return () => window.removeEventListener("online", onOnline);
+  }, [flushQueue, syncSince, isDemo]);
+
   const put = useCallback((coll, rec) => {
     const prev = (stateRef.current.recs[coll] || {})[rec.id] || null;
     const now = nowIso();
     const next = { ...prev, ...rec, id: rec.id || uid(), v: ((prev && prev.v) || 0) + 1, updated_at: now, created_at: (prev && prev.created_at) || rec.created_at || now };
     dispatch({ type: "put", coll, rec: next });
     if (isDemo) { const k = "recs:" + wsId + ":" + systemId; const m = demoStore.current[k] || (demoStore.current[k] = {}); m[coll] = { ...(m[coll] || {}), [next.id]: next }; return Promise.resolve(next); }
-    return persist(coll, next, prev).then((ok) => (ok ? next : null));
+    return persist(coll, next, prev).then((ok) => (ok ? { ...next, _syncPending: ok === "queued" } : null));
   }, [isDemo, persist, wsId, systemId]);
 
   const softDelete = useCallback((coll, id, by) => {
@@ -178,7 +247,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
   }, [put]);
   const putMany = useCallback(async (ops) => { const out = []; for (const o of ops) out.push(await put(o.coll, o.rec)); return out; }, [put]);
 
-  const api = useMemo(() => ({ put, softDelete, restore, putMany, reload: loadAll, sync: syncSince }), [put, softDelete, restore, putMany, loadAll, syncSince]);
+  const api = useMemo(() => ({ put, softDelete, restore, putMany, reload: loadAll, sync: syncSince, flushQueue }), [put, softDelete, restore, putMany, loadAll, syncSince, flushQueue]);
   return { ...state, api };
 }
 
