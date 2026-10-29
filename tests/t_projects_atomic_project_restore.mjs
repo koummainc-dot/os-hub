@@ -14,7 +14,7 @@ assert.match(body, /record\.deleted_by \|\| null\) === \(p\.deleted_by \|\| null
 assert.match(body, /deleted_at: null, deleted_by: null/, "restore clears deletion markers");
 assert.match(body, /related\.length \+ 1 > 1000/, "oversized batches must be rejected");
 assert.match(body, /catch \(error\)/, "atomic failure must be surfaced");
-assert.match(body, /R\.restore\(coll, rec\.id\)/, "unrelated trash items may still be restored individually");
-assert.match(body, /استرجع المشروع لاسترجاعهما معًا/, "children from a trashed project cannot be restored independently");
+assert.match(store, /R\.restore\(coll, rec\.id\)/, "unrelated trash items may still be restored individually");
+assert.match(store, /استرجع المشروع لاسترجاعهما معًا/, "children from a trashed project cannot be restored independently");
 assert.match(screens, /act\.restoreTrashRecord\(coll, rec\)/, "trash UI must route restore through the batch-aware action");
 console.log("Projects atomic project-restore contract tests passed.");
