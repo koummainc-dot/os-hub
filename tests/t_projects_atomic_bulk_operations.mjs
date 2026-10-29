@@ -31,5 +31,14 @@ assert.ok(!reparentBody.includes("await R.put(\"tasks\", fc.patch)"), "reparenti
 assert.ok(reparentBody.includes('putIn("tasks", nextTask, projectsById[t.project_id])'), "moving a task to the root must preserve project visibility metadata");
 
 
+const projectSaveStart = store.indexOf("async saveProject(v, isNew)");
+const projectSaveEnd = store.indexOf("async setProjectStatus(p, to)", projectSaveStart);
+const projectSaveBody = store.slice(projectSaveStart, projectSaveEnd);
+assert.match(projectSaveBody, /const changed = kids\.flatMap/,
+  "project privacy updates must enumerate every child record whose visibility changes");
+assert.match(projectSaveBody, /if \(!isDemo && changed\.length\)[\s\S]*?R\.putAtomic\(ops\)/,
+  "online privacy cascades must update the project and all affected children atomically");
+assert.match(projectSaveBody, /ops\.length > 1000/,
+  "privacy cascade must fail before writes when it exceeds the server transaction limit");
 assert.match(records, /does not enqueue offline changes/i);
 console.log("Projects task bulk atomic-operation contract tests passed.");
