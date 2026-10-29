@@ -118,7 +118,9 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (to === "Completed") {
         const plan = D.completionPlan(p, idx);
         if (plan.needsDecision) {
-          const choice = await confirm(`يوجد ${plan.openLeaves.length} مهمة مفتوحة. لا يمكن إكمال المشروع قبل حسمها.\n\nاختر: إلغاء المهام المفتوحة (تخرج من التقدم) ثم إكمال المشروع، أو ارجع وأكملها.`, { title: "مهام مفتوحة", ok: "إلغاء المهام المفتوحة وإكمال المشروع", cancel: "رجوع", danger: true });
+          const affected = plan.openLeaves.slice(0, 12).map((t) => `• ${t.title}${t.assignee_id ? " — " + nameOf(t.assignee_id) : ""}${t.due_date ? " — " + t.due_date : ""}`).join("\\n");
+          const more = plan.openLeaves.length > 12 ? `\\n… و${plan.openLeaves.length - 12} مهام أخرى` : "";
+          const choice = await confirm(`يوجد ${plan.openLeaves.length} مهمة مفتوحة ستُلغى ولن تدخل في التقدم:\\n\\n${affected}${more}\\n\\nهل تريد إلغاء كل المهام المفتوحة ثم إكمال المشروع؟`, { title: "راجع المهام المتأثرة", ok: "إلغاء المهام المفتوحة وإكمال المشروع", cancel: "رجوع", danger: true });
           if (!choice) return false;
           for (const t of plan.openLeaves) await R.put("tasks", { ...t, status: "Cancelled", cancelled_reason: "أُلغيت عند إكمال المشروع", completed_at: null });
         }
