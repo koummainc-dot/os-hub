@@ -107,11 +107,30 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       const errs = [...D.validateDates(v.start_date, v.target_date, "V-14: تاريخ البدء بعد الموعد المستهدف")]; if (errs.length) throw new Error(errs[0]);
       const rec = { ...v, id: v.id || uid() };
       if (isNew) { rec.status = rec.status || "Planned"; rec.lead_id = rec.lead_id || me; rec.members = rec.members && rec.members.length ? rec.members : [{ member_id: rec.lead_id, role: "Lead" }]; rec.created_by = me; }
-      const saved = await putIn("projects", rec, rec); if (!saved) throw new Error("تعذّر الحفظ");
-      if (!isNew) { // privacy changes cascade to children
+      let saved;
+      if (isNew) {
+        saved = await putIn("projects", rec, rec);
+        if (!saved) throw new Error("تعذّر الحفظ");
+      } else {
         const vis = visFor(rec);
         const kids = [["tasks", data.tasks], ["outputs", data.outputs], ["risks", data.risks], ["issues", data.issues], ["decisions", data.decisions], ["prds", data.prds], ["updates", data.updates]];
-        for (const [c, list] of kids) for (const k of list.filter((x) => x.project_id === rec.id)) { const a = JSON.stringify(k._vis || null), b = JSON.stringify(vis); if (a !== b) await R.put(c, { ...k, _vis: vis }); }
+        const changed = kids.flatMap(([coll, list]) => list
+          .filter((child) => child.project_id === rec.id && JSON.stringify(child._vis || null) !== JSON.stringify(vis))
+          .map((child) => ({ coll, rec: { ...child, _vis: vis } })));
+        if (!isDemo && changed.length) {
+          const ops = [{ coll: "projects", rec: stamp({ ...rec, _vis: vis }) }, ...changed];
+          if (ops.length > 1000) throw new Error("تغيير خصوصية المشروع يحتاج تحديث أكثر من 999 سجلًا تابعًا. لم يُحفظ أي تغيير؛ قسّم العملية أو نفّذها في نافذة صيانة.");
+          const batch = await R.putAtomic(ops);
+          if (!Array.isArray(batch) || batch.length !== ops.length) throw new Error("لم يؤكد الخادم تحديث خصوصية المشروع وسجلاته التابعة معًا.");
+          saved = batch[0];
+        } else {
+          saved = await putIn("projects", rec, rec);
+          if (!saved) throw new Error("تعذّر الحفظ");
+          for (const { coll, rec: child } of changed) {
+            const updated = await R.put(coll, child);
+            if (!updated) throw new Error("تغيّرت خصوصية المشروع، لكن تعذّر تحديث " + coll + "/" + child.id + ". راجع صلاحيات السجلات التابعة.");
+          }
+        }
       }
       act("projects", rec.id, isNew ? "created" : "updated", rec.name); return saved;
     },
