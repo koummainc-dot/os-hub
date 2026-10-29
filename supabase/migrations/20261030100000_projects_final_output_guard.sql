@@ -281,7 +281,7 @@ begin
       raise exception 'Task parent must be active and belong to the same project' using errcode = '22023';
     end if;
 
-    with recursive ancestors(id, parent_task_id, path, cycle) as (
+    with recursive ancestors(id, parent_task_id, path, has_repeat) as (
       select p.id, p.data->>'parent_task_id', array[p.id], false
         from public.workspace_records p
        where p.workspace_id = new.workspace_id
@@ -301,7 +301,7 @@ begin
        where a.parent_task_id is not null
          and not a.cycle
     )
-    select exists (select 1 from ancestors where id = new.id or cycle) into has_cycle;
+    select exists (select 1 from ancestors where id = new.id or has_repeat) into has_cycle;
     if has_cycle then
       raise exception 'Task hierarchy cannot contain a cycle' using errcode = '22023';
     end if;
