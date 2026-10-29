@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {
   emptyRelationshipsData, normalizeRelationshipsData, validatePerson,
-  findPossibleDuplicates, dueFollowups, validateRelationshipsImport, upcomingRelationshipEvents
+  findPossibleDuplicates, dueFollowups, validateRelationshipsImport, upcomingRelationshipEvents, planPersonMerge
 } from "../src/systems/relationships/domain.js";
 import { buildRelationshipsSeed } from "../src/systems/relationships/demo.js";
 
@@ -78,3 +78,33 @@ const reminderWindow = upcomingRelationshipEvents([], [
 assert.deepEqual(reminderWindow.map((x) => x.id), ["occasion:enabled"]);
 assert.deepEqual(upcomingRelationshipEvents([{ id: "p", name: "شخص", birthday: "1990-02-29" }], [], "2027-02-01", 30).map((x) => x.date), ["2027-03-01"]);
 console.log("Relationships OS upcoming reminder tests passed.");
+
+
+// Safe duplicate-merge plan: preserve keeper identity, fill blanks, and reassign related records.
+const mergeSource = {
+  people: [
+    { id: "keep", name: "سارة", phone: "", organization: "الشركة أ", createdAt: "2024-01-01" },
+    { id: "dup", name: "سارة علي", phone: "01000000000", email: "sara@example.com", createdAt: "2025-01-01" }
+  ],
+  timeline: [{ id: "t1", personId: "dup", summary: "مكالمة" }],
+  followups: [{ id: "f1", personId: "dup", title: "متابعة" }],
+  occasions: [{ id: "o1", personId: "dup", title: "عيد ميلاد" }],
+  gifts: [{ id: "g1", personId: "dup", idea: "كتاب" }],
+  circles: [{ id: "c1", name: "أصدقاء" }],
+  settings: {}
+};
+const mergePlan = planPersonMerge(mergeSource, "keep", "dup");
+assert.equal(mergePlan.ok, true);
+assert.equal(mergePlan.value.people.length, 1);
+assert.equal(mergePlan.value.people[0].id, "keep");
+assert.equal(mergePlan.value.people[0].phone, "01000000000");
+assert.equal(mergePlan.value.people[0].organization, "الشركة أ");
+assert.equal(mergePlan.value.timeline[0].personId, "keep");
+assert.equal(mergePlan.value.followups[0].personId, "keep");
+assert.equal(mergePlan.value.occasions[0].personId, "keep");
+assert.equal(mergePlan.value.gifts[0].personId, "keep");
+assert.equal(mergePlan.summary.reassigned.timeline, 1);
+assert.equal(mergeSource.people.length, 2, "planner must not mutate source data");
+assert.equal(planPersonMerge(mergeSource, "keep", "keep").ok, false);
+assert.equal(planPersonMerge(mergeSource, "keep", "missing").ok, false);
+console.log("Relationships OS safe merge-plan tests passed.");
