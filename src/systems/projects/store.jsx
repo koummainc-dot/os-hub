@@ -399,8 +399,22 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async reparent(taskId, newParentId) {
       const chk = D.canReparent(taskId, newParentId, idx); if (!chk.ok) { toast("⛔ " + chk.error); return false; }
       const t = idx.byId[taskId];
-      if (newParentId) { const par = idx.byId[newParentId]; if (par && idx.isLeaf(par.id)) { const fc = D.onFirstChild(par); await R.put("tasks", fc.patch); } }
-      await R.put("tasks", { ...t, parent_task_id: newParentId || null, sort_order: Date.now() }); return true;
+      const nextTask = { ...t, parent_task_id: newParentId || null, sort_order: Date.now() };
+      if (newParentId) {
+        const par = idx.byId[newParentId];
+        if (par && idx.isLeaf(par.id)) {
+          const fc = D.onFirstChild(par);
+          if (fc.warnCompleted && !(await confirm("المهمة الأب مكتملة. عند إضافة ابن ستصبح حالتها مشتقة من أبنائها. هل تريد المتابعة؟", { title: "تغيير بنية المهام", ok: "متابعة" }))) return false;
+          const project = projectsById[par.project_id] || projectsById[t.project_id];
+          const saved = await R.putAtomic([
+            { coll: "tasks", rec: { ...stamp(fc.patch), _vis: visFor(project) } },
+            { coll: "tasks", rec: { ...stamp(nextTask), _vis: visFor(projectsById[t.project_id] || project) } },
+          ]);
+          if (!Array.isArray(saved) || !saved[1]) throw new Error("لم يتم حفظ نقل المهمة وتحديث الأب معًا.");
+          return true;
+        }
+      }
+      await R.put("tasks", stamp(nextTask)); return true;
     },
     async moveTree(taskId, targetProjectId) {
       const target = projectsById[targetProjectId];
