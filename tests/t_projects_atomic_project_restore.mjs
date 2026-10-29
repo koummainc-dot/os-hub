@@ -1,0 +1,20 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+
+const store = await readFile(new URL("../src/systems/projects/store.jsx", import.meta.url), "utf8");
+const screens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
+const start = store.indexOf("    async restoreProjectFromTrash(p) {");
+const end = store.indexOf("    async deleteProject(p) {", start);
+assert.notEqual(start, -1, "atomic project restore action must exist");
+assert.ok(end > start, "restore action must have a bounded body");
+const body = store.slice(start, end);
+assert.match(body, /await R\.putAtomic\(ops\)/, "project and related records must be restored atomically");
+assert.match(body, /record\.deleted_at === p\.deleted_at/, "only children from the same deletion batch are restored");
+assert.match(body, /record\.deleted_by \|\| null\) === \(p\.deleted_by \|\| null/, "deletion actor must match batch marker");
+assert.match(body, /deleted_at: null, deleted_by: null/, "restore clears deletion markers");
+assert.match(body, /related\.length \+ 1 > 1000/, "oversized batches must be rejected");
+assert.match(body, /catch \(error\)/, "atomic failure must be surfaced");
+assert.match(store, /R\.restore\(coll, rec\.id\)/, "unrelated trash items may still be restored individually");
+assert.match(store, /استرجع المشروع لاسترجاعهما معًا/, "children from a trashed project cannot be restored independently");
+assert.match(screens, /act\.restoreTrashRecord\(coll, rec\)/, "trash UI must route restore through the batch-aware action");
+console.log("Projects atomic project-restore contract tests passed.");
