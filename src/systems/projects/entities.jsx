@@ -19,6 +19,7 @@ export function OutputsView({ projectId }) {
   const canNew = projectId ? can("output.write", projectsById[projectId]) : data.projects.some((p) => can("output.write", p));
   const submit = async (v) => {
     const project = projectsById[v.project_id]; const prev = v.id ? data.outputs.find((o) => o.id === v.id) : null; const rec = { ...v, id: v.id || uid() };
+    if (prev?.approval === "Final") throw new Error("المخرج النهائي مقفل؛ أنشئ مخرجاً جديداً للنسخة المعدلة.");
     if (rec.approval === "Final" && (!prev || prev.approval !== "Final")) {
       if (!can("output.approve", project)) throw new Error("اعتماد المخرج النهائي للقائد أو المراجع فقط");
       if (!rec.url && !(rec.files || []).length && !(await confirm("المخرج النهائي بلا ملف أو رابط. المتابعة؟"))) return false;
@@ -40,7 +41,7 @@ export function OutputsView({ projectId }) {
               {o.url && <a href={o.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.info, display: "block", margin: "4px 0", wordBreak: "break-all" }}>🔗 {o.url}</a>}
               {o.notes && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{o.notes}</div>}
               {o.approved_by && <div style={{ fontSize: 10.5, color: C.muted }}>اعتمده {<Who id={o.approved_by} size={14} />} · {fmt((o.approved_at || "").slice(0, 10))}</div>}
-              <div style={{ marginTop: 6 }}><RowActions canW={can("output.write", projectsById[o.project_id])} onEdit={() => setForm(o)} onDelete={() => act.del("outputs", o.id, o.name)} /></div>
+              <div style={{ marginTop: 6 }}>{o.approval === "Final" ? <Chip color={C.ok}>🔒 مخرج نهائي — لا يُعدَّل</Chip> : <RowActions canW={can("output.write", projectsById[o.project_id])} onEdit={() => setForm(o)} onDelete={() => act.del("outputs", o.id, o.name)} />}</div>
             </div>))}
         </div>)}
       {form && <FormModal title={form.id ? "تعديل المخرج" : "مخرج جديد"} wide initial={{ approval: "Draft", type: lookups.output_type[0], ...form }} onClose={() => setForm(null)} onSubmit={submit} fields={[
@@ -67,6 +68,7 @@ export function RisksView({ projectId }) {
     const p = projectsById[r.project_id];
     if (to === "Closed") return setClosing(r);
     if (to === "Materialized") {
+      if (r.converted_issue_id && data.issues.some((i) => i.id === r.converted_issue_id)) { toast("تم تحويل هذا الخطر بالفعل إلى مشكلة مرتبطة؛ لن ننشئ نسخة أخرى."); return; }
       if (!(await confirm(`تحويل الخطر «${r.title}» إلى مشكلة؟ سيُنشأ سجل مشكلة مفتوحة ويُربط به.`))) return;
       const iid = uid(); await act.put("issues", { id: iid, title: r.title, project_id: r.project_id, severity: D.riskScore(r) >= settings.riskHigh ? "High" : "Medium", status: "Open", discovered_at: new Date().toISOString().slice(0, 10), owner_id: r.owner_id, description: r.notes || r.mitigation || "", from_risk_id: r.id }, p);
       await act.put("risks", { ...r, status: "Materialized", converted_issue_id: iid }, p); act.act("risks", r.id, "materialized", r.title); toast("✅ تحوّل إلى مشكلة"); return;
@@ -125,9 +127,9 @@ export function IssuesView({ projectId }) {
         <div key={i.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "9px 0", borderBottom: `1px solid ${C.line}`, alignItems: "center" }}>
           <div><div style={{ fontSize: 13, fontWeight: 700 }}><Chip color={SEV_COLOR[i.severity]} solid>{L.severity[i.severity]}</Chip> {i.title} <Chip color={STATUS_COLOR[i.status]}>{L.issueStatus[i.status]}</Chip></div>
             {i.description && <div style={{ fontSize: 12, color: C.dim }}>{i.description}</div>}{i.resolution && <div style={{ fontSize: 12, color: C.ok }}>الحل: {i.resolution}</div>}
-            <div style={{ fontSize: 11, color: C.muted, display: "flex", gap: 10 }}>{!projectId && <ProjectName id={i.project_id} />}<Who id={i.owner_id} size={15} /><span>{fmtShort(i.discovered_at)}</span>{i.from_risk_id && <span>⚠️ من خطر</span>}</div>
+            <div style={{ fontSize: 11, color: C.muted, display: "flex", gap: 10 }}>{!projectId && <ProjectName id={i.project_id} />}<Who id={i.owner_id} size={15} /><span>{fmtShort(i.discovered_at)}</span>{i.from_risk_id && <span>⚠️ من خطر</span>}{i.from_discovery_id && <span>💡 من اكتشاف</span>}</div>
             {(i.task_ids || []).length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}><span style={{ fontSize: 11, color: C.muted }}>مهام الإصلاح:</span>{(i.task_ids || []).map((tid) => idx.byId[tid]).filter(Boolean).map((t) => <Btn key={t.id} small onClick={() => openTask(t.id)}>🔧 {t.title}</Btn>)}</div>}
-            {i.from_risk_id && <div style={{ fontSize: 11, marginTop: 4 }}>مصدرها خطر: {(data.risks.find((r) => r.id === i.from_risk_id) || {}).title || "—"}</div>}</div>
+            {i.from_risk_id && <div style={{ fontSize: 11, marginTop: 4 }}>مصدرها خطر: {(data.risks.find((r) => r.id === i.from_risk_id) || {}).title || "—"}</div>}{i.from_discovery_id && <div style={{ fontSize: 11, marginTop: 4 }}>مصدرها اكتشاف: {(data.discovery.find((d) => d.id === i.from_discovery_id) || {}).title || "—"}</div>}</div>
           <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>{can("issue.write", projectsById[i.project_id]) && <Btn small onClick={async () => { if ((i.task_ids || []).some((id) => idx.byId[id]) || idx.list.some((t) => (t.issue_ids || []).includes(i.id))) { toast("توجد مهمة إصلاح مرتبطة بالفعل بهذه المشكلة."); return; } const task = await act.saveTask({ title: `إصلاح: ${i.title}`, project_id: i.project_id, description: i.description || "", priority: i.severity === "Critical" ? "Urgent" : i.severity === "High" ? "High" : "Medium", status: "Not Started", planning_bucket: "Inbox", issue_ids: [i.id] }, true); if (task) { await act.put("issues", { ...i, task_ids: [...new Set([...(i.task_ids || []), task.id])] }, projectsById[i.project_id]); toast("✅ تم إنشاء مهمة الإصلاح وربطها بالمشكلة"); } }}>＋ مهمة إصلاح</Btn>}{can("issue.write", projectsById[i.project_id]) && (D.ISSUE_NEXT[i.status] || []).length > 0 && <select style={{ ...S.sel, width: 110, padding: "3px 6px", fontSize: 11 }} value="" onChange={(e) => e.target.value && change(i, e.target.value)}><option value="">انقل إلى…</option>{D.ISSUE_NEXT[i.status].map((s) => <option key={s} value={s}>{L.issueStatus[s]}</option>)}</select>}<RowActions canW={can("issue.write", projectsById[i.project_id])} onEdit={() => setForm(i)} onDelete={() => act.del("issues", i.id, i.title)} /></span>
         </div>))}</div>}
       {form && <FormModal title={form.id ? "تعديل المشكلة" : "مشكلة جديدة"} wide initial={{ severity: "Medium", status: "Open", discovered_at: new Date().toISOString().slice(0, 10), ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { await act.put("issues", { ...v, id: v.id || uid() }, projectsById[v.project_id]); toast("✅ تم الحفظ"); setForm(null); }} fields={[
