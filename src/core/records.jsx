@@ -229,6 +229,12 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     return () => window.removeEventListener("online", onOnline);
   }, [loadAll, flushQueue, syncSince, isDemo]);
 
+  // A persisted queue can survive a page reload while the browser is already online.
+  // Flush after the initial server snapshot is loaded, not only on the next online event.
+  useEffect(() => {
+    if (!isDemo && state.ready && state.online) flushQueue();
+  }, [isDemo, state.ready, state.online, flushQueue]);
+
   const put = useCallback((coll, rec) => {
     const prev = (stateRef.current.recs[coll] || {})[rec.id] || null;
     const now = nowIso();
