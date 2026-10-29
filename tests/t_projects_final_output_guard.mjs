@@ -8,6 +8,8 @@ assert.match(migration, /create trigger projects_guard_final_outputs_trg\s+befor
   "guard must cover normal record writes and atomic RPC writes");
 assert.match(migration, /old\.data->>'approval' = 'Final'/,
   "previously final outputs must be treated as immutable");
+assert.match(migration, /new\.data - 'deleted_at' - 'deleted_by' - 'v' - 'updated_at' - 'created_at' - 'updated_by_member'/,
+  "final output immutability must ignore only internal record metadata and trash markers");
 assert.match(migration, /new\.data - 'deleted_at' - 'deleted_by'/,
   "only trash/restore markers may change after final approval");
 assert.match(migration, /public\.is_ws_owner\(new\.workspace_id\)/,
