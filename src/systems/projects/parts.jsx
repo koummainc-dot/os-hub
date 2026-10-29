@@ -140,7 +140,7 @@ export function TaskSheet() {
   if (!view.taskId) return null; if (!t) return null;
   const project = projectsById[t.project_id]; const d = idx.derived[t.id]; const leaf = d.isLeaf; const canW = can("task.write", project);
   const sessions = data.sessions.filter((s) => s.task_id === t.id || idx.descendants(t.id).includes(s.task_id)).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  const outs = data.outputs.filter((o) => o.task_id === t.id); const canOut = can("output.write", project); const status = leaf ? t.status : d.status;
+  const outs = data.outputs.filter((o) => o.task_id === t.id); const linkedIssues = data.issues.filter((i) => (i.task_ids || []).includes(t.id) || (t.issue_ids || []).includes(i.id)); const canOut = can("output.write", project); const status = leaf ? t.status : d.status;
   const acts = data.activity.filter((a) => a.entity_id === t.id).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 15);
   const tabs = [{ id: "details", label: "التفاصيل" }, { id: "time", label: "الوقت", count: sessions.length }, { id: "outputs", label: "المخرجات", count: outs.length }, { id: "links", label: "الروابط" }, { id: "activity", label: "النشاط" }];
   async function saveOutput(v) {
@@ -188,7 +188,7 @@ export function TaskSheet() {
       {tab === "links" && (
         <div style={{ fontSize: 13, lineHeight: 2 }}>
           <div>المواصفة: {t.prd_id ? (data.prds.find((p) => p.id === t.prd_id) || {}).title || "—" : "—"}</div>
-          <div>لماذا وُجدت؟ {(t.discovery_ids || []).length ? (t.discovery_ids || []).map((id) => (data.discovery.find((x) => x.id === id) || {}).title).filter(Boolean).join(" · ") : "—"}</div>
+          <div>لماذا وُجدت؟ {(t.discovery_ids || []).length ? (t.discovery_ids || []).map((id) => (data.discovery.find((x) => x.id === id) || {}).title).filter(Boolean).join(" · ") : "—"}</div><div style={{ marginTop: 6 }}>المشاكل المرتبطة: {linkedIssues.length ? linkedIssues.map((i) => <span key={i.id} style={{ display: "inline-flex", marginInlineEnd: 6, color: C.info }}>{i.title}</span>) : "—"}</div>
         </div>
       )}
       {tab === "activity" && (!acts.length ? <Empty icon="🕘" title="لا نشاط مسجَّل" /> : acts.map((a) => <div key={a.id} style={{ fontSize: 12, padding: "4px 0", color: C.dim }}>{dateOf(a.at, settings.timezone)} · {nameOf(a.actor_id)} · {a.action} {a.summary}</div>))}
