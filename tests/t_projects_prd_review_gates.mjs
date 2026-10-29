@@ -43,6 +43,8 @@ assert.match(entities, /d\.status === "Approved" && can\("prd\.approve", project
   "version creation UI must require approval-level permission");
 assert.match(migration, /current-version reviewer approvals are complete/,
   "server must require current-version approvals before final approval");
+assert.match(migration, /immediately preceding approved version in the same project/,
+  "server must reject unauthorized, skipped, or cross-project PRD versions");
 assert.match(migration, /Complete TLDR, problem overview, proposed solution, and success metrics before review/,
   "server must require essential PRD content before review");
 console.log("Projects PRD review-gate domain tests passed.");
