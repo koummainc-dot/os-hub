@@ -28,6 +28,10 @@ assert.match(migration, /Output task must be active and belong to the selected p
   "database must reject cross-project or inactive task links on outputs");
 assert.match(migration, /Output PRD must be active and belong to the selected project/,
   "database must reject cross-project or inactive PRD links on outputs");
+assert.match(migration, /p\.visible_to is null or auth\.uid\(\) = any\(p\.visible_to\)/,
+  "server-side project references must respect record-level visibility");
+assert.match(migration, /public\.ws_access_level\(new\.workspace_id, 'projects', 'projects'\) in \('view','edit'\)/,
+  "server-side project references must require project collection access");
 assert.match(migration, /Output must reference an active non-system project/,
   "database must reject outputs attached to missing, trashed, or system projects");
 assert.match(migration, /create trigger projects_guard_work_sessions_trg\s+before insert or update of data on public\.workspace_records/i,
