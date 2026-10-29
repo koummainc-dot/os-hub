@@ -173,7 +173,7 @@ export function TaskSheet() {
           <div>التقدير: {fmtMinutes(d.estimated)} · الفعلي: {fmtMinutes(d.actual)} · الفرق: {d.estimated ? fmtMinutes(Math.abs(d.variance)) + (d.variance > 0 ? " زيادة" : " توفير") : "—"}</div>
           {t.description && <div style={{ whiteSpace: "pre-wrap", marginTop: 6 }}>{t.description}</div>}
           {t.cancelled_reason && <div style={{ color: C.bad }}>سبب الإلغاء: {t.cancelled_reason}</div>}
-          {t.result_note && <div style={{ background: "rgba(16,185,129,0.07)", padding: "8px 10px", borderRadius: 8, marginTop: 6 }}><b>النتيجة السريعة:</b> {t.result_note}{canOut && <div style={{ marginTop: 6 }}>{outs.some((o) => o.source_result_task_id === t.id) ? <Chip color={C.ok}>تم تحويل النتيجة إلى مخرج</Chip> : <Btn small onClick={() => setOutputForm({ name: t.title, type: "Other", approval: "Draft", url: /^https?:/.test(t.result_note) ? t.result_note : "", notes: t.result_note, source_result_task_id: t.id })}>📦 مراجعة وإنشاء مخرج من النتيجة</Btn>}</div>}</div>}
+          {t.result_note && <div style={{ background: "rgba(16,185,129,0.07)", padding: "8px 10px", borderRadius: 8, marginTop: 6 }}><b>النتيجة السريعة:</b> {t.result_note}{canOut && <div style={{ marginTop: 6 }}>{outs.some((o) => o.source_result_task_id === t.id || (o.name === t.title && o.notes === t.result_note)) ? <Chip color={C.ok}>يوجد مخرج لهذه النتيجة بالفعل</Chip> : <Btn small onClick={() => setOutputForm({ name: t.title, type: "Other", approval: "Draft", url: /^https?:/.test(t.result_note) ? t.result_note : "", notes: t.result_note, source_result_task_id: t.id })}>📦 مراجعة وإنشاء مخرج من النتيجة</Btn>}</div>}</div>}
           {!leaf && <div style={{ marginTop: 6 }}>الأوراق: {d.leafDone}/{d.leafTotal} مكتملة</div>}
         </div>
       )}
