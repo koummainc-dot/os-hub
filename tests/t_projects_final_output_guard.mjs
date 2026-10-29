@@ -26,6 +26,8 @@ assert.match(ui, /prev\?\.approval === "Final"/,
   "UI must also prevent editing a final output");
 assert.match(ui, /can\("output\.approve", project\)/,
   "UI must enforce the same approval role before submission");
+assert.match(migration, /Trash\/restore and metadata-only updates do not change the artifact or its links/,
+  "output trash/restore must work even when linked records change in the same transaction");
 assert.match(migration, /Output task must be active and belong to the selected project/,
   "database must reject cross-project or inactive task links on outputs");
 assert.match(migration, /Output PRD must be active and belong to the selected project/,
