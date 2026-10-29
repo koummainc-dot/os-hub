@@ -20,4 +20,12 @@ assert.match(ui, /prev\?\.approval === "Final"/,
   "UI must also prevent editing a final output");
 assert.match(ui, /can\("output\.approve", project\)/,
   "UI must enforce the same approval role before submission");
-console.log("Projects final-output server guard contract tests passed.");
+assert.match(migration, /create trigger projects_guard_work_sessions_trg\\s+before insert or update of data on public\\.workspace_records/i,
+  "session guard must run for direct and RPC writes");
+assert.match(migration, /new\\.data->>'member_id' is distinct from auth\\.uid\\(\\)::text/,
+  "database must reject sessions owned by a different member");
+assert.match(migration, /A work session must reference an active leaf task/,
+  "database must reject missing, archived, deleted, or parent task references");
+assert.match(migration, /A work session cannot reference a parent task/,
+  "database must reject a task with active child tasks");
+console.log("Projects final-output and session guard contract tests passed.");
