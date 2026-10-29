@@ -477,6 +477,10 @@ begin
       if not can_approve then
         raise exception 'Only the project lead, reviewer, or workspace owner may approve a PRD' using errcode = '42501';
       end if;
+      if (new.data - 'status' - 'approved_at' - 'updated_by_member')
+         is distinct from (old.data - 'status' - 'approved_at' - 'updated_by_member') then
+        raise exception 'A PRD cannot be edited while it is being approved' using errcode = '42501';
+      end if;
       if coalesce(trim(new.data->>'tldr'), '') = ''
          or not exists (
            select 1 from jsonb_array_elements(
