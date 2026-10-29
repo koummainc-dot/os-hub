@@ -362,3 +362,206 @@ revoke all on function public.projects_guard_task_references() from public, anon
 revoke execute on function public.projects_guard_final_outputs() from authenticated;
 revoke execute on function public.projects_guard_work_sessions() from authenticated;
 revoke execute on function public.projects_guard_task_references() from authenticated;
+
+
+-- PRD review lifecycle enforcement. UI locking is helpful, but the record API and
+-- atomic RPC must not allow edits to submitted/approved specifications to bypass it.
+create or replace function public.projects_guard_prd_review()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  project_data jsonb;
+  can_review boolean := false;
+  can_approve boolean := false;
+  prd_version text;
+  reviewer_id text;
+  section_key text;
+begin
+  if new.system_id <> 'projects' or new.collection <> 'prds' then
+    return new;
+  end if;
+
+  if auth.uid() is null then
+    raise exception 'Authentication required to write PRDs' using errcode = '42501';
+  end if;
+
+  if nullif(new.data->>'project_id', '') is null then
+    raise exception 'A PRD must belong to a project' using errcode = '22023';
+  end if;
+
+  select p.data into project_data
+    from public.workspace_records p
+   where p.workspace_id = new.workspace_id
+     and p.system_id = 'projects'
+     and p.collection = 'projects'
+     and p.id = new.data->>'project_id'
+     and p.deleted = false
+     and (p.visible_to is null or auth.uid() = any(p.visible_to))
+     and public.ws_access_level(new.workspace_id, 'projects', 'projects') in ('view','edit')
+   limit 1;
+
+  if project_data is null
+     or project_data->>'deleted_at' is not null
+     or project_data->>'is_system' = 'true' then
+    raise exception 'PRD must reference an active visible non-system project' using errcode = '22023';
+  end if;
+
+  can_approve := public.is_ws_owner(new.workspace_id)
+    or project_data->>'lead_id' = auth.uid()::text
+    or exists (
+      select 1
+        from jsonb_array_elements(
+          case when jsonb_typeof(project_data->'members') = 'array'
+               then project_data->'members' else '[]'::jsonb end
+        ) as member
+       where member->>'member_id' = auth.uid()::text
+         and member->>'role' in ('Lead', 'Reviewer')
+    );
+  can_review := can_approve
+    or exists (
+      select 1
+        from jsonb_array_elements(
+          case when jsonb_typeof(new.data->'reviewer_ids') = 'array'
+               then new.data->'reviewer_ids' else '[]'::jsonb end
+        ) as reviewer(value)
+       where reviewer.value #>> '{}' = auth.uid()::text
+    );
+
+  if tg_op = 'INSERT' then
+    if new.data->>'status' in ('Ready for Review', 'Approved', 'Superseded') then
+      raise exception 'A new PRD version must start as a draft' using errcode = '42501';
+    end if;
+    if new.data->>'supersedes_id' is not null then
+      if not exists (
+        select 1 from public.workspace_records prior
+         where prior.workspace_id = new.workspace_id
+           and prior.system_id = 'projects'
+           and prior.collection = 'prds'
+           and prior.id = new.data->>'supersedes_id'
+           and prior.data->>'status' = 'Approved'
+           and prior.data->>'project_id' = new.data->>'project_id'
+           and prior.deleted = false
+      ) or coalesce((new.data->>'version')::integer, 0) <= 1 then
+        raise exception 'A new PRD version must supersede an approved version in the same project' using errcode = '22023';
+      end if;
+    end if;
+    return new;
+  end if;
+
+  -- Approved/Superseded records are immutable; the only permitted edit is the
+  -- status-only transition Approved -> Superseded when a new version is created.
+  if old.data->>'status' in ('Approved', 'Superseded') then
+    if old.data->>'status' = 'Approved'
+       and new.data->>'status' = 'Superseded'
+       and (new.data - 'status' - 'updated_by_member')
+           is not distinct from (old.data - 'status' - 'updated_by_member') then
+      return new;
+    end if;
+    raise exception 'Approved or superseded PRDs are immutable; create a new version' using errcode = '42501';
+  end if;
+
+  -- A submitted PRD cannot be edited while under review. Reviewers may change
+  -- only their own current-version approval; the lead may return it to draft or approve it.
+  if old.data->>'status' = 'Ready for Review' then
+    if new.data->>'status' = 'In Progress' then
+      if not can_approve
+         or (new.data - 'status' - 'submitted_for_review_at' - 'updated_by_member')
+            is distinct from (old.data - 'status' - 'submitted_for_review_at' - 'updated_by_member') then
+        raise exception 'Only the project lead or workspace owner may return an unchanged PRD to draft' using errcode = '42501';
+      end if;
+      return new;
+    elsif new.data->>'status' = 'Approved' then
+      if not can_approve then
+        raise exception 'Only the project lead, reviewer, or workspace owner may approve a PRD' using errcode = '42501';
+      end if;
+    elsif new.data->>'status' = 'Ready for Review' then
+      if not can_review
+         or (new.data - 'approvals' - 'updated_by_member')
+            is distinct from (old.data - 'approvals' - 'updated_by_member') then
+        raise exception 'A submitted PRD is locked; assigned reviewers may change only their own approval' using errcode = '42501';
+      end if;
+
+      if exists (
+        select 1 from jsonb_array_elements(
+          case when jsonb_typeof(coalesce(old.data->'approvals','[]'::jsonb)) = 'array'
+               then coalesce(old.data->'approvals','[]'::jsonb) else '[]'::jsonb end
+        ) a(value)
+        where a.value->>'reviewer_id' <> auth.uid()::text
+          and not coalesce(new.data->'approvals','[]'::jsonb) @> jsonb_build_array(a.value)
+      ) or exists (
+        select 1 from jsonb_array_elements(
+          case when jsonb_typeof(coalesce(new.data->'approvals','[]'::jsonb)) = 'array'
+               then coalesce(new.data->'approvals','[]'::jsonb) else '[]'::jsonb end
+        ) a(value)
+        where a.value->>'reviewer_id' <> auth.uid()::text
+          and not coalesce(old.data->'approvals','[]'::jsonb) @> jsonb_build_array(a.value)
+      ) then
+        raise exception 'A reviewer cannot modify another reviewer approval' using errcode = '42501';
+      end if;
+
+      if not exists (
+        select 1 from jsonb_array_elements(
+          case when jsonb_typeof(coalesce(new.data->'approvals','[]'::jsonb)) = 'array'
+               then coalesce(new.data->'approvals','[]'::jsonb) else '[]'::jsonb end
+        ) a(value)
+        where a.value->>'reviewer_id' = auth.uid()::text
+          and a.value->>'version' = coalesce(new.data->>'version', '1')
+      ) then
+        raise exception 'The assigned reviewer may update only their own current-version approval' using errcode = '42501';
+      end if;
+      return new;
+    else
+      raise exception 'Invalid PRD review lifecycle transition' using errcode = '42501';
+    end if;
+  elsif old.data->>'status' = 'Approved' then
+    raise exception 'Approved PRDs cannot be edited' using errcode = '42501';
+  end if;
+
+  -- Drafts may be edited normally, but they cannot jump straight to Approved or Superseded.
+  if new.data->>'status' = 'Approved' then
+    raise exception 'Submit a PRD for review before approval' using errcode = '42501';
+  end if;
+  if new.data->>'status' = 'Superseded' then
+    raise exception 'Only an approved PRD can be superseded' using errcode = '42501';
+  end if;
+
+  if new.data->>'status' = 'Ready for Review' then
+    if coalesce(trim(new.data->>'tldr'), '') = ''
+       or not exists (
+         select 1 from jsonb_array_elements(
+           case when jsonb_typeof(coalesce(new.data->'sections','[]'::jsonb)) = 'array'
+                then coalesce(new.data->'sections','[]'::jsonb) else '[]'::jsonb end
+         ) s(value)
+         where s.value->>'key' = 'problem_overview' and coalesce(trim(s.value->>'content'), '') <> ''
+       )
+       or not exists (
+         select 1 from jsonb_array_elements(
+           case when jsonb_typeof(coalesce(new.data->'sections','[]'::jsonb)) = 'array'
+                then coalesce(new.data->'sections','[]'::jsonb) else '[]'::jsonb end
+         ) s(value)
+         where s.value->>'key' = 'proposed_solution' and coalesce(trim(s.value->>'content'), '') <> ''
+       )
+       or not exists (
+         select 1 from jsonb_array_elements(
+           case when jsonb_typeof(coalesce(new.data->'sections','[]'::jsonb)) = 'array'
+                then coalesce(new.data->'sections','[]'::jsonb) else '[]'::jsonb end
+         ) s(value)
+         where s.value->>'key' = 'success_metrics' and coalesce(trim(s.value->>'content'), '') <> ''
+       ) then
+      raise exception 'Complete TLDR, problem overview, proposed solution, and success metrics before review' using errcode = '22023';
+    end if;
+  end if;
+
+  return new;
+end;
+$function$;
+
+drop trigger if exists projects_guard_prd_review_trg on public.workspace_records;
+create trigger projects_guard_prd_review_trg
+before insert or update of data on public.workspace_records
+for each row execute function public.projects_guard_prd_review();
+
+revoke all on function public.projects_guard_prd_review() from public, anon, authenticated;
