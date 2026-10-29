@@ -3,6 +3,7 @@ import { useRecordStore, uid, nowIso, arr } from "../../core/records.jsx";
 import { todayStr, dateOf, weekStart } from "../../core/dates.js";
 import * as D from "./domain.js";
 import { persistTemplateBundle } from "./templateWrites.js";
+import { persistTaskTreeMove } from "./taskTreeMoveWrites.js";
 import { DEFAULT_LOOKUPS, BUILTIN_TEMPLATES, PRD_TEMPLATE } from "./lookups.js";
 import { useConfirm } from "../../core/kit.jsx";
 
@@ -189,11 +190,29 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       await R.put("tasks", { ...t, parent_task_id: newParentId || null, sort_order: Date.now() }); return true;
     },
     async moveTree(taskId, targetProjectId) {
-      const plan = D.planTreeMove(taskId, targetProjectId, idx, prdsById);
-      if (!(await confirm(`نقل ${plan.ids.length} مهمة إلى مشروع «${projectsById[targetProjectId].name}»؟ سيُحدَّث مشروع المخرجات المرتبطة وتُمسح روابط المواصفات المخالفة.`))) return false;
-      for (const p of plan.patches) await R.put("tasks", p);
-      for (const o of data.outputs.filter((x) => plan.ids.includes(x.task_id))) await R.put("outputs", { ...o, project_id: targetProjectId });
-      toast("✅ نُقلت الشجرة"); return true;
+      const target = projectsById[targetProjectId];
+      if (!target || !idx.byId[taskId]) { toast("⛔ المشروع أو المهمة غير موجودة"); return false; }
+      const source = idx.byId[taskId];
+      if (source.project_id === targetProjectId) { toast("ℹ️ المهمة موجودة بالفعل في هذا المشروع"); return false; }
+      const plan = D.planTreeMove(taskId, targetProjectId, idx, prdsById, data.tasks, Object.fromEntries(data.discovery.map((x) => [x.id, x])));
+      const outputPatches = data.outputs.filter((x) => plan.ids.includes(x.task_id)).map((o) => ({ ...o, project_id: targetProjectId, _vis: visFor(target) }));
+      const taskPatches = plan.patches.map((p) => ({ ...p, _vis: visFor(target) }));
+      const prdCount = plan.patches.filter((p, i) => data.tasks.find((t) => t.id === plan.ids[i])?.prd_id && !p.prd_id).length;
+      const discoveryCount = plan.patches.reduce((n, p, i) => n + ((data.tasks.find((t) => t.id === plan.ids[i])?.discovery_ids || []).length - (p.discovery_ids || []).length), 0);
+      const prompt = `نقل ${plan.ids.length} مهمة إلى مشروع «${target.name}»؟\nسيتم نقل ${outputPatches.length} مخرج مرتبط، مع الحفاظ على روابط الأبناء داخل الشجرة.\n${prdCount ? `سيتم مسح ${prdCount} رابط مواصفة لا يتبع المشروع الهدف.\n` : ""}${discoveryCount ? `سيتم مسح ${discoveryCount} رابط اكتشاف غير صالح للمشروع الهدف.\n` : ""}إذا فشل أحد الحفظات، سيحاول النظام استرجاع السجلات التي سبق تحديثها.`;
+      if (!(await confirm(prompt, { title: "نقل شجرة المهام", ok: "نقل الشجرة" }))) return false;
+      try {
+        await persistTaskTreeMove({
+          taskPatches, outputPatches,
+          put: (collection, record) => R.put(collection, record),
+        });
+      } catch (error) {
+        toast("⛔ " + (error?.message || "تعذّر نقل الشجرة"));
+        return false;
+      }
+      act("tasks", taskId, "moved_tree", `${plan.ids.length} مهمة → ${target.name}`);
+      toast("✅ نُقلت الشجرة بالكامل");
+      return true;
     },
     async completeAll(taskId) {
       const open = D.completeAllBranches(taskId, idx); if (!open.length) { toast("لا توجد فروع مفتوحة"); return; }
