@@ -26,17 +26,17 @@ assert.match(migration, /Output PRD must be active and belong to the selected pr
   "database must reject cross-project or inactive PRD links on outputs");
 assert.match(migration, /Output must reference an active non-system project/,
   "database must reject outputs attached to missing, trashed, or system projects");
-assert.match(migration, /create trigger projects_guard_work_sessions_trg\\s+before insert or update of data on public\\.workspace_records/i,
+assert.match(migration, /create trigger projects_guard_work_sessions_trg\s+before insert or update of data on public\.workspace_records/i,
   "session guard must run for direct and RPC writes");
-assert.match(migration, /new\\.data->>'member_id' is distinct from auth\\.uid\\(\\)::text/,
+assert.match(migration, /new\.data->>'member_id' is distinct from auth\.uid\(\)::text/,
   "database must reject sessions owned by a different member");
-assert.match(migration, /old\\.data->>'member_id' is distinct from auth\\.uid\\(\\)::text/,
+assert.match(migration, /old\.data->>'member_id' is distinct from auth\.uid\(\)::text/,
   "database must reject takeover of another member's existing session");
 assert.match(migration, /A work session must reference an active leaf task/,
   "database must reject missing, archived, deleted, or parent task references");
 assert.match(migration, /A work session cannot reference a parent task/,
   "database must reject a task with active child tasks");
-assert.match(migration, /create trigger projects_guard_task_references_trg\\s+before insert or update of data on public\\.workspace_records/i,
+assert.match(migration, /create trigger projects_guard_task_references_trg\s+before insert or update of data on public\.workspace_records/i,
   "task relationship guard must cover direct writes and atomic record batches");
 assert.match(migration, /Task parent must be active and belong to the same project/,
   "database must reject missing or cross-project parent tasks");
