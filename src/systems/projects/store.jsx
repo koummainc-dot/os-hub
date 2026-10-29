@@ -295,6 +295,34 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       act("discovery", discovery.id, "converted_to_task", task.title);
       return task;
     },
+    async convertDiscoveryToProject(discoveryId) {
+      const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
+      if (!discovery) throw new Error("الاكتشاف غير موجود.");
+      const existing = (data.projects || []).find((item) => item.source_discovery_id === discoveryId);
+      if (existing) {
+        const links = [...new Map([...(discovery.resolution_links || []), { kind: "project", id: existing.id }].map((link) => [link.kind + ":" + link.id, link])).values()];
+        const projectIds = [...new Set([...(discovery.project_ids || []), existing.id])];
+        await R.putAtomic([{ coll: "discovery", rec: { ...discovery, project_ids: projectIds, status: "Completed", resolution_links: links } }]);
+        return existing;
+      }
+      const projectId = uid();
+      const project = {
+        id: projectId, name: discovery.title, type: "أخرى", status: "Idea",
+        priority: discovery.impact_level === "Critical" ? "High" : "Medium",
+        description: discovery.description || "", visibility: "workspace",
+        source_discovery_id: discovery.id, lead_id: discovery.owner_id || me,
+        members: [{ member_id: discovery.owner_id || me, role: "Lead" }],
+        created_by: me,
+      };
+      const links = [...new Map([...(discovery.resolution_links || []), { kind: "project", id: projectId }].map((link) => [link.kind + ":" + link.id, link])).values()];
+      const projectIds = [...new Set([...(discovery.project_ids || []), projectId])];
+      await R.putAtomic([
+        { coll: "projects", rec: project },
+        { coll: "discovery", rec: { ...discovery, project_ids: projectIds, status: "Completed", resolution_links: links } },
+      ]);
+      act("projects", projectId, "created_from_discovery", project.name);
+      return project;
+    },
     async convertDiscoveryToPrd(discoveryId, projectId) {
       const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
       const project = projectsById[projectId];
