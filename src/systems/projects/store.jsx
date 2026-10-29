@@ -227,6 +227,34 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       });
       act("projects", r.project.id, "created_from_template", tpl.name); return r.project;
     },
+    // Create a repair task and link it to its issue in one server transaction.
+    async createRepairTask(issue) {
+      if (!issue?.id || !issue.project_id || !projectsById[issue.project_id] || projectsById[issue.project_id].is_system) throw new Error("المشكلة أو المشروع غير صالح.");
+      const currentIssue = (data.issues || []).find((item) => item.id === issue.id);
+      if (!currentIssue || currentIssue.project_id !== issue.project_id) throw new Error("تعذّر العثور على المشكلة في المشروع نفسه.");
+      const linkedIds = new Set([...(currentIssue.task_ids || []), ...idx.list.filter((t) => (t.issue_ids || []).includes(currentIssue.id)).map((t) => t.id)]);
+      if ([...linkedIds].some((id) => idx.byId[id])) throw new Error("توجد مهمة إصلاح مرتبطة بالفعل بهذه المشكلة.");
+      const taskId = uid();
+      const task = {
+        id: taskId,
+        title: `إصلاح: ${currentIssue.title}`,
+        project_id: currentIssue.project_id,
+        description: currentIssue.description || "",
+        priority: currentIssue.severity === "Critical" ? "Urgent" : currentIssue.severity === "High" ? "High" : "Medium",
+        status: "Not Started",
+        planning_bucket: "Inbox",
+        issue_ids: [currentIssue.id],
+        created_by: me,
+        sort_order: Date.now(),
+      };
+      const issuePatch = { ...currentIssue, task_ids: [...new Set([...(currentIssue.task_ids || []), taskId])] };
+      const errs = D.validateTaskRefs({ ...task, id: taskId }, { projectsById, tasksById: idx.byId, prdsById });
+      if (errs.length) throw new Error(errs[0]);
+      if (D.traceabilityBlocked(settings, projectsById[task.project_id].type, projectsById[task.project_id].is_system, task)) throw new Error("سياسة التتبع تمنع إنشاء مهمة إصلاح دون ربط مواصفة أو اكتشاف.");
+      await R.putAtomic([{ coll: "tasks", rec: task }, { coll: "issues", rec: issuePatch }]);
+      act("issues", currentIssue.id, "repair_task_created", task.title);
+      return task;
+    },
     // tasks
     async saveTask(v, isNew) {
       const project = projectsById[v.project_id];
