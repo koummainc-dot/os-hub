@@ -27,7 +27,7 @@ function TaskLine({ t, showProject = true }) {
 
 // ═════ Dashboard ═════
 export function Dashboard() {
-  const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, people, nameOf, weekStartStr, alerts } = useP();
+  const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, setView, people, nameOf, weekStartStr, alerts } = useP();
   const real = data.projects.filter((p) => !p.is_system && !p.archived_at);
   const running = real.filter((p) => ["Planned", "In Progress", "On Hold"].includes(p.status));
   const rank = { Red: 0, Orange: 1, Yellow: 2, Green: 3, OnHold: 4, Completed: 5, NotEvaluated: 6 };
@@ -46,7 +46,7 @@ export function Dashboard() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10, marginBottom: 14 }}>
         <Stat label="مشاريع جارية" value={running.length} color={C.info} onClick={() => setPage("projects")} />
         <Stat label="مهام متأخرة" value={overdue.length} color={overdue.length ? C.bad : C.ok} onClick={() => setPage("tasks")} />
-        <Stat label="مشاكل حرجة" value={critical.length} color={critical.length ? C.bad : C.ok} onClick={() => setPage("issues")} />
+        <Stat label="مشاكل حرجة" value={critical.length} color={critical.length ? C.bad : C.ok} onClick={() => { setView((v) => ({ ...v, issueSeverityFilter: "Critical", issueStatusFilter: "open" })); setPage("issues"); }} />
         <Stat label="مخاطر عالية" value={highRisks.length} color={highRisks.length ? C.orange : C.ok} onClick={() => setPage("risks")} />
         <Stat label="صندوق الاكتشاف" value={inbox.length} sub="بانتظار الفرز" color={C.violet} onClick={() => setPage("discovery")} />
       </div>
