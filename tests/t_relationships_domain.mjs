@@ -76,6 +76,13 @@ const reminderWindow = upcomingRelationshipEvents([], [
   { id: "disabled", title: "تذكير معطل", date: "2026-11-02", recurrence: "once", reminderDays: 7, reminderEnabled: false }
 ], "2026-10-28", 30);
 assert.deepEqual(reminderWindow.map((x) => x.id), ["occasion:enabled"]);
+const configuredBirthdayWindow = upcomingRelationshipEvents(
+  [{ id: "soon", name: "قريب", birthday: "1990-11-03" }, { id: "later", name: "لاحق", birthday: "1990-11-20" }],
+  [], "2026-10-28", 365, { birthdayReminderDays: 7 }
+);
+assert.deepEqual(configuredBirthdayWindow.map((x) => x.id), ["birthday:soon"], "birthday reminders must respect the configured lead time");
+assert.equal(empty.settings.birthdayReminderDays, 7);
+assert.equal(empty.settings.neglectedAfterDays, 30);
 assert.deepEqual(upcomingRelationshipEvents([{ id: "p", name: "شخص", birthday: "1990-02-29" }], [], "2027-02-01", 30).map((x) => x.date), ["2027-03-01"]);
 console.log("Relationships OS upcoming reminder tests passed.");
 
