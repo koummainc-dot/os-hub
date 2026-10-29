@@ -244,7 +244,15 @@ function PrdEditor({ prd, onClose, onOpen }) {
   async function approve() { const r = D.prdApprovalReady(d, d.sections, d.approvals); if (!r.ok) return toast("⛔ " + (r.missing.length ? "أقسام ناقصة: " + r.missing.join("، ") : "") + (r.pendingReviewers.length ? " بانتظار موافقة: " + r.pendingReviewers.map(nameOf).join("، ") : "")); await save({ status: "Approved", approved_at: nowIso() }); act.act("prds", d.id, "approved", d.title); }
   async function newVersion() {
     if (!(await confirm("إنشاء نسخة جديدة قابلة للتعديل؟ ستُوسَم النسخة الحالية «تم استبدالها».", { ok: "إنشاء نسخة" }))) return;
-    const next = await act.createPrdVersion(d); onOpen(next.id);
+    setBusy(true);
+    try {
+      const next = await act.createPrdVersion(d);
+      onOpen(next.id);
+    } catch (error) {
+      toast("⛔ لم يتم إنشاء النسخة الجديدة: " + (error?.message || "فشل الحفظ"));
+    } finally {
+      setBusy(false);
+    }
   }
   async function risksFromSection() {
     const lines = secOf("risk_mitigation").split("\n").map((l) => l.trim()).filter(Boolean); if (!lines.length) return toast("اكتب المخاطر في قسم التخفيف أولاً (سطر لكل خطر)");
@@ -258,7 +266,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
       {canW && <Btn kind="primary" onClick={() => save()} disabled={busy}>💾 حفظ</Btn>}
       {canW && d.status !== "Ready for Review" && <Btn onClick={requestReview}>📤 طلب مراجعة</Btn>}
       {can("prd.approve", project) && d.status === "Ready for Review" && <Btn kind="primary" onClick={approve}>✔ اعتماد</Btn>}
-      {d.status === "Approved" && can("prd.approve", project) && <Btn onClick={newVersion}>🆕 نسخة جديدة</Btn>}
+      {d.status === "Approved" && can("prd.approve", project) && <Btn onClick={newVersion} disabled={busy}>🆕 نسخة جديدة</Btn>}
       {canW && <Btn onClick={risksFromSection}>⚠️ حوّل المخاطر إلى سجلات</Btn>}
       {d.status === "Ready for Review" && can("prd.approve", project) && <Btn onClick={() => save({ status: "In Progress", submitted_for_review_at: null })}>↩ إرجاع للمسودة</Btn>}
       {!locked && can("prd.write", project) && <Btn danger onClick={async () => { await act.del("prds", d.id, d.title); onClose(); }}>🗑</Btn>}</>}>
