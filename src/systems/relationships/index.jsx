@@ -6,7 +6,7 @@ import { buildRelationshipsSeed } from "./demo.js";
 import {
   RELATIONSHIP_SECTIONS, RELATIONSHIP_TYPES, RELATIONSHIP_TYPE_LABELS,
   emptyRelationshipsData, normalizeRelationshipsData, validatePerson,
-  normalizeSearch, findPossibleDuplicates, dueFollowups, validateRelationshipsImport, upcomingRelationshipEvents
+  normalizeSearch, findPossibleDuplicates, dueFollowups, validateRelationshipsImport, upcomingRelationshipEvents, planPersonMerge
 } from "./domain.js";
 
 const C = { ink: "#172033", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#DB2777", soft: "#FCE7F3", green: "#047857", amber: "#B45309", red: "#B91C1C" };
@@ -130,6 +130,9 @@ export default function RelationshipsSystem(props) {
   const [editingCircleId, setEditingCircleId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
+  const [mergeKeepId, setMergeKeepId] = useState("");
+  const [mergeDuplicateId, setMergeDuplicateId] = useState("");
+  const [mergePreview, setMergePreview] = useState(null);
   const currentLevel = osSectionLevel(access, page);
   const canEdit = currentLevel === "edit";
 
@@ -597,7 +600,33 @@ export default function RelationshipsSystem(props) {
       </Panel>
     </>;
   }
-  else if (page === "merge") content = <Panel title="مراجعة التكرارات" hint="لا يتم الدمج تلقائيًا؛ راجع السجلات يدويًا قبل أي تعديل.">{duplicates.length ? duplicates.map((d) => <div key={d.key} style={{ padding: 10, borderBottom: "1px solid " + C.line }}>{d.first.name} ↔ {d.duplicate.name} <span style={{ color: C.muted, fontSize: 12 }}>({d.key})</span></div>) : <Empty>لم نعثر على تكرارات واضحة باستخدام الاسم أو الهاتف أو البريد.</Empty>}</Panel>;
+  else if (page === "merge") content = <>
+    <Panel title="مراجعة التكرارات" hint="التكرارات اقتراحات للمراجعة وليست دليلًا قاطعًا على أن السجلين لشخص واحد. لن يتم الحذف أو الدمج دون اختيارك.">
+      {duplicates.length ? duplicates.map((d) => <div key={d.key} style={{ padding: 10, borderBottom: "1px solid " + C.line, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div><strong>{d.first.name} ↔ {d.duplicate.name}</strong><div style={{ color: C.muted, fontSize: 12 }}>{d.key}</div></div>
+        <Button disabled={!canEdit} onClick={() => { setMergeKeepId(d.first.id); setMergeDuplicateId(d.duplicate.id); setMergePreview(null); }}>مقارنة هذين السجلين</Button>
+      </div>) : <Empty>لم نعثر على تكرارات واضحة باستخدام الاسم أو الهاتف أو البريد.</Empty>}
+    </Panel>
+    {canEdit && <Panel title="معاينة دمج سجلين" hint="اختر السجل الذي سيبقى. هذه المعاينة لا تغيّر البيانات.">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10 }}>
+        <SelectField label="السجل الأساسي الذي سيبقى" value={mergeKeepId} onChange={(v) => { setMergeKeepId(v); setMergePreview(null); }} options={[{ value: "", label: "اختر الشخص الأساسي" }, ...data.people.map((p) => ({ value: p.id, label: p.name + " · " + (p.phone || p.email || p.id) }))]} />
+        <SelectField label="السجل المكرر الذي سيُدمج" value={mergeDuplicateId} onChange={(v) => { setMergeDuplicateId(v); setMergePreview(null); }} options={[{ value: "", label: "اختر السجل الآخر" }, ...data.people.filter((p) => p.id !== mergeKeepId).map((p) => ({ value: p.id, label: p.name + " · " + (p.phone || p.email || p.id) }))]} />
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+        <Button kind="primary" disabled={!mergeKeepId || !mergeDuplicateId || mergeKeepId === mergeDuplicateId} onClick={() => { const result = planPersonMerge(data, mergeKeepId, mergeDuplicateId); if (!result.ok) { setError(result.error); setMergePreview(null); } else { setError(""); setMergePreview(result); } }}>إنشاء معاينة</Button>
+        <Button onClick={() => { setMergeKeepId(""); setMergeDuplicateId(""); setMergePreview(null); }}>مسح الاختيار</Button>
+      </div>
+      {mergePreview && <div style={{ marginTop: 14, padding: 12, background: C.bg, borderRadius: 12 }}>
+        <strong>ملخص المعاينة — لم تُحفظ أي تغييرات</strong>
+        <div style={{ fontSize: 13, marginTop: 8 }}>سيبقى: {peopleById[mergePreview.summary.preservedPersonId]?.name || mergePreview.summary.preservedPersonId}</div>
+        <div style={{ fontSize: 13 }}>سيُدمج السجل: {peopleById[mergePreview.summary.removedPersonId]?.name || mergePreview.summary.removedPersonId}</div>
+        <div style={{ fontSize: 13, marginTop: 8 }}>حقول ستُستكمل من السجل الآخر: {mergePreview.summary.transferredFields.length ? mergePreview.summary.transferredFields.join("، ") : "لا توجد حقول فارغة تحتاج إلى استكمال"}.</div>
+        <ul style={{ margin: "8px 0", paddingInlineStart: 22, fontSize: 13 }}>{Object.entries(mergePreview.summary.reassigned).map(([key, count]) => <li key={key}>{({ timeline: "سجل التواصل", followups: "المتابعات", occasions: "المناسبات", gifts: "الهدايا" })[key]}: {count} سجل سيعاد ربطه</li>)}</ul>
+        <div role="note" style={{ color: C.amber, fontSize: 12, marginTop: 8 }}>الحفظ النهائي يتطلب عملية ذرية على الخادم لضمان عدم فقد البيانات إذا فشل تحديث إحدى المجموعات. لم يُنفّذ الدمج بعد؛ سيظل زر الحفظ معطلًا حتى تكتمل هذه الحماية.</div>
+        <Button kind="primary" disabled title="بانتظار الحفظ الذري من الخادم">تأكيد الدمج وحفظه — غير متاح بعد</Button>
+      </div>}
+    </Panel>}
+  </>;
   else if (page === "import") content = <Panel title="الاستيراد والتصدير" hint="الاستيراد يدمج السجلات حسب المعرّف؛ لا يحذف السجلات الحالية."><div style={{ display: "grid", gap: 12 }}>
     <div><Button onClick={() => { const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "relationships-export.json"; a.click(); URL.revokeObjectURL(url); }}>تصدير البيانات (JSON)</Button></div>
     {canEdit && <div style={{ display: "grid", gap: 8, padding: 14, border: "1px dashed " + C.line, borderRadius: 12 }}>
