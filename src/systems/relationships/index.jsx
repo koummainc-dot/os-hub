@@ -127,6 +127,7 @@ export default function RelationshipsSystem(props) {
   const [giftFilterStatus, setGiftFilterStatus] = useState("");
   const [giftSearch, setGiftSearch] = useState("");
   const [circleDraft, setCircleDraft] = useState({ name: "", description: "", color: "#DB2777" });
+  const [editingCircleId, setEditingCircleId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
   const currentLevel = osSectionLevel(access, page);
@@ -494,10 +495,57 @@ export default function RelationshipsSystem(props) {
       </Panel>
     </>;
   }
-  else if (page === "circles") content = <>
-    {canEdit && <Panel title="إنشاء دائرة"><form onSubmit={async (e) => { e.preventDefault(); if (!circleDraft.name.trim()) return; const ok = await saveEntity("circles", { ...circleDraft, id: makeId(), createdAt: new Date().toISOString() }); if (ok) setCircleDraft({ name: "", description: "", color: "#DB2777" }); }} style={{ display: "grid", gap: 10 }}><Field label="اسم الدائرة" value={circleDraft.name} required onChange={(v) => setCircleDraft((p) => ({ ...p, name: v }))} /><Field label="وصف" value={circleDraft.description} onChange={(v) => setCircleDraft((p) => ({ ...p, description: v }))} /><Button type="submit" kind="primary" disabled={busy}>إضافة دائرة</Button></form></Panel>}
-    {list(data.circles, "الدوائر", (x) => <><strong>{x.name}</strong><div style={{ color: C.muted, fontSize: 12 }}>{x.description} · {data.people.filter((p) => p.circleId === x.id).length} أشخاص</div></>, "circles")}
-  </>;
+  else if (page === "circles") {
+    const resetCircleForm = () => {
+      setEditingCircleId(null);
+      setCircleDraft({ name: "", description: "", color: "#DB2777" });
+    };
+    const membersByCircle = (circleId) => data.people.filter((person) => person.circleId === circleId);
+    content = <>
+      {canEdit && <Panel title={editingCircleId ? "تعديل الدائرة" : "إنشاء دائرة"} hint="استخدم الدوائر لتنظيم العائلة والأصدقاء والزملاء، ويمكنك نقل الأشخاص بين الدوائر من ملف الشخص.">
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          const name = String(circleDraft.name || "").trim();
+          if (!name) return setError("اكتب اسم الدائرة.");
+          if (name.length > 100) return setError("اسم الدائرة يجب ألا يتجاوز 100 حرف.");
+          const existing = data.circles.find((circle) => circle.id === editingCircleId);
+          const duplicate = data.circles.some((circle) => circle.id !== editingCircleId && normalizeSearch(circle.name) === normalizeSearch(name));
+          if (duplicate) return setError("يوجد بالفعل دائرة بالاسم نفسه.");
+          const ok = await saveEntity("circles", {
+            ...circleDraft, name, id: editingCircleId || makeId(),
+            color: /^#[0-9a-fA-F]{6}$/.test(circleDraft.color || "") ? circleDraft.color : "#DB2777",
+            createdAt: existing?.createdAt || new Date().toISOString()
+          });
+          if (ok) resetCircleForm();
+        }} style={{ display: "grid", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+            <Field label="اسم الدائرة" value={circleDraft.name} required onChange={(v) => setCircleDraft((p) => ({ ...p, name: v }))} placeholder="العائلة، الأصدقاء المقربون..." />
+            <Field label="وصف" value={circleDraft.description} onChange={(v) => setCircleDraft((p) => ({ ...p, description: v }))} placeholder="الغرض من هذه الدائرة" />
+            <Field label="لون الدائرة (Hex)" value={circleDraft.color} onChange={(v) => setCircleDraft((p) => ({ ...p, color: v }))} placeholder="#DB2777" />
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button type="submit" kind="primary" disabled={busy}>{editingCircleId ? "حفظ التعديلات" : "إضافة دائرة"}</Button>{editingCircleId && <Button onClick={resetCircleForm}>إلغاء التعديل</Button>}</div>
+        </form>
+      </Panel>}
+      <Panel title="دوائر العلاقات" hint={"عدد الدوائر: " + data.circles.length + " · الأشخاص الذين لا ينتمون لدائرة يظلون ظاهرين في سجل الأشخاص."}>
+        {data.circles.length ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 10 }}>
+          {data.circles.map((circle) => {
+            const members = membersByCircle(circle.id);
+            return <article key={circle.id} style={{ border: "1px solid " + C.line, borderTop: "4px solid " + (/^#[0-9a-fA-F]{6}$/.test(circle.color || "") ? circle.color : C.accent), borderRadius: 13, padding: 14, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "start" }}><div><strong style={{ color: C.ink }}>{circle.name}</strong><div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{circle.description || "بدون وصف"}</div></div><span style={{ background: C.bg, borderRadius: 99, padding: "4px 8px", fontSize: 12 }}>{members.length} أشخاص</span></div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+                {members.length ? members.slice(0, 8).map((person) => <Button key={person.id} onClick={() => { setSelectedPersonId(person.id); setPage("people"); }}>{person.name}</Button>) : <span style={{ color: C.muted, fontSize: 12 }}>لا يوجد أشخاص مرتبطون بهذه الدائرة.</span>}
+                {members.length > 8 && <span style={{ color: C.muted, fontSize: 12, alignSelf: "center" }}>و{members.length - 8} آخرون</span>}
+              </div>
+              {canEdit && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}><Button onClick={() => { setEditingCircleId(circle.id); setCircleDraft({ name: circle.name || "", description: circle.description || "", color: circle.color || "#DB2777" }); window.scrollTo?.({ top: 0, behavior: "smooth" }); }}>تعديل الدائرة</Button><Button kind="danger" onClick={async () => {
+                if (!globalThis.confirm?.("أرشفة الدائرة؟ سيظل الأشخاص محفوظين، لكن قد تبقى لديهم إشارة إلى معرّف الدائرة المؤرشفة.")) return;
+                await deleteEntity("circles", circle);
+              }}>أرشفة</Button></div>}
+            </article>;
+          })}
+        </div> : <Empty>لا توجد دوائر بعد. أنشئ دائرة ثم اربط الأشخاص بها من ملفاتهم.</Empty>}
+      </Panel>
+    </>;
+  }
   else if (page === "networking") content = <Panel title="العلاقات المهنية" hint="نظّم سياق العلاقة المهنية، جهة العمل، الدور، مصدر التعارف، وآخر تواصل مسجل.">{list(data.people.filter((p) => ["Professional", "Colleague", "Client", "Mentor"].includes(p.type) || p.organization || p.role || p.professionalUrl), "الأشخاص المهنيون", (p) => <><strong>{p.name}</strong><div style={{ color: C.muted, fontSize: 12 }}>{[RELATIONSHIP_TYPE_LABELS[p.type] || p.type, p.role, p.organization, p.email].filter(Boolean).join(" · ")}</div>{p.metThrough && <div style={{ color: C.muted, fontSize: 12 }}>مصدر التعارف: {p.metThrough}</div>}{p.professionalUrl && <div style={{ marginTop: 5 }}><a href={p.professionalUrl} target="_blank" rel="noreferrer">فتح الرابط المهني</a></div>}<div style={{ marginTop: 7 }}><Button onClick={() => { setSelectedPersonId(p.id); setPage("people"); }}>فتح الملف</Button></div></>, "people")}</Panel>;
   else if (page === "insights") {
     const q = normalizeSearch(globalSearch);
