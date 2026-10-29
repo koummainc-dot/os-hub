@@ -223,7 +223,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
     <Modal title={`${d.title} — v${d.version || 1}`} wide onClose={onClose} footer={<>
       {canW && <Btn kind="primary" onClick={() => save()} disabled={busy}>💾 حفظ</Btn>}
       {canW && d.status !== "Ready for Review" && <Btn onClick={requestReview}>📤 طلب مراجعة</Btn>}
-      {!locked && can("prd.approve", project) && d.status === "Ready for Review" && <Btn kind="primary" onClick={approve}>✔ اعتماد</Btn>}
+      {can("prd.approve", project) && d.status === "Ready for Review" && <Btn kind="primary" onClick={approve}>✔ اعتماد</Btn>}
       {d.status === "Approved" && can("prd.write", project) && <Btn onClick={newVersion}>🆕 نسخة جديدة</Btn>}
       {canW && <Btn onClick={risksFromSection}>⚠️ حوّل المخاطر إلى سجلات</Btn>}
       {d.status === "Ready for Review" && can("prd.write", project) && <Btn onClick={() => save({ status: "In Progress", submitted_for_review_at: null })}>↩ إرجاع للمسودة</Btn>}
