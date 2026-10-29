@@ -624,8 +624,40 @@ export default function RelationshipsSystem(props) {
         <div style={{ fontSize: 13 }}>سيُدمج السجل: {peopleById[mergePreview.summary.removedPersonId]?.name || mergePreview.summary.removedPersonId}</div>
         <div style={{ fontSize: 13, marginTop: 8 }}>حقول ستُستكمل من السجل الآخر: {mergePreview.summary.transferredFields.length ? mergePreview.summary.transferredFields.join("، ") : "لا توجد حقول فارغة تحتاج إلى استكمال"}.</div>
         <ul style={{ margin: "8px 0", paddingInlineStart: 22, fontSize: 13 }}>{Object.entries(mergePreview.summary.reassigned).map(([key, count]) => <li key={key}>{({ timeline: "سجل التواصل", followups: "المتابعات", occasions: "المناسبات", gifts: "الهدايا" })[key]}: {count} سجل سيعاد ربطه</li>)}</ul>
-        <div role="note" style={{ color: C.amber, fontSize: 12, marginTop: 8 }}>الحفظ النهائي يتطلب عملية ذرية على الخادم لضمان عدم فقد البيانات إذا فشل تحديث إحدى المجموعات. لم يُنفّذ الدمج بعد؛ سيظل زر الحفظ معطلًا حتى تكتمل هذه الحماية.</div>
-        <Button kind="primary" disabled title="بانتظار الحفظ الذري من الخادم">تأكيد الدمج وحفظه — غير متاح بعد</Button>
+        <div role="note" style={{ color: C.amber, fontSize: 12, marginTop: 8 }}>سيُنفّذ الحفظ كعملية واحدة في قاعدة البيانات. إذا تعذّر تحديث أي سجل أو لم تسمح الصلاحيات، تُلغى العملية كاملة.</div>
+        <Button kind="primary" disabled={busy || !canEdit} onClick={async () => {
+          if (!globalThis.confirm?.("تأكيد دمج السجلين؟ سيُحفظ السجل الأساسي وتُنقل إليه الروابط، وستتم أرشفة السجل المكرر مع الاحتفاظ بسجلات التاريخ.")) return;
+          setBusy(true); setError(""); setNotice("");
+          try {
+            if (isDemo) {
+              const result = await api.save(mergePreview.value);
+              if (result && result.ok === false) throw new Error("تعذر حفظ الدمج في الوضع التجريبي.");
+            } else {
+              const upserts = [];
+              const keeperId = mergePreview.summary.preservedPersonId;
+              const collections = ["people", "timeline", "followups", "occasions", "gifts"];
+              for (const collection of collections) {
+                const changed = mergePreview.value[collection].filter((record) => {
+                  if (collection === "people") return String(record.id) === String(keeperId);
+                  const old = data[collection].find((item) => String(item.id) === String(record.id));
+                  return old && old.personId !== record.personId;
+                });
+                for (const record of changed) upserts.push({ collection, id: String(record.id), data: record });
+              }
+              const { error: rpcError } = await supabase.rpc("relationships_apply_batch", {
+                p_workspace_id: ws.id,
+                p_upserts: upserts,
+                p_soft_deletes: [{ collection: "people", id: String(mergePreview.summary.removedPersonId) }]
+              });
+              if (rpcError) throw rpcError;
+            }
+            setData(normalizeRelationshipsData(mergePreview.value));
+            setMergeKeepId(""); setMergeDuplicateId(""); setMergePreview(null);
+            setNotice("تم دمج السجلين ذريًا مع الاحتفاظ بسجلات التاريخ وأرشفة السجل المكرر.");
+          } catch (err) {
+            setError((err?.message || "تعذر حفظ الدمج.") + " لم تُطبّق أي تغييرات من عملية الدمج؛ راجع الصلاحيات وحاول مجددًا.");
+          } finally { setBusy(false); }
+        }}>تأكيد الدمج وحفظه</Button>
       </div>}
     </Panel>}
   </>;
@@ -661,7 +693,7 @@ export default function RelationshipsSystem(props) {
           <span><strong>السماح باستبدال السجلات المتعارضة</strong><br /><span style={{ color: C.muted }}>عند التفعيل، سيحل السجل المستورد محل السجل الحالي إذا تطابق المعرّف واختلفت البيانات. اتركه غير محدد للحفاظ على البيانات الحالية.</span></span>
         </label>}
         <div style={{ color: C.muted, marginTop: 8 }}>السجلات الجديدة فقط ستُضاف افتراضيًا، والسجلات المتطابقة دون تغيير ستُتجاوز. الإعدادات ستُدمج مع الإعدادات الحالية.</div>
-        <div role="note" style={{ color: C.amber, background: "#FFFBEB", border: "1px solid #FDE68A", padding: 9, borderRadius: 8, marginTop: 8 }}>تنبيه: في المساحة الحقيقية، تُحفظ مجموعات البيانات بالتتابع وليس داخل معاملة واحدة. إذا حدث خطأ أثناء الحفظ فقد تُحفظ بعض المجموعات قبل الفشل؛ احتفظ بتصدير احتياطي قبل المتابعة.</div>
+        <div role="note" style={{ color: C.green, background: "#ECFDF5", border: "1px solid #A7F3D0", padding: 9, borderRadius: 8, marginTop: 8 }}>الحفظ في المساحة الحقيقية يتم الآن داخل معاملة واحدة في قاعدة البيانات؛ إذا فشل أي سجل، تُلغى العملية كاملة. احتفظ بنسخة احتياطية كإجراء احترازي عام.</div>
         <div style={{ marginTop: 10 }}><Button kind="primary" disabled={busy || importPlan.summary.totalAdded + importPlan.summary.totalOverwritten === 0} onClick={async () => {
           const count = importPlan.summary.totalAdded + importPlan.summary.totalOverwritten;
           if (!globalThis.confirm?.("استيراد " + importPreview.name + "؟ سيُضاف " + importPlan.summary.totalAdded + " سجلًا جديدًا" + (overwriteImportConflicts ? " وسيُستبدل " + importPlan.summary.totalOverwritten + " سجل متعارض" : "، وستُحفظ السجلات المتعارضة الحالية دون تغيير") + ".")) return;
@@ -671,16 +703,22 @@ export default function RelationshipsSystem(props) {
               const result = await api.save(importPlan.value);
               if (result && result.ok === false) throw new Error("تعذر حفظ الاستيراد في الوضع التجريبي.");
             } else {
+              const upserts = [];
               for (const key of ["people","timeline","followups","occasions","gifts","circles"]) {
-                const records = importPlan.writes[key];
-                if (records.length) await saveRecords(ws.id, key, records);
+                for (const record of importPlan.writes[key]) upserts.push({ collection: key, id: String(record.id), data: record });
               }
-              if (importPlan.settingsChanged) await saveRecord(ws.id, "settings", { id: "settings", ...importPlan.value.settings });
+              if (importPlan.settingsChanged) upserts.push({ collection: "settings", id: "settings", data: importPlan.value.settings });
+              if (upserts.length) {
+                const { error: rpcError } = await supabase.rpc("relationships_apply_batch", {
+                  p_workspace_id: ws.id, p_upserts: upserts, p_soft_deletes: []
+                });
+                if (rpcError) throw rpcError;
+              }
             }
             setData(normalizeRelationshipsData(importPlan.value)); setImportPreview(null); setOverwriteImportConflicts(false);
             setNotice("اكتمل الاستيراد. أُضيف " + importPlan.summary.totalAdded + " سجلًا جديدًا" + (overwriteImportConflicts ? " واستُبدل " + importPlan.summary.totalOverwritten + " سجل متعارض." : " مع الحفاظ على السجلات المتعارضة الحالية."));
           } catch (err) {
-            setError((err?.message || "تعذر استكمال الاستيراد.") + " قد تكون بعض المجموعات حُفظت بالفعل؛ أعد تحميل البيانات قبل إعادة المحاولة. لا توجد معاملة ذرية لهذا الاستيراد حتى الآن.");
+            setError((err?.message || "تعذر استكمال الاستيراد.") + " لم تُطبّق تغييرات الاستيراد في قاعدة البيانات لأن العملية ذرية؛ راجع البيانات والصلاحيات ثم أعد المحاولة.");
           } finally { setBusy(false); }
         }}>تأكيد الاستيراد</Button> <Button onClick={() => { setImportPreview(null); setOverwriteImportConflicts(false); }}>إلغاء</Button></div>
       </div>}
