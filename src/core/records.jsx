@@ -308,6 +308,63 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     }
   }, [isDemo, put, wsId, toast]);
 
+  // Atomic multi-record write for operations whose records must move together.
+  // This deliberately does not enqueue offline changes: partial replay would violate integrity.
+  const putAtomic = useCallback(async (ops) => {
+    if (!Array.isArray(ops) || !ops.length) return [];
+    if (isDemo) {
+      const saved = [];
+      for (const op of ops) {
+        const result = await put(op.coll, op.rec);
+        if (!result) throw new Error("تعذّر حفظ سجل في الوضع التجريبي");
+        saved.push(result);
+      }
+      return saved;
+    }
+    if (SUPABASE_SDK_FAILED) throw new Error("الاتصال بقاعدة البيانات غير متاح؛ لم يتم نقل أي سجل.");
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      throw new Error("نقل الشجرة يحتاج اتصالًا مباشرًا بالخادم لضمان حفظ جميع السجلات معًا. لم يتم تطبيق أي تغيير.");
+    }
+    const seen = new Set();
+    const prepared = ops.map(({ coll, rec }) => {
+      if (!["tasks", "outputs"].includes(coll) || !rec?.id) throw new Error("تحتوي العملية على سجل غير صالح للنقل.");
+      const k = key(coll, rec.id);
+      if (seen.has(k)) throw new Error("تحتوي العملية على سجل مكرر؛ لم يتم حفظ أي تغيير.");
+      seen.add(k);
+      const prev = (stateRef.current.recs[coll] || {})[rec.id] || null;
+      const now = nowIso();
+      const next = { ...prev, ...rec, id: rec.id, v: ((prev && prev.v) || 0) + 1, updated_at: now, created_at: (prev && prev.created_at) || rec.created_at || now };
+      return { coll, next, expectedUpdatedAt: meta.current[k] || null };
+    });
+    dispatch({ type: "pending", d: 1 });
+    try {
+      const { data, error } = await supabase.rpc("projects_apply_records_batch", {
+        p_workspace_id: wsId,
+        p_changes: prepared.map(({ coll, next, expectedUpdatedAt }) => ({
+          collection: coll, id: next.id, data: stripMeta(next),
+          visible_to: next._vis || null, deleted: !!next._deleted,
+          expected_updated_at: expectedUpdatedAt,
+        })),
+      });
+      if (error) throw error;
+      if (!Array.isArray(data) || data.length !== prepared.length) {
+        throw new Error("لم يؤكد الخادم حفظ جميع سجلات النقل؛ أعد تحميل المشروع قبل المحاولة مجددًا.");
+      }
+      const timestamps = new Map(data.map((x) => [key(x.collection, x.id), x.updated_at]));
+      for (const item of prepared) {
+        if (!timestamps.get(key(item.coll, item.next.id))) throw new Error("استجابة الخادم لا تحتوي على توقيت حفظ أحد السجلات.");
+      }
+      for (const item of prepared) {
+        meta.current[key(item.coll, item.next.id)] = timestamps.get(key(item.coll, item.next.id));
+        dispatch({ type: "put", coll: item.coll, rec: { ...item.next, _syncPending: false } });
+      }
+      return prepared.map(({ coll, next }) => ({ ...next, _syncPending: false, _serverUpdatedAt: timestamps.get(key(coll, next.id)) }));
+    } catch (error) {
+      toast("❌ لم يُنفذ نقل الشجرة: " + (error?.message || "فشل التحقق من قاعدة البيانات") + "؛ لم تُحفظ أي مجموعة جزئية.");
+      throw error;
+    } finally { dispatch({ type: "pending", d: -1 }); }
+  }, [isDemo, put, wsId, toast]);
+
   const softDelete = useCallback((coll, id, by) => {
     const prev = (stateRef.current.recs[coll] || {})[id]; if (!prev) return Promise.resolve(null);
     return put(coll, { ...prev, deleted_at: nowIso(), deleted_by: by || null });
