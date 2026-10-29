@@ -227,6 +227,37 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       });
       act("projects", r.project.id, "created_from_template", tpl.name); return r.project;
     },
+    // Convert a discovery to an issue and complete its source link in one server transaction.
+    async convertDiscoveryToIssue(discoveryId, projectId, discoveredAt) {
+      const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
+      const project = projectsById[projectId];
+      if (!discovery || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      const linkedProjects = (discovery.project_ids || []).filter((id) => projectsById[id] && !projectsById[id].archived_at);
+      if (linkedProjects.length && !linkedProjects.includes(projectId)) throw new Error("المشروع الهدف يجب أن يكون من المشاريع المرتبطة بالاكتشاف.");
+      const existing = (data.issues || []).find((item) => item.from_discovery_id === discoveryId);
+      if (existing) {
+        const links = [...new Map([...(discovery.resolution_links || []), { kind: "issue", id: existing.id }].map((link) => [link.kind + ":" + link.id, link])).values()];
+        await R.putAtomic([{ coll: "discovery", rec: { ...discovery, status: "Completed", resolution_links: links } }]);
+        return existing;
+      }
+      if ((discovery.resolution_links || []).some((link) => link.kind === "issue")) throw new Error("للاكتشاف رابط مشكلة قائم؛ حدّث الرابط بدل إنشاء نسخة جديدة.");
+      const issueId = uid();
+      const issue = {
+        id: issueId,
+        title: discovery.title,
+        project_id: projectId,
+        severity: discovery.impact_level || "Medium",
+        status: "Open",
+        discovered_at: discoveredAt || todayStr(),
+        owner_id: discovery.owner_id || null,
+        description: discovery.description || "",
+        from_discovery_id: discovery.id,
+      };
+      const links = [...new Map([...(discovery.resolution_links || []), { kind: "issue", id: issueId }].map((link) => [link.kind + ":" + link.id, link])).values()];
+      await R.putAtomic([{ coll: "issues", rec: issue }, { coll: "discovery", rec: { ...discovery, status: "Completed", resolution_links: links } }]);
+      act("discovery", discovery.id, "converted_to_issue", issue.title);
+      return issue;
+    },
     // Create a repair task and link it to its issue in one server transaction.
     async createRepairTask(issue) {
       if (!issue?.id || !issue.project_id || !projectsById[issue.project_id] || projectsById[issue.project_id].is_system) throw new Error("المشكلة أو المشروع غير صالح.");
