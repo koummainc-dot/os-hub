@@ -30,4 +30,11 @@ assert.ok(taskAction.includes("(discovery.project_ids || []).length && !linkedPr
 assert.ok(taskAction.includes("existing.project_id !== projectId"), "retry must not silently reuse a task from another project");
 assert.ok(entities.includes("act.convertDiscoveryToTask(d.id, pid)"), "discovery UI must use atomic task conversion");
 assert.ok(!entities.includes('await act.put("discovery", { ...d, status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "task"'), "UI must not separately persist task resolution links");
-console.log("Projects atomic discovery-to-task and issue contract tests passed.");
+const prdStart = store.indexOf("async convertDiscoveryToPrd(discoveryId, projectId)");
+assert.ok(prdStart >= 0, "store must expose discovery-to-PRD conversion");
+const prdEnd = store.indexOf("async convertDiscoveryToIssue(discoveryId, projectId, discoveredAt)", prdStart);
+const prdAction = store.slice(prdStart, prdEnd);
+assert.ok(prdAction.includes('R.putAtomic([\n        { coll: "prds", rec: prd },\n        { coll: "discovery", rec: { ...discovery, status: "Completed", resolution_links: links } },\n      ])'), "PRD and discovery resolution link must persist atomically");
+assert.ok(prdAction.includes("existing.project_id !== projectId"), "PRD retry must reject an existing PRD in another project");
+assert.ok(entities.includes("act.convertDiscoveryToPrd(d.id, pid)"), "discovery UI must use atomic PRD conversion");
+console.log("Projects atomic discovery conversion contract tests passed.");
