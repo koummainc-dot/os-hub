@@ -22,6 +22,15 @@ const {makeEnv,sleep,appJs}=require('./harness');
   }
   ok(errors.length===0,'no console errors while walking sections ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
 
+  console.log('— template editor validation');
+  await goSection('القوالب'); ok(await click('＋ إنشاء قالب مخصص'),'custom template editor opens');
+  let tdlg=doc.querySelector('[role=dialog]');
+  await setVal(all('input',tdlg)[0],'قالب اختبار غير صالح');
+  await setVal(all('textarea',tdlg)[1],'مهمة رئيسية\\n    مستوى متخطى');
+  await click('حفظ',tdlg,200);
+  ok(tdlg.textContent.includes('لا يمكن تخطي مستوى كامل'),'invalid task-tree indentation is rejected with a useful message');
+  await click('إلغاء',tdlg,100);
+
   console.log('— dashboard health');
   await goSection('الرئيسية'); ok(txt().includes('حرج'),'overdue/past-deadline project is Red (حرج)'); ok(txt().includes('مشاكل حرجة'),'critical issues card');
 
