@@ -216,17 +216,41 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       return true;
     },
     async completeAll(taskId) {
-      const open = D.completeAllBranches(taskId, idx); if (!open.length) { toast("لا توجد فروع مفتوحة"); return; }
-      if (!(await confirm(`إكمال ${open.length} مهمة في هذا الفرع؟`))) return;
-      for (const t of open) await R.put("tasks", { ...t, status: "Completed", completed_at: nowIso(), completed_by: me }); toast("✅ تم إكمال الفرع");
+      const open = D.completeAllBranches(taskId, idx); if (!open.length) { toast("لا توجد فروع مفتوحة"); return false; }
+      if (!(await confirm(`إكمال ${open.length} مهمة في هذا الفرع؟`))) return false;
+      try {
+        await R.putAtomic(open.map((t) => ({ coll: "tasks", rec: { ...t, status: "Completed", completed_at: nowIso(), completed_by: me } })));
+      } catch (error) {
+        toast("⛔ لم يكتمل تحديث الفرع: " + (error?.message || "فشل الحفظ") + ". لم تُحفظ مجموعة جزئية.");
+        return false;
+      }
+      toast("✅ تم إكمال الفرع"); return true;
     },
     async archiveTree(taskId) {
-      const ids = [taskId, ...idx.descendants(taskId)]; if (!(await confirm(`أرشفة ${ids.length} مهمة؟ لن تدخل في أي عدّاد.`))) return;
-      for (const id of ids) await R.put("tasks", { ...idx.byId[id], archived_at: nowIso() });
+      const root = idx.byId[taskId]; if (!root) { toast("⛔ المهمة غير موجودة"); return false; }
+      const ids = [taskId, ...idx.descendants(taskId)];
+      if (!(await confirm(`أرشفة ${ids.length} مهمة؟ لن تدخل في أي عدّاد.`))) return false;
+      const archivedAt = nowIso();
+      try {
+        await R.putAtomic(ids.map((id) => ({ coll: "tasks", rec: { ...idx.byId[id], archived_at: archivedAt } })));
+      } catch (error) {
+        toast("⛔ لم تكتمل الأرشفة: " + (error?.message || "فشل الحفظ") + ". لم تُحفظ مجموعة جزئية.");
+        return false;
+      }
+      toast("✅ تمت أرشفة الشجرة"); return true;
     },
     async deleteTree(taskId) {
-      const ids = [taskId, ...idx.descendants(taskId)]; if (!(await confirm(`نقل ${ids.length} مهمة إلى السلة؟`, { danger: true }))) return;
-      for (const id of ids) await R.softDelete("tasks", id, me); act("tasks", taskId, "deleted", idx.byId[taskId].title);
+      const root = idx.byId[taskId]; if (!root) { toast("⛔ المهمة غير موجودة"); return false; }
+      const ids = [taskId, ...idx.descendants(taskId)];
+      if (!(await confirm(`نقل ${ids.length} مهمة إلى السلة؟`, { danger: true }))) return false;
+      const deletedAt = nowIso();
+      try {
+        await R.putAtomic(ids.map((id) => ({ coll: "tasks", rec: { ...idx.byId[id], deleted_at: deletedAt, deleted_by: me } })));
+      } catch (error) {
+        toast("⛔ لم يكتمل النقل إلى السلة: " + (error?.message || "فشل الحفظ") + ". لم تُحفظ مجموعة جزئية.");
+        return false;
+      }
+      act("tasks", taskId, "deleted", root.title); toast("🗑 نُقلت الشجرة إلى السلة"); return true;
     },
     // time
     async startTimer(taskId) {
