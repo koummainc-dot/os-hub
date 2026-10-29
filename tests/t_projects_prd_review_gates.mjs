@@ -31,6 +31,14 @@ assert.match(migration, /Approved or superseded PRDs are immutable/,
   "approved and superseded PRDs must not be edited in place");
 assert.match(migration, /A submitted PRD is locked/,
   "content changes must be blocked while the PRD is under review");
+const store = await readFile(new URL("../src/systems/projects/store.jsx", import.meta.url), "utf8");
+const entities = await readFile(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
+assert.match(store, /async createPrdVersion\(prd\)[\s\S]*?R\.putAtomic\(\[[\s\S]*?coll: "prds", rec: next[\s\S]*?coll: "prds", rec: previous/,
+  "new PRD version and superseded predecessor must be written atomically");
+assert.match(entities, /act\.createPrdVersion\(d\)/,
+  "PRD editor must use the atomic versioning action");
+assert.match(entities, /d\.status === "Approved" && can\("prd\.approve", project\)/,
+  "version creation UI must require approval-level permission");
 assert.match(migration, /current-version reviewer approvals are complete/,
   "server must require current-version approvals before final approval");
 assert.match(migration, /Complete TLDR, problem overview, proposed solution, and success metrics before review/,
