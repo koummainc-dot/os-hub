@@ -149,3 +149,53 @@ export function upcomingRelationshipEvents(people, occasions, today, horizonDays
   }
   return events.sort((a, b) => a.daysAway - b.daysAway || a.title.localeCompare(b.title));
 }
+
+
+// Build a preview-only merge plan. No record is deleted or written by this function.
+export function planPersonMerge(value, keepPersonId, mergePersonId) {
+  const data = normalizeRelationshipsData(value);
+  if (!keepPersonId || !mergePersonId || keepPersonId === mergePersonId) {
+    return { ok: false, error: "اختر شخصين مختلفين لدمجهما." };
+  }
+  const keep = data.people.find((person) => String(person.id) === String(keepPersonId));
+  const merge = data.people.find((person) => String(person.id) === String(mergePersonId));
+  if (!keep || !merge) return { ok: false, error: "تعذر العثور على الشخصين المطلوبين." };
+
+  // Prefer the keeper's existing values; fill only blank fields from the second record.
+  const mergedPerson = { ...merge, ...keep, id: keep.id };
+  for (const [key, valueFromMerge] of Object.entries(merge)) {
+    const current = mergedPerson[key];
+    if ((current === undefined || current === null || String(current).trim() === "") &&
+        valueFromMerge !== undefined && valueFromMerge !== null && String(valueFromMerge).trim() !== "") {
+      mergedPerson[key] = valueFromMerge;
+    }
+  }
+  mergedPerson.createdAt = keep.createdAt || merge.createdAt || null;
+  mergedPerson.updatedAt = new Date().toISOString();
+
+  const relatedCollections = ["timeline", "followups", "occasions", "gifts"];
+  const next = { ...data };
+  next.people = data.people
+    .filter((person) => String(person.id) !== String(mergePersonId))
+    .map((person) => String(person.id) === String(keepPersonId) ? mergedPerson : person);
+  for (const collection of relatedCollections) {
+    next[collection] = data[collection].map((record) =>
+      String(record.personId) === String(mergePersonId)
+        ? { ...record, personId: keep.id }
+        : record
+    );
+  }
+  // Keep all history rows; the preview deliberately does not deduplicate or delete related records.
+  const summary = {
+    preservedPersonId: keep.id,
+    removedPersonId: merge.id,
+    transferredFields: Object.keys(merge).filter((key) =>
+      (keep[key] === undefined || keep[key] === null || String(keep[key]).trim() === "") &&
+      merge[key] !== undefined && merge[key] !== null && String(merge[key]).trim() !== ""
+    ),
+    reassigned: Object.fromEntries(relatedCollections.map((collection) => [
+      collection, data[collection].filter((record) => String(record.personId) === String(mergePersonId)).length
+    ]))
+  };
+  return { ok: true, value: next, summary };
+}
