@@ -374,6 +374,7 @@ set search_path = public
 as $function$
 declare
   project_data jsonb;
+  prior_prd_data jsonb;
   can_review boolean := false;
   can_approve boolean := false;
   prd_version text;
@@ -444,17 +445,22 @@ begin
       raise exception 'A new PRD version must start as a draft' using errcode = '42501';
     end if;
     if new.data->>'supersedes_id' is not null then
-      if not exists (
-        select 1 from public.workspace_records prior
-         where prior.workspace_id = new.workspace_id
-           and prior.system_id = 'projects'
-           and prior.collection = 'prds'
-           and prior.id = new.data->>'supersedes_id'
-           and prior.data->>'status' = 'Approved'
-           and prior.data->>'project_id' = new.data->>'project_id'
-           and prior.deleted = false
-      ) or coalesce((new.data->>'version')::integer, 0) <= 1 then
-        raise exception 'A new PRD version must supersede an approved version in the same project' using errcode = '22023';
+      prior_prd_data := null;
+      select prior.data into prior_prd_data
+        from public.workspace_records prior
+       where prior.workspace_id = new.workspace_id
+         and prior.system_id = 'projects'
+         and prior.collection = 'prds'
+         and prior.id = new.data->>'supersedes_id'
+         and prior.data->>'status' = 'Approved'
+         and prior.data->>'project_id' = new.data->>'project_id'
+         and prior.deleted = false
+       limit 1;
+      if prior_prd_data is null
+         or not can_approve
+         or coalesce((new.data->>'version')::integer, 0) <>
+            coalesce((prior_prd_data->>'version')::integer, 1) + 1 then
+        raise exception 'A new PRD version must be created by an authorized lead/reviewer and supersede the immediately preceding approved version in the same project' using errcode = '22023';
       end if;
     end if;
     return new;
