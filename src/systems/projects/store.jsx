@@ -441,7 +441,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
           return true;
         }
       }
-      await R.put("tasks", stamp(nextTask)); return true;
+      await putIn("tasks", nextTask, projectsById[t.project_id]); return true;
     },
     async moveTree(taskId, targetProjectId) {
       const target = projectsById[targetProjectId];
