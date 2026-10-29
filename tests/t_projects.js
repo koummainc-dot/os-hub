@@ -26,7 +26,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await goSection('القوالب'); ok(await click('＋ إنشاء قالب مخصص'),'custom template editor opens');
   let tdlg=doc.querySelector('[role=dialog]');
   await setVal(all('input',tdlg)[0],'قالب اختبار غير صالح');
-  await setVal(all('textarea',tdlg)[1],'مهمة رئيسية\\n    مستوى متخطى');
+  await setVal(all('textarea',tdlg)[1],'مهمة رئيسية\n    مستوى متخطى');
   await click('حفظ',tdlg,200);
   ok(tdlg.textContent.includes('لا يمكن تخطي مستوى كامل'),'invalid task-tree indentation is rejected with a useful message');
   await click('إلغاء',tdlg,100);
