@@ -202,7 +202,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
       for (const item of items) {
         const k = key(item.coll, item.rec.id);
         const currentTs = meta.current[k] || null;
-        if (currentTs !== item.baseTs) {
+        if (!canReplayQueuedWrite(currentTs, item.baseTs)) {
           remaining.push({ ...item, conflict: true });
           continue;
         }
@@ -251,7 +251,13 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
   return { ...state, api };
 }
 
-function stripMeta(rec) {
+export function canReplayQueuedWrite(currentServerTs, queuedBaseTs) {
+  // Only replay when the server version is exactly the one the user edited.
+  // null/null means a queued insert whose record still does not exist remotely.
+  return (currentServerTs || null) === (queuedBaseTs || null);
+}
+
+export function stripMeta(rec) {
   const o = { ...rec }; delete o._vis; delete o._deleted; delete o._syncPending; return o;
 }
 
