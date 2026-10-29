@@ -195,8 +195,8 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       const source = idx.byId[taskId];
       if (source.project_id === targetProjectId) { toast("ℹ️ المهمة موجودة بالفعل في هذا المشروع"); return false; }
       const plan = D.planTreeMove(taskId, targetProjectId, idx, prdsById, data.tasks, Object.fromEntries(data.discovery.map((x) => [x.id, x])));
-      const outputPatches = data.outputs.filter((x) => plan.ids.includes(x.task_id)).map((o) => ({ ...o, project_id: targetProjectId, _vis: visFor(target) }));
-      const taskPatches = plan.patches.map((p) => ({ ...p, _vis: visFor(target) }));
+      const outputPatches = data.outputs.filter((x) => plan.ids.includes(x.task_id)).map((o) => ({ before: o, after: { ...o, project_id: targetProjectId, _vis: visFor(target) } }));
+      const taskPatches = plan.patches.map((p) => ({ before: data.tasks.find((t) => t.id === p.id), after: { ...p, _vis: visFor(target) } }));
       const prdCount = plan.patches.filter((p, i) => data.tasks.find((t) => t.id === plan.ids[i])?.prd_id && !p.prd_id).length;
       const discoveryCount = plan.patches.reduce((n, p, i) => n + ((data.tasks.find((t) => t.id === plan.ids[i])?.discovery_ids || []).length - (p.discovery_ids || []).length), 0);
       const prompt = `نقل ${plan.ids.length} مهمة إلى مشروع «${target.name}»؟\nسيتم نقل ${outputPatches.length} مخرج مرتبط، مع الحفاظ على روابط الأبناء داخل الشجرة.\n${prdCount ? `سيتم مسح ${prdCount} رابط مواصفة لا يتبع المشروع الهدف.\n` : ""}${discoveryCount ? `سيتم مسح ${discoveryCount} رابط اكتشاف غير صالح للمشروع الهدف.\n` : ""}إذا فشل أحد الحفظات، سيحاول النظام استرجاع السجلات التي سبق تحديثها.`;
