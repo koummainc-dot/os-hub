@@ -113,7 +113,12 @@ export default function RelationshipsSystem(props) {
   const [timelineFilterPerson, setTimelineFilterPerson] = useState("");
   const [timelineFilterType, setTimelineFilterType] = useState("");
   const [timelineSearch, setTimelineSearch] = useState("");
-  const [occasionDraft, setOccasionDraft] = useState({ personId: "", title: "عيد الميلاد", date: "", recurrence: "yearly", reminderDays: 7, notes: "" });
+  const blankOccasion = () => ({ personId: "", title: "عيد الميلاد", date: "", recurrence: "yearly", reminderDays: 7, reminderEnabled: true, notes: "" });
+  const [occasionDraft, setOccasionDraft] = useState(blankOccasion);
+  const [editingOccasionId, setEditingOccasionId] = useState(null);
+  const [occasionFilterPerson, setOccasionFilterPerson] = useState("");
+  const [occasionFilterRecurrence, setOccasionFilterRecurrence] = useState("");
+  const [occasionSearch, setOccasionSearch] = useState("");
   const [circleDraft, setCircleDraft] = useState({ name: "", description: "", color: "#DB2777" });
   const [busy, setBusy] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
@@ -242,7 +247,7 @@ export default function RelationshipsSystem(props) {
     <Panel title="متابعات تحتاج إلى اهتمام" hint="قائمة عملية، وليست حكمًا على جودة العلاقة.">
       {overdue.length ? overdue.slice(0, 5).map((f) => <div key={f.id} style={{ padding: "10px 0", borderBottom: "1px solid " + C.line }}><strong>{f.title}</strong><div style={{ color: C.muted, fontSize: 12 }}>{peopleById[f.personId]?.name || "شخص غير محدد"} · {f.dueDate}</div></div>) : <Empty>لا توجد متابعات متأخرة.</Empty>}
     </Panel>
-    <Panel title="مناسبات وأعياد ميلاد قريبة" hint="يعرض المناسبات خلال الثلاثين يومًا القادمة. هذه تنبيهات داخل التطبيق وليست إشعارات هاتفية.">
+    <Panel title="مناسبات وأعياد ميلاد قريبة" hint="يعرض أعياد الميلاد خلال 30 يومًا والمناسبات عند دخول نافذة التذكير المحددة لها. هذه تنبيهات داخل التطبيق وليست إشعارات هاتفية.">
       {upcomingEvents.length ? upcomingEvents.slice(0, 8).map((event) => <div key={event.id} style={{ padding: "10px 0", borderBottom: "1px solid " + C.line }}><strong>{event.title}</strong><div style={{ color: C.muted, fontSize: 12 }}>{peopleById[event.personId]?.name || "مناسبة شخصية"} · {event.date} · {event.daysAway === 0 ? "اليوم" : "بعد " + event.daysAway + " يوم"}</div></div>) : <Empty>لا توجد مناسبات خلال الثلاثين يومًا القادمة. أضف تواريخ الميلاد أو المناسبات المهمة لتظهر هنا.</Empty>}
     </Panel>
     <Panel title="أضيفوا العلاقات المهمة بشكل واعٍ" hint="سجّل ما تريد تذكّره، وتجنب تخزين معلومات لا تحتاجها.">
@@ -358,14 +363,50 @@ export default function RelationshipsSystem(props) {
       })()}
     </Panel>
   </>;
-  else if (page === "occasions") content = <>
-    {canEdit && <Panel title="إضافة مناسبة"><form onSubmit={async (e) => { e.preventDefault(); if (!occasionDraft.personId || !occasionDraft.title.trim() || !occasionDraft.date) return setError("أكمل الشخص واسم المناسبة والتاريخ."); const ok = await saveEntity("occasions", { ...occasionDraft, id: makeId(), reminderDays: Number(occasionDraft.reminderDays) }); if (ok) setOccasionDraft({ personId: "", title: "عيد الميلاد", date: "", recurrence: "yearly", reminderDays: 7, notes: "" }); }} style={{ display: "grid", gap: 10 }}><SelectField label="الشخص" value={occasionDraft.personId} onChange={(v) => setOccasionDraft((p) => ({ ...p, personId: v }))} options={[{ value: "", label: "اختر شخصًا" }, ...data.people.map((p) => ({ value: p.id, label: p.name }))]} /><Field label="اسم المناسبة" value={occasionDraft.title} onChange={(v) => setOccasionDraft((p) => ({ ...p, title: v }))} /><Field label="التاريخ" type="date" value={occasionDraft.date} onChange={(v) => setOccasionDraft((p) => ({ ...p, date: v }))} /><SelectField label="التكرار" value={occasionDraft.recurrence} onChange={(v) => setOccasionDraft((p) => ({ ...p, recurrence: v }))} options={[{ value: "yearly", label: "سنوي" }, { value: "once", label: "مرة واحدة" }]} /><Field label="التذكير قبلها بأيام" type="number" value={occasionDraft.reminderDays} onChange={(v) => setOccasionDraft((p) => ({ ...p, reminderDays: v }))} /><Button type="submit" kind="primary" disabled={busy}>حفظ المناسبة</Button></form></Panel>}
-    {list([...data.occasions].sort((a,b) => String(a.date).localeCompare(String(b.date))), "المناسبات", (x) => <><strong>{x.title}</strong><div style={{ color: C.muted, fontSize: 12 }}>{peopleById[x.personId]?.name || "شخص غير محدد"} · {x.date} · {x.recurrence === "yearly" ? "تتكرر سنويًا" : "مرة واحدة"}</div></>, "occasions")}
-  </>;
-  else if (page === "gifts") content = <>
-    {canEdit && <Panel title="فكرة هدية"><form onSubmit={async (e) => { e.preventDefault(); if (!occasionDraft.personId || !occasionDraft.title.trim()) return setError("اختر الشخص واكتب فكرة الهدية."); const ok = await saveEntity("gifts", { id: makeId(), personId: occasionDraft.personId, idea: occasionDraft.title, status: "idea", budget: "", notes: "" }); if (ok) setOccasionDraft((p) => ({ ...p, title: "" })); }} style={{ display: "grid", gap: 10 }}><SelectField label="الشخص" value={occasionDraft.personId} onChange={(v) => setOccasionDraft((p) => ({ ...p, personId: v }))} options={[{ value: "", label: "اختر شخصًا" }, ...data.people.map((p) => ({ value: p.id, label: p.name }))]} /><Field label="فكرة الهدية" value={occasionDraft.title} onChange={(v) => setOccasionDraft((p) => ({ ...p, title: v }))} /><Button type="submit" kind="primary" disabled={busy}>حفظ الفكرة</Button></form></Panel>}
-    {list(data.gifts, "قائمة الهدايا", (x) => <><strong>{x.idea}</strong><div style={{ color: C.muted, fontSize: 12 }}>{peopleById[x.personId]?.name || "شخص غير محدد"} · {x.status === "bought" ? "تم الشراء" : "فكرة"}</div></>, "gifts")}
-  </>;
+  else if (page === "occasions") {
+    const q = normalizeSearch(occasionSearch);
+    const visibleOccasions = [...data.occasions]
+      .filter((x) => (!occasionFilterPerson || x.personId === occasionFilterPerson)
+        && (!occasionFilterRecurrence || (x.recurrence || "yearly") === occasionFilterRecurrence)
+        && (!q || [x.title, x.notes, peopleById[x.personId]?.name].some((v) => normalizeSearch(v).includes(q))))
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const resetOccasionForm = () => { setEditingOccasionId(null); setOccasionDraft(blankOccasion()); };
+    content = <>
+      {canEdit && <Panel title={editingOccasionId ? "تعديل المناسبة" : "إضافة مناسبة"} hint="اربط المناسبة بالشخص، وحدد إن كانت سنوية أو لمرة واحدة، واضبط تذكيرها داخل التطبيق.">
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          if (!occasionDraft.personId || !occasionDraft.title.trim() || !occasionDraft.date) return setError("أكمل الشخص واسم المناسبة والتاريخ.");
+          const reminderDays = Math.max(0, Math.min(365, Number(occasionDraft.reminderDays) || 0));
+          const existing = data.occasions.find((x) => x.id === editingOccasionId);
+          const record = { ...occasionDraft, title: occasionDraft.title.trim(), reminderDays, id: editingOccasionId || makeId(), createdAt: existing?.createdAt || new Date().toISOString() };
+          const ok = await saveEntity("occasions", record);
+          if (ok) resetOccasionForm();
+        }} style={{ display: "grid", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+            <SelectField label="الشخص" value={occasionDraft.personId} onChange={(v) => setOccasionDraft((p) => ({ ...p, personId: v }))} options={[{ value: "", label: "اختر شخصًا" }, ...data.people.map((p) => ({ value: p.id, label: p.name }))]} />
+            <Field label="اسم المناسبة" value={occasionDraft.title} required onChange={(v) => setOccasionDraft((p) => ({ ...p, title: v }))} placeholder="عيد ميلاد، ذكرى، تخرج..." />
+            <Field label="التاريخ" type="date" value={occasionDraft.date} required onChange={(v) => setOccasionDraft((p) => ({ ...p, date: v }))} />
+            <SelectField label="التكرار" value={occasionDraft.recurrence} onChange={(v) => setOccasionDraft((p) => ({ ...p, recurrence: v }))} options={[{ value: "yearly", label: "سنوي" }, { value: "once", label: "مرة واحدة" }]} />
+            <Field label="التذكير قبلها بأيام (0–365)" type="number" value={occasionDraft.reminderDays} onChange={(v) => setOccasionDraft((p) => ({ ...p, reminderDays: v }))} />
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, color: C.ink, fontSize: 13 }}><input type="checkbox" checked={occasionDraft.reminderEnabled !== false} onChange={(e) => setOccasionDraft((p) => ({ ...p, reminderEnabled: e.target.checked }))} /> تفعيل التذكير داخل لوحة العلاقات</label>
+          <Field label="ملاحظات" value={occasionDraft.notes} onChange={(v) => setOccasionDraft((p) => ({ ...p, notes: v }))} placeholder="أفكار للاحتفال أو تفاصيل مهمة" />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button type="submit" kind="primary" disabled={busy}>{editingOccasionId ? "حفظ التعديلات" : "حفظ المناسبة"}</Button>{editingOccasionId && <Button onClick={resetOccasionForm}>إلغاء التعديل</Button>}</div>
+        </form>
+      </Panel>}
+      <Panel title="المناسبات" hint={"عدد النتائج: " + visibleOccasions.length}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 9, marginBottom: 12 }}>
+          <Field label="بحث" value={occasionSearch} onChange={setOccasionSearch} placeholder="اسم المناسبة أو الشخص أو الملاحظات" />
+          <SelectField label="الشخص" value={occasionFilterPerson} onChange={setOccasionFilterPerson} options={[{ value: "", label: "كل الأشخاص" }, ...data.people.map((p) => ({ value: p.id, label: p.name }))]} />
+          <SelectField label="التكرار" value={occasionFilterRecurrence} onChange={setOccasionFilterRecurrence} options={[{ value: "", label: "كل الأنواع" }, { value: "yearly", label: "سنوية" }, { value: "once", label: "مرة واحدة" }]} />
+        </div>
+        {visibleOccasions.length ? <div style={{ display: "grid", gap: 9 }}>{visibleOccasions.map((x) => <div key={x.id} style={{ border: "1px solid " + C.line, borderRadius: 12, padding: 12, display: "flex", gap: 12, justifyContent: "space-between", alignItems: "start", flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 220px" }}><strong>{x.title}</strong><div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{peopleById[x.personId]?.name || "شخص غير محدد"} · {x.date} · {(x.recurrence || "yearly") === "yearly" ? "تتكرر سنويًا" : "مرة واحدة"}</div><div style={{ color: C.muted, fontSize: 12, marginTop: 3 }}>{x.reminderEnabled === false ? "التذكير معطل" : "تذكير قبل " + (Number(x.reminderDays) || 0) + " يوم"}{x.notes ? " · " + x.notes : ""}</div></div>
+          {canEdit && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><Button onClick={() => { setEditingOccasionId(x.id); setOccasionDraft({ ...blankOccasion(), ...x, reminderDays: x.reminderDays ?? 7, reminderEnabled: x.reminderEnabled !== false }); window.scrollTo?.({ top: 0, behavior: "smooth" }); }}>تعديل</Button><Button onClick={() => saveEntity("occasions", { ...x, reminderEnabled: x.reminderEnabled === false ? true : false })}>{x.reminderEnabled === false ? "تفعيل التذكير" : "إيقاف التذكير"}</Button><Button kind="danger" onClick={() => deleteEntity("occasions", x)}>أرشفة</Button></div>}
+        </div>)}</div> : <Empty>لا توجد مناسبات تطابق عوامل التصفية. أضف مناسبة أو غيّر عوامل البحث.</Empty>}
+      </Panel>
+    </>;
+  }
   else if (page === "circles") content = <>
     {canEdit && <Panel title="إنشاء دائرة"><form onSubmit={async (e) => { e.preventDefault(); if (!circleDraft.name.trim()) return; const ok = await saveEntity("circles", { ...circleDraft, id: makeId(), createdAt: new Date().toISOString() }); if (ok) setCircleDraft({ name: "", description: "", color: "#DB2777" }); }} style={{ display: "grid", gap: 10 }}><Field label="اسم الدائرة" value={circleDraft.name} required onChange={(v) => setCircleDraft((p) => ({ ...p, name: v }))} /><Field label="وصف" value={circleDraft.description} onChange={(v) => setCircleDraft((p) => ({ ...p, description: v }))} /><Button type="submit" kind="primary" disabled={busy}>إضافة دائرة</Button></form></Panel>}
     {list(data.circles, "الدوائر", (x) => <><strong>{x.name}</strong><div style={{ color: C.muted, fontSize: 12 }}>{x.description} · {data.people.filter((p) => p.circleId === x.id).length} أشخاص</div></>, "circles")}

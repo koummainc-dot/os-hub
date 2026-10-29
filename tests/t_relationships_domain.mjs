@@ -70,5 +70,11 @@ assert.deepEqual(upcoming.map((x) => [x.id, x.daysAway]), [
 ].filter(([, days]) => days <= 30));
 assert.equal(upcoming.some((x) => x.id === "occasion:o2"), false);
 assert.equal(upcoming.some((x) => x.id === "occasion:o3"), false);
+const reminderWindow = upcomingRelationshipEvents([], [
+  { id: "enabled", title: "تذكير قريب", date: "2026-11-02", recurrence: "once", reminderDays: 7 },
+  { id: "too-early", title: "خارج نافذة التذكير", date: "2026-11-02", recurrence: "once", reminderDays: 2 },
+  { id: "disabled", title: "تذكير معطل", date: "2026-11-02", recurrence: "once", reminderDays: 7, reminderEnabled: false }
+], "2026-10-28", 30);
+assert.deepEqual(reminderWindow.map((x) => x.id), ["occasion:enabled"]);
 assert.deepEqual(upcomingRelationshipEvents([{ id: "p", name: "شخص", birthday: "1990-02-29" }], [], "2027-02-01", 30).map((x) => x.date), ["2027-03-01"]);
 console.log("Relationships OS upcoming reminder tests passed.");
