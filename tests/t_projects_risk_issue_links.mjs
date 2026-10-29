@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 const migration = await readFile(new URL("../supabase/migrations/20261030100000_projects_final_output_guard.sql", import.meta.url), "utf8");
 const store = await readFile(new URL("../src/systems/projects/store.jsx", import.meta.url), "utf8");
 
-assert.match(migration, /create trigger projects_guard_risk_issue_links_trg\\s+before insert or update of data on public\\.workspace_records/i,
+assert.match(migration, /create trigger projects_guard_risk_issue_links_trg\s+before insert or update of data on public\.workspace_records/i,
   "risk/issue linkage must be enforced for direct writes and atomic RPC batches");
 assert.match(migration, /Only one active issue may be linked to a risk/,
   "database must reject duplicate active issues for one risk");
