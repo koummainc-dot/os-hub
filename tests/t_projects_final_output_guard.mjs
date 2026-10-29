@@ -46,6 +46,11 @@ assert.match(migration, /old\.data->>'member_id' is distinct from auth\.uid\(\):
   "database must reject takeover of another member's existing session");
 assert.match(migration, /A work session must reference an active leaf task/,
   "database must reject missing, archived, deleted, or parent task references");
+const sessionGuardStart = migration.indexOf("create or replace function public.projects_guard_work_sessions");
+const sessionGuardEnd = migration.indexOf("create or replace function public.projects_guard_task_references", sessionGuardStart);
+const sessionGuard = migration.slice(sessionGuardStart, sessionGuardEnd);
+assert.doesNotMatch(sessionGuard, /task_data->>'parent_task_id'\s+is not null/,
+  "nested leaf tasks must remain valid session targets; only tasks with children are non-leaf");
 assert.match(migration, /A work session cannot reference a parent task/,
   "database must reject a task with active child tasks");
 assert.match(migration, /create trigger projects_guard_task_references_trg\s+before insert or update of data on public\.workspace_records/i,
