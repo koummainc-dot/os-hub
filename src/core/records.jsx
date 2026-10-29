@@ -264,7 +264,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     }
     const seen = new Set();
     const prepared = ops.map(({ coll, rec }) => {
-      if (!["tasks", "outputs", "projects"].includes(coll) || !rec?.id) throw new Error("تحتوي العملية على سجل غير صالح للحفظ الجماعي.");
+      if (!["tasks", "outputs", "projects", "risks", "issues", "decisions", "prds", "updates"].includes(coll) || !rec?.id) throw new Error("تحتوي العملية على سجل غير صالح للحفظ الجماعي.");
       const k = key(coll, rec.id);
       if (seen.has(k)) throw new Error("تحتوي العملية على سجل مكرر؛ لم يتم حفظ أي تغيير.");
       seen.add(k);

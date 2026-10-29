@@ -145,22 +145,43 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async archiveProject(p) { if (p.archived_at) return; await R.put("projects", { ...p, archived_from_status: p.status === "Archived" ? (p.archived_from_status || "Planned") : p.status, status: "Archived", archived_at: nowIso() }); act("projects", p.id, "archived", p.name); },
     async restoreProject(p) { const { archived_from_status, ...rest } = p; const restoredStatus = archived_from_status || "Planned"; await R.put("projects", { ...rest, status: restoredStatus, archived_at: null }); act("projects", p.id, "restored", p.name + " → " + restoredStatus); },
     async deleteProject(p) {
-      const kids = idx.list.filter((t) => t.project_id === p.id);
-      const related = {
-        "مهام": kids.length,
-        "مخرجات": data.outputs.filter((x) => x.project_id === p.id && !x.deleted_at).length,
-        "مخاطر": data.risks.filter((x) => x.project_id === p.id && !x.deleted_at).length,
-        "مشاكل": data.issues.filter((x) => x.project_id === p.id && !x.deleted_at).length,
-        "قرارات": data.decisions.filter((x) => x.project_id === p.id && !x.deleted_at).length,
-        "مواصفات": data.prds.filter((x) => x.project_id === p.id && !x.deleted_at).length,
-        "تحديثات": data.updates.filter((x) => x.project_id === p.id && !x.deleted_at).length,
-      };
-      const summary = Object.entries(related).filter(([, count]) => count > 0).map(([label, count]) => `• ${label}: ${count}`).join("\n") || "لا توجد سجلات تابعة ظاهرة.";
-      const sessionCount = data.sessions.filter((session) => kids.some((task) => task.id === session.task_id)).length;
-      const message = `نقل المشروع «${p.name}» إلى السلة؟\n\nالسجلات التي ستُنقل إلى السلة معه:\n${summary}\n\nجلسات الوقت التاريخية: ${sessionCount} — ستبقى محفوظة كسجل تاريخي، ولن تُحذف تلقائيًا. يمكنك استرجاع المشروع وسجلاته من السلة.`;
-      if (!(await confirm(message, { title: "مراجعة أثر حذف المشروع", danger: true, ok: "نقل إلى السلة" }))) return false;
-      for (const c of ["tasks", "outputs", "risks", "issues", "decisions", "prds", "updates"]) for (const k of arr(recs, c).filter((x) => x.project_id === p.id && !x.deleted_at)) await R.softDelete(c, k.id, me);
-      await del("projects", p.id, p.name); return true;
+      if (!p || p.id === GENERAL_ID || p.is_system) {
+        toast("⛔ لا يمكن نقل مشروع النظام إلى السلة");
+        return false;
+      }
+      const collections = ["tasks", "outputs", "risks", "issues", "decisions", "prds", "updates"];
+      const related = collections.flatMap((coll) =>
+        arr(recs, coll)
+          .filter((record) => record.project_id === p.id && !record.deleted_at)
+          .map((rec) => ({ coll, rec }))
+      );
+      const counts = {};
+      for (const { coll } of related) counts[coll] = (counts[coll] || 0) + 1;
+      const labels = { tasks: "مهام", outputs: "مخرجات", risks: "مخاطر", issues: "مشاكل", decisions: "قرارات", prds: "مواصفات", updates: "تحديثات" };
+      const summary = Object.entries(counts).map(([coll, count]) => `• ${labels[coll] || coll}: ${count}`).join("\n") || "لا توجد سجلات تابعة ظاهرة.";
+      const sessionCount = data.sessions.filter((session) => idx.list.some((task) => task.project_id === p.id && task.id === session.task_id)).length;
+      const total = related.length + 1;
+      if (total > 1000) {
+        toast("⛔ المشروع يحتوي على أكثر من 999 سجلًا تابعًا؛ لم يُحذف شيء لأن العملية يجب أن تكون ذرّية.");
+        return false;
+      }
+      const message = `نقل المشروع «${p.name}» إلى السلة؟\n\nالسجلات التابعة التي ستُنقل معه في عملية واحدة:\n${summary}\n\nجلسات الوقت التاريخية: ${sessionCount} — ستبقى محفوظة ولن تُحذف تلقائيًا. يمكن استرجاع المشروع وسجلاته من السلة.`;
+      if (!(await confirm(message, { title: "مراجعة أثر حذف المشروع", danger: true, ok: "نقل المشروع وسجلاته إلى السلة" }))) return false;
+      const deletedAt = nowIso();
+      const ops = related.map(({ coll, rec }) => ({
+        coll,
+        rec: { ...rec, deleted_at: deletedAt, deleted_by: me },
+      }));
+      ops.push({ coll: "projects", rec: { ...p, deleted_at: deletedAt, deleted_by: me } });
+      try {
+        await R.putAtomic(ops);
+      } catch (error) {
+        toast("⛔ لم يُنقل المشروع إلى السلة: " + (error?.message || "فشل الحفظ") + ". لم تُحفظ مجموعة جزئية.");
+        return false;
+      }
+      act("projects", p.id, "deleted", p.name);
+      toast("🗑 نُقل المشروع وسجلاته إلى السلة؛ جلسات الوقت التاريخية محفوظة.");
+      return true;
     },
     async createFromTemplate(tpl, opts) {
       const r = D.instantiateProjectTemplate(tpl, opts, uid); r.project.created_by = me; if (!r.project.members.length) r.project.members = [{ member_id: me, role: "Lead" }], r.project.lead_id = me;
