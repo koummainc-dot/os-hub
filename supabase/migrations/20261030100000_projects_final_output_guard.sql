@@ -456,11 +456,12 @@ begin
   if old.data->>'status' in ('Approved', 'Superseded') then
     if old.data->>'status' = 'Approved'
        and new.data->>'status' = 'Superseded'
+       and can_approve
        and (new.data - 'status' - 'updated_by_member')
            is not distinct from (old.data - 'status' - 'updated_by_member') then
       return new;
     end if;
-    raise exception 'Approved or superseded PRDs are immutable; create a new version' using errcode = '42501';
+    raise exception 'Approved or superseded PRDs are immutable; only the project lead, reviewer, or workspace owner may supersede an approved version' using errcode = '42501';
   end if;
 
   -- A submitted PRD cannot be edited while under review. Reviewers may change
