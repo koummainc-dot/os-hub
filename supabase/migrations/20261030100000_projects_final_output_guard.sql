@@ -88,8 +88,10 @@ begin
     return new;
   end if;
 
-  if auth.uid() is null or new.data->>'member_id' is distinct from auth.uid()::text then
-    raise exception 'A work session must belong to the authenticated member'
+  if auth.uid() is null
+     or new.data->>'member_id' is distinct from auth.uid()::text
+     or (tg_op = 'UPDATE' and old.data->>'member_id' is distinct from auth.uid()::text) then
+    raise exception 'A work session must belong to the authenticated member and cannot be reassigned'
       using errcode = '42501';
   end if;
 
