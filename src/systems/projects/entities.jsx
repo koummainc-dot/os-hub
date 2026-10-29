@@ -133,10 +133,22 @@ export function RisksView({ projectId }) {
 // ═════ Issues ═════
 export function IssuesView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, setPage, view, setView } = useP();
-  const [form, setForm] = useState(null); const [st, setSt] = useState(view.issueStatusFilter || "open"); const [sev, setSev] = useState(view.issueSeverityFilter || ""); const [resolving, setResolving] = useState(null);
+  const [form, setForm] = useState(null); const [st, setSt] = useState(view.issueStatusFilter || "open"); const [sev, setSev] = useState(view.issueSeverityFilter || ""); const [resolving, setResolving] = useState(null); const [repairing, setRepairing] = useState({});
   const list = data.issues.filter((i) => (!projectId || i.project_id === projectId) && (st === "all" ? true : st === "open" ? D.isOpenIssue(i) : i.status === st) && (!sev || i.severity === sev)).sort((a, b) => ["Critical", "High", "Medium", "Low"].indexOf(a.severity) - ["Critical", "High", "Medium", "Low"].indexOf(b.severity));
   const canNew = projectId ? can("issue.write", projectsById[projectId]) : data.projects.some((p) => can("issue.write", p));
   const repairTasks = (issue) => [...new Set([...(issue.task_ids || []), ...idx.list.filter((t) => (t.issue_ids || []).includes(issue.id)).map((t) => t.id)])].map((id) => idx.byId[id]).filter(Boolean);
+  async function createRepairTask(i) {
+    if (repairing[i.id]) return;
+    setRepairing((current) => ({ ...current, [i.id]: true }));
+    try {
+      const task = await act.createRepairTask(i);
+      if (task) toast("✅ تم إنشاء مهمة الإصلاح وربطها بالمشكلة");
+    } catch (error) {
+      toast("⛔ لم تُنشأ مهمة الإصلاح: " + (error?.message || "فشل الحفظ"));
+    } finally {
+      setRepairing((current) => { const next = { ...current }; delete next[i.id]; return next; });
+    }
+  }
   async function change(i, to) {
     const p = projectsById[i.project_id]; if (to === "Resolved") return setResolving(i);
     const m = D.validateIssueStatus(i, to); if (m) return toast("⛔ " + m);
@@ -152,7 +164,7 @@ export function IssuesView({ projectId }) {
             <div style={{ fontSize: 11, color: C.muted, display: "flex", gap: 10 }}>{!projectId && <ProjectName id={i.project_id} />}<Who id={i.owner_id} size={15} /><span>{fmtShort(i.discovered_at)}</span>{i.from_risk_id && <span>⚠️ من خطر</span>}{i.from_discovery_id && <span>💡 من اكتشاف</span>}</div>
             {repairTasks(i).length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}><span style={{ fontSize: 11, color: C.muted }}>مهام الإصلاح:</span>{repairTasks(i).map((t) => <Btn key={t.id} small onClick={() => openTask(t.id)}>🔧 {t.title}</Btn>)}</div>}
             {i.from_risk_id && <div style={{ fontSize: 11, marginTop: 4 }}>مصدرها خطر: <button type="button" onClick={() => openProject(i.project_id, "risks")} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>{(data.risks.find((r) => r.id === i.from_risk_id) || {}).title || "فتح المخاطر"} ↗</button></div>}{i.from_discovery_id && <div style={{ fontSize: 11, marginTop: 4 }}>مصدرها اكتشاف: <button type="button" onClick={() => setPage("discovery")} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>{(data.discovery.find((d) => d.id === i.from_discovery_id) || {}).title || "فتح الاكتشاف"} ↗</button></div>}</div>
-          <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>{can("issue.write", projectsById[i.project_id]) && <Btn small onClick={async () => { try { const task = await act.createRepairTask(i); if (task) { toast("✅ تم إنشاء مهمة الإصلاح وربطها بالمشكلة"); } } catch (error) { toast("⛔ لم تُنشأ مهمة الإصلاح: " + (error?.message || "فشل الحفظ")); } }}>＋ مهمة إصلاح</Btn>}{can("issue.write", projectsById[i.project_id]) && (D.ISSUE_NEXT[i.status] || []).length > 0 && <select style={{ ...S.sel, width: 110, padding: "3px 6px", fontSize: 11 }} value="" onChange={(e) => e.target.value && change(i, e.target.value)}><option value="">انقل إلى…</option>{D.ISSUE_NEXT[i.status].map((s) => <option key={s} value={s}>{L.issueStatus[s]}</option>)}</select>}<RowActions canW={can("issue.write", projectsById[i.project_id])} onEdit={() => setForm(i)} onDelete={() => act.del("issues", i.id, i.title)} /></span>
+          <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>{can("issue.write", projectsById[i.project_id]) && <Btn small disabled={!!repairing[i.id]} onClick={() => createRepairTask(i)}>{repairing[i.id] ? "جارٍ الإنشاء…" : "＋ مهمة إصلاح"}</Btn>}{can("issue.write", projectsById[i.project_id]) && (D.ISSUE_NEXT[i.status] || []).length > 0 && <select style={{ ...S.sel, width: 110, padding: "3px 6px", fontSize: 11 }} value="" onChange={(e) => e.target.value && change(i, e.target.value)}><option value="">انقل إلى…</option>{D.ISSUE_NEXT[i.status].map((s) => <option key={s} value={s}>{L.issueStatus[s]}</option>)}</select>}<RowActions canW={can("issue.write", projectsById[i.project_id])} onEdit={() => setForm(i)} onDelete={() => act.del("issues", i.id, i.title)} /></span>
         </div>))}</div>}
       {form && <FormModal title={form.id ? "تعديل المشكلة" : "مشكلة جديدة"} wide initial={{ severity: "Medium", status: "Open", discovered_at: new Date().toISOString().slice(0, 10), ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { await act.put("issues", { ...v, id: v.id || uid() }, projectsById[v.project_id]); toast("✅ تم الحفظ"); setForm(null); }} fields={[
         { key: "title", label: "العنوان", required: true, span: 2 }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) },
