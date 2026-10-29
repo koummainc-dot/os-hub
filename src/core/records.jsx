@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useReducer } from "react";
 import { supabase, SUPABASE_SDK_FAILED } from "./supabase.js";
+import { canReplayQueuedWrite } from "./recordQueue.js";
 
 // ════════════════════════════════════════════════════════════════════
 // Record store — the data layer for every system that stores one row per entity
@@ -249,12 +250,6 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
 
   const api = useMemo(() => ({ put, softDelete, restore, putMany, reload: loadAll, sync: syncSince, flushQueue }), [put, softDelete, restore, putMany, loadAll, syncSince, flushQueue]);
   return { ...state, api };
-}
-
-export function canReplayQueuedWrite(currentServerTs, queuedBaseTs) {
-  // Only replay when the server version is exactly the one the user edited.
-  // null/null means a queued insert whose record still does not exist remotely.
-  return (currentServerTs || null) === (queuedBaseTs || null);
 }
 
 export function stripMeta(rec) {
