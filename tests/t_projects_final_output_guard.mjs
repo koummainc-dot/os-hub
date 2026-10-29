@@ -20,6 +20,12 @@ assert.match(ui, /prev\?\.approval === "Final"/,
   "UI must also prevent editing a final output");
 assert.match(ui, /can\("output\.approve", project\)/,
   "UI must enforce the same approval role before submission");
+assert.match(migration, /Output task must be active and belong to the selected project/,
+  "database must reject cross-project or inactive task links on outputs");
+assert.match(migration, /Output PRD must be active and belong to the selected project/,
+  "database must reject cross-project or inactive PRD links on outputs");
+assert.match(migration, /Output must reference an active non-system project/,
+  "database must reject outputs attached to missing, trashed, or system projects");
 assert.match(migration, /create trigger projects_guard_work_sessions_trg\\s+before insert or update of data on public\\.workspace_records/i,
   "session guard must run for direct and RPC writes");
 assert.match(migration, /new\\.data->>'member_id' is distinct from auth\\.uid\\(\\)::text/,
