@@ -141,9 +141,9 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
         "مواصفات": data.prds.filter((x) => x.project_id === p.id && !x.deleted_at).length,
         "تحديثات": data.updates.filter((x) => x.project_id === p.id && !x.deleted_at).length,
       };
-      const summary = Object.entries(related).filter(([, count]) => count > 0).map(([label, count]) => `• ${label}: ${count}`).join("\\n") || "لا توجد سجلات تابعة ظاهرة.";
+      const summary = Object.entries(related).filter(([, count]) => count > 0).map(([label, count]) => `• ${label}: ${count}`).join("\n") || "لا توجد سجلات تابعة ظاهرة.";
       const sessionCount = data.sessions.filter((session) => kids.some((task) => task.id === session.task_id)).length;
-      const message = `نقل المشروع «${p.name}» إلى السلة؟\\n\\nالسجلات التي ستُنقل إلى السلة معه:\\n${summary}\\n\\nجلسات الوقت التاريخية: ${sessionCount} — ستبقى محفوظة كسجل تاريخي، ولن تُحذف تلقائيًا. يمكنك استرجاع المشروع وسجلاته من السلة.`;
+      const message = `نقل المشروع «${p.name}» إلى السلة؟\n\nالسجلات التي ستُنقل إلى السلة معه:\n${summary}\n\nجلسات الوقت التاريخية: ${sessionCount} — ستبقى محفوظة كسجل تاريخي، ولن تُحذف تلقائيًا. يمكنك استرجاع المشروع وسجلاته من السلة.`;
       if (!(await confirm(message, { title: "مراجعة أثر حذف المشروع", danger: true, ok: "نقل إلى السلة" }))) return false;
       for (const c of ["tasks", "outputs", "risks", "issues", "decisions", "prds", "updates"]) for (const k of arr(recs, c).filter((x) => x.project_id === p.id && !x.deleted_at)) await R.softDelete(c, k.id, me);
       await del("projects", p.id, p.name); return true;
