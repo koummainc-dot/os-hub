@@ -111,9 +111,9 @@ export function RisksView({ projectId }) {
 
 // ═════ Issues ═════
 export function IssuesView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, setPage } = useP();
-  const [form, setForm] = useState(null); const [st, setSt] = useState("open"); const [resolving, setResolving] = useState(null);
-  const list = data.issues.filter((i) => (!projectId || i.project_id === projectId) && (st === "all" ? true : st === "open" ? D.isOpenIssue(i) : i.status === st)).sort((a, b) => ["Critical", "High", "Medium", "Low"].indexOf(a.severity) - ["Critical", "High", "Medium", "Low"].indexOf(b.severity));
+  const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, setPage, view, setView } = useP();
+  const [form, setForm] = useState(null); const [st, setSt] = useState(view.issueStatusFilter || "open"); const [sev, setSev] = useState(view.issueSeverityFilter || ""); const [resolving, setResolving] = useState(null);
+  const list = data.issues.filter((i) => (!projectId || i.project_id === projectId) && (st === "all" ? true : st === "open" ? D.isOpenIssue(i) : i.status === st) && (!sev || i.severity === sev)).sort((a, b) => ["Critical", "High", "Medium", "Low"].indexOf(a.severity) - ["Critical", "High", "Medium", "Low"].indexOf(b.severity));
   const canNew = projectId ? can("issue.write", projectsById[projectId]) : data.projects.some((p) => can("issue.write", p));
   async function change(i, to) {
     const p = projectsById[i.project_id]; if (to === "Resolved") return setResolving(i);
@@ -122,7 +122,7 @@ export function IssuesView({ projectId }) {
   }
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>{canNew && <Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ مشكلة</Btn>}<select style={{ ...S.sel, width: 130 }} value={st} onChange={(e) => setSt(e.target.value)}><option value="open">المفتوحة</option><option value="all">الكل</option>{opts(L.issueStatus).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>{canNew && <Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ مشكلة</Btn>}<select aria-label="حالة المشكلة" style={{ ...S.sel, width: 130 }} value={st} onChange={(e) => { setSt(e.target.value); setView((v) => ({ ...v, issueStatusFilter: e.target.value })); }}><option value="open">المفتوحة</option><option value="all">الكل</option>{opts(L.issueStatus).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select><select aria-label="شدة المشكلة" style={{ ...S.sel, width: 130 }} value={sev} onChange={(e) => { setSev(e.target.value); setView((v) => ({ ...v, issueSeverityFilter: e.target.value })); }}><option value="">كل الشدات</option>{opts(L.severity).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select>{(st !== "open" || sev) && <Btn small onClick={() => { setSt("open"); setSev(""); setView((v) => ({ ...v, issueStatusFilter: "open", issueSeverityFilter: "" })); }}>مسح الفلاتر</Btn>}</div>
       {!list.length ? <Empty icon="✅" title="لا مشاكل" /> : <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((i) => (
         <div key={i.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "9px 0", borderBottom: `1px solid ${C.line}`, alignItems: "center" }}>
           <div><div style={{ fontSize: 13, fontWeight: 700 }}><Chip color={SEV_COLOR[i.severity]} solid>{L.severity[i.severity]}</Chip> {i.title} <Chip color={STATUS_COLOR[i.status]}>{L.issueStatus[i.status]}</Chip></div>
