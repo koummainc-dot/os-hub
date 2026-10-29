@@ -126,8 +126,8 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (to === "Cancelled" && !(await confirm("إلغاء المشروع؟ سيبقى في السجل ولا يدخل في الصحة.", { danger: true }))) return false;
       await R.put("projects", { ...p, status: to, status_changed_at: nowIso(), completed_at: to === "Completed" ? nowIso() : p.completed_at || null }); act("projects", p.id, "status", p.status + " → " + to); return true;
     },
-    async archiveProject(p) { await R.put("projects", { ...p, status: "Archived", archived_at: nowIso() }); act("projects", p.id, "archived", p.name); },
-    async restoreProject(p) { await R.put("projects", { ...p, status: "Planned", archived_at: null }); act("projects", p.id, "restored", p.name); },
+    async archiveProject(p) { if (p.archived_at) return; await R.put("projects", { ...p, archived_from_status: p.status === "Archived" ? (p.archived_from_status || "Planned") : p.status, status: "Archived", archived_at: nowIso() }); act("projects", p.id, "archived", p.name); },
+    async restoreProject(p) { const { archived_from_status, ...rest } = p; const restoredStatus = archived_from_status || "Planned"; await R.put("projects", { ...rest, status: restoredStatus, archived_at: null }); act("projects", p.id, "restored", p.name + " → " + restoredStatus); },
     async deleteProject(p) {
       const kids = idx.list.filter((t) => t.project_id === p.id).length;
       if (!(await confirm(`حذف المشروع «${p.name}»؟ سيُنقل مع مهامه (${kids}) إلى السلة ويمكن استرجاعه.`, { danger: true, ok: "حذف" }))) return false;
@@ -136,13 +136,26 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     },
     async createFromTemplate(tpl, opts) {
       const r = D.instantiateProjectTemplate(tpl, opts, uid); r.project.created_by = me; if (!r.project.members.length) r.project.members = [{ member_id: me, role: "Lead" }], r.project.lead_id = me;
-      await R.put("projects", stamp(r.project)); for (const t of r.tasks) await R.put("tasks", stamp(t)); for (const k of r.risks) await R.put("risks", stamp(k));
-      act("projects", r.project.id, "created_from_template", tpl.name); return r.project;
+      const written = { projects: false, tasks: [], risks: [] };
+      try {
+        await R.put("projects", stamp(r.project)); written.projects = true;
+        for (const t of r.tasks) { await R.put("tasks", stamp(t)); written.tasks.push(t.id); }
+        for (const k of r.risks) { await R.put("risks", stamp(k)); written.risks.push(k.id); }
+        act("projects", r.project.id, "created_from_template", tpl.name); return r.project;
+      } catch (error) {
+        const cleanupErrors = [];
+        for (const id of [...written.risks].reverse()) { try { await R.softDelete("risks", id, me); } catch (e) { cleanupErrors.push(e); } }
+        for (const id of [...written.tasks].reverse()) { try { await R.softDelete("tasks", id, me); } catch (e) { cleanupErrors.push(e); } }
+        if (written.projects) { try { await R.softDelete("projects", r.project.id, me); } catch (e) { cleanupErrors.push(e); } }
+        if (cleanupErrors.length) throw new Error("فشل إنشاء المشروع من القالب، وفشلت استعادة بعض السجلات الجزئية. راجع سلة Projects OS قبل إعادة المحاولة.");
+        throw new Error("لم يكتمل إنشاء المشروع من القالب؛ أُلغي ما أمكن من السجلات الجزئية. " + (error?.message || "حاول مرة أخرى."));
+      }
     },
     // tasks
     async saveTask(v, isNew) {
       const project = projectsById[v.project_id];
       const errs = D.validateTaskRefs({ ...v, id: v.id || "new" }, { projectsById, tasksById: idx.byId, prdsById }); if (errs.length) throw new Error(errs[0]);
+      for (const discoveryId of (v.discovery_ids || [])) { const discovery = data.discovery.find((d) => d.id === discoveryId); if (!discovery) throw new Error("عنصر اكتشاف مرتبط غير موجود"); if ((discovery.project_ids || []).length && !discovery.project_ids.includes(v.project_id)) throw new Error("عنصر الاكتشاف يجب أن يكون مرتبطاً بالمشروع نفسه"); }
       if (D.traceabilityBlocked(settings, project && project.type, project && project.is_system, v)) throw new Error("سياسة التتبع: هذا النوع من المشاريع يتطلب ربط المهمة بمواصفة أو اكتشاف");
       const rec = { ...v, id: v.id || uid(), planning_bucket: v.planning_bucket || "Inbox", status: v.status || "Not Started" };
       const prev = v.id ? idx.byId[v.id] || (recs.tasks || {})[v.id] : null;
