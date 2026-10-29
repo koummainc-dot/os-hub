@@ -77,5 +77,5 @@ BEGIN
 END;
 $block$;
 
-REVOKE ALL ON FUNCTION public.fin_seed_default_categories(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.fin_seed_categories_after_workspace_insert() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.fin_seed_default_categories(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.fin_seed_categories_after_workspace_insert() FROM PUBLIC, anon, authenticated;
