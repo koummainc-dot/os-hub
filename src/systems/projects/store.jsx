@@ -222,6 +222,8 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       const r = D.instantiateProjectTemplate(tpl, opts, uid); r.project.created_by = me; if (!r.project.members.length) r.project.members = [{ member_id: me, role: "Lead" }], r.project.lead_id = me;
       await persistTemplateBundle({
         project: r.project, tasks: r.tasks, risks: r.risks, stamp, actorId: me,
+        atomic: !isDemo,
+        putAtomic: R.putAtomic,
         put: (collection, record) => R.put(collection, record),
         softDelete: (collection, id, actorId) => R.softDelete(collection, id, actorId),
       });
