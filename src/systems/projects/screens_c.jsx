@@ -262,7 +262,19 @@ export function Templates() {
         { key: "project_type", label: "نوع المشروع" }, { key: "duration_days", label: "المدة التقديرية (أيام)", type: "number", min: 1 },
         { key: "task_tree_text", label: "شجرة المهام", type: "textarea", rows: 9, hint: "كل سطر مهمة. استخدم مسافتين لكل مستوى فرعي. مثال:\nالبحث\n  مقابلات المستخدمين | 120\n  تحليل المنافسين\nالتنفيذ\n  التطوير\n  الاختبار. الرقم بعد | هو تقدير بالدقائق." },
         { key: "risks_text", label: "المخاطر الافتراضية", type: "textarea", rows: 4, hint: "سطر لكل خطر، ويمكن إضافة خطة التخفيف بعد — . الاحتمال والتأثير الافتراضيان 3 من 5." }
-      ]} />}
+      ]}>
+        {(v) => {
+          const treeError = validateTaskTreeText(v.task_tree_text);
+          const tree = treeError ? [] : parseTaskTreeText(v.task_tree_text);
+          return <div style={{ gridColumn: "1 / -1", marginTop: 8, padding: 10, border: "1px solid " + C.line, borderRadius: 8 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+              <b style={{ fontSize: 12.5 }}>معاينة شجرة المهام قبل الحفظ</b>
+              <Chip color={treeError ? C.bad : C.ok}>{treeError || (countN(tree) + " مهمة")}</Chip>
+            </div>
+            {treeError ? <div style={{ fontSize: 11.5, color: C.bad }}>صحّح تنسيق المستويات قبل الحفظ. استخدم مسافتين لكل مستوى فرعي.</div> : tree.length ? <div style={{ maxHeight: 220, overflowY: "auto" }}>{show(tree)}</div> : <Empty icon="🧩" title="أضف أول مهمة" sub="اكتب المهام بالترتيب، واستخدم مسافتين لكل مستوى فرعي." />}
+          </div>;
+        }}
+      </FormModal>}
       {use && <TemplatePicker tpl={use} onClose={() => setUse(null)} />}
     </div>
   );
