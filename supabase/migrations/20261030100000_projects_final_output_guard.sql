@@ -300,7 +300,6 @@ begin
          and p.deleted = false
        where a.parent_task_id is not null
          and not a.cycle
-         and cardinality(a.path) < 100
     )
     select exists (select 1 from ancestors where id = new.id or cycle) into has_cycle;
     if has_cycle then
