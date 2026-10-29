@@ -204,8 +204,7 @@ begin
 
     if task_data is null
        or task_data->>'deleted_at' is not null
-       or task_data->>'archived_at' is not null
-       or nullif(task_data->>'parent_task_id', '') is not null then
+       or task_data->>'archived_at' is not null then
       raise exception 'A work session must reference an active leaf task'
         using errcode = '22023';
     end if;
