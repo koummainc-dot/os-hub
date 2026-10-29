@@ -199,11 +199,12 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       const taskPatches = plan.patches.map((p) => ({ before: data.tasks.find((t) => t.id === p.id), after: { ...p, _vis: visFor(target) } }));
       const prdCount = plan.patches.filter((p, i) => data.tasks.find((t) => t.id === plan.ids[i])?.prd_id && !p.prd_id).length;
       const discoveryCount = plan.patches.reduce((n, p, i) => n + ((data.tasks.find((t) => t.id === plan.ids[i])?.discovery_ids || []).length - (p.discovery_ids || []).length), 0);
-      const prompt = `نقل ${plan.ids.length} مهمة إلى مشروع «${target.name}»؟\nسيتم نقل ${outputPatches.length} مخرج مرتبط، مع الحفاظ على روابط الأبناء داخل الشجرة.\n${prdCount ? `سيتم مسح ${prdCount} رابط مواصفة لا يتبع المشروع الهدف.\n` : ""}${discoveryCount ? `سيتم مسح ${discoveryCount} رابط اكتشاف غير صالح للمشروع الهدف.\n` : ""}إذا فشل أحد الحفظات، سيحاول النظام استرجاع السجلات التي سبق تحديثها.`;
+      const prompt = `نقل ${plan.ids.length} مهمة إلى مشروع «${target.name}»؟\nسيتم نقل ${outputPatches.length} مخرج مرتبط، مع الحفاظ على روابط الأبناء داخل الشجرة.\n${prdCount ? `سيتم مسح ${prdCount} رابط مواصفة لا يتبع المشروع الهدف.\n` : ""}${discoveryCount ? `سيتم مسح ${discoveryCount} رابط اكتشاف غير صالح للمشروع الهدف.\n` : ""}سيُحفظ النقل كعملية واحدة على الخادم؛ يلزم الاتصال المباشر لضمان عدم نقل جزء فقط.`;
       if (!(await confirm(prompt, { title: "نقل شجرة المهام", ok: "نقل الشجرة" }))) return false;
       try {
         await persistTaskTreeMove({
           taskPatches, outputPatches,
+          putAtomic: R.putAtomic,
           put: (collection, record) => R.put(collection, record),
         });
       } catch (error) {

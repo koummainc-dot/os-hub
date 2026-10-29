@@ -1,10 +1,14 @@
 // Multi-record task-tree move with compensating rollback on a failed write.
 // The record API may queue offline writes; queued records are returned as truthy values.
-export async function persistTaskTreeMove({ taskPatches, outputPatches, put }) {
+export async function persistTaskTreeMove({ taskPatches, outputPatches, put, putAtomic }) {
   const changes = [
     ...(taskPatches || []).map(({ before, after }) => ({ collection: "tasks", before, after })),
     ...(outputPatches || []).map(({ before, after }) => ({ collection: "outputs", before, after })),
   ];
+  if (typeof putAtomic === "function") {
+    await putAtomic(changes.map(({ collection, after }) => ({ coll: collection, rec: after })));
+    return true;
+  }
   const written = [];
   try {
     for (const change of changes) {
