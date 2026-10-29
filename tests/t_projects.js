@@ -33,12 +33,16 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await click('حفظ',doc.querySelector('[role=dialog]'),400);
   ok(txt().includes('مشروع اختبار القالب'),'project created and opened'); 
   await click('المهام'); await sleep(200); ok(txt().includes('الاكتشاف')&&txt().includes('كتابة المواصفة'),'template task tree copied (parents + children)');
+  ok(!!btn('＋ فرعية'),'child-task action is visible without opening the overflow menu');
   const checks=all('input[type=checkbox]'); ok(checks.length>10,'leaf checkboxes rendered ('+checks.length+')');
   console.log('— complete a task & progress');
   checks[0].click(); await sleep(250); await click('نظرة عامة'); await sleep(150); ok(/\d+\/\d+ مهمة/.test(txt()),'overview shows leaf counts after completing');
   console.log('— new task form');
   await click('المهام'); await sleep(150); await click('مهمة جديدة'); await sleep(150);
-  const dlg=doc.querySelector('[role=dialog]'); const titleIn=all('input',dlg)[0]; await setVal(titleIn,'مهمة يدوية جديدة'); await click('حفظ',dlg,350);
+  const dlg=doc.querySelector('[role=dialog]');
+  ok(!dlg.textContent.includes('المواصفة (PRD)'),'advanced task fields start collapsed');
+  await click('تفاصيل إضافية',dlg,100); ok(dlg.textContent.includes('المواصفة (PRD)'),'advanced task fields can be expanded');
+  const titleIn=all('input',dlg)[0]; await setVal(titleIn,'مهمة يدوية جديدة'); await click('حفظ',dlg,350);
   ok(txt().includes('مهمة يدوية جديدة'),'task created in tree');
 
   console.log('— task sheet + timer');
