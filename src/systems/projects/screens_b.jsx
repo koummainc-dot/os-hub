@@ -33,7 +33,7 @@ export function Projects() {
         <select style={{ ...S.sel, width: 140 }} value={lead} onChange={(e) => setLead(e.target.value)}><option value="">كل القادة</option>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
         <select style={{ ...S.sel, width: 120 }} value={health} onChange={(e) => setHealth(e.target.value)}><option value="">كل الصحة</option>{["Red", "Orange", "Yellow", "Green"].map((h) => <option key={h} value={h}>{D.HEALTH_META[h].label}</option>)}</select>
       </SearchBar>
-      {!list.length && <Empty icon="📁" title="لا مشاريع مطابقة" sub="أنشئ مشروعاً جديداً أو ابدأ من قالب جاهز (تطبيق، محتوى، براند)." action={can("project.create") && <Btn kind="primary" onClick={() => setTplPick(true)}>🧩 ابدأ من قالب</Btn>} />}
+      {!list.length && <Empty icon="📁" title="لا مشاريع مطابقة" sub="أنشئ مشروعاً جديداً أو ابدأ من قالب جاهز (تطبيق، محتوى، براند)." action={<div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>{(q || st !== "active" || type || lead || health) && <Btn onClick={() => { setQ(""); setSt("active"); setType(""); setLead(""); setHealth(""); }}>مسح البحث والفلاتر</Btn>}{can("project.create") && <Btn kind="primary" onClick={() => setTplPick(true)}>🧩 ابدأ من قالب</Btn>}</div>} />}
       {mode === "table" && list.length > 0 && (
         <div style={{ ...S.card, padding: 0, overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, minWidth: 760 }}>
