@@ -61,7 +61,7 @@ export function TaskForm({ initial, projectId, parentId, onClose }) {
     { key: "due_date", label: isParent ? "الموعد (مشتق من الأبناء)" : "الموعد النهائي", type: "date", disabled: () => isParent },
     { key: "estimated_minutes", label: isParent ? "التقدير (مجموع الأبناء)" : "التقدير (دقائق)", type: "number", min: 0, disabled: () => isParent },
     { key: "prd_id", label: "المواصفة (PRD)", type: "select", emptyLabel: "— بلا —", options: (v) => data.prds.filter((p) => p.project_id === v.project_id).map((p) => ({ v: p.id, l: p.title })), hint: "يجب أن تتبع نفس المشروع" },
-    { key: "discovery_ids", label: "عناصر الاكتشاف (لماذا وُجدت؟)", type: "multi", options: data.discovery.filter((d) => !d.project_ids?.length || d.project_ids.includes(v.project_id)).map((d) => ({ v: d.id, l: d.title })) },
+    { key: "discovery_ids", label: "عناصر الاكتشاف (لماذا وُجدت؟)", type: "multi", options: (v) => data.discovery.filter((d) => !d.project_ids?.length || d.project_ids.includes(v.project_id)).map((d) => ({ v: d.id, l: d.title })) },
     { key: "blocked", label: "متعطّلة؟", type: "bool", checkLabel: "المهمة متعطّلة (لا يغيّر التقدم)" },
     { key: "blocked_reason", label: "سبب التعطّل", show: (v) => !!v.blocked },
     { key: "description", label: "الوصف", type: "textarea" }, { key: "result_note", label: "النتيجة السريعة (نص/رابط)", type: "textarea", rows: 2 },
