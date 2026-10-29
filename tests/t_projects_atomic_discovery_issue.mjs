@@ -10,7 +10,7 @@ const action = store.slice(start, end);
 assert.ok(action.includes('R.putAtomic([{ coll: "issues", rec: issue }, { coll: "discovery", rec: { ...discovery, status: "Completed", resolution_links: links } }])'), "issue and source resolution link must persist atomically");
 assert.ok(action.includes("linkedProjects.includes(projectId)"), "target project must be linked to discovery when discovery has project links");
 assert.ok(action.includes("item.from_discovery_id === discoveryId"), "conversion retry must detect an existing issue");
-assert.ok(action.includes("link.kind + ":" + link.id"), "resolution links must be deduplicated");
+assert.ok(action.includes('link.kind + ":" + link.id'), "resolution links must be deduplicated");
 assert.ok(entities.includes("act.convertDiscoveryToIssue(d.id, pid, today)"), "discovery UI must use atomic conversion action");
 assert.ok(!entities.includes('await act.put("issues", { id, title: d.title, project_id: pid'), "UI must not separately persist issue then discovery");
 console.log("Projects atomic discovery-to-issue contract tests passed.");
