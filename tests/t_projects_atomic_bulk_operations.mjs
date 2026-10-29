@@ -20,6 +20,13 @@ const saveBody = store.slice(saveStart, saveEnd);
 assert.ok(saveBody.includes("firstChildParentPatch"), "first-child conversion must retain the parent patch until child creation");
 assert.ok(saveBody.includes('R.putAtomic([\n          { coll: "tasks", rec: { ...stamp(firstChildParentPatch)'), "parent state and first child must be saved in one atomic batch");
 assert.ok(!saveBody.includes("await R.put(\"tasks\", fc.patch)"), "parent state must not be written before the child task is persisted");
+const reparentStart = store.indexOf("async reparent(taskId, newParentId)");
+const reparentEnd = store.indexOf("async moveTree(taskId, targetProjectId)", reparentStart);
+const reparentBody = store.slice(reparentStart, reparentEnd);
+assert.ok(reparentBody.includes("R.putAtomic(["), "reparenting onto a leaf parent must update parent and child atomically");
+assert.ok(reparentBody.includes("fc.warnCompleted"), "reparenting must warn before converting a completed task into a parent");
+assert.ok(!reparentBody.includes("await R.put(\"tasks\", fc.patch)"), "reparenting must not persist the parent transition separately");
+
 
 assert.match(records, /does not enqueue offline changes/i);
 console.log("Projects task bulk atomic-operation contract tests passed.");
