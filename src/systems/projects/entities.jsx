@@ -232,7 +232,7 @@ export function PrdsView({ projectId }) {
 function PrdEditor({ prd, onClose, onOpen }) {
   const { data, A: act, can, projectsById, people, toast, me, PRD_TEMPLATE, idx, confirm, nameOf, openTask } = useP();
   const project = projectsById[prd.project_id]; const locked = ["Approved", "Superseded", "Ready for Review"].includes(prd.status); const canW = can("prd.write", project) && !locked;
-  const [d, setD] = useState({ ...prd, sections: prd.sections || [] }); const [tab, setTab] = useState("doc"); const [busy, setBusy] = useState(false); const [rejectForm, setRejectForm] = useState(false);
+  const [d, setD] = useState({ ...prd, sections: prd.sections || [] }); const [tab, setTab] = useState("doc"); const [busy, setBusy] = useState(false); const [rejectForm, setRejectForm] = useState(false); const versioning = useRef(false);
   const secOf = (k) => (d.sections.find((s) => s.key === k) || {}).content || "";
   const setSec = (k, v, tpl) => setD((x) => { const ex = x.sections.some((s) => s.key === k); return { ...x, sections: ex ? x.sections.map((s) => (s.key === k ? { ...s, content: v } : s)) : [...x.sections, { key: k, title: tpl ? tpl.title : k, group: tpl ? tpl.group : "", content: v }] }; });
   const save = async (patch) => { setBusy(true); const rec = { ...d, ...(patch || {}) }; const s = await act.put("prds", rec, project); setBusy(false); if (s) { setD(s); toast("✅ تم الحفظ"); } return s; };
@@ -243,15 +243,18 @@ function PrdEditor({ prd, onClose, onOpen }) {
   async function requestReview() { const r = D.prdApprovalReady(d, d.sections, d.approvals); if (r.missing.length) return toast("⛔ لا يمكن طلب المراجعة قبل استكمال: " + r.missing.join("، ")); await save({ status: "Ready for Review", submitted_for_review_at: nowIso() }); }
   async function approve() { const r = D.prdApprovalReady(d, d.sections, d.approvals); if (!r.ok) return toast("⛔ " + (r.missing.length ? "أقسام ناقصة: " + r.missing.join("، ") : "") + (r.pendingReviewers.length ? " بانتظار موافقة: " + r.pendingReviewers.map(nameOf).join("، ") : "")); await save({ status: "Approved", approved_at: nowIso() }); act.act("prds", d.id, "approved", d.title); }
   async function newVersion() {
-    if (!(await confirm("إنشاء نسخة جديدة قابلة للتعديل؟ ستُوسَم النسخة الحالية «تم استبدالها».", { ok: "إنشاء نسخة" }))) return;
-    setBusy(true);
+    if (versioning.current) return;
+    versioning.current = true;
     try {
+      if (!(await confirm("إنشاء نسخة جديدة قابلة للتعديل؟ ستُوسَم النسخة الحالية «تم استبدالها».", { ok: "إنشاء نسخة" }))) return;
+      setBusy(true);
       const next = await act.createPrdVersion(d);
       onOpen(next.id);
     } catch (error) {
       toast("⛔ لم يتم إنشاء النسخة الجديدة: " + (error?.message || "فشل الحفظ"));
     } finally {
       setBusy(false);
+      versioning.current = false;
     }
   }
   async function risksFromSection() {
