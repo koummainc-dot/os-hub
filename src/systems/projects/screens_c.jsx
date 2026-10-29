@@ -208,6 +208,23 @@ function parseTaskTreeText(value) {
   const clean = (nodes) => nodes.map((n) => ({ ...n, ...(n.estimate_minutes == null ? {} : { estimate_minutes: n.estimate_minutes }), children: clean(n.children) }));
   return clean(roots);
 }
+function validateTaskTreeText(value) {
+  const lines = String(value || "").split("\n").map((raw) => ({ raw, text: raw.trim() })).filter((x) => x.text);
+  let previousDepth = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const { raw, text } = lines[i];
+    const prefix = (raw.match(/^[ \t]*/) || [""])[0].replace(/\t/g, "  ");
+    if (prefix.length % 2 !== 0) return `السطر ${i + 1}: استخدم مسافتين لكل مستوى فرعي.`;
+    const depth = prefix.length / 2;
+    if (i === 0 && depth !== 0) return "ابدأ شجرة المهام بمهمة رئيسية دون مسافات في أول سطر.";
+    if (i > 0 && depth > previousDepth + 1) return `السطر ${i + 1}: لا يمكن تخطي مستوى كامل؛ أضف المهمة الأب أولاً.`;
+    const [title, estimate] = text.split(/\s+\|\s+/);
+    if (!title || !title.trim()) return `السطر ${i + 1}: عنوان المهمة مطلوب.`;
+    if (estimate !== undefined && (!/^\d+(\.\d+)?$/.test(estimate.trim()) || Number(estimate) < 0)) return `السطر ${i + 1}: التقدير بعد | يجب أن يكون رقمًا موجبًا أو صفرًا.`;
+    previousDepth = depth;
+  }
+  return null;
+}
 const flattenRisks = (risks) => (risks || []).map((r) => `${r.title || ""}${r.mitigation ? " — " + r.mitigation : ""}`).join("\n");
 function parseRiskText(value) { return String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [title, ...rest] = line.split(/\s[—-]\s/); return { title: title.trim(), probability: 3, impact: 3, status: "Open", mitigation: rest.join(" — ").trim() }; }); }
 export function Templates() {
@@ -234,7 +251,7 @@ export function Templates() {
       {tab === "meetings" && <div><div style={{ ...S.card, marginBottom: 10, fontSize: 12.5, lineHeight: 1.9 }}>📌 الاجتماعات يملكها <b>Knowledge OS</b> وتُنشأ وتُدار هناك؛ هذه القوالب للمرجع. عند بناء Knowledge OS ستظهر اجتماعات كل مشروع هنا (قراءة فقط) وتتحوّل بنود الإجراءات إلى مهام.</div><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: 10 }}>{MEETING_TEMPLATES.map((m) => <div key={m.name} style={{ ...S.card, padding: "10px 12px" }}><b>{m.name}</b>{m.sections.map((s) => <div key={s} style={{ fontSize: 12, color: C.dim }}>• {s}</div>)}</div>)}</div></div>}
       {previewTpl && <Modal title={`معاينة القالب: ${previewTpl.name}`} wide onClose={() => setPreviewTpl(null)} footer={<><Btn onClick={() => setPreviewTpl(null)}>رجوع</Btn><Btn kind="primary" onClick={() => { setUse(previewTpl); setPreviewTpl(null); }}>استخدام هذا القالب</Btn></>}><div style={{ lineHeight: 1.9 }}><p>{previewTpl.description || "لا يوجد وصف."}</p><b>{countN(previewTpl.task_tree || [])} مهمة · {(previewTpl.risks || []).length} خطر · المدة التقديرية {previewTpl.duration_days || "—"} يوماً</b><div style={{ marginTop: 8 }}>{show(previewTpl.task_tree || [])}</div><div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>المعاينة لا تنشئ أي سجلات. تواريخ التنفيذ وحالات المهام الفعلية لا تُنسخ من القالب.</div></div></Modal>}
       {templateForm && <FormModal title={templateForm.id ? "تعديل قالب مخصص" : "إنشاء قالب مخصص"} wide initial={templateForm} onClose={() => setTemplateForm(null)} onSubmit={async (v) => {
-        if (v.task_tree_text && !parseTaskTreeText(v.task_tree_text).length) throw new Error("راجع تنسيق شجرة المهام.");
+        const treeError = validateTaskTreeText(v.task_tree_text); if (treeError) throw new Error(treeError);
         const tree = parseTaskTreeText(v.task_tree_text);
         const risks = parseRiskText(v.risks_text);
         const rec = { id: v.id || uid(), name: String(v.name || "").trim(), description: v.description || "", project_type: v.project_type || "أخرى", duration_days: v.duration_days ? Number(v.duration_days) : null, task_tree: tree, risks, builtin: false, updated_at: nowIso() };
