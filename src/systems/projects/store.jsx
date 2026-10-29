@@ -571,7 +571,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async saveSettings(patch) { return R.put("settings", { id: "ws", ...((recs.settings || {}).ws || {}), ...patch }); },
     async saveLookups(lists) { return R.put("lookups", { id: "main", lists }); },
     act,
-  }), [R, recs, idx, data, settings, projectsById, prdsById, me, confirm, toast, putIn, visFor, stamp, act, del, nameOf]);
+  }), [R, recs, idx, data, settings, projectsById, prdsById, me, confirm, toast, putIn, visFor, stamp, act, del, nameOf, can]);
 
   const alerts = useMemo(() => (ready ? D.computeAlerts(me, { idx, issues: data.issues, projects: data.projects, contacts: data.contacts, discovery: data.discovery, krs: data.krs, checkins: data.checkins, timers: data.timers, wins: data.wins, today, settings, metrics }) : []), [ready, me, idx, data, today, settings, metrics]);
   const timer = (recs.timers || {})["timer_" + me]; const runningTimer = timer && timer.task_id && !timer.ended_at ? timer : null;
