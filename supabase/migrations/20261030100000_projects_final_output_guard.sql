@@ -401,6 +401,15 @@ begin
     raise exception 'A PRD must belong to a project' using errcode = '22023';
   end if;
 
+  -- Generic store writes update version/timestamps even when the only logical
+  -- change is record visibility metadata. Allow those no-op data updates in every
+  -- lifecycle state; all actual PRD content/status changes remain guarded below.
+  if tg_op = 'UPDATE'
+     and (new.data - 'deleted_at' - 'deleted_by' - 'v' - 'updated_at' - 'created_at' - 'updated_by_member')
+         is not distinct from (old.data - 'deleted_at' - 'deleted_by' - 'v' - 'updated_at' - 'created_at' - 'updated_by_member') then
+    return new;
+  end if;
+
   select p.data into project_data
     from public.workspace_records p
    where p.workspace_id = new.workspace_id
@@ -429,15 +438,6 @@ begin
        where member->>'member_id' = auth.uid()::text
          and member->>'role' in ('Lead', 'Reviewer')
     );
-  -- Generic store writes update version/timestamps even when the only logical
-  -- change is record visibility metadata. Allow those no-op data updates in every
-  -- lifecycle state; all actual PRD content/status changes remain guarded below.
-  if tg_op = 'UPDATE'
-     and (new.data - 'deleted_at' - 'deleted_by' - 'v' - 'updated_at' - 'created_at' - 'updated_by_member')
-         is not distinct from (old.data - 'deleted_at' - 'deleted_by' - 'v' - 'updated_at' - 'created_at' - 'updated_by_member') then
-    return new;
-  end if;
-
   can_review := can_approve
     or exists (
       select 1
