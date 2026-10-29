@@ -267,11 +267,12 @@ export function DiscoveryView() {
     await act.put("discovery", { ...d, status: to }); 
   }
   async function convert(d, kind) {
+    const selectedProjectId = d._conversionProjectId || "";
     const source = data.discovery.find((x) => x.id === d.id) || d;
     if ((source.resolution_links || []).some((x) => x.kind === kind)) { toast("هذا الاكتشاف مرتبط بالفعل بعنصر من هذا النوع؛ افتح الرابط الموجود بدل إنشاء نسخة مكررة."); return; }
     d = source;
     const projectIds = (d.project_ids || []).filter((id) => projectsById[id] && !projectsById[id].archived_at);
-    const pid = projectIds.length === 1 ? projectIds[0] : (d._conversionProjectId || "");
+    const pid = projectIds.length === 1 ? projectIds[0] : selectedProjectId;
     if (["task", "prd", "issue"].includes(kind) && !pid && projectIds.length === 0) { toast("اربط الاكتشاف بمشروع نشط أولاً، ثم أعد التحويل."); return; }
     if (["task", "prd", "issue"].includes(kind) && !pid) { setConv({ ...d, _conversionKind: kind, _conversionProjectId: "", _availableProjectIds: projectIds }); return; }
     if (kind === "task") { if (!pid) return toast("اربط الاكتشاف بمشروع أولاً"); const t = await act.saveTask({ title: d.title, project_id: pid, description: d.proposed_solution || d.description || "", discovery_ids: [d.id], assignee_id: d.owner_id || null }, true); if (t) { await act.put("discovery", { ...d, status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "task", id: t.id }] }); toast("✅ أُنشئت مهمة مرتبطة"); } }
