@@ -6,7 +6,7 @@ import { buildRelationshipsSeed } from "./demo.js";
 import {
   RELATIONSHIP_SECTIONS, RELATIONSHIP_TYPES, RELATIONSHIP_TYPE_LABELS,
   emptyRelationshipsData, normalizeRelationshipsData, validatePerson,
-  normalizeSearch, findPossibleDuplicates, dueFollowups, validateRelationshipsImport, upcomingRelationshipEvents
+  normalizeSearch, findPossibleDuplicates, dueFollowups, validateRelationshipsImport, upcomingRelationshipEvents, planPersonMerge, planRelationshipsImport
 } from "./domain.js";
 
 const C = { ink: "#172033", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#DB2777", soft: "#FCE7F3", green: "#047857", amber: "#B45309", red: "#B91C1C" };
@@ -130,6 +130,11 @@ export default function RelationshipsSystem(props) {
   const [editingCircleId, setEditingCircleId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
+  const [overwriteImportConflicts, setOverwriteImportConflicts] = useState(false);
+  const [mergeKeepId, setMergeKeepId] = useState("");
+  const [mergeDuplicateId, setMergeDuplicateId] = useState("");
+  const [mergePreview, setMergePreview] = useState(null);
+  const importPlan = importPreview ? planRelationshipsImport(data, importPreview.data, { overwriteConflicts: overwriteImportConflicts }) : null;
   const currentLevel = osSectionLevel(access, page);
   const canEdit = currentLevel === "edit";
 
@@ -211,7 +216,7 @@ export default function RelationshipsSystem(props) {
   }, [data.people, query]);
   const overdue = useMemo(() => dueFollowups(data.followups, today()), [data.followups]);
   const duplicates = useMemo(() => findPossibleDuplicates(data.people), [data.people]);
-  const upcomingEvents = useMemo(() => upcomingRelationshipEvents(data.people, data.occasions, today(), 30), [data.people, data.occasions]);
+  const upcomingEvents = useMemo(() => upcomingRelationshipEvents(data.people, data.occasions, today(), 365, data.settings), [data.people, data.occasions, data.settings]);
 
   const startNewPerson = () => { setEditingPerson(null); setPersonDraft(blankPerson()); };
   const savePerson = async (event) => {
@@ -259,7 +264,7 @@ export default function RelationshipsSystem(props) {
     <Panel title="متابعات تحتاج إلى اهتمام" hint="قائمة عملية، وليست حكمًا على جودة العلاقة.">
       {overdue.length ? overdue.slice(0, 5).map((f) => <div key={f.id} style={{ padding: "10px 0", borderBottom: "1px solid " + C.line }}><strong>{f.title}</strong><div style={{ color: C.muted, fontSize: 12 }}>{peopleById[f.personId]?.name || "شخص غير محدد"} · {f.dueDate}</div></div>) : <Empty>لا توجد متابعات متأخرة.</Empty>}
     </Panel>
-    <Panel title="مناسبات وأعياد ميلاد قريبة" hint="يعرض أعياد الميلاد خلال 30 يومًا والمناسبات عند دخول نافذة التذكير المحددة لها. هذه تنبيهات داخل التطبيق وليست إشعارات هاتفية.">
+    <Panel title="مناسبات وأعياد ميلاد قريبة" hint="يعرض أعياد الميلاد وفق عدد أيام التذكير المحدد في الإعدادات والمناسبات عند دخول نافذة التذكير الخاصة بها. هذه تنبيهات داخل التطبيق وليست إشعارات هاتفية.">
       {upcomingEvents.length ? upcomingEvents.slice(0, 8).map((event) => <div key={event.id} style={{ padding: "10px 0", borderBottom: "1px solid " + C.line }}><strong>{event.title}</strong><div style={{ color: C.muted, fontSize: 12 }}>{peopleById[event.personId]?.name || "مناسبة شخصية"} · {event.date} · {event.daysAway === 0 ? "اليوم" : "بعد " + event.daysAway + " يوم"}</div></div>) : <Empty>لا توجد مناسبات خلال الثلاثين يومًا القادمة. أضف تواريخ الميلاد أو المناسبات المهمة لتظهر هنا.</Empty>}
     </Panel>
     <Panel title="أضيفوا العلاقات المهمة بشكل واعٍ" hint="سجّل ما تريد تذكّره، وتجنب تخزين معلومات لا تحتاجها.">
@@ -597,14 +602,72 @@ export default function RelationshipsSystem(props) {
       </Panel>
     </>;
   }
-  else if (page === "merge") content = <Panel title="مراجعة التكرارات" hint="لا يتم الدمج تلقائيًا؛ راجع السجلات يدويًا قبل أي تعديل.">{duplicates.length ? duplicates.map((d) => <div key={d.key} style={{ padding: 10, borderBottom: "1px solid " + C.line }}>{d.first.name} ↔ {d.duplicate.name} <span style={{ color: C.muted, fontSize: 12 }}>({d.key})</span></div>) : <Empty>لم نعثر على تكرارات واضحة باستخدام الاسم أو الهاتف أو البريد.</Empty>}</Panel>;
+  else if (page === "merge") content = <>
+    <Panel title="مراجعة التكرارات" hint="التكرارات اقتراحات للمراجعة وليست دليلًا قاطعًا على أن السجلين لشخص واحد. لن يتم الحذف أو الدمج دون اختيارك.">
+      {duplicates.length ? duplicates.map((d) => <div key={d.key} style={{ padding: 10, borderBottom: "1px solid " + C.line, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div><strong>{d.first.name} ↔ {d.duplicate.name}</strong><div style={{ color: C.muted, fontSize: 12 }}>{d.key}</div></div>
+        <Button disabled={!canEdit} onClick={() => { setMergeKeepId(d.first.id); setMergeDuplicateId(d.duplicate.id); setMergePreview(null); }}>مقارنة هذين السجلين</Button>
+      </div>) : <Empty>لم نعثر على تكرارات واضحة باستخدام الاسم أو الهاتف أو البريد.</Empty>}
+    </Panel>
+    {canEdit && <Panel title="معاينة دمج سجلين" hint="اختر السجل الذي سيبقى. هذه المعاينة لا تغيّر البيانات.">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10 }}>
+        <SelectField label="السجل الأساسي الذي سيبقى" value={mergeKeepId} onChange={(v) => { setMergeKeepId(v); setMergePreview(null); }} options={[{ value: "", label: "اختر الشخص الأساسي" }, ...data.people.map((p) => ({ value: p.id, label: p.name + " · " + (p.phone || p.email || p.id) }))]} />
+        <SelectField label="السجل المكرر الذي سيُدمج" value={mergeDuplicateId} onChange={(v) => { setMergeDuplicateId(v); setMergePreview(null); }} options={[{ value: "", label: "اختر السجل الآخر" }, ...data.people.filter((p) => p.id !== mergeKeepId).map((p) => ({ value: p.id, label: p.name + " · " + (p.phone || p.email || p.id) }))]} />
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+        <Button kind="primary" disabled={!mergeKeepId || !mergeDuplicateId || mergeKeepId === mergeDuplicateId} onClick={() => { const result = planPersonMerge(data, mergeKeepId, mergeDuplicateId); if (!result.ok) { setError(result.error); setMergePreview(null); } else { setError(""); setMergePreview(result); } }}>إنشاء معاينة</Button>
+        <Button onClick={() => { setMergeKeepId(""); setMergeDuplicateId(""); setMergePreview(null); }}>مسح الاختيار</Button>
+      </div>
+      {mergePreview && <div style={{ marginTop: 14, padding: 12, background: C.bg, borderRadius: 12 }}>
+        <strong>ملخص المعاينة — لم تُحفظ أي تغييرات</strong>
+        <div style={{ fontSize: 13, marginTop: 8 }}>سيبقى: {peopleById[mergePreview.summary.preservedPersonId]?.name || mergePreview.summary.preservedPersonId}</div>
+        <div style={{ fontSize: 13 }}>سيُدمج السجل: {peopleById[mergePreview.summary.removedPersonId]?.name || mergePreview.summary.removedPersonId}</div>
+        <div style={{ fontSize: 13, marginTop: 8 }}>حقول ستُستكمل من السجل الآخر: {mergePreview.summary.transferredFields.length ? mergePreview.summary.transferredFields.join("، ") : "لا توجد حقول فارغة تحتاج إلى استكمال"}.</div>
+        <ul style={{ margin: "8px 0", paddingInlineStart: 22, fontSize: 13 }}>{Object.entries(mergePreview.summary.reassigned).map(([key, count]) => <li key={key}>{({ timeline: "سجل التواصل", followups: "المتابعات", occasions: "المناسبات", gifts: "الهدايا" })[key]}: {count} سجل سيعاد ربطه</li>)}</ul>
+        <div role="note" style={{ color: C.amber, fontSize: 12, marginTop: 8 }}>سيُنفّذ الحفظ كعملية واحدة في قاعدة البيانات. إذا تعذّر تحديث أي سجل أو لم تسمح الصلاحيات، تُلغى العملية كاملة.</div>
+        <Button kind="primary" disabled={busy || !canEdit} onClick={async () => {
+          if (!globalThis.confirm?.("تأكيد دمج السجلين؟ سيُحفظ السجل الأساسي وتُنقل إليه الروابط، وستتم أرشفة السجل المكرر مع الاحتفاظ بسجلات التاريخ.")) return;
+          setBusy(true); setError(""); setNotice("");
+          try {
+            if (isDemo) {
+              const result = await api.save(mergePreview.value);
+              if (result && result.ok === false) throw new Error("تعذر حفظ الدمج في الوضع التجريبي.");
+            } else {
+              const upserts = [];
+              const keeperId = mergePreview.summary.preservedPersonId;
+              const collections = ["people", "timeline", "followups", "occasions", "gifts"];
+              for (const collection of collections) {
+                const changed = mergePreview.value[collection].filter((record) => {
+                  if (collection === "people") return String(record.id) === String(keeperId);
+                  const old = data[collection].find((item) => String(item.id) === String(record.id));
+                  return old && old.personId !== record.personId;
+                });
+                for (const record of changed) upserts.push({ collection, id: String(record.id), data: record });
+              }
+              const { error: rpcError } = await supabase.rpc("relationships_apply_batch", {
+                p_workspace_id: ws.id,
+                p_upserts: upserts,
+                p_soft_deletes: [{ collection: "people", id: String(mergePreview.summary.removedPersonId) }]
+              });
+              if (rpcError) throw rpcError;
+            }
+            setData(normalizeRelationshipsData(mergePreview.value));
+            setMergeKeepId(""); setMergeDuplicateId(""); setMergePreview(null);
+            setNotice("تم دمج السجلين ذريًا مع الاحتفاظ بسجلات التاريخ وأرشفة السجل المكرر.");
+          } catch (err) {
+            setError((err?.message || "تعذر حفظ الدمج.") + " لم تُطبّق أي تغييرات من عملية الدمج؛ راجع الصلاحيات وحاول مجددًا.");
+          } finally { setBusy(false); }
+        }}>تأكيد الدمج وحفظه</Button>
+      </div>}
+    </Panel>}
+  </>;
   else if (page === "import") content = <Panel title="الاستيراد والتصدير" hint="الاستيراد يدمج السجلات حسب المعرّف؛ لا يحذف السجلات الحالية."><div style={{ display: "grid", gap: 12 }}>
     <div><Button onClick={() => { const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "relationships-export.json"; a.click(); URL.revokeObjectURL(url); }}>تصدير البيانات (JSON)</Button></div>
     {canEdit && <div style={{ display: "grid", gap: 8, padding: 14, border: "1px dashed " + C.line, borderRadius: 12 }}>
       <strong>استيراد نسخة JSON</strong>
       <p style={{ margin: 0, color: C.muted, fontSize: 12 }}>الحد الأقصى 5 ميجابايت. راجع ملخص الملف قبل دمجه. احتفظ بنسخة احتياطية قبل استيراد بيانات مهمة.</p>
       <input type="file" accept=".json,application/json" onChange={async (e) => {
-        const file = e.target.files?.[0]; setImportPreview(null); setError(""); setNotice("");
+        const file = e.target.files?.[0]; setImportPreview(null); setOverwriteImportConflicts(false); setError(""); setNotice("");
         if (!file) return;
         if (file.size > 5 * 1024 * 1024) { setError("حجم الملف أكبر من 5 ميجابايت."); return; }
         try {
@@ -616,37 +679,52 @@ export default function RelationshipsSystem(props) {
           setImportPreview({ data: checked.value, name: file.name, total });
         } catch (err) { setError(err?.message || "تعذر قراءة ملف JSON."); }
       }} />
-      {importPreview && <div style={{ background: C.bg, padding: 12, borderRadius: 10, fontSize: 12 }}>
-        <strong>{importPreview.name}</strong><div style={{ marginTop: 5 }}>عدد السجلات: {importPreview.total} · الأشخاص {importPreview.data.people.length} · التواصل {importPreview.data.timeline.length} · المتابعات {importPreview.data.followups.length} · المناسبات {importPreview.data.occasions.length} · الهدايا {importPreview.data.gifts.length} · الدوائر {importPreview.data.circles.length}</div>
-        <div style={{ color: C.muted, marginTop: 5 }}>عند تكرار المعرّف نفسه، ستُستبدل بيانات ذلك السجل بالنسخة المستوردة. بقية السجلات الحالية ستظل موجودة.</div>
-        <div style={{ marginTop: 10 }}><Button kind="primary" disabled={busy} onClick={async () => {
-          if (!globalThis.confirm?.("دمج " + importPreview.total + " سجلًا من " + importPreview.name + "؟ لن تُحذف السجلات الأخرى، لكن السجلات المتطابقة بالمعرّف ستُحدّث.")) return;
-          const incoming = importPreview.data;
-          const keys = ["people","timeline","followups","occasions","gifts","circles"];
-          const next = { ...data, settings: { ...data.settings, ...incoming.settings } };
-          for (const key of keys) {
-            const byId = new Map(data[key].map((item) => [String(item.id), item]));
-            for (const item of incoming[key]) byId.set(String(item.id), item);
-            next[key] = [...byId.values()];
-          }
+      {importPreview && importPlan?.ok && <div style={{ background: C.bg, padding: 12, borderRadius: 10, fontSize: 12 }}>
+        <strong>{importPreview.name}</strong>
+        <div style={{ marginTop: 5 }}>السجلات داخل الملف: {importPreview.total}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(125px,1fr))", gap: 8, marginTop: 10 }}>
+          <Metric label="سجلات جديدة" value={importPlan.summary.totalAdded} />
+          <Metric label="مطابقة دون تغيير" value={importPlan.summary.totalUnchanged} />
+          <Metric label="تعارضات بالمعرّف" value={importPlan.summary.totalConflicts} />
+          <Metric label="سيتم استبدالها" value={importPlan.summary.totalOverwritten} />
+        </div>
+        {importPlan.summary.totalConflicts > 0 && <label style={{ display: "flex", gap: 8, alignItems: "start", marginTop: 12, padding: 10, background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 8, color: C.ink }}>
+          <input type="checkbox" checked={overwriteImportConflicts} onChange={(e) => setOverwriteImportConflicts(e.target.checked)} />
+          <span><strong>السماح باستبدال السجلات المتعارضة</strong><br /><span style={{ color: C.muted }}>عند التفعيل، سيحل السجل المستورد محل السجل الحالي إذا تطابق المعرّف واختلفت البيانات. اتركه غير محدد للحفاظ على البيانات الحالية.</span></span>
+        </label>}
+        <div style={{ color: C.muted, marginTop: 8 }}>السجلات الجديدة فقط ستُضاف افتراضيًا، والسجلات المتطابقة دون تغيير ستُتجاوز. الإعدادات ستُدمج مع الإعدادات الحالية.</div>
+        <div role="note" style={{ color: C.green, background: "#ECFDF5", border: "1px solid #A7F3D0", padding: 9, borderRadius: 8, marginTop: 8 }}>الحفظ في المساحة الحقيقية يتم الآن داخل معاملة واحدة في قاعدة البيانات؛ إذا فشل أي سجل، تُلغى العملية كاملة. احتفظ بنسخة احتياطية كإجراء احترازي عام.</div>
+        <div style={{ marginTop: 10 }}><Button kind="primary" disabled={busy || importPlan.summary.totalAdded + importPlan.summary.totalOverwritten === 0} onClick={async () => {
+          const count = importPlan.summary.totalAdded + importPlan.summary.totalOverwritten;
+          if (!globalThis.confirm?.("استيراد " + importPreview.name + "؟ سيُضاف " + importPlan.summary.totalAdded + " سجلًا جديدًا" + (overwriteImportConflicts ? " وسيُستبدل " + importPlan.summary.totalOverwritten + " سجل متعارض" : "، وستُحفظ السجلات المتعارضة الحالية دون تغيير") + ".")) return;
           setBusy(true); setError(""); setNotice("");
           try {
             if (isDemo) {
-              const result = await api.save(next);
+              const result = await api.save(importPlan.value);
               if (result && result.ok === false) throw new Error("تعذر حفظ الاستيراد في الوضع التجريبي.");
             } else {
-              for (const key of keys) await saveRecords(ws.id, key, incoming[key]);
-              await saveRecord(ws.id, "settings", { id: "settings", ...next.settings });
+              const upserts = [];
+              for (const key of ["people","timeline","followups","occasions","gifts","circles"]) {
+                for (const record of importPlan.writes[key]) upserts.push({ collection: key, id: String(record.id), data: record });
+              }
+              if (importPlan.settingsChanged) upserts.push({ collection: "settings", id: "settings", data: importPlan.value.settings });
+              if (upserts.length) {
+                const { error: rpcError } = await supabase.rpc("relationships_apply_batch", {
+                  p_workspace_id: ws.id, p_upserts: upserts, p_soft_deletes: []
+                });
+                if (rpcError) throw rpcError;
+              }
             }
-            setData(normalizeRelationshipsData(next)); setImportPreview(null); setNotice("تم دمج البيانات بنجاح.");
+            setData(normalizeRelationshipsData(importPlan.value)); setImportPreview(null); setOverwriteImportConflicts(false);
+            setNotice("اكتمل الاستيراد. أُضيف " + importPlan.summary.totalAdded + " سجلًا جديدًا" + (overwriteImportConflicts ? " واستُبدل " + importPlan.summary.totalOverwritten + " سجل متعارض." : " مع الحفاظ على السجلات المتعارضة الحالية."));
           } catch (err) {
-            setError((err?.message || "تعذر استكمال الاستيراد.") + " قد تكون بعض المجموعات حُفظت بالفعل؛ أعد تحميل البيانات قبل إعادة المحاولة.");
+            setError((err?.message || "تعذر استكمال الاستيراد.") + " لم تُطبّق تغييرات الاستيراد في قاعدة البيانات لأن العملية ذرية؛ راجع البيانات والصلاحيات ثم أعد المحاولة.");
           } finally { setBusy(false); }
-        }}>دمج البيانات المستوردة</Button> <Button onClick={() => setImportPreview(null)}>إلغاء</Button></div>
+        }}>تأكيد الاستيراد</Button> <Button onClick={() => { setImportPreview(null); setOverwriteImportConflicts(false); }}>إلغاء</Button></div>
       </div>}
     </div>}
   </div></Panel>;
-  else if (page === "settings") content = <Panel title="الإعدادات والخصوصية" hint="تخزين العلاقات في مجموعات منفصلة يسمح بتطبيق صلاحيات على مستوى المجموعة في قاعدة البيانات."><div style={{ display: "grid", gap: 10 }}><p style={{ margin: 0, color: C.muted, fontSize: 13 }}>بيانات العلاقات حساسة؛ امنح الوصول للأشخاص الموثوق بهم فقط، وتجنّب إضافة أسرار أو بيانات لا تحتاجها.</p><label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}><input type="checkbox" checked={data.settings.privacyLock} onChange={(e) => persist({ ...data, settings: { ...data.settings, privacyLock: e.target.checked } })} disabled={!canEdit} /> تفعيل تنبيه الخصوصية داخل النظام</label><Field label="أيام التذكير الافتراضية للمتابعة" type="number" value={data.settings.defaultFollowupDays} disabled={!canEdit} onChange={(v) => persist({ ...data, settings: { ...data.settings, defaultFollowupDays: Math.max(0, Number(v) || 0) } })} /></div></Panel>;
+  else if (page === "settings") content = <Panel title="الإعدادات والخصوصية" hint="تخزين العلاقات في مجموعات منفصلة يسمح بتطبيق صلاحيات على مستوى المجموعة في قاعدة البيانات."><div style={{ display: "grid", gap: 10 }}><p style={{ margin: 0, color: C.muted, fontSize: 13 }}>بيانات العلاقات حساسة؛ امنح الوصول للأشخاص الموثوق بهم فقط، وتجنّب إضافة أسرار أو بيانات لا تحتاجها.</p><label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}><input type="checkbox" checked={data.settings.privacyLock} onChange={(e) => persist({ ...data, settings: { ...data.settings, privacyLock: e.target.checked } })} disabled={!canEdit} /> تفعيل تنبيه الخصوصية داخل النظام</label><Field label="أيام التذكير الافتراضية للمتابعة" type="number" value={data.settings.defaultFollowupDays ?? 30} disabled={!canEdit} onChange={(v) => persist({ ...data, settings: { ...data.settings, defaultFollowupDays: Math.max(0, Math.min(3650, Number(v) || 0)) } })} /><Field label="التذكير بعيد الميلاد قبل (أيام)" type="number" value={data.settings.birthdayReminderDays ?? 7} disabled={!canEdit} onChange={(v) => persist({ ...data, settings: { ...data.settings, birthdayReminderDays: Math.max(0, Math.min(365, Number(v) || 0)) } })} /><Field label="مراجعة التواصل بعد (أيام)" type="number" value={data.settings.neglectedAfterDays ?? 30} disabled={!canEdit} onChange={(v) => persist({ ...data, settings: { ...data.settings, neglectedAfterDays: Math.max(1, Math.min(3650, Number(v) || 30)) } })} /><p style={{ margin: 0, color: C.muted, fontSize: 12 }}>التذكيرات الحالية تظهر داخل التطبيق. إشعارات الهاتف أو البريد أو التشغيل في الخلفية ليست مفعّلة بعد، ولا نعتبرها مكتملة.</p></div></Panel>;
   else content = <Panel title="القسم غير معروف"><Empty>اختر قسمًا من قائمة العلاقات.</Empty></Panel>;
 
   return <div dir="rtl" style={{ color: C.ink, fontFamily: "inherit", maxWidth: 1200, margin: "0 auto" }}>

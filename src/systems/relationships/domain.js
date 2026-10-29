@@ -33,7 +33,7 @@ export function emptyRelationshipsData() {
     occasions: [],
     gifts: [],
     circles: [],
-    settings: { reminderDays: [7, 1], defaultFollowupDays: 30, privacyLock: true }
+    settings: { reminderDays: [7, 1], birthdayReminderDays: 7, neglectedAfterDays: 30, defaultFollowupDays: 30, privacyLock: true }
   };
 }
 
@@ -92,6 +92,17 @@ export function validateRelationshipsImport(value) {
   if (!known.some((key) => Array.isArray(source[key]))) {
     return { ok: false, error: "لم نعثر على مجموعات بيانات علاقات معروفة داخل الملف." };
   }
+  for (const key of known) {
+    if (Array.isArray(source[key])) {
+      const seenIds = new Set();
+      for (const record of source[key]) {
+        const id = String(record?.id || "").trim();
+        if (!id) continue;
+        if (seenIds.has(id)) return { ok: false, error: "المعرّف " + id + " مكرر داخل مجموعة " + key + ". أصلح التكرار في الملف قبل الاستيراد." };
+        seenIds.add(id);
+      }
+    }
+  }
   const normalized = normalizeRelationshipsData(source);
   for (const key of known) {
     if (normalized[key].length > 10000) return { ok: false, error: "عدد السجلات في " + key + " يتجاوز الحد المسموح (10000)." };
@@ -126,14 +137,15 @@ function nextAnnualDate(value, today) {
   return candidate;
 }
 
-export function upcomingRelationshipEvents(people, occasions, today, horizonDays = 30) {
+export function upcomingRelationshipEvents(people, occasions, today, horizonDays = 30, settings = {}) {
   const events = [];
   for (const person of Array.isArray(people) ? people : []) {
     if (!person?.birthday) continue;
     const nextDate = nextAnnualDate(person.birthday, today);
     if (!nextDate) continue;
     const daysAway = daysBetweenISO(today, nextDate);
-    if (daysAway !== null && daysAway >= 0 && daysAway <= horizonDays) {
+    const birthdayReminderDays = Math.max(0, Math.min(365, Number(settings.birthdayReminderDays ?? horizonDays) || 0));
+    if (daysAway !== null && daysAway >= 0 && daysAway <= horizonDays && daysAway <= birthdayReminderDays) {
       events.push({ id: "birthday:" + person.id, personId: person.id, title: "عيد ميلاد " + String(person.name || "شخص"), date: nextDate, daysAway, kind: "birthday" });
     }
   }
@@ -148,4 +160,110 @@ export function upcomingRelationshipEvents(people, occasions, today, horizonDays
     }
   }
   return events.sort((a, b) => a.daysAway - b.daysAway || a.title.localeCompare(b.title));
+}
+
+
+// Build a preview-only merge plan. No record is deleted or written by this function.
+export function planPersonMerge(value, keepPersonId, mergePersonId) {
+  const data = normalizeRelationshipsData(value);
+  if (!keepPersonId || !mergePersonId || keepPersonId === mergePersonId) {
+    return { ok: false, error: "اختر شخصين مختلفين لدمجهما." };
+  }
+  const keep = data.people.find((person) => String(person.id) === String(keepPersonId));
+  const merge = data.people.find((person) => String(person.id) === String(mergePersonId));
+  if (!keep || !merge) return { ok: false, error: "تعذر العثور على الشخصين المطلوبين." };
+
+  // Prefer the keeper's existing values; fill only blank fields from the second record.
+  const mergedPerson = { ...merge, ...keep, id: keep.id };
+  for (const [key, valueFromMerge] of Object.entries(merge)) {
+    const current = mergedPerson[key];
+    if ((current === undefined || current === null || String(current).trim() === "") &&
+        valueFromMerge !== undefined && valueFromMerge !== null && String(valueFromMerge).trim() !== "") {
+      mergedPerson[key] = valueFromMerge;
+    }
+  }
+  mergedPerson.createdAt = keep.createdAt || merge.createdAt || null;
+  mergedPerson.updatedAt = new Date().toISOString();
+
+  const relatedCollections = ["timeline", "followups", "occasions", "gifts"];
+  const next = { ...data };
+  next.people = data.people
+    .filter((person) => String(person.id) !== String(mergePersonId))
+    .map((person) => String(person.id) === String(keepPersonId) ? mergedPerson : person);
+  for (const collection of relatedCollections) {
+    next[collection] = data[collection].map((record) =>
+      String(record.personId) === String(mergePersonId)
+        ? { ...record, personId: keep.id }
+        : record
+    );
+  }
+  // Keep all history rows; the preview deliberately does not deduplicate or delete related records.
+  const summary = {
+    preservedPersonId: keep.id,
+    removedPersonId: merge.id,
+    transferredFields: Object.keys(merge).filter((key) =>
+      (keep[key] === undefined || keep[key] === null || String(keep[key]).trim() === "") &&
+      merge[key] !== undefined && merge[key] !== null && String(merge[key]).trim() !== ""
+    ),
+    reassigned: Object.fromEntries(relatedCollections.map((collection) => [
+      collection, data[collection].filter((record) => String(record.personId) === String(mergePersonId)).length
+    ]))
+  };
+  return { ok: true, value: next, summary };
+}
+
+/**
+ * Build an import preview without mutating the current data.
+ * Conflicting IDs are preserved by default; callers must explicitly opt in to overwrite them.
+ */
+export function planRelationshipsImport(currentValue, incomingValue, options = {}) {
+  const current = normalizeRelationshipsData(currentValue);
+  const checked = validateRelationshipsImport(incomingValue);
+  if (!checked.ok) return checked;
+  const incoming = checked.value;
+  const collections = ["people", "timeline", "followups", "occasions", "gifts", "circles"];
+  const overwriteConflicts = options.overwriteConflicts === true;
+  const next = { ...current, settings: { ...current.settings, ...incoming.settings } };
+  const writes = {};
+  const summary = { added: {}, unchanged: {}, conflicts: {}, overwritten: {}, totalAdded: 0, totalUnchanged: 0, totalConflicts: 0, totalOverwritten: 0 };
+  for (const key of collections) {
+    const existingById = new Map(current[key].map((record) => [String(record.id), record]));
+    const nextById = new Map(current[key].map((record) => [String(record.id), record]));
+    writes[key] = [];
+    summary.added[key] = 0;
+    summary.unchanged[key] = 0;
+    summary.conflicts[key] = 0;
+    summary.overwritten[key] = 0;
+    for (const record of incoming[key]) {
+      const id = String(record.id);
+      const existing = existingById.get(id);
+      if (!existing) {
+        nextById.set(id, record);
+        writes[key].push(record);
+        summary.added[key]++;
+      } else if (JSON.stringify(existing) === JSON.stringify(record)) {
+        summary.unchanged[key]++;
+      } else {
+        summary.conflicts[key]++;
+        if (overwriteConflicts) {
+          nextById.set(id, record);
+          writes[key].push(record);
+          summary.overwritten[key]++;
+        }
+      }
+    }
+    next[key] = [...nextById.values()];
+    summary.totalAdded += summary.added[key];
+    summary.totalUnchanged += summary.unchanged[key];
+    summary.totalConflicts += summary.conflicts[key];
+    summary.totalOverwritten += summary.overwritten[key];
+  }
+  return {
+    ok: true,
+    value: next,
+    writes,
+    settingsChanged: JSON.stringify(current.settings) !== JSON.stringify(next.settings),
+    summary,
+    overwriteConflicts
+  };
 }
