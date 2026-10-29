@@ -538,11 +538,19 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     },
     // time
     async startTimer(taskId) {
+      const task = idx.byId[taskId];
+      if (!task || !idx.isLeaf(taskId)) throw new Error("اختَر مهمة موجودة ونهائية في شجرة المهام قبل بدء المؤقّت.");
+      if (!can("session.write", projectsById[task.project_id])) throw new Error("لا تملك صلاحية تسجيل جلسة لهذا المشروع.");
       const cur = (recs.timers || {})["timer_" + me]; if (cur && cur.task_id && !cur.ended_at) { toast("⛔ TIMER_ALREADY_RUNNING — أوقف المؤقّت الحالي أولاً"); return false; }
       await R.put("timers", { id: "timer_" + me, member_id: me, task_id: taskId, started_at: nowIso(), ended_at: null }); return true;
     },
     async stopTimer(note) {
       const cur = (recs.timers || {})["timer_" + me]; if (!cur || !cur.task_id || cur.ended_at) return null;
+      const task = idx.byId[cur.task_id];
+      if (!task || !idx.isLeaf(cur.task_id) || !can("session.write", projectsById[task.project_id])) {
+        toast("⛔ تعذّر تسجيل الجلسة: المهمة لم تعد متاحة أو تغيّرت صلاحيات المشروع.");
+        return null;
+      }
       const end = nowIso(); const minutes = Math.min(1440, Math.max(1, Math.round((new Date(end) - new Date(cur.started_at)) / 60000)));
       const s = { id: D.sessionId(me, cur.started_at), member_id: me, task_id: cur.task_id, date: dateOf(cur.started_at, settings.timezone), minutes, started_at: cur.started_at, ended_at: end, note: note || "", source: "timer", client_generated_id: cur.started_at };
       const errs = D.validateSession(s); if (errs.length) { toast("⛔ " + errs[0]); return null; }
@@ -550,7 +558,11 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     },
     async discardTimer() { const cur = (recs.timers || {})["timer_" + me]; if (cur) await R.put("timers", { ...cur, task_id: null, started_at: null, ended_at: nowIso() }); },
     async addSession(v) {
-      const s = { member_id: me, source: "manual", ...v, id: v.id || D.sessionId(me, uid()) }; const errs = D.validateSession(s); if (errs.length) throw new Error(errs[0]);
+      const task = idx.byId[v?.task_id];
+      if (!task || !idx.isLeaf(task.id)) throw new Error("الجلسة يجب أن ترتبط بمهمة موجودة ونهائية في شجرة المهام.");
+      if (!can("session.write", projectsById[task.project_id])) throw new Error("لا تملك صلاحية تسجيل جلسة لهذا المشروع.");
+      const s = { ...v, member_id: me, source: v.source || "manual", id: v.id || D.sessionId(me, uid()) };
+      const errs = D.validateSession(s); if (errs.length) throw new Error(errs[0]);
       return R.put("sessions", stamp(s));
     },
     async voidSession(s, reason) { await R.put("sessions", { ...s, voided_at: nowIso(), voided_by: me, void_reason: reason || "" }); },
