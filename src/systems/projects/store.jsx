@@ -281,9 +281,15 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       const existing = D.issueForRisk(risk, data.issues);
       if (existing) {
         if (existing.project_id !== risk.project_id) throw new Error("المشكلة المرتبطة بالخطر موجودة في مشروع مختلف؛ لم يتم تغيير الارتباط.");
+        if (existing.from_risk_id && existing.from_risk_id !== risk.id) throw new Error("المشكلة مرتبطة بالفعل بخطر آخر؛ لم يتم تغيير أي ارتباط.");
+        const issuePatch = existing.from_risk_id === risk.id ? null : { ...existing, from_risk_id: risk.id };
         const riskPatch = { ...risk, status: "Materialized", converted_issue_id: existing.id };
-        await R.putAtomic([{ coll: "risks", rec: riskPatch }]);
-        return existing;
+        const ops = [
+          ...(issuePatch ? [{ coll: "issues", rec: issuePatch }] : []),
+          { coll: "risks", rec: riskPatch },
+        ];
+        await R.putAtomic(ops);
+        return issuePatch || existing;
       }
       if (risk.status === "Materialized" || risk.converted_issue_id) throw new Error("الخطر معلّم كمحوّل لكن المشكلة المرتبطة غير موجودة؛ راجع السجلات قبل إعادة التحويل.");
       const issueId = uid();
