@@ -70,3 +70,76 @@ before insert or update of data on public.workspace_records
 for each row execute function public.projects_guard_final_outputs();
 
 revoke all on function public.projects_guard_final_outputs() from public, anon;
+
+-- Session ownership and task-reference enforcement. The browser validates these
+-- rules for usability; this trigger makes them authoritative for direct API writes.
+create or replace function public.projects_guard_work_sessions()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $function$
+declare
+  task_data jsonb;
+  task_record_id text;
+begin
+  if new.system_id <> 'projects' or new.collection <> 'sessions' then
+    return new;
+  end if;
+
+  if auth.uid() is null or new.data->>'member_id' is distinct from auth.uid()::text then
+    raise exception 'A work session must belong to the authenticated member'
+      using errcode = '42501';
+  end if;
+
+  -- Validate task existence/lifecycle when creating a session or changing its task.
+  if tg_op = 'INSERT'
+     or (new.data->>'task_id') is distinct from (old.data->>'task_id') then
+    task_record_id := nullif(new.data->>'task_id', '');
+    if task_record_id is null then
+      raise exception 'A work session requires a task' using errcode = '22023';
+    end if;
+
+    select t.data into task_data
+      from public.workspace_records t
+     where t.workspace_id = new.workspace_id
+       and t.system_id = 'projects'
+       and t.collection = 'tasks'
+       and t.id = task_record_id
+       and t.deleted = false
+     limit 1;
+
+    if task_data is null
+       or task_data->>'deleted_at' is not null
+       or task_data->>'archived_at' is not null
+       or nullif(task_data->>'parent_task_id', '') is not null then
+      raise exception 'A work session must reference an active leaf task'
+        using errcode = '22023';
+    end if;
+
+    if exists (
+      select 1
+        from public.workspace_records child
+       where child.workspace_id = new.workspace_id
+         and child.system_id = 'projects'
+         and child.collection = 'tasks'
+         and child.deleted = false
+         and child.data->>'parent_task_id' = task_record_id
+         and child.data->>'deleted_at' is null
+         and child.data->>'archived_at' is null
+    ) then
+      raise exception 'A work session cannot reference a parent task'
+        using errcode = '22023';
+    end if;
+  end if;
+
+  return new;
+end;
+$function$;
+
+drop trigger if exists projects_guard_work_sessions_trg on public.workspace_records;
+create trigger projects_guard_work_sessions_trg
+before insert or update of data on public.workspace_records
+for each row execute function public.projects_guard_work_sessions();
+
+revoke all on function public.projects_guard_work_sessions() from public, anon;
