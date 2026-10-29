@@ -77,6 +77,8 @@ export function riskScore(r) { return (r.probability || 0) * (r.impact || 0); }
 export function riskLevel(r, s) { const sc = riskScore(r); const set = s || DEFAULT_SETTINGS; return sc >= set.riskHigh ? "High" : sc >= set.riskMedium ? "Medium" : "Low"; }
 export const isOpenRisk = (r) => isActiveRec(r) && (r.status === "Open" || r.status === "In Mitigation");
 export const isOpenIssue = (i) => isActiveRec(i) && (i.status === "Open" || i.status === "In Progress");
+// Match the source relationship first; the risk backlink may be missing after a partial write.
+export const issueForRisk = (risk, issues) => (issues || []).find((i) => isActiveRec(i) && (i.from_risk_id === risk?.id || i.id === risk?.converted_issue_id)) || null;
 
 export function projectMetrics(p, ctx) {
   const { idx, risks, issues, decisions, outputs, sessions, settings } = ctx; const today = ctx.today; const set = settings || DEFAULT_SETTINGS;
