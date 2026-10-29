@@ -12,5 +12,6 @@ assert.ok(action.includes("currentIssue.project_id !== issue.project_id"), "issu
 assert.ok(action.includes("linkedIds"), "existing task links must be checked to prevent duplicates");
 assert.ok(action.includes("D.validateTaskRefs"), "repair task references must be validated");
 assert.ok(entities.includes("act.createRepairTask(i)"), "Issues UI must use the atomic store action");
+assert.ok(entities.includes("const repairTasks = (issue) => [...new Set([...(issue.task_ids || []), ...idx.list.filter((t) => (t.issue_ids || []).includes(issue.id)).map((t) => t.id)])]"), "issue detail must show repair-task links from either side of the relationship");
 assert.ok(!entities.includes('await act.put("issues", { ...i, task_ids:'), "UI must not save the issue link separately after task creation");
 console.log("Projects atomic issue repair-task contract tests passed.");
