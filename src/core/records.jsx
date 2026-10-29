@@ -194,6 +194,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
 
   const flushQueue = useCallback(async () => {
     if (isDemo || SUPABASE_SDK_FAILED || replaying.current || (typeof navigator !== "undefined" && !navigator.onLine)) return;
+    if (!lastSync.current) await loadAll();
     const items = readQueue(); if (!items.length) return;
     replaying.current = true;
     try {
@@ -218,15 +219,14 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
       writeQueue(remaining);
       if (remaining.some((x) => x.conflict)) toast("⚠️ توجد تعديلات محلية تعارضت مع نسخة الخادم. احتفظنا بها ولم نستبدل بيانات الخادم؛ راجعها قبل إعادة المحاولة.");
     } finally { replaying.current = false; }
-  }, [isDemo, persist, toast, wsId, systemId]);
+  }, [isDemo, persist, toast, wsId, systemId, loadAll]);
 
   useEffect(() => {
     if (isDemo) return;
-    const onOnline = () => { flushQueue(); syncSince(); };
+    const onOnline = async () => { await loadAll(); await flushQueue(); await syncSince(); };
     window.addEventListener("online", onOnline);
-    if (typeof navigator === "undefined" || navigator.onLine) flushQueue();
     return () => window.removeEventListener("online", onOnline);
-  }, [flushQueue, syncSince, isDemo]);
+  }, [loadAll, flushQueue, syncSince, isDemo]);
 
   const put = useCallback((coll, rec) => {
     const prev = (stateRef.current.recs[coll] || {})[rec.id] || null;
