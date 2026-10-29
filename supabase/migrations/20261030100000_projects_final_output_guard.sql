@@ -82,6 +82,7 @@ as $function$
 declare
   task_data jsonb;
   task_record_id text;
+  task_changed boolean := false;
 begin
   if new.system_id <> 'projects' or new.collection <> 'sessions' then
     return new;
@@ -93,8 +94,13 @@ begin
   end if;
 
   -- Validate task existence/lifecycle when creating a session or changing its task.
-  if tg_op = 'INSERT'
-     or (new.data->>'task_id') is distinct from (old.data->>'task_id') then
+  if tg_op = 'INSERT' then
+    task_changed := true;
+  elsif tg_op = 'UPDATE' then
+    task_changed := (new.data->>'task_id') is distinct from (old.data->>'task_id');
+  end if;
+
+  if task_changed then
     task_record_id := nullif(new.data->>'task_id', '');
     if task_record_id is null then
       raise exception 'A work session requires a task' using errcode = '22023';
