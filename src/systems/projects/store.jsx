@@ -360,11 +360,31 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (D.traceabilityBlocked(settings, project && project.type, project && project.is_system, v)) throw new Error("سياسة التتبع: هذا النوع من المشاريع يتطلب ربط المهمة بمواصفة أو اكتشاف");
       const rec = { ...v, id: v.id || uid(), planning_bucket: v.planning_bucket || "Inbox", status: v.status || "Not Started" };
       const prev = v.id ? idx.byId[v.id] || (recs.tasks || {})[v.id] : null;
-      if (isNew) { rec.created_by = me; rec.sort_order = rec.sort_order || Date.now(); if (rec.parent_task_id) { const par = idx.byId[rec.parent_task_id]; if (par && idx.isLeaf(par.id)) { const fc = D.onFirstChild(par); if (fc.warnCompleted && !(await confirm("المهمة الأب كانت «مكتملة». ستصبح مجمّعاً وتُشتق حالتها من أبنائها. متابعة؟"))) return null; await R.put("tasks", fc.patch); } } }
+      let firstChildParentPatch = null;
+      if (isNew) {
+        rec.created_by = me; rec.sort_order = rec.sort_order || Date.now();
+        if (rec.parent_task_id) {
+          const par = idx.byId[rec.parent_task_id];
+          if (par && idx.isLeaf(par.id)) {
+            const fc = D.onFirstChild(par);
+            if (fc.warnCompleted && !(await confirm("المهمة الأب كانت «مكتملة». ستصبح مجمّعاً وتُشتق حالتها من أبنائها. متابعة؟"))) return null;
+            firstChildParentPatch = fc.patch;
+          }
+        }
+      }
       const becameDone = D.cat(rec.status) === "done" && (!prev || D.cat(prev.status) !== "done");
       if (becameDone) { rec.completed_at = nowIso(); rec.completed_by = me; } else if (prev && D.cat(rec.status) !== "done") { rec.completed_at = null; }
       if (D.cat(rec.status) === "cancelled" && !rec.cancelled_reason) throw new Error("V-19: سبب الإلغاء مطلوب");
       if (prev && rec.assignee_id !== prev.assignee_id && rec.assignee_id && rec.assignee_id !== me) act("tasks", rec.id, "assigned", nameOf(rec.assignee_id));
+      if (firstChildParentPatch) {
+        const parentProject = projectsById[firstChildParentPatch.project_id] || project;
+        const saved = await R.putAtomic([
+          { coll: "tasks", rec: { ...stamp(firstChildParentPatch), _vis: visFor(parentProject) } },
+          { coll: "tasks", rec: { ...stamp(rec), _vis: visFor(project) } },
+        ]);
+        if (!Array.isArray(saved) || !saved[1]) throw new Error("لم يتم حفظ المهمة الجديدة وتحديث المهمة الأب معًا.");
+        return saved[1];
+      }
       const saved = await putIn("tasks", rec, project); return saved;
     },
     async setTaskStatus(t, to, reason) {
