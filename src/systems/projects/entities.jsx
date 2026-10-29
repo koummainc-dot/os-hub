@@ -197,7 +197,7 @@ export function PrdsView({ projectId }) {
 }
 function PrdEditor({ prd, onClose, onOpen }) {
   const { data, A: act, can, projectsById, people, toast, me, PRD_TEMPLATE, idx, confirm, nameOf, openTask } = useP();
-  const project = projectsById[prd.project_id]; const locked = prd.status === "Approved" || prd.status === "Superseded"; const canW = can("prd.write", project) && !locked;
+  const project = projectsById[prd.project_id]; const locked = ["Approved", "Superseded", "Ready for Review"].includes(prd.status); const canW = can("prd.write", project) && !locked;
   const [d, setD] = useState({ ...prd, sections: prd.sections || [] }); const [tab, setTab] = useState("doc"); const [busy, setBusy] = useState(false);
   const secOf = (k) => (d.sections.find((s) => s.key === k) || {}).content || "";
   const setSec = (k, v, tpl) => setD((x) => { const ex = x.sections.some((s) => s.key === k); return { ...x, sections: ex ? x.sections.map((s) => (s.key === k ? { ...s, content: v } : s)) : [...x.sections, { key: k, title: tpl ? tpl.title : k, group: tpl ? tpl.group : "", content: v }] }; });
@@ -206,6 +206,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
   const linkedTasks = idx.list.filter((t) => t.prd_id === d.id);
   const krs = data.krs; const myApproval = (d.approvals || []).find((a) => a.reviewer_id === me && a.version === (d.version || 1));
   async function review(decision) { const c = decision === "reject" ? window.prompt("سبب الرفض / الملاحظات") : ""; if (decision === "reject" && !c) return; const apps = [...(d.approvals || []).filter((a) => !(a.reviewer_id === me && a.version === (d.version || 1))), { reviewer_id: me, decision, version: d.version || 1, at: nowIso(), comment: c || "" }]; await save({ approvals: apps }); }
+  async function requestReview() { const r = D.prdApprovalReady(d, d.sections, d.approvals); if (r.missing.length) return toast("⛔ لا يمكن طلب المراجعة قبل استكمال: " + r.missing.join("، ")); await save({ status: "Ready for Review", submitted_for_review_at: nowIso() }); }
   async function approve() { const r = D.prdApprovalReady(d, d.sections, d.approvals); if (!r.ok) return toast("⛔ " + (r.missing.length ? "أقسام ناقصة: " + r.missing.join("، ") : "") + (r.pendingReviewers.length ? " بانتظار موافقة: " + r.pendingReviewers.map(nameOf).join("، ") : "")); await save({ status: "Approved", approved_at: nowIso() }); act.act("prds", d.id, "approved", d.title); }
   async function newVersion() {
     if (!(await confirm("إنشاء نسخة جديدة قابلة للتعديل؟ ستُوسَم النسخة الحالية «تم استبدالها».", { ok: "إنشاء نسخة" }))) return;
@@ -221,12 +222,13 @@ function PrdEditor({ prd, onClose, onOpen }) {
   return (
     <Modal title={`${d.title} — v${d.version || 1}`} wide onClose={onClose} footer={<>
       {canW && <Btn kind="primary" onClick={() => save()} disabled={busy}>💾 حفظ</Btn>}
-      {canW && d.status !== "Ready for Review" && <Btn onClick={() => save({ status: "Ready for Review" })}>📤 طلب مراجعة</Btn>}
+      {canW && d.status !== "Ready for Review" && <Btn onClick={requestReview}>📤 طلب مراجعة</Btn>}
       {!locked && can("prd.approve", project) && d.status === "Ready for Review" && <Btn kind="primary" onClick={approve}>✔ اعتماد</Btn>}
       {d.status === "Approved" && can("prd.write", project) && <Btn onClick={newVersion}>🆕 نسخة جديدة</Btn>}
       {canW && <Btn onClick={risksFromSection}>⚠️ حوّل المخاطر إلى سجلات</Btn>}
-      {can("prd.write", project) && <Btn danger onClick={async () => { await act.del("prds", d.id, d.title); onClose(); }}>🗑</Btn>}</>}>
-      <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}><Chip color={d.status === "Approved" ? C.ok : C.info}>{L.prdStatus[d.status]}</Chip><ProjectName id={d.project_id} />{locked && <span style={{ fontSize: 11, color: C.muted }}>🔒 للقراءة — أنشئ نسخة جديدة للتعديل</span>}</div>
+      {d.status === "Ready for Review" && can("prd.write", project) && <Btn onClick={() => save({ status: "In Progress", submitted_for_review_at: null })}>↩ إرجاع للمسودة</Btn>}
+      {!locked && can("prd.write", project) && <Btn danger onClick={async () => { await act.del("prds", d.id, d.title); onClose(); }}>🗑</Btn>}</>}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}><Chip color={d.status === "Approved" ? C.ok : C.info}>{L.prdStatus[d.status]}</Chip><ProjectName id={d.project_id} />{locked && <span style={{ fontSize: 11, color: C.muted }}>🔒 {d.status === "Ready for Review" ? "قيد المراجعة — أعدها للمسودة قبل التعديل" : "نسخة معتمدة/مستبدلة — أنشئ نسخة جديدة للتعديل"}</span>}</div>
       <Tabs small value={tab} onChange={setTab} tabs={[{ id: "doc", label: "المواصفة" }, { id: "meta", label: "البيانات والمراجعة" }, { id: "tasks", label: "المهام", count: linkedTasks.length }]} />
       {tab === "doc" && <div>
         <Field label="TLDR *"><textarea disabled={!canW} style={{ ...S.ta, minHeight: 60 }} value={d.tldr || ""} onChange={(e) => setD({ ...d, tldr: e.target.value })} /></Field>
