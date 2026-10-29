@@ -223,7 +223,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (!prd || prd.status !== "Approved" || !project || project.is_system) {
         throw new Error("لا يمكن إنشاء نسخة جديدة إلا من مواصفة معتمدة في مشروع صالح.");
       }
-      if (!can("prd.write", project)) throw new Error("لا تملك صلاحية إنشاء نسخة جديدة من هذه المواصفة.");
+      if (!can("prd.approve", project)) throw new Error("إنشاء نسخة جديدة يحتاج صلاحية قائد المشروع أو المراجع.");
       const next = stamp({
         ...prd,
         id: uid(),
