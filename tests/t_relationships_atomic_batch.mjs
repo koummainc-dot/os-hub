@@ -8,7 +8,7 @@ const ui = await readFile(new URL("../src/systems/relationships/index.jsx", impo
 assert.match(migration, /create or replace function public\.relationships_apply_batch/i);
 assert.match(migration, /security invoker/i);
 assert.match(migration, /auth\.uid\(\) is null/i);
-assert.match(migration, /public\\.ws_access_level\\(p_workspace_id, 'relationships', collection_name\\) IS DISTINCT FROM 'edit'/i);
+assert.match(migration, /public\.ws_access_level\(p_workspace_id, 'relationships', collection_name\) IS DISTINCT FROM 'edit'/i);
 assert.match(migration, /on conflict \(workspace_id, system_id, collection, id\)/i);
 assert.match(migration, /raise exception/i);
 assert.match(migration, /grant execute on function public\.relationships_apply_batch\(uuid, jsonb, jsonb\) to authenticated/i);
