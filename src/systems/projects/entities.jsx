@@ -198,14 +198,14 @@ export function PrdsView({ projectId }) {
 function PrdEditor({ prd, onClose, onOpen }) {
   const { data, A: act, can, projectsById, people, toast, me, PRD_TEMPLATE, idx, confirm, nameOf, openTask } = useP();
   const project = projectsById[prd.project_id]; const locked = ["Approved", "Superseded", "Ready for Review"].includes(prd.status); const canW = can("prd.write", project) && !locked;
-  const [d, setD] = useState({ ...prd, sections: prd.sections || [] }); const [tab, setTab] = useState("doc"); const [busy, setBusy] = useState(false);
+  const [d, setD] = useState({ ...prd, sections: prd.sections || [] }); const [tab, setTab] = useState("doc"); const [busy, setBusy] = useState(false); const [rejectForm, setRejectForm] = useState(false);
   const secOf = (k) => (d.sections.find((s) => s.key === k) || {}).content || "";
   const setSec = (k, v, tpl) => setD((x) => { const ex = x.sections.some((s) => s.key === k); return { ...x, sections: ex ? x.sections.map((s) => (s.key === k ? { ...s, content: v } : s)) : [...x.sections, { key: k, title: tpl ? tpl.title : k, group: tpl ? tpl.group : "", content: v }] }; });
   const save = async (patch) => { setBusy(true); const rec = { ...d, ...(patch || {}) }; const s = await act.put("prds", rec, project); setBusy(false); if (s) { setD(s); toast("✅ تم الحفظ"); } return s; };
   const ready = D.prdApprovalReady(d, d.sections, d.approvals);
   const linkedTasks = idx.list.filter((t) => t.prd_id === d.id);
   const krs = data.krs; const myApproval = (d.approvals || []).find((a) => a.reviewer_id === me && a.version === (d.version || 1));
-  async function review(decision) { const c = decision === "reject" ? window.prompt("سبب الرفض / الملاحظات") : ""; if (decision === "reject" && !c) return; const apps = [...(d.approvals || []).filter((a) => !(a.reviewer_id === me && a.version === (d.version || 1))), { reviewer_id: me, decision, version: d.version || 1, at: nowIso(), comment: c || "" }]; await save({ approvals: apps }); }
+  async function review(decision, comment = "") { const apps = [...(d.approvals || []).filter((a) => !(a.reviewer_id === me && a.version === (d.version || 1))), { reviewer_id: me, decision, version: d.version || 1, at: nowIso(), comment: comment || "" }]; await save({ approvals: apps }); setRejectForm(false); }
   async function requestReview() { const r = D.prdApprovalReady(d, d.sections, d.approvals); if (r.missing.length) return toast("⛔ لا يمكن طلب المراجعة قبل استكمال: " + r.missing.join("، ")); await save({ status: "Ready for Review", submitted_for_review_at: nowIso() }); }
   async function approve() { const r = D.prdApprovalReady(d, d.sections, d.approvals); if (!r.ok) return toast("⛔ " + (r.missing.length ? "أقسام ناقصة: " + r.missing.join("، ") : "") + (r.pendingReviewers.length ? " بانتظار موافقة: " + r.pendingReviewers.map(nameOf).join("، ") : "")); await save({ status: "Approved", approved_at: nowIso() }); act.act("prds", d.id, "approved", d.title); }
   async function newVersion() {
@@ -244,10 +244,11 @@ function PrdEditor({ prd, onClose, onOpen }) {
         <Field label="عناصر الاكتشاف المصدرية"><select multiple disabled={!canW} style={{ ...S.sel, minHeight: 80 }} value={d.discovery_ids || []} onChange={(e) => setD({ ...d, discovery_ids: [...e.target.selectedOptions].map((o) => o.value) })}>{data.discovery.map((k) => <option key={k.id} value={k.id}>{k.title}</option>)}</select></Field>
         <div style={{ fontSize: 12, fontWeight: 700, margin: "8px 0" }}>الموافقات (النسخة {d.version || 1})</div>
         {(d.reviewer_ids || []).map((r) => { const a = (d.approvals || []).find((x) => x.reviewer_id === r && x.version === (d.version || 1)); return <div key={r} style={{ fontSize: 12.5, padding: "3px 0" }}><Who id={r} size={16} /> — {a ? <b style={{ color: a.decision === "approve" ? C.ok : C.bad }}>{a.decision === "approve" ? "وافق" : "رفض"}</b> : <span style={{ color: C.muted }}>بالانتظار</span>} {a && a.comment}</div>; })}
-        {(d.reviewer_ids || []).includes(me) && d.status === "Ready for Review" && <div style={{ display: "flex", gap: 6, marginTop: 8 }}><Btn small kind="primary" onClick={() => review("approve")}>✔ أوافق</Btn><Btn small danger onClick={() => review("reject")}>✖ أرفض</Btn>{myApproval && <span style={{ fontSize: 11, color: C.muted }}>ردّك الحالي: {myApproval.decision}</span>}</div>}
+        {(d.reviewer_ids || []).includes(me) && d.status === "Ready for Review" && <div style={{ display: "flex", gap: 6, marginTop: 8 }}><Btn small kind="primary" onClick={() => review("approve")}>✔ أوافق</Btn><Btn small danger onClick={() => setRejectForm(true)}>✖ أرفض</Btn>{myApproval && <span style={{ fontSize: 11, color: C.muted }}>ردّك الحالي: {myApproval.decision}</span>}</div>}
         {!ready.ok && <div style={{ fontSize: 11.5, color: C.warn, marginTop: 8 }}>متطلبات الاعتماد الناقصة: {[...ready.missing, ...ready.pendingReviewers.map((x) => "موافقة " + nameOf(x))].join("، ")}</div>}
       </div>}
       {tab === "tasks" && (!linkedTasks.length ? <Empty icon="✅" title="لا مهام مرتبطة" sub="اربط المهام بهذه المواصفة من نموذج المهمة (حقل المواصفة)." /> : linkedTasks.map((t) => <div key={t.id} onClick={() => openTask(t.id)} style={{ padding: "6px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13, cursor: "pointer" }}>{D.cat(t.status) === "done" ? "✅" : "⬜"} {t.title}</div>))}
+      {rejectForm && <FormModal title="رفض المواصفة" initial={{ comment: "" }} onClose={() => setRejectForm(false)} onSubmit={async (v) => { if (!String(v.comment || "").trim()) throw new Error("اكتب سبب الرفض أو ملاحظات المراجعة."); await review("reject", v.comment.trim()); }} fields={[{ key: "comment", label: "سبب الرفض / الملاحظات", type: "textarea", required: true, rows: 3 }]} />}
     </Modal>
   );
 }
