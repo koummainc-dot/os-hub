@@ -89,10 +89,15 @@ begin
   end if;
 
   if auth.uid() is null
-     or new.data->>'member_id' is distinct from auth.uid()::text
-     or (tg_op = 'UPDATE' and old.data->>'member_id' is distinct from auth.uid()::text) then
-    raise exception 'A work session must belong to the authenticated member and cannot be reassigned'
+     or new.data->>'member_id' is distinct from auth.uid()::text then
+    raise exception 'A work session must belong to the authenticated member'
       using errcode = '42501';
+  end if;
+  if tg_op = 'UPDATE' then
+    if old.data->>'member_id' is distinct from auth.uid()::text then
+      raise exception 'A member cannot take over another member work session'
+        using errcode = '42501';
+    end if;
   end if;
 
   -- Validate task existence/lifecycle when creating a session or changing its task.
