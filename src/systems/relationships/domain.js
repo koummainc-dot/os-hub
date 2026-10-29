@@ -92,6 +92,17 @@ export function validateRelationshipsImport(value) {
   if (!known.some((key) => Array.isArray(source[key]))) {
     return { ok: false, error: "لم نعثر على مجموعات بيانات علاقات معروفة داخل الملف." };
   }
+  for (const key of known) {
+    if (Array.isArray(source[key])) {
+      const seenIds = new Set();
+      for (const record of source[key]) {
+        const id = String(record?.id || "").trim();
+        if (!id) continue;
+        if (seenIds.has(id)) return { ok: false, error: "المعرّف " + id + " مكرر داخل مجموعة " + key + ". أصلح التكرار في الملف قبل الاستيراد." };
+        seenIds.add(id);
+      }
+    }
+  }
   const normalized = normalizeRelationshipsData(source);
   for (const key of known) {
     if (normalized[key].length > 10000) return { ok: false, error: "عدد السجلات في " + key + " يتجاوز الحد المسموح (10000)." };
@@ -198,4 +209,60 @@ export function planPersonMerge(value, keepPersonId, mergePersonId) {
     ]))
   };
   return { ok: true, value: next, summary };
+}
+
+/**
+ * Build an import preview without mutating the current data.
+ * Conflicting IDs are preserved by default; callers must explicitly opt in to overwrite them.
+ */
+export function planRelationshipsImport(currentValue, incomingValue, options = {}) {
+  const current = normalizeRelationshipsData(currentValue);
+  const checked = validateRelationshipsImport(incomingValue);
+  if (!checked.ok) return checked;
+  const incoming = checked.value;
+  const collections = ["people", "timeline", "followups", "occasions", "gifts", "circles"];
+  const overwriteConflicts = options.overwriteConflicts === true;
+  const next = { ...current, settings: { ...current.settings, ...incoming.settings } };
+  const writes = {};
+  const summary = { added: {}, unchanged: {}, conflicts: {}, overwritten: {}, totalAdded: 0, totalUnchanged: 0, totalConflicts: 0, totalOverwritten: 0 };
+  for (const key of collections) {
+    const existingById = new Map(current[key].map((record) => [String(record.id), record]));
+    const nextById = new Map(current[key].map((record) => [String(record.id), record]));
+    writes[key] = [];
+    summary.added[key] = 0;
+    summary.unchanged[key] = 0;
+    summary.conflicts[key] = 0;
+    summary.overwritten[key] = 0;
+    for (const record of incoming[key]) {
+      const id = String(record.id);
+      const existing = existingById.get(id);
+      if (!existing) {
+        nextById.set(id, record);
+        writes[key].push(record);
+        summary.added[key]++;
+      } else if (JSON.stringify(existing) === JSON.stringify(record)) {
+        summary.unchanged[key]++;
+      } else {
+        summary.conflicts[key]++;
+        if (overwriteConflicts) {
+          nextById.set(id, record);
+          writes[key].push(record);
+          summary.overwritten[key]++;
+        }
+      }
+    }
+    next[key] = [...nextById.values()];
+    summary.totalAdded += summary.added[key];
+    summary.totalUnchanged += summary.unchanged[key];
+    summary.totalConflicts += summary.conflicts[key];
+    summary.totalOverwritten += summary.overwritten[key];
+  }
+  return {
+    ok: true,
+    value: next,
+    writes,
+    settingsChanged: JSON.stringify(current.settings) !== JSON.stringify(next.settings),
+    summary,
+    overwriteConflicts
+  };
 }
