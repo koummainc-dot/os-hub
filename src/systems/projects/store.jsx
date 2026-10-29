@@ -144,6 +144,59 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     },
     async archiveProject(p) { if (p.archived_at) return; await R.put("projects", { ...p, archived_from_status: p.status === "Archived" ? (p.archived_from_status || "Planned") : p.status, status: "Archived", archived_at: nowIso() }); act("projects", p.id, "archived", p.name); },
     async restoreProject(p) { const { archived_from_status, ...rest } = p; const restoredStatus = archived_from_status || "Planned"; await R.put("projects", { ...rest, status: restoredStatus, archived_at: null }); act("projects", p.id, "restored", p.name + " → " + restoredStatus); },
+
+    async restoreProjectFromTrash(p) {
+      if (!p || !p.deleted_at) { toast("⛔ المشروع ليس في السلة أو لا يحتوي على علامة حذف صالحة."); return false; }
+      if (p.id === GENERAL_ID || p.is_system) { toast("⛔ لا يمكن استرجاع مشروع النظام من السلة."); return false; }
+      const collections = ["tasks", "outputs", "risks", "issues", "decisions", "prds", "updates"];
+      // Shared deletion timestamp + actor identifies records from this exact batch.
+      const related = collections.flatMap((coll) =>
+        arr(recs, coll).filter((record) =>
+          record.project_id === p.id &&
+          record.deleted_at === p.deleted_at &&
+          (record.deleted_by || null) === (p.deleted_by || null)
+        ).map((rec) => ({ coll, rec }))
+      );
+      const counts = {};
+      for (const { coll } of related) counts[coll] = (counts[coll] || 0) + 1;
+      const labels = { tasks: "مهام", outputs: "مخرجات", risks: "مخاطر", issues: "مشاكل", decisions: "قرارات", prds: "مواصفات", updates: "تحديثات" };
+      const summary = Object.entries(counts).map(([coll, count]) => `• ${labels[coll] || coll}: ${count}`).join("\n") || "لا توجد سجلات تابعة تحمل علامة الحذف نفسها.";
+      if (related.length + 1 > 1000) {
+        toast("⛔ يتجاوز الاسترجاع 1000 سجل؛ لم يُسترجع أي سجل لأن العملية يجب أن تكون ذرّية.");
+        return false;
+      }
+      const message = `استرجاع المشروع «${p.name}» من السلة؟\n\nسيتم استرجاع المشروع والسجلات التي نُقلت معه في عملية الحذف نفسها:\n${summary}\n\nالسجلات التي كانت في السلة قبل حذف المشروع لن تُسترجع معه، وجلسات الوقت التاريخية ستظل كما هي.`;
+      if (!(await confirm(message, { title: "مراجعة أثر استرجاع المشروع", ok: "استرجاع المشروع وسجلاته" }))) return false;
+      const ops = related.map(({ coll, rec }) => ({ coll, rec: { ...rec, deleted_at: null, deleted_by: null } }));
+      ops.push({ coll: "projects", rec: { ...p, deleted_at: null, deleted_by: null } });
+      try {
+        await R.putAtomic(ops);
+      } catch (error) {
+        toast("⛔ لم يُسترجع المشروع: " + (error?.message || "فشل الحفظ") + ". لم تُحفظ مجموعة جزئية.");
+        return false;
+      }
+      act("projects", p.id, "restored_from_trash", p.name);
+      toast("♻️ تم استرجاع المشروع والسجلات التابعة المرتبطة بعملية الحذف نفسها.");
+      return true;
+    },
+    async restoreTrashRecord(coll, rec) {
+      if (!rec) return false;
+      if (coll === "projects") return A.restoreProjectFromTrash(rec);
+      const project = rec.project_id && arr(recs, "projects").find((item) => item.id === rec.project_id && item.deleted_at);
+      if (project && rec.deleted_at === project.deleted_at && (rec.deleted_by || null) === (project.deleted_by || null)) {
+        toast("ℹ️ هذا السجل جزء من مشروع موجود في السلة؛ استرجع المشروع لاسترجاعهما معًا.");
+        return false;
+      }
+      try {
+        const restored = await R.restore(coll, rec.id);
+        if (!restored) throw new Error("لم يؤكد مخزن البيانات الاسترجاع");
+        toast("♻️ تم استرجاع السجل");
+        return true;
+      } catch (error) {
+        toast("⛔ تعذّر استرجاع السجل: " + (error?.message || "فشل الحفظ"));
+        return false;
+      }
+    },
     async deleteProject(p) {
       if (!p || p.id === GENERAL_ID || p.is_system) {
         toast("⛔ لا يمكن نقل مشروع النظام إلى السلة");
@@ -304,7 +357,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     },
     async voidSession(s, reason) { await R.put("sessions", { ...s, voided_at: nowIso(), voided_by: me, void_reason: reason || "" }); },
     // generic
-    put: (coll, rec, project) => putIn(coll, rec, project), del, restore: (coll, id) => R.restore(coll, id).then(() => toast("♻️ تم الاسترجاع")),
+    put: (coll, rec, project) => putIn(coll, rec, project), del, restore: (coll, id) => R.restore(coll, id).then(() => toast("♻️ تم الاسترجاع")), restoreTrashRecord: async (coll, rec) => { if (!rec) return false; if (coll === "projects") return restoreProjectFromTrash(rec); const project = rec.project_id && arr(recs, "projects").find((item) => item.id === rec.project_id && item.deleted_at); if (project && rec.deleted_at === project.deleted_at && (rec.deleted_by || null) === (project.deleted_by || null)) { toast("ℹ️ هذا السجل جزء من مشروع موجود في السلة؛ استرجع المشروع لاسترجاعهما معًا."); return false; } try { const restored = await R.restore(coll, rec.id); if (!restored) throw new Error("لم يؤكد مخزن البيانات الاسترجاع"); toast("♻️ تم استرجاع السجل"); return true; } catch (error) { toast("⛔ تعذّر استرجاع السجل: " + (error?.message || "فشل الحفظ")); return false; } },
     async saveSettings(patch) { return R.put("settings", { id: "ws", ...((recs.settings || {}).ws || {}), ...patch }); },
     async saveLookups(lists) { return R.put("lookups", { id: "main", lists }); },
     act,
