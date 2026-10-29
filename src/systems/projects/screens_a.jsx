@@ -172,7 +172,7 @@ export function Tasks() {
           </div>
         </div>
       )}
-      {form && <TaskForm initial={{ assignee_id: who !== "all" && who !== "none" ? who : me, project_id: proj || GENERAL_ID }} projectId={proj || GENERAL_ID} onClose={() => setForm(false)} />}
+      {form && <TaskForm initial={{ assignee_id: who !== "all" && who !== "none" ? who : me, project_id: proj || "" }} projectId={proj || undefined} onClose={() => setForm(false)} />}
     </div>
   );
 }
