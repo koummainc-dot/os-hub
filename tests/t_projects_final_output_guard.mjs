@@ -36,4 +36,12 @@ assert.match(migration, /A work session must reference an active leaf task/,
   "database must reject missing, archived, deleted, or parent task references");
 assert.match(migration, /A work session cannot reference a parent task/,
   "database must reject a task with active child tasks");
-console.log("Projects final-output and session guard contract tests passed.");
+assert.match(migration, /create trigger projects_guard_task_references_trg\\s+before insert or update of data on public\\.workspace_records/i,
+  "task relationship guard must cover direct writes and atomic record batches");
+assert.match(migration, /Task parent must be active and belong to the same project/,
+  "database must reject missing or cross-project parent tasks");
+assert.match(migration, /Task hierarchy cannot contain a cycle/,
+  "database must reject parent cycles");
+assert.match(migration, /Task PRD must be active and belong to the same project/,
+  "database must reject cross-project or inactive PRD references");
+console.log("Projects server-side record guards contract tests passed.");
