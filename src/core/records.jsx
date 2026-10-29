@@ -308,6 +308,67 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     }
   }, [isDemo, put, wsId, toast]);
 
+  // Permanently delete a trashed project bundle in one server transaction. Never queue offline.
+  const purgeAtomic = useCallback(async ({ projectId, deletedAt, deletedBy, ops }) => {
+    if (!projectId || !deletedAt || !Array.isArray(ops) || !ops.length || ops.length > 1000) {
+      throw new Error("بيانات الحذف النهائي غير صالحة أو تتجاوز 1000 سجل.");
+    }
+    if (isDemo) {
+      const k = "recs:" + wsId + ":" + systemId;
+      const m = demoStore.current[k] || {};
+      for (const { coll, rec } of ops) {
+        if (!rec?.id || !m[coll]?.[rec.id]) throw new Error("لم يُحذف أي شيء: يوجد سجل غير موجود في بيانات العرض.");
+        if (m[coll][rec.id].deleted_at !== deletedAt || (m[coll][rec.id].deleted_by || null) !== (deletedBy || null)) {
+          throw new Error("تغيّر سجل منذ تحميله؛ لم يُنفذ الحذف النهائي.");
+        }
+      }
+      for (const { coll, rec } of ops) {
+        const bucket = { ...(m[coll] || {}) }; delete bucket[rec.id]; m[coll] = bucket;
+        dispatch({ type: "drop", coll, id: rec.id });
+      }
+      return ops.map(({ coll, rec }) => ({ coll, id: rec.id }));
+    }
+    if (SUPABASE_SDK_FAILED || (typeof navigator !== "undefined" && navigator.onLine === false)) {
+      throw new Error("الحذف النهائي يحتاج اتصالًا مباشرًا بالخادم؛ لم يُحذف أي سجل.");
+    }
+    const seen = new Set();
+    const changes = ops.map(({ coll, rec }) => {
+      if (!["tasks", "outputs", "projects", "risks", "issues", "decisions", "prds", "updates"].includes(coll) || !rec?.id) {
+        throw new Error("تحتوي عملية الحذف النهائي على سجل غير مسموح.");
+      }
+      const k = key(coll, rec.id);
+      if (seen.has(k)) throw new Error("تحتوي العملية على سجل مكرر.");
+      seen.add(k);
+      const expectedUpdatedAt = meta.current[k];
+      if (!expectedUpdatedAt) throw new Error("تعذّر التحقق من نسخة سجل؛ أعد تحميل الصفحة ثم حاول مجددًا.");
+      if (rec.deleted_at !== deletedAt || (rec.deleted_by || null) !== (deletedBy || null)) {
+        throw new Error("علامة حذف السجل لا تطابق دفعة حذف المشروع.");
+      }
+      if (coll !== "projects" && rec.project_id !== projectId) throw new Error("يوجد سجل لا يتبع المشروع المحدد.");
+      if (coll === "projects" && rec.id !== projectId) throw new Error("معرّف المشروع لا يطابق عملية الحذف.");
+      return { collection: coll, id: rec.id, expected_updated_at: expectedUpdatedAt, deleted_at: deletedAt, deleted_by: deletedBy || null, project_id: projectId };
+    });
+    if (changes.filter((x) => x.collection === "projects").length !== 1) throw new Error("يجب أن تحتوي العملية على المشروع مرة واحدة بالضبط.");
+    dispatch({ type: "pending", d: 1 });
+    try {
+      const { data, error } = await supabase.rpc("projects_purge_records_batch", {
+        p_workspace_id: wsId, p_project_id: projectId, p_deleted_at: deletedAt, p_deleted_by: deletedBy || null, p_changes: changes,
+      });
+      if (error) throw error;
+      if (!Array.isArray(data) || data.length !== changes.length) throw new Error("لم يؤكد الخادم حذف جميع السجلات؛ أعد تحميل البيانات قبل المحاولة مجددًا.");
+      for (const { collection, id } of data) {
+        meta.current.delete ? meta.current.delete(key(collection, id)) : delete meta.current[key(collection, id)];
+        dispatch({ type: "drop", coll: collection, id });
+      }
+      return data;
+    } catch (error) {
+      toast("❌ لم يُنفذ الحذف النهائي: " + (error?.message || "فشل التحقق من قاعدة البيانات") + "؛ لم يُحذف أي جزء من المجموعة.");
+      throw error;
+    } finally {
+      dispatch({ type: "pending", d: -1 });
+    }
+  }, [isDemo, wsId, systemId, demoStore, toast]);
+
   // Atomic multi-record write for operations whose records must move together.
   // This deliberately does not enqueue offline changes: partial replay would violate integrity.
   const softDelete = useCallback((coll, id, by) => {
@@ -320,7 +381,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
   }, [put]);
   const putMany = useCallback(async (ops) => { const out = []; for (const o of ops) out.push(await put(o.coll, o.rec)); return out; }, [put]);
 
-  const api = useMemo(() => ({ put, putAtomic, softDelete, restore, putMany, reload: loadAll, sync: syncSince, flushQueue }), [put, putAtomic, softDelete, restore, putMany, loadAll, syncSince, flushQueue]);
+  const api = useMemo(() => ({ put, putAtomic, purgeAtomic, softDelete, restore, putMany, reload: loadAll, sync: syncSince, flushQueue }), [put, putAtomic, purgeAtomic, softDelete, restore, putMany, loadAll, syncSince, flushQueue]);
   return { ...state, api };
 }
 
