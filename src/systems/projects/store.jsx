@@ -293,6 +293,33 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       act("discovery", discovery.id, "converted_to_task", task.title);
       return task;
     },
+    async convertDiscoveryToPrd(discoveryId, projectId) {
+      const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
+      const project = projectsById[projectId];
+      if (!discovery || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      const linkedProjects = (discovery.project_ids || []).filter((id) => projectsById[id] && !projectsById[id].archived_at);
+      if ((discovery.project_ids || []).length && !linkedProjects.includes(projectId)) throw new Error("المشروع الهدف يجب أن يكون من المشاريع المرتبطة النشطة بالاكتشاف.");
+      const existing = (data.prds || []).find((item) => (item.discovery_ids || []).includes(discoveryId));
+      if (existing && existing.project_id !== projectId) throw new Error("توجد مواصفة مرتبطة بهذا الاكتشاف في مشروع آخر؛ لن نعيد ربطها بمشروع غير مطابق.");
+      const prdId = existing?.id || uid();
+      const prd = existing || {
+        id: prdId, title: discovery.title, project_id: projectId, status: "In Progress", version: 1, lead_id: me,
+        tldr: discovery.description || "",
+        sections: [
+          { key: "problem_overview", title: "نظرة عامة", group: "المشكلة", content: discovery.description || "" },
+          { key: "evidence", title: "الأدلة", group: "المشكلة", content: discovery.insights || "" },
+          { key: "proposed_solution", title: "الحل المقترح (ملخص)", group: "المشكلة", content: discovery.proposed_solution || "" },
+        ],
+        approvals: [], reviewer_ids: [], discovery_ids: [discoveryId],
+      };
+      const links = [...new Map([...(discovery.resolution_links || []), { kind: "prd", id: prdId }].map((link) => [link.kind + ":" + link.id, link])).values()];
+      await R.putAtomic([
+        { coll: "prds", rec: prd },
+        { coll: "discovery", rec: { ...discovery, status: "Completed", resolution_links: links } },
+      ]);
+      if (!existing) act("discovery", discovery.id, "converted_to_prd", prd.title);
+      return prd;
+    },
     async convertDiscoveryToIssue(discoveryId, projectId, discoveredAt) {
       const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
       const project = projectsById[projectId];
