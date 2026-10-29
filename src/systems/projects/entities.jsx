@@ -13,7 +13,7 @@ const projectFilterOpts = (projects) => [{ v: "", l: "كل المشاريع" }, 
 
 // ═════ Outputs ═════
 export function OutputsView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, me, confirm, lookups, idx } = useP();
+  const { data, A: act, can, projectsById, people, toast, me, confirm, lookups, idx, openTask } = useP();
   const [form, setForm] = useState(null); const [type, setType] = useState(""); const [ap, setAp] = useState(""); const [q, setQ] = useState("");
   const list = data.outputs.filter((o) => (!projectId || o.project_id === projectId) && (!type || o.type === type) && (!ap || o.approval === ap) && (!q || o.name.toLowerCase().includes(q.toLowerCase())));
   const canNew = projectId ? can("output.write", projectsById[projectId]) : data.projects.some((p) => can("output.write", p));
@@ -37,7 +37,7 @@ export function OutputsView({ projectId }) {
           {list.map((o) => (
             <div key={o.id} style={{ ...S.card, padding: "10px 12px" }}>
               <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}><span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>📦 {o.name}</span><Chip color={o.approval === "Final" ? C.ok : o.approval === "Review" ? C.warn : C.muted}>{L.approval[o.approval]}</Chip></div>
-              <div style={{ fontSize: 11.5, color: C.dim, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><Chip>{o.type}</Chip>{!projectId && <ProjectName id={o.project_id} />}{o.task_id && <span>🔗 {(idx.byId[o.task_id] || {}).title}</span>}</div>
+              <div style={{ fontSize: 11.5, color: C.dim, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><Chip>{o.type}</Chip>{!projectId && <ProjectName id={o.project_id} />}{o.task_id && idx.byId[o.task_id] && <button onClick={() => openTask(o.task_id)} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", padding: 0 }}>🔗 {idx.byId[o.task_id].title}</button>}</div>
               {o.url && <a href={o.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.info, display: "block", margin: "4px 0", wordBreak: "break-all" }}>🔗 {o.url}</a>}
               {o.notes && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{o.notes}</div>}
               {o.approved_by && <div style={{ fontSize: 10.5, color: C.muted }}>اعتمده {<Who id={o.approved_by} size={14} />} · {fmt((o.approved_at || "").slice(0, 10))}</div>}
@@ -270,6 +270,7 @@ export function DiscoveryView() {
     d = source;
     const projectIds = (d.project_ids || []).filter((id) => projectsById[id] && !projectsById[id].archived_at);
     const pid = projectIds.length === 1 ? projectIds[0] : (d._conversionProjectId || "");
+    if (["task", "prd", "issue"].includes(kind) && !pid && projectIds.length === 0) { toast("اربط الاكتشاف بمشروع نشط أولاً، ثم أعد التحويل."); return; }
     if (["task", "prd", "issue"].includes(kind) && !pid) { setConv({ ...d, _conversionKind: kind, _conversionProjectId: "", _availableProjectIds: projectIds }); return; }
     if (kind === "task") { if (!pid) return toast("اربط الاكتشاف بمشروع أولاً"); const t = await act.saveTask({ title: d.title, project_id: pid, description: d.proposed_solution || d.description || "", discovery_ids: [d.id], assignee_id: d.owner_id || null }, true); if (t) { await act.put("discovery", { ...d, status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "task", id: t.id }] }); toast("✅ أُنشئت مهمة مرتبطة"); } }
     if (kind === "prd") { if (!pid) return toast("اربط الاكتشاف بمشروع أولاً"); const id = uid(); await act.put("prds", { id, title: d.title, project_id: pid, status: "Not Started", version: 1, lead_id: me, tldr: d.description || "", sections: [{ key: "problem_overview", title: "نظرة عامة", group: "المشكلة", content: d.description || "" }, { key: "evidence", title: "الأدلة", group: "المشكلة", content: d.insights || "" }, { key: "proposed_solution", title: "الحل المقترح (ملخص)", group: "المشكلة", content: d.proposed_solution || "" }], approvals: [], reviewer_ids: [], discovery_ids: [d.id] }, projectsById[pid]); await act.put("discovery", { ...d, status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "prd", id }] }); toast("✅ أُنشئت مواصفة"); }
