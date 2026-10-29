@@ -309,7 +309,16 @@ export function DiscoveryView() {
         return;
       }
     }
-    if (kind === "prd") { if (!pid) return toast("اربط الاكتشاف بمشروع أولاً"); const existing = data.prds.find((p) => (p.discovery_ids || []).includes(d.id)); if (existing) { await act.put("discovery", { ...d, status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "prd", id: existing.id }] }); toast("تم العثور على المواصفة المرتبطة مسبقاً واستكمال الربط."); setConv(null); return; } const id = uid(); await act.put("prds", { id, title: d.title, project_id: pid, status: "Not Started", version: 1, lead_id: me, tldr: d.description || "", sections: [{ key: "problem_overview", title: "نظرة عامة", group: "المشكلة", content: d.description || "" }, { key: "evidence", title: "الأدلة", group: "المشكلة", content: d.insights || "" }, { key: "proposed_solution", title: "الحل المقترح (ملخص)", group: "المشكلة", content: d.proposed_solution || "" }], approvals: [], reviewer_ids: [], discovery_ids: [d.id] }, projectsById[pid]); await act.put("discovery", { ...d, status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "prd", id }] }); toast("✅ أُنشئت مواصفة"); }
+    if (kind === "prd") {
+      if (!pid) return toast("اربط الاكتشاف بمشروع أولاً");
+      try {
+        const prd = await act.convertDiscoveryToPrd(d.id, pid);
+        toast(prd ? "✅ تم إنشاء المواصفة أو استكمال ربطها ذريًا" : "تعذّر تحويل الاكتشاف");
+      } catch (error) {
+        toast("⛔ لم يتم إنشاء المواصفة: " + (error?.message || "فشل الحفظ"));
+        return;
+      }
+    }
     if (kind === "project") { const existing = data.projects.find((p) => p.source_discovery_id === d.id); if (existing) { await act.put("discovery", { ...d, project_ids: [...new Set([...(d.project_ids || []), existing.id])], status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "project", id: existing.id }] }); toast("تم العثور على المشروع المرتبط مسبقاً واستكمال الربط."); setConv(null); return; } const pid = uid(); await act.saveProject({ id: pid, name: d.title, type: "أخرى", status: "Idea", priority: d.impact_level === "Critical" ? "High" : "Medium", description: d.description || "", visibility: "workspace", source_discovery_id: d.id }, true); await act.put("discovery", { ...d, project_ids: [...(d.project_ids || []), pid], status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "project", id: pid }] }); toast("✅ أُنشئ مشروع كفكرة"); }
     if (kind === "issue") { if (!pid) return toast("اربط الاكتشاف بمشروع أولاً"); try { const issue = await act.convertDiscoveryToIssue(d.id, pid, today); toast(issue ? "✅ تم إنشاء المشكلة أو استكمال ربطها ذريًا" : "تعذّر تحويل الاكتشاف"); } catch (error) { toast("⛔ لم يتم تحويل الاكتشاف: " + (error?.message || "فشل الحفظ")); return; } }
     setConv(null);
