@@ -24,6 +24,8 @@ assert.match(migration, /create trigger projects_guard_work_sessions_trg\\s+befo
   "session guard must run for direct and RPC writes");
 assert.match(migration, /new\\.data->>'member_id' is distinct from auth\\.uid\\(\\)::text/,
   "database must reject sessions owned by a different member");
+assert.match(migration, /old\\.data->>'member_id' is distinct from auth\\.uid\\(\\)::text/,
+  "database must reject takeover of another member's existing session");
 assert.match(migration, /A work session must reference an active leaf task/,
   "database must reject missing, archived, deleted, or parent task references");
 assert.match(migration, /A work session cannot reference a parent task/,
