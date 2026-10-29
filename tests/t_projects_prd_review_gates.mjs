@@ -27,7 +27,7 @@ const { readFile } = await import("node:fs/promises");
 const migration = await readFile(new URL("../supabase/migrations/20261030100000_projects_final_output_guard.sql", import.meta.url), "utf8");
 assert.match(migration, /create trigger projects_guard_prd_review_trg\s+before insert or update of data on public\.workspace_records/i,
   "PRD lifecycle rules must apply to direct writes and atomic record batches");
-assert.match(migration, /Generic store writes update version\/timestamps[\s\S]*?metadata-only PRD updates/i,
+assert.match(migration, /Generic store writes update version\/timestamps[\s\S]*?Allow those no-op data updates in every/i,
   "metadata-only record updates must not break visibility changes on locked PRDs");
 assert.match(migration, /Approved or superseded PRDs are immutable/,
   "approved and superseded PRDs must not be edited in place");
