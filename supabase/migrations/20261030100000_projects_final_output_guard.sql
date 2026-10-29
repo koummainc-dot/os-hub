@@ -544,6 +544,7 @@ begin
          ) then
         raise exception 'PRD cannot be approved until required content and current-version reviewer approvals are complete' using errcode = '22023';
       end if;
+      new.data := jsonb_set(new.data, '{approved_at}', to_jsonb(clock_timestamp()::text), true);
     elsif new.data->>'status' = 'Ready for Review' then
       if not can_review
          or (new.data - 'approvals' - 'updated_by_member' - 'v' - 'updated_at' - 'created_at')
@@ -620,6 +621,7 @@ begin
        ) then
       raise exception 'Complete TLDR, problem overview, proposed solution, and success metrics before review' using errcode = '22023';
     end if;
+    new.data := jsonb_set(new.data, '{submitted_for_review_at}', to_jsonb(clock_timestamp()::text), true);
   end if;
 
   return new;
