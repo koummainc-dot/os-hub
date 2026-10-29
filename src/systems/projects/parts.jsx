@@ -200,12 +200,13 @@ export function TaskSheet() {
   );
 }
 export function SessionForm({ taskId, onClose }) {
-  const { A: act, today, toast, data, idx } = useP(); const [gid] = useState(() => uid());
+  const { A: act, today, toast, idx } = useP(); const [gid] = useState(() => uid());
   const leaves = idx.list.filter((t) => idx.isLeaf(t.id)).map((t) => ({ v: t.id, l: t.title }));
-  return <FormModal title="جلسة عمل" initial={{ task_id: taskId, date: today, minutes: 30 }} fields={[
-    { key: "task_id", label: "المهمة", type: "select", options: leaves, allowEmpty: false, required: true },
+  return <FormModal title="جلسة عمل" initial={{ task_id: taskId, choose_other_task: false, date: today, minutes: 30 }} fields={[
+    ...(taskId ? [{ key: "choose_other_task", label: "السياق", type: "bool", checkLabel: "اختيار مهمة أخرى" }] : []),
+    { key: "task_id", label: taskId ? "المهمة المحددة من نافذة المهمة" : "المهمة", type: "select", options: (v) => taskId && !v.choose_other_task ? leaves.filter((t) => t.v === taskId) : leaves, allowEmpty: false, required: true },
     { key: "date", label: "التاريخ", type: "date", required: true }, { key: "minutes", label: "الدقائق (1–1440)", type: "number", min: 1, max: 1440, required: true }, { key: "note", label: "ملاحظة", type: "textarea", rows: 2 }]}
-    onClose={onClose} onSubmit={async (v) => { await act.addSession({ ...v, client_generated_id: gid, id: undefined }); toast("✅ سُجِّلت الجلسة"); onClose(); }} />;
+    onClose={onClose} onSubmit={async (v) => { const { choose_other_task, ...session } = v; await act.addSession({ ...session, client_generated_id: gid, id: undefined }); toast("✅ سُجِّلت الجلسة"); onClose(); }} />;
 }
 export function TimerBar() {
   const { runningTimer, A: act, idx, openTask } = useP(); const [, tick] = useState(0);
