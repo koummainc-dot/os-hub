@@ -28,6 +28,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   console.log('— create project from template');
   await goSection('المشاريع'); ok(await click('من قالب'),'template picker opens');
   const card=all('div').find(d=>d.textContent.startsWith('🧩 تطبيق')&&d.style.cursor==='pointer'); card&&card.click(); await sleep(150);
+  await click('متابعة الإعداد',doc.querySelector('[role=dialog]'),150);
   const nameIn=all('input[type=text],input:not([type])').find(i=>i.closest('[role=dialog]')); await setVal(nameIn,'مشروع اختبار القالب');
   await click('حفظ',doc.querySelector('[role=dialog]'),400);
   ok(txt().includes('مشروع اختبار القالب'),'project created and opened'); 
