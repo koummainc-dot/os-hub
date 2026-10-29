@@ -420,6 +420,15 @@ begin
        where member->>'member_id' = auth.uid()::text
          and member->>'role' in ('Lead', 'Reviewer')
     );
+  -- Generic store writes update version/timestamps even when the only logical
+  -- change is record visibility metadata. Allow those no-op data updates in every
+  -- lifecycle state; all actual PRD content/status changes remain guarded below.
+  if tg_op = 'UPDATE'
+     and (new.data - 'v' - 'updated_at' - 'created_at' - 'updated_by_member')
+         is not distinct from (old.data - 'v' - 'updated_at' - 'created_at' - 'updated_by_member') then
+    return new;
+  end if;
+
   can_review := can_approve
     or exists (
       select 1
