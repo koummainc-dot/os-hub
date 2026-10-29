@@ -43,7 +43,7 @@ begin
     collection_name := item->>'collection';
     record_id := item->>'id';
     record_data := item->'data';
-    if collection_name not in ('tasks','outputs','projects','risks','issues','decisions','prds','updates')
+    if collection_name not in ('tasks','outputs','projects','risks','issues','decisions','prds','updates','discovery')
        or nullif(record_id, '') is null
        or jsonb_typeof(record_data) is distinct from 'object'
        or (item ? 'visible_to' and jsonb_typeof(item->'visible_to') not in ('array','null'))
