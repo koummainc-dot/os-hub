@@ -666,7 +666,23 @@ begin
       refs_changed := risk_id is distinct from nullif(old.data->>'from_risk_id', '')
         or (new.data->>'project_id') is distinct from (old.data->>'project_id');
     end if;
-    if not refs_changed or risk_id is null then
+    if not refs_changed then
+      return new;
+    end if;
+    if risk_id is null then
+      if tg_op = 'UPDATE' and nullif(old.data->>'from_risk_id', '') is not null then
+        select r.data into risk_data
+          from public.workspace_records r
+         where r.workspace_id = new.workspace_id
+           and r.system_id = 'projects'
+           and r.collection = 'risks'
+           and r.id = old.data->>'from_risk_id'
+           and r.deleted = false
+         limit 1;
+        if risk_data->>'converted_issue_id' = new.id then
+          raise exception 'Remove the risk backlink atomically before unlinking this issue' using errcode = '22023';
+        end if;
+      end if;
       return new;
     end if;
 
@@ -711,6 +727,20 @@ begin
     raise exception 'A materialized risk must reference its converted issue' using errcode = '22023';
   end if;
   if issue_id is null then
+    if tg_op = 'UPDATE' and nullif(old.data->>'converted_issue_id', '') is not null then
+      if exists (
+        select 1 from public.workspace_records linked_issue
+         where linked_issue.workspace_id = new.workspace_id
+           and linked_issue.system_id = 'projects'
+           and linked_issue.collection = 'issues'
+           and linked_issue.id = old.data->>'converted_issue_id'
+           and linked_issue.deleted = false
+           and linked_issue.data->>'deleted_at' is null
+           and linked_issue.data->>'from_risk_id' = new.id
+      ) then
+        raise exception 'Remove the issue backlink atomically before unlinking this risk' using errcode = '22023';
+      end if;
+    end if;
     return new;
   end if;
 
