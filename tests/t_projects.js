@@ -31,6 +31,14 @@ const {makeEnv,sleep,appJs}=require('./harness');
   ok(tdlg.textContent.includes('لا يمكن تخطي مستوى كامل'),'invalid task-tree indentation is rejected with a useful message');
   await click('إلغاء',tdlg,100);
 
+  console.log('— task search recovery');
+  await goSection('مهامي');
+  const taskSearch=all('input').find(i=>i.placeholder==='بحث في المهام…');
+  await setVal(taskSearch,'no-task-will-match-xyz');
+  ok(!!btn('مسح الفلاتر'),'clear-filters action appears after narrowing task search');
+  await click('مسح الفلاتر',null,150);
+  ok(taskSearch.value==='','clear-filters resets the task search input');
+
   console.log('— dashboard health');
   await goSection('الرئيسية'); ok(txt().includes('حرج'),'overdue/past-deadline project is Red (حرج)'); ok(txt().includes('مشاكل حرجة'),'critical issues card');
 
