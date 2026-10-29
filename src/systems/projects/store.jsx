@@ -218,6 +218,31 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       toast("🗑 نُقل المشروع وسجلاته إلى السلة؛ جلسات الوقت التاريخية محفوظة.");
       return true;
     },
+    async createPrdVersion(prd) {
+      const project = prd && projectsById[prd.project_id];
+      if (!prd || prd.status !== "Approved" || !project || project.is_system) {
+        throw new Error("لا يمكن إنشاء نسخة جديدة إلا من مواصفة معتمدة في مشروع صالح.");
+      }
+      if (!can("prd.write", project)) throw new Error("لا تملك صلاحية إنشاء نسخة جديدة من هذه المواصفة.");
+      const next = stamp({
+        ...prd,
+        id: uid(),
+        version: (prd.version || 1) + 1,
+        supersedes_id: prd.id,
+        status: "In Progress",
+        approved_at: null,
+        approvals: [],
+        created_by: me,
+      });
+      const previous = stamp({ ...prd, status: "Superseded" });
+      const saved = await R.putAtomic([
+        { coll: "prds", rec: next },
+        { coll: "prds", rec: previous },
+      ]);
+      if (!Array.isArray(saved) || saved.length !== 2) throw new Error("لم يؤكد الخادم إنشاء النسخة وتحديث السابقة معًا.");
+      act("prds", next.id, "version_created", next.title + " v" + next.version);
+      return next;
+    },
     async createFromTemplate(tpl, opts) {
       const r = D.instantiateProjectTemplate(tpl, opts, uid); r.project.created_by = me; if (!r.project.members.length) r.project.members = [{ member_id: me, role: "Lead" }], r.project.lead_id = me;
       await persistTemplateBundle({
