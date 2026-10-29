@@ -131,8 +131,20 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async archiveProject(p) { if (p.archived_at) return; await R.put("projects", { ...p, archived_from_status: p.status === "Archived" ? (p.archived_from_status || "Planned") : p.status, status: "Archived", archived_at: nowIso() }); act("projects", p.id, "archived", p.name); },
     async restoreProject(p) { const { archived_from_status, ...rest } = p; const restoredStatus = archived_from_status || "Planned"; await R.put("projects", { ...rest, status: restoredStatus, archived_at: null }); act("projects", p.id, "restored", p.name + " → " + restoredStatus); },
     async deleteProject(p) {
-      const kids = idx.list.filter((t) => t.project_id === p.id).length;
-      if (!(await confirm(`حذف المشروع «${p.name}»؟ سيُنقل مع مهامه (${kids}) إلى السلة ويمكن استرجاعه.`, { danger: true, ok: "حذف" }))) return false;
+      const kids = idx.list.filter((t) => t.project_id === p.id);
+      const related = {
+        "مهام": kids.length,
+        "مخرجات": data.outputs.filter((x) => x.project_id === p.id && !x.deleted_at).length,
+        "مخاطر": data.risks.filter((x) => x.project_id === p.id && !x.deleted_at).length,
+        "مشاكل": data.issues.filter((x) => x.project_id === p.id && !x.deleted_at).length,
+        "قرارات": data.decisions.filter((x) => x.project_id === p.id && !x.deleted_at).length,
+        "مواصفات": data.prds.filter((x) => x.project_id === p.id && !x.deleted_at).length,
+        "تحديثات": data.updates.filter((x) => x.project_id === p.id && !x.deleted_at).length,
+      };
+      const summary = Object.entries(related).filter(([, count]) => count > 0).map(([label, count]) => `• ${label}: ${count}`).join("\\n") || "لا توجد سجلات تابعة ظاهرة.";
+      const sessionCount = data.sessions.filter((session) => kids.some((task) => task.id === session.task_id)).length;
+      const message = `نقل المشروع «${p.name}» إلى السلة؟\\n\\nالسجلات التي ستُنقل إلى السلة معه:\\n${summary}\\n\\nجلسات الوقت التاريخية: ${sessionCount} — ستبقى محفوظة كسجل تاريخي، ولن تُحذف تلقائيًا. يمكنك استرجاع المشروع وسجلاته من السلة.`;
+      if (!(await confirm(message, { title: "مراجعة أثر حذف المشروع", danger: true, ok: "نقل إلى السلة" }))) return false;
       for (const c of ["tasks", "outputs", "risks", "issues", "decisions", "prds", "updates"]) for (const k of arr(recs, c).filter((x) => x.project_id === p.id && !x.deleted_at)) await R.softDelete(c, k.id, me);
       await del("projects", p.id, p.name); return true;
     },
