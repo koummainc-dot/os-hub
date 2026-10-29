@@ -90,7 +90,7 @@ function Panel({ title, hint, children, action }) {
 function Empty({ children }) { return <div style={{ padding: 26, textAlign: "center", color: C.muted, background: C.bg, borderRadius: 12, fontSize: 13 }}>{children}</div>; }
 function Metric({ label, value, detail }) { return <div style={{ padding: 15, border: "1px solid " + C.line, borderRadius: 14, background: "#fff" }}><div style={{ color: C.muted, fontSize: 12 }}>{label}</div><div style={{ fontSize: 27, fontWeight: 800, color: C.ink, marginTop: 6 }}>{value}</div>{detail && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{detail}</div>}</div>; }
 
-const blankPerson = () => ({ name: "", type: "Friend", circleId: "", importance: "normal", phone: "", email: "", birthday: "", interests: "", matters: "", notes: "" });
+const blankPerson = () => ({ name: "", type: "Friend", circleId: "", importance: "normal", phone: "", email: "", birthday: "", organization: "", role: "", professionalUrl: "", metThrough: "", interests: "", matters: "", notes: "" });
 
 export default function RelationshipsSystem(props) {
   const { api, access, ws, isDemo, page = "home", setPage = () => {}, shell } = props;
@@ -230,6 +230,10 @@ export default function RelationshipsSystem(props) {
       <Field label="البريد الإلكتروني" type="email" value={personDraft.email} onChange={(v) => setPersonDraft((p) => ({ ...p, email: v }))} />
       <Field label="تاريخ الميلاد" type="date" value={personDraft.birthday} onChange={(v) => setPersonDraft((p) => ({ ...p, birthday: v }))} />
       <SelectField label="الدائرة" value={personDraft.circleId} onChange={(v) => setPersonDraft((p) => ({ ...p, circleId: v }))} options={[{ value: "", label: "بدون دائرة" }, ...data.circles.map((c) => ({ value: c.id, label: c.name }))]} />
+      <Field label="الشركة أو الجهة" value={personDraft.organization} onChange={(v) => setPersonDraft((p) => ({ ...p, organization: v }))} placeholder="شركة، مؤسسة، مجتمع..." />
+      <Field label="المسمى أو الدور" value={personDraft.role} onChange={(v) => setPersonDraft((p) => ({ ...p, role: v }))} placeholder="مؤسس، مصمم، مدير..." />
+      <Field label="رابط مهني" value={personDraft.professionalUrl} onChange={(v) => setPersonDraft((p) => ({ ...p, professionalUrl: v }))} placeholder="LinkedIn أو موقع مهني" />
+      <Field label="كيف تعرفت عليه؟" value={personDraft.metThrough} onChange={(v) => setPersonDraft((p) => ({ ...p, metThrough: v }))} placeholder="مشروع، فعالية، صديق مشترك..." />
       <Field label="الاهتمامات" value={personDraft.interests} placeholder="الكتب، السفر..." onChange={(v) => setPersonDraft((p) => ({ ...p, interests: v }))} />
       <Field label="ما يهم هذا الشخص" value={personDraft.matters} placeholder="التفضيلات وما يقدّره" onChange={(v) => setPersonDraft((p) => ({ ...p, matters: v }))} />
     </div>
@@ -270,7 +274,11 @@ export default function RelationshipsSystem(props) {
         <div><div style={{ color: C.muted, fontSize: 12 }}>الهاتف</div><strong>{selectedPerson.phone || "غير مسجل"}</strong></div>
         <div><div style={{ color: C.muted, fontSize: 12 }}>البريد الإلكتروني</div><strong>{selectedPerson.email || "غير مسجل"}</strong></div>
         <div><div style={{ color: C.muted, fontSize: 12 }}>تاريخ الميلاد</div><strong>{selectedPerson.birthday || "غير مسجل"}</strong></div>
+        <div><div style={{ color: C.muted, fontSize: 12 }}>الشركة أو الجهة</div><strong>{selectedPerson.organization || "غير مسجل"}</strong></div>
+        <div><div style={{ color: C.muted, fontSize: 12 }}>المسمى أو الدور</div><strong>{selectedPerson.role || "غير مسجل"}</strong></div>
+        <div><div style={{ color: C.muted, fontSize: 12 }}>مصدر التعارف</div><strong>{selectedPerson.metThrough || "غير مسجل"}</strong></div>
       </div>
+      {selectedPerson.professionalUrl && <p><strong>الرابط المهني:</strong> <a href={selectedPerson.professionalUrl} target="_blank" rel="noreferrer">{selectedPerson.professionalUrl}</a></p>}
       {selectedPerson.interests && <p><strong>الاهتمامات:</strong> {selectedPerson.interests}</p>}
       {selectedPerson.matters && <p><strong>ما يهم هذا الشخص:</strong> {selectedPerson.matters}</p>}
       {selectedPerson.notes && <p style={{ whiteSpace: "pre-wrap" }}><strong>ملاحظات:</strong> {selectedPerson.notes}</p>}
@@ -489,7 +497,7 @@ export default function RelationshipsSystem(props) {
     {canEdit && <Panel title="إنشاء دائرة"><form onSubmit={async (e) => { e.preventDefault(); if (!circleDraft.name.trim()) return; const ok = await saveEntity("circles", { ...circleDraft, id: makeId(), createdAt: new Date().toISOString() }); if (ok) setCircleDraft({ name: "", description: "", color: "#DB2777" }); }} style={{ display: "grid", gap: 10 }}><Field label="اسم الدائرة" value={circleDraft.name} required onChange={(v) => setCircleDraft((p) => ({ ...p, name: v }))} /><Field label="وصف" value={circleDraft.description} onChange={(v) => setCircleDraft((p) => ({ ...p, description: v }))} /><Button type="submit" kind="primary" disabled={busy}>إضافة دائرة</Button></form></Panel>}
     {list(data.circles, "الدوائر", (x) => <><strong>{x.name}</strong><div style={{ color: C.muted, fontSize: 12 }}>{x.description} · {data.people.filter((p) => p.circleId === x.id).length} أشخاص</div></>, "circles")}
   </>;
-  else if (page === "networking") content = <Panel title="العلاقات المهنية" hint="اعرض العلاقات المهنية المسجلة في دليل الأشخاص.">{list(data.people.filter((p) => ["Professional", "Colleague", "Client", "Mentor"].includes(p.type)), "الأشخاص المهنيون", (p) => <><strong>{p.name}</strong><div style={{ color: C.muted, fontSize: 12 }}>{RELATIONSHIP_TYPE_LABELS[p.type] || p.type} {p.email ? "· " + p.email : ""}</div></>, "people")}</Panel>;
+  else if (page === "networking") content = <Panel title="العلاقات المهنية" hint="نظّم سياق العلاقة المهنية، جهة العمل، الدور، مصدر التعارف، وآخر تواصل مسجل.">{list(data.people.filter((p) => ["Professional", "Colleague", "Client", "Mentor"].includes(p.type) || p.organization || p.role || p.professionalUrl), "الأشخاص المهنيون", (p) => <><strong>{p.name}</strong><div style={{ color: C.muted, fontSize: 12 }}>{[RELATIONSHIP_TYPE_LABELS[p.type] || p.type, p.role, p.organization, p.email].filter(Boolean).join(" · ")}</div>{p.metThrough && <div style={{ color: C.muted, fontSize: 12 }}>مصدر التعارف: {p.metThrough}</div>}{p.professionalUrl && <div style={{ marginTop: 5 }}><a href={p.professionalUrl} target="_blank" rel="noreferrer">فتح الرابط المهني</a></div>}<div style={{ marginTop: 7 }}><Button onClick={() => { setSelectedPersonId(p.id); setPage("people"); }}>فتح الملف</Button></div></>, "people")}</Panel>;
   else if (page === "insights") content = <>
     <Panel title="مؤشرات تنظيمية" hint="هذه مؤشرات عن اكتمال السجلات والمتابعات، وليست تقييمًا لمشاعر أو نوايا الناس."><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 10 }}><Metric label="بلا وسيلة تواصل" value={data.people.filter((p) => !p.phone && !p.email).length} /><Metric label="بلا تاريخ تواصل مسجل" value={data.people.filter((p) => !data.timeline.some((t) => t.personId === p.id)).length} /><Metric label="متابعات مفتوحة" value={data.followups.filter((f) => f.status !== "done").length} /><Metric label="مناسبات بلا تاريخ" value={data.occasions.filter((o) => !o.date).length} /></div></Panel>
   </>;
