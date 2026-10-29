@@ -26,6 +26,7 @@ const reparentBody = store.slice(reparentStart, reparentEnd);
 assert.ok(reparentBody.includes("R.putAtomic(["), "reparenting onto a leaf parent must update parent and child atomically");
 assert.ok(reparentBody.includes("fc.warnCompleted"), "reparenting must warn before converting a completed task into a parent");
 assert.ok(!reparentBody.includes("await R.put(\"tasks\", fc.patch)"), "reparenting must not persist the parent transition separately");
+assert.ok(reparentBody.includes('putIn("tasks", nextTask, projectsById[t.project_id])'), "moving a task to the root must preserve project visibility metadata");
 
 
 assert.match(records, /does not enqueue offline changes/i);
