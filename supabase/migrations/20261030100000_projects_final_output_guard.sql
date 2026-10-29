@@ -299,7 +299,7 @@ begin
          and p.id = a.parent_task_id
          and p.deleted = false
        where a.parent_task_id is not null
-         and not a.cycle
+         and not a.has_repeat
     )
     select exists (select 1 from ancestors where id = new.id or has_repeat) into has_cycle;
     if has_cycle then
