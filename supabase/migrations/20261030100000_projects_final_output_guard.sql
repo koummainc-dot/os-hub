@@ -113,6 +113,12 @@ begin
       raise exception 'Only the workspace owner, project Lead, or Reviewer may approve a final output'
         using errcode = '42501';
     end if;
+
+    -- Do not trust caller-supplied approver metadata.
+    new.data := jsonb_set(
+      jsonb_set(new.data, '{approved_by}', to_jsonb(auth.uid()::text), true),
+      '{approved_at}', to_jsonb(clock_timestamp()::text), true
+    );
   end if;
 
   return new;
