@@ -32,14 +32,14 @@ Arabic-first workspace-scoped knowledge capture and retrieval, integrated into O
 - Exports are data portability, not a server backup; imports replace the current workspace payload after confirmation.
 
 ## Important integration status
-The UI now has a repository adapter that prefers normalized Knowledge RPCs and falls back to the existing workspace `workspace_data` API only when the normalized migration is not present. When the normalized schema exists but has no saved snapshot, the UI loads the legacy JSON payload and attempts a one-time transactional backfill for editors. Snapshot saves use an optimistic timestamp check and a workspace-scoped advisory lock; item upserts preserve attachment/activity rows for records that remain. The normalized SQL migration and repository adapter are committed but **not applied to production**. Migration-history reconciliation (Issue #85) remains a hard blocker before production rollout. The fallback does not silently write to the legacy store after normalized storage has become active.
+The UI now has a repository adapter that prefers normalized Knowledge RPCs and falls back to the existing workspace `workspace_data` API only when the normalized migration is not present. When normalized storage has no saved snapshot, the UI loads the legacy JSON payload and attempts a one-time transactional backfill for editors. `knowledge_save_snapshot` uses an optimistic timestamp check plus a workspace-scoped advisory lock; it upserts items, categories, tags, relations, meeting follow-ups and preferences while preserving attachments, external links and non-UI relation/follow-up records for retained items. Custom source types are stored independently of source records. The normalized SQL migration and repository adapter are committed but **not applied to production**. Migration-history reconciliation (Issue #85) remains a hard blocker before production rollout. The fallback does not silently write to the legacy store after normalized storage has become active.
 
 ## Acceptance checklist
 - [ ] Verify owner/member view/edit RLS on every table against real workspace roles.
-- [ ] Add a read-only migration preview/report before production cutover; UI backfill currently migrates when the normalized workspace has no saved snapshot.
+- [ ] Add a read-only migration preview/reconciliation report before production cutover; current UI backfill is transactional and only runs when the normalized workspace has no saved snapshot.
 - [x] Wire category/tag/item/relation/follow-up snapshot persistence through the normalized repository RPC.
 - [ ] Add actual storage bucket/policies for attachments.
 - [ ] Validate date/time and source URL input; test imports against malformed/oversized JSON.
 - [ ] Run concurrency, multi-user workspace isolation, archive/restore and export/import tests against a migrated test database.
 - [ ] Connect relationships to Projects/Learning/Content through supported APIs, not free-text IDs.
-- [ ] Run build/lint and feature contract tests before merge/deploy.
+- [ ] Run build/lint and feature contract tests against the final head; SQL execution and RLS role-matrix verification still require a migrated test database.
