@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { loadNormalizedKnowledge, saveNormalizedKnowledge, hasKnowledgeContent, listKnowledgeAttachments, uploadKnowledgeAttachment, deleteKnowledgeAttachment, validateKnowledgeExternalLink } from "./repository.js";
+import { loadNormalizedKnowledge, saveNormalizedKnowledge, hasKnowledgeContent, listKnowledgeAttachments, uploadKnowledgeAttachment, deleteKnowledgeAttachment, validateKnowledgeExternalLink, listKnowledgeNotifications, markKnowledgeNotificationRead } from "./repository.js";
 
 const C = { ink:"#172033", muted:"#64748B", line:"#E2E8F0", bg:"#F8FAFC", accent:"#0284C7", soft:"#E0F2FE", green:"#047857", amber:"#B45309", red:"#B91C1C", white:"#FFFFFF" };
 const SECTIONS = [
   ["hub","الرئيسية","⌂"],["inbox","Inbox","📥"],["bookmarks","الروابط والمصادر","🔖"],["ideas","الأفكار","💡"],["notes","الملاحظات","📝"],
-  ["meetings","الاجتماعات","👥"],["events","الفعاليات","🎟️"],["calendar","التقويم الموحّد","📅"],
+  ["meetings","الاجتماعات","👥"],["events","الفعاليات","🎟️"],["calendar","التقويم الموحّد","📅"],["reminders","التذكيرات","🔔"],
   ["categories","التصنيفات","🗂️"],["linktypes","أنواع الروابط","🏷️"],["search","البحث","🔍"],["settings","الإعدادات","⚙️"]
 ];
 const KINDS = { resource:"مصدر", idea:"فكرة", note:"ملاحظة", meeting:"اجتماع", event:"فعالية", inbox:"وارد" };
@@ -81,10 +81,17 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   const [attachmentFile,setAttachmentFile]=useState(null);
   const [attachments,setAttachments]=useState([]);
   const [attachmentBusy,setAttachmentBusy]=useState(false);
+  const [notifications,setNotifications]=useState([]);
   const [showArchived,setShowArchived]=useState(false);
   const canEdit=!!isDemo || access?.level==="edit" || access?.manage || access?.owner;
   const section=SECTIONS.some(s=>s[0]===page)?page:"hub";
   const go=id=>setPage&&setPage(id);
+  const refreshNotifications=useCallback(async()=>{
+    if(isDemo||!api?.workspaceId||storageMode!=="normalized"){setNotifications([]);return;}
+    const result=await listKnowledgeNotifications(api.workspaceId);
+    if(result.ok)setNotifications(result.notifications);
+  },[isDemo,api?.workspaceId,storageMode]);
+  useEffect(()=>{ refreshNotifications(); },[refreshNotifications]);
   useEffect(()=>{
     let cancelled=false;
     if(!editor?.id || isDemo || !api?.workspaceId || storageMode!=="normalized") { setAttachments([]); return; }
@@ -154,7 +161,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
     else if(section==="events") rows=rows.filter(x=>x.kind==="event");
     else if(section==="inbox") rows=rows.filter(x=>x.kind==="inbox"||x.status==="inbox"||x.status==="unread");
     else if(section==="calendar") rows=rows.filter(x=>x.date);
-    else if(section==="categories") rows=[];
+    else if(section==="categories"||section==="reminders") rows=[];
     else if(section==="linktypes"||section==="settings") rows=[];
     else if(section==="hub") rows=rows.filter(x=>x.pinned||x.status==="inbox"||x.status==="unread"||x.kind==="meeting"||x.kind==="event"||(x.reviewAt&&x.reviewAt<=today()));
     const q=query.trim().toLocaleLowerCase();
@@ -281,7 +288,15 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
       {section==="settings"&&<section style={card}><h2 style={{fontSize:17,marginTop:0}}>الإعدادات والنسخ الاحتياطي</h2><p style={{fontSize:13,color:C.muted,lineHeight:1.8}}>البيانات مرتبطة بمساحة العمل الحالية. يمكنك تصدير نسخة JSON للاحتفاظ بنسخة مستقلة. لا يستبدل التصدير النسخ الاحتياطية للخادم.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Btn secondary onClick={exportJson}>تصدير جميع البيانات</Btn><Btn secondary onClick={async()=>{const v=window.prompt("عدد الأيام قبل مراجعة المصدر المحفوظ",String(data.preferences.reviewReminderDays??7));if(v===null)return;const n=Number(v);if(!Number.isInteger(n)||n<0||n>365){setError("أدخل عددًا صحيحًا من 0 إلى 365. القيمة 0 تعطل الموعد الافتراضي.");return;}await persist({...data,preferences:{...data.preferences,reviewReminderDays:n}});}}>تعديل تذكير المراجعة ({data.preferences.reviewReminderDays} يوم)</Btn><Btn secondary onClick={load}>إعادة تحميل من المصدر</Btn><label style={{...input,width:"auto",cursor:canEdit?"pointer":"not-allowed"}}>استيراد JSON<input type="file" accept="application/json,.json" disabled={!canEdit} style={{display:"block",marginTop:8,maxWidth:230}} onChange={async e=>{const f=e.target.files?.[0];if(!f)return;try{if(f.size>10*1024*1024)throw new Error("size");const raw=JSON.parse(await f.text());if(!raw||typeof raw!=="object"||Array.isArray(raw)||!["resources","ideas","notes","meetings","events","inbox"].some(k=>Array.isArray(raw[k])))throw new Error("shape");for(const k of ["resources","ideas","notes","meetings","events","inbox"]){if(raw[k]!==undefined&&!Array.isArray(raw[k]))throw new Error("shape");if(Array.isArray(raw[k])&&raw[k].some(x=>!x||typeof x!=="object"||Array.isArray(x)||!esc(x.title)))throw new Error("shape");}if(raw.categories!==undefined&&(!Array.isArray(raw.categories)||raw.categories.some(x=>!x||typeof x!=="object"||Array.isArray(x)||!esc(x.name))))throw new Error("shape");if(raw.linkTypes!==undefined&&(!Array.isArray(raw.linkTypes)||raw.linkTypes.some(x=>typeof x!=="string"||!esc(x))))throw new Error("shape");const parsed=normalize(raw);if(!window.confirm("سيتم استبدال بيانات المعرفة الحالية بالملف. هل تريد المتابعة؟"))return;await persist(parsed);}catch(e){setError(e?.message==="size"?"حجم الملف يتجاوز الحد المسموح (10 MB).":"ملف JSON غير صالح أو لا يحتوي بنية بيانات معرفة مدعومة.");}finally{e.target.value="";}}}/></label></div></section>}
       {section==="calendar"&&<section style={card}><h2 style={{fontSize:17,marginTop:0}}>التقويم الموحّد</h2><p style={{fontSize:12,color:C.muted}}>الاجتماعات والفعاليات والمواعيد المرتبطة بعناصر المعرفة التي لها تاريخ.</p></section>}
       {section==="search"&&<section style={card}><h2 style={{fontSize:17,marginTop:0}}>البحث في المعرفة</h2><p style={{fontSize:12,color:C.muted}}>ابحث في العناوين والملخصات والروابط والتصنيفات والوسوم والتواريخ.</p></section>}
-      {!["categories","linktypes","settings"].includes(section)&&<section style={{display:"grid",gap:12}}>
+      {section==="reminders"&&<section style={{...card,display:"grid",gap:12}}>
+        <div><h2 style={{fontSize:17,marginTop:0,marginBottom:6}}>التذكيرات والإشعارات</h2><p style={{fontSize:12,color:C.muted,margin:0}}>تذكيرات المراجعة والفعاليات التي وصلت إلى صندوق الإشعارات داخل النظام.</p></div>
+        {isDemo||storageMode!=="normalized"?<p style={{fontSize:13,color:C.muted}}>التذكيرات تحتاج إلى تهيئة قاعدة البيانات المنظمة وتشغيل عامل التوصيل.</p>:notifications.length===0?<p style={{fontSize:13,color:C.muted}}>لا توجد إشعارات حتى الآن. ستظهر هنا التذكيرات عند حلول موعدها.</p>:notifications.map(n=><article key={n.id} style={{border:"1px solid "+C.line,borderRadius:12,padding:12,display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",background:n.read_at?C.white:"#F0F9FF"}}>
+          <div style={{minWidth:0}}><strong style={{fontSize:13}}>{n.title}</strong>{n.body&&<p style={{fontSize:12,color:C.muted,margin:"5px 0"}}>{n.body}</p>}<small style={{color:C.muted}}>{new Date(n.created_at).toLocaleString("ar-EG")}</small></div>
+          {!n.read_at&&<Btn secondary onClick={async()=>{const result=await markKnowledgeNotificationRead(api.workspaceId,n.id);if(result.ok){setNotifications(rows=>rows.map(row=>row.id===n.id?{...row,read_at:isoNow()}:row));}else setError(result.error?.message||"تعذر تحديث الإشعار.");}}>تمت القراءة</Btn>}
+        </article>)}
+        <div><Btn secondary onClick={refreshNotifications}>تحديث الإشعارات</Btn></div>
+      </section>}
+      {!["categories","linktypes","settings","reminders"].includes(section)&&<section style={{display:"grid",gap:12}}>
         <div style={{...card,display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(150px,.3fr) auto",gap:8,alignItems:"end"}}>
           <Field label="بحث سريع"><input style={input} value={query} onChange={e=>setQuery(e.target.value)} placeholder="ابحث في العنوان أو المحتوى أو الوسوم…"/></Field>
           <Field label="تصفية"><select style={input} value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">الكل</option>{Object.entries(KINDS).map(([k,v])=><option key={k} value={k}>{v}</option>)}{Object.entries(STATUSES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></Field>
