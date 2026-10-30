@@ -12,7 +12,7 @@ assert.match(migration, /An issue may reference only active visible tasks in the
   "issue task_ids must not point to missing, hidden, trashed, archived, or cross-project tasks");
 assert.match(migration, /Task issue_ids must be an array/);
 assert.match(migration, /Issue task_ids must be an array/);
-assert.match(migration, /metadata-only writes must/i.test(migration) ? /metadata-only writes must/i : /new\.data - 'deleted_at' - 'deleted_by'/,
+assert.match(migration, /new\.data - 'deleted_at' - 'deleted_by'/,
   "trash/restore metadata updates must remain possible for atomic project cascades");
 assert.match(store, /await R\.putAtomic\(\[\{ coll: "tasks", rec: task \}, \{ coll: "issues", rec: issuePatch \}\]\)/,
   "repair-task creation must atomically persist both sides of the task/issue reference");
