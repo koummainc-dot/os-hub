@@ -21,7 +21,7 @@ create table if not exists public.knowledge_categories (
 create index if not exists knowledge_categories_ws_order_idx on public.knowledge_categories(workspace_id,sort_order,name);
 
 create table if not exists public.knowledge_items (
-  id text primary key default gen_random_uuid()::text,
+  id text not null default gen_random_uuid()::text,
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   item_type text not null check(item_type in ('resource','idea','meeting','event','note','inbox')),
   title text not null check(length(trim(title)) > 0),
