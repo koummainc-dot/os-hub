@@ -16,7 +16,7 @@ create table if not exists public.knowledge_categories (
   updated_at timestamptz not null default now(),
   unique(workspace_id,id),
   unique(workspace_id,name),
-  foreign key(workspace_id,parent_id) references public.knowledge_categories(workspace_id,id) on delete set null
+  foreign key(workspace_id,parent_id) references public.knowledge_categories(workspace_id,id) on delete no action
 );
 create index if not exists knowledge_categories_ws_order_idx on public.knowledge_categories(workspace_id,sort_order,name);
 
@@ -56,7 +56,7 @@ create table if not exists public.knowledge_items (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique(workspace_id,id),
-  foreign key(workspace_id,category_id) references public.knowledge_categories(workspace_id,id) on delete set null,
+  foreign key(workspace_id,category_id) references public.knowledge_categories(workspace_id,id) on delete no action,
   check(end_time is null or start_time is null or end_time >= start_time)
 );
 create index if not exists knowledge_items_ws_type_updated_idx on public.knowledge_items(workspace_id,item_type,updated_at desc) where is_archived=false;
@@ -140,8 +140,7 @@ create table if not exists public.knowledge_activity (
   actor_id uuid references auth.users(id) on delete set null,
   action text not null check(action in ('created','updated','archived','restored','pinned','unpinned','reviewed','related','exported','imported')),
   change_summary text,
-  created_at timestamptz not null default now(),
-  foreign key(workspace_id,item_id) references public.knowledge_items(workspace_id,id) on delete set null
+  created_at timestamptz not null default now()
 );
 create index if not exists knowledge_activity_ws_created_idx on public.knowledge_activity(workspace_id,created_at desc);
 
