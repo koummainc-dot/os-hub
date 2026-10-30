@@ -23,7 +23,7 @@
 | 1 | Content OS — إدارة المحتوى | (موجود) | — | لا | 11 | ✅ جاهز |
 | 2 | Projects OS — المشاريع | `Projects_OS_v4_Unified_Master_Plan.md` | 106KB | لا | 18 | 1 |
 | 3 | **Habit OS — العادات** | `Habit_OS_v4_Unified_Master_Plan.md` (+`habit_reference/`) | مستخرجة | **نعم** | 9 | 2 |
-| 4 | Knowledge OS — المعرفة | `Knowledge_OS_v4_…` | 122KB | لا | 11 | 3 |
+| 4 | Knowledge OS — المعرفة والمصادر | `Knowledge_OS_v4_…` | 122KB | لا | 11 | 3 · ✅ جاهز |
 | 5 | Learning OS — التعلّم | `Learning_OS_v4_…` | 109KB | لا | 9 | 4 |
 | 6 | Finance OS — المال | `FINANCE_OS_UNIFIED_MASTER_PLAN_v4_1.md` | 240KB | **نعم** | 15 | 5 |
 | 7 | Home OS — البيت | `Home_OS_v4_…` | 103KB | لا | 8 | 6 |
