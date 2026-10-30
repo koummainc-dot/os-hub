@@ -5,7 +5,7 @@ Arabic-first workspace-scoped knowledge capture and retrieval, integrated into O
 
 ## Current UI capabilities
 - Home dashboard and counts; inbox; resources/bookmarks; ideas; standalone notes; meetings; events; date-based calendar view; categories; source types; global search; settings.
-- Create/edit/archive/restore/pin/review items; title, URL, summary, full note body, extracted notes/quotes, next action, category, tags, priority, author/published/read/review dates, rating, idea lifecycle, meeting attendees/decisions/follow-ups, event location/date/time. Due review items surface on the home page.
+- Create/edit/archive/restore/pin/review items; manage categories and source types (rename/delete with usage checks); title, URL, summary, full note body, extracted notes/quotes, next action, category, tags, priority, author/published/read/review dates, rating, idea lifecycle, meeting attendees/decisions/follow-ups, event location/date/time. Due review items surface on the home page.
 - JSON backup export/import; demo seed; optimistic compare-and-set saves through the existing workspace API.
 - Related-system reference fields can store Projects/Learning/Content/Habit identifiers, but are not yet validated foreign-key relationships.
 
@@ -32,7 +32,7 @@ Arabic-first workspace-scoped knowledge capture and retrieval, integrated into O
 - Exports are data portability, not a server backup; imports replace the current workspace payload after confirmation.
 
 ## Important integration status
-The UI currently persists through the existing workspace `workspace_data` API adapter. The normalized SQL migration is committed as the target schema but is **not applied to production** and is not yet wired into the UI repository. The next integration slice must implement repository/API methods, backfill current JSON payloads transactionally, dual-read/verify, then cut over and remove legacy writes only after migration-history reconciliation (Issue #85). Do not run the migration in production before that reconciliation.
+The UI currently persists through the existing workspace `workspace_data` API adapter. It now supports first-class notes, item-to-item links stored in the workspace payload, review-due surfacing, configurable default review lead time, safer import validation (10 MB cap and supported-shape check), and category/source-type maintenance. The normalized SQL migration is committed as the target schema but is **not applied to production** and is not yet wired into the UI repository. The next integration slice must implement repository/API methods, backfill current JSON payloads transactionally, dual-read/verify, then cut over and remove legacy writes only after migration-history reconciliation (Issue #85). Do not run the migration in production before that reconciliation.
 
 ## Acceptance checklist
 - [ ] Verify owner/member view/edit RLS on every table.
