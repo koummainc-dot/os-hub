@@ -75,20 +75,30 @@ export function getLearningStats(data, options = {}) {
   const daysSinceWeekStart = (day - weekStartDay + 7) % 7;
   const calendarWeekStart = shiftDate(date, -daysSinceWeekStart);
   const calendarWeekMinutes = validSessions.filter(s => s.sessionDate >= calendarWeekStart && s.sessionDate <= date).reduce((n, s) => n + (countsForStreak(s) ? asNumber(s.minutes) : 0), 0);
+  const restDays = Array.isArray(data.preferences?.restDays) ? data.preferences.restDays.map(Number) : [];
+  const isRestDate = d => restDays.includes(new Date(d + "T12:00:00Z").getUTCDay());
   let streak = 0;
-  let cursor = todayMinutes >= minimum ? date : shiftDate(date, -1);
+  let cursor = date;
+  if (isRestDate(cursor) || todayMinutes < minimum) cursor = shiftDate(cursor, -1);
   for (let i = 0; i < 36600; i++) {
+    while (isRestDate(cursor)) cursor = shiftDate(cursor, -1);
     if (minutesForDate(cursor) < minimum) break;
     streak++;
     cursor = shiftDate(cursor, -1);
   }
-  const qualifyingDates = [...totalsByDate.entries()].filter(([d, minutes]) => d <= date && minutes >= minimum).map(([d]) => d).sort();
+  const qualifyingDates = [...totalsByDate.entries()].filter(([d, minutes]) => d <= date && minutes >= minimum && !isRestDate(d)).map(([d]) => d).sort();
   let longestStreak = 0, run = 0, previous = null;
-  for (const d of qualifyingDates) { run = previous && shiftDate(previous, 1) === d ? run + 1 : 1; longestStreak = Math.max(longestStreak, run); previous = d; }
-  const dayState = todayMinutes >= dailyGoal ? "goal-reached" : todayMinutes >= minimum ? "minimum-met" : "not-met";
+  for (const d of qualifyingDates) {
+    let expected = previous ? shiftDate(previous, 1) : null;
+    while (expected && expected < d && isRestDate(expected)) expected = shiftDate(expected, 1);
+    run = expected === d ? run + 1 : 1;
+    longestStreak = Math.max(longestStreak, run); previous = d;
+  }
+  const isTodayRestDay = isRestDate(date);
+  const dayState = isTodayRestDay ? "rest-day" : todayMinutes >= dailyGoal ? "goal-reached" : todayMinutes >= minimum ? "minimum-met" : "not-met";
   const lessonRows = (data.lessons || []).map(l => ({ lesson: l, ...lessonMetrics(l, data.sessions || []) }));
   return {
-    todayMinutes, dailyGoal, minimum, minutesToMinimum: Math.max(0, minimum - todayMinutes),
+    todayMinutes, dailyGoal, minimum, isTodayRestDay, restDays, minutesToMinimum: Math.max(0, minimum - todayMinutes),
     dailyPct: Math.min(100, Math.round(todayMinutes / dailyGoal * 100)), dayState,
     last7Minutes, weeklyGoal, weeklyPct: Math.min(100, Math.round(last7Minutes / weeklyGoal * 100)),
     calendarWeekStart, calendarWeekMinutes, streak, longestStreak,
