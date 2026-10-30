@@ -19,27 +19,27 @@ Arabic-first workspace-scoped knowledge capture and retrieval, integrated into O
 - `knowledge_followups`: independently trackable actions with due dates, assignee and lifecycle.
 - `knowledge_attachments`: Storage object metadata; actual uploads require a Storage bucket and policy.
 - `knowledge_activity`: append-only-style audit history of meaningful actions.
-- RLS delegates workspace authorization to `ws_access_level(workspace_id, 'knowledge', 'main')`, and only the workspace owner can hard-delete records.
+- RLS delegates workspace authorization to `ws_access_level(workspace_id, 'knowledge', 'main')`; editor access is required for snapshot writes and deletes, and read-only members cannot mutate data.
 
 ## Lifecycle and behavior rules
 - Archive is soft-delete; restoring means toggling the archived filter and setting status back to an active lifecycle value.
 - Inbox is triage: capture → review → processed; preserve original URL/source metadata.
 - Resource lifecycle: unread → reviewing → processed; review_at powers the review queue.
 - Idea lifecycle: captured → exploring → validated → planned → implemented/rejected.
-- Meeting follow-ups are actions, not just meeting text; the UI's newline field remains a transitional representation until repository integration is complete.
+- Meeting follow-ups are persisted as individual rows while the UI keeps a newline-based editing experience.
 - Search covers title, summary, notes, URL, type, tags, category, dates, decisions and follow-ups.
 - A relation must not cross workspace boundaries; category and tag names are unique per workspace.
 - Exports are data portability, not a server backup; imports replace the current workspace payload after confirmation.
 
 ## Important integration status
-The UI currently persists through the existing workspace `workspace_data` API adapter. It now supports first-class notes, item-to-item links stored in the workspace payload, review-due surfacing, configurable default review lead time, safer import validation (10 MB cap and supported-shape check), and category/source-type maintenance. The normalized SQL migration is committed as the target schema but is **not applied to production** and is not yet wired into the UI repository. The next integration slice must implement repository/API methods, backfill current JSON payloads transactionally, dual-read/verify, then cut over and remove legacy writes only after migration-history reconciliation (Issue #85). Do not run the migration in production before that reconciliation.
+The UI now has a repository adapter that prefers normalized Knowledge RPCs and falls back to the existing workspace `workspace_data` API only when the normalized migration is not present. When the normalized schema exists but has no saved snapshot, the UI loads the legacy JSON payload and attempts a one-time transactional backfill for editors. Snapshot saves use an optimistic timestamp check and a workspace-scoped advisory lock; item upserts preserve attachment/activity rows for records that remain. The normalized SQL migration and repository adapter are committed but **not applied to production**. Migration-history reconciliation (Issue #85) remains a hard blocker before production rollout. The fallback does not silently write to the legacy store after normalized storage has become active.
 
 ## Acceptance checklist
-- [ ] Verify owner/member view/edit RLS on every table.
-- [ ] Add transactional JSON-to-normalized backfill and idempotent reconciliation report.
-- [ ] Wire category/tag/item/relation/follow-up repositories to the component.
+- [ ] Verify owner/member view/edit RLS on every table against real workspace roles.
+- [ ] Add a read-only migration preview/report before production cutover; UI backfill currently migrates when the normalized workspace has no saved snapshot.
+- [x] Wire category/tag/item/relation/follow-up snapshot persistence through the normalized repository RPC.
 - [ ] Add actual storage bucket/policies for attachments.
 - [ ] Validate date/time and source URL input; test imports against malformed/oversized JSON.
-- [ ] Verify concurrent saves, multi-user workspace isolation, archive/restore and export/import.
+- [ ] Run concurrency, multi-user workspace isolation, archive/restore and export/import tests against a migrated test database.
 - [ ] Connect relationships to Projects/Learning/Content through supported APIs, not free-text IDs.
 - [ ] Run build/lint and feature contract tests before merge/deploy.
