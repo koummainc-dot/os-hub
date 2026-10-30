@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { loadNormalizedKnowledge, saveNormalizedKnowledge, hasKnowledgeContent } from "./repository.js";
+import { loadNormalizedKnowledge, saveNormalizedKnowledge, hasKnowledgeContent, listKnowledgeAttachments, uploadKnowledgeAttachment, deleteKnowledgeAttachment, validateKnowledgeExternalLink } from "./repository.js";
 
 const C = { ink:"#172033", muted:"#64748B", line:"#E2E8F0", bg:"#F8FAFC", accent:"#0284C7", soft:"#E0F2FE", green:"#047857", amber:"#B45309", red:"#B91C1C", white:"#FFFFFF" };
 const SECTIONS = [
@@ -78,10 +78,21 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   const [filter,setFilter]=useState("all");
   const [editor,setEditor]=useState(null);
   const [form,setForm]=useState({});
+  const [attachmentFile,setAttachmentFile]=useState(null);
+  const [attachments,setAttachments]=useState([]);
+  const [attachmentBusy,setAttachmentBusy]=useState(false);
   const [showArchived,setShowArchived]=useState(false);
   const canEdit=!!isDemo || access?.level==="edit" || access?.manage || access?.owner;
   const section=SECTIONS.some(s=>s[0]===page)?page:"hub";
   const go=id=>setPage&&setPage(id);
+  useEffect(()=>{
+    let cancelled=false;
+    if(!editor?.id || isDemo || !api?.workspaceId || storageMode!=="normalized") { setAttachments([]); return; }
+    listKnowledgeAttachments(api.workspaceId,editor.id).then(result=>{
+      if(!cancelled) setAttachments(result.ok?result.attachments:[]);
+    }).catch(()=>{if(!cancelled)setAttachments([]);});
+    return ()=>{cancelled=true;};
+  },[editor?.id,isDemo,api?.workspaceId,storageMode]);
   const load=useCallback(async()=>{
     setLoading(true);setError("");
     try {
@@ -172,12 +183,14 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   };
   const openNew=(kind)=>{
     if(!canEdit)return;
+    setAttachmentFile(null);setAttachments([]);
     setEditor({kind,id:null});
     setForm({title:"",url:"",summary:"",notes:"",nextAction:"",sourceType:"مقال",status:kind==="inbox"?"inbox":"active",stage:"captured",priority:"normal",categoryId:"",tags:"",date:today(),startTime:"",endTime:"",location:"",attendees:"",decisions:"",followups:"",author:"",publishedAt:"",readAt:"",reviewAt:"",rating:"",relatedSystem:"",relatedId:"",relatedItemIds:[],pinned:false});
     setError("");
   };
   const openEdit=item=>{
     if(!canEdit)return;
+    setAttachmentFile(null);
     setEditor({kind:item.kind,id:item.id});
     setForm({...item,tags:(item.tags||[]).join(", "),attendees:(item.attendees||[]).join(", "),followups:(item.followups||[]).join("\n"),relatedItemIds:Array.isArray(item.relatedItemIds)?item.relatedItemIds:[],rating:item.rating||""});
     setError("");
@@ -192,11 +205,35 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
     if(form.rating!==undefined&&form.rating!==""&&(!Number.isInteger(Number(form.rating))||Number(form.rating)<1||Number(form.rating)>5)){setError("التقييم يجب أن يكون رقمًا صحيحًا من 1 إلى 5.");return;}
     if(esc(form.url)){try{const parsed=new URL(esc(form.url));if(!["http:","https:"].includes(parsed.protocol))throw new Error("protocol");}catch{setError("الرابط يجب أن يبدأ بـ http:// أو https://");return;}}
     const kind=editor.kind==="inbox"?"inbox":editor.kind;
+    if(!isDemo && esc(form.relatedSystem) && esc(form.relatedId)) {
+      const reference=await validateKnowledgeExternalLink(api?.workspaceId,esc(form.relatedSystem),esc(form.relatedId));
+      if(!reference.valid) {
+        setError(reference.reason==="lookup-failed"?"تعذر التحقق من العنصر المرتبط؛ أعد المحاولة.":"العنصر المرتبط غير موجود في النظام المحدد.");
+        return;
+      }
+    } else if(!!esc(form.relatedSystem)!==!!esc(form.relatedId)) {
+      setError("لربط عنصر بنظام آخر، اختر النظام وأدخل معرّف العنصر معًا.");
+      return;
+    }
     const row={...form,id:editor.id||uid(),title:esc(form.title),url:esc(form.url),summary:esc(form.summary),notes:esc(form.notes),nextAction:esc(form.nextAction),author:esc(form.author),location:esc(form.location),relatedSystem:esc(form.relatedSystem),relatedId:esc(form.relatedId),relatedItemIds:[...new Set((Array.isArray(form.relatedItemIds)?form.relatedItemIds:[]).filter(id=>id&&id!==(editor.id||"")))],rating:form.rating===""?null:Number(form.rating)||null,reviewAt:(kind==="resource"&&!form.reviewAt&&Number(data.preferences.reviewReminderDays)>0)?new Date(Date.now()+Number(data.preferences.reviewReminderDays)*86400000).toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}):(form.reviewAt||""),categoryId:form.categoryId||null,tags:[...new Set(esc(form.tags).split(",").map(x=>x.trim()).filter(Boolean))],attendees:esc(form.attendees).split(",").map(x=>x.trim()).filter(Boolean),followups:esc(form.followups).split("\n").map(x=>x.trim()).filter(Boolean),updatedAt:isoNow(),createdAt:form.createdAt||isoNow()};
     delete row.kind;
     const key=kind==="resource"?"resources":kind==="idea"?"ideas":kind==="note"?"notes":kind==="meeting"?"meetings":kind==="event"?"events":"inbox";
     const next={...data,[key]:editor.id?data[key].map(x=>x.id===editor.id?row:x):[row,...data[key]]};
-    if(await persist(next))setEditor(null);
+    if(await persist(next)) {
+      if(attachmentFile) {
+        if(isDemo || !api?.workspaceId || storageMode!=="normalized") {
+          setError("رفع المرفقات يتطلب اتصالًا بالتخزين المنظم؛ احفظ الملف محليًا حتى تكتمل تهيئة قاعدة البيانات.");
+          return;
+        }
+        setAttachmentBusy(true);
+        const uploaded=await uploadKnowledgeAttachment(api.workspaceId,row.id,attachmentFile);
+        setAttachmentBusy(false);
+        if(!uploaded.ok) {setError(uploaded.error?.message||"تعذر رفع الملف.");return;}
+        setAttachments(current=>[uploaded.attachment,...current]);
+        setAttachmentFile(null);
+      }
+      setEditor(null);
+    }
   };
   const mutateItem=async(item,patch)=>{
     if(!canEdit)return;
@@ -263,6 +300,16 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
     </>}
     {editor&&<div role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!saving)setEditor(null)}} style={{position:"fixed",inset:0,zIndex:1000,background:"#0F172A88",display:"grid",placeItems:"center",padding:16,overflowY:"auto"}}><div role="dialog" aria-modal="true" aria-label="تعديل عنصر معرفة" style={{background:C.white,borderRadius:18,padding:22,width:"min(720px,100%)",maxHeight:"calc(100vh - 32px)",overflowY:"auto",boxSizing:"border-box"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><h2 style={{fontSize:19,margin:0}}>{editor.id?"تعديل":"إضافة"} {KINDS[editor.kind]||"عنصر وارد"}</h2><button onClick={()=>setEditor(null)} disabled={saving} style={{border:0,background:"transparent",fontSize:24,cursor:"pointer"}}>×</button></div><form onSubmit={saveItem} style={{display:"grid",gap:12}}>
       <Field label="العنوان *"><input required style={input} value={form.title||""} onChange={e=>setField("title",e.target.value)} placeholder="عنوان واضح يسهل استرجاعه"/></Field>
+      {!isDemo&&storageMode==="normalized"&&<section style={{...card,display:"grid",gap:10}}>
+        <strong style={{fontSize:13}}>المرفقات (حد أقصى 10 ميجابايت لكل ملف)</strong>
+        <input type="file" accept=".pdf,.txt,.md,.jpg,.jpeg,.png,.webp,.docx,.xlsx,.pptx" disabled={attachmentBusy||saving} onChange={e=>setAttachmentFile(e.target.files?.[0]||null)} style={{fontSize:12}}/>
+        {attachmentFile&&<div style={{fontSize:12,color:C.muted}}>سيُرفع بعد حفظ العنصر: {attachmentFile.name}</div>}
+        {attachments.length===0?<div style={{fontSize:12,color:C.muted}}>لا توجد مرفقات محفوظة لهذا العنصر.</div>:attachments.map(file=><div key={file.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:12,borderTop:"1px solid "+C.line,paddingTop:8}}>
+          {file.signedUrl?<a href={file.signedUrl} target="_blank" rel="noreferrer" style={{color:C.accent,overflowWrap:"anywhere"}}>{file.file_name}</a>:<span>{file.file_name}</span>}
+          <button type="button" disabled={attachmentBusy||saving} onClick={async()=>{if(!window.confirm("حذف المرفق؟"))return;setAttachmentBusy(true);const result=await deleteKnowledgeAttachment(api.workspaceId,file.id);setAttachmentBusy(false);if(result.ok)setAttachments(current=>current.filter(x=>x.id!==file.id));else setError(result.error?.message||"تعذر حذف المرفق.");}} style={{border:"1px solid "+C.line,borderRadius:8,padding:"5px 8px",background:C.white,cursor:"pointer"}}>حذف</button>
+        </div>)}
+      </section>}
+
       {(editor.kind==="resource"||editor.kind==="inbox")&&<><Field label="الرابط"><input type="url" style={input} value={form.url||""} onChange={e=>setField("url",e.target.value)} placeholder="https://…"/></Field><Field label="نوع المصدر"><select style={input} value={form.sourceType||"مقال"} onChange={e=>setField("sourceType",e.target.value)}>{data.linkTypes.map(t=><option key={t}>{t}</option>)}</select></Field></>}
       <Field label="ملخص / وصف"><textarea style={{...input,minHeight:75,resize:"vertical"}} value={form.summary||""} onChange={e=>setField("summary",e.target.value)} placeholder="الفكرة الأساسية أو وصف العنصر…"/></Field>
       {editor.kind==="note"&&<Field label="نص الملاحظة"><textarea style={{...input,minHeight:180,resize:"vertical"}} value={form.body||""} onChange={e=>setField("body",e.target.value)} placeholder="اكتب المعرفة بصياغتك، مع أمثلة وروابط داخلية…"/></Field>}
