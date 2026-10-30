@@ -15,7 +15,7 @@ create temporary table if not exists knowledge_migration_preview (
   normalized_items integer,
   normalized_categories integer,
   preview_status text not null default 'legacy_only'
-) on commit drop;
+);
 truncate table knowledge_migration_preview;
 
 do $$
