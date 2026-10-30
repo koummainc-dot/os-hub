@@ -82,14 +82,16 @@ export function getLearningStats(data, options = {}) {
     streak++;
     cursor = shiftDate(cursor, -1);
   }
+  const qualifyingDates = [...totalsByDate.entries()].filter(([, minutes]) => minutes >= minimum).map(([d]) => d).sort();
+  let longestStreak = 0, run = 0, previous = null;
+  for (const d of qualifyingDates) { run = previous && shiftDate(previous, 1) === d ? run + 1 : 1; longestStreak = Math.max(longestStreak, run); previous = d; }
   const dayState = todayMinutes >= dailyGoal ? "goal-reached" : todayMinutes >= minimum ? "minimum-met" : "not-met";
   const lessonRows = (data.lessons || []).map(l => ({ lesson: l, ...lessonMetrics(l, data.sessions || []) }));
   return {
     todayMinutes, dailyGoal, minimum, minutesToMinimum: Math.max(0, minimum - todayMinutes),
     dailyPct: Math.min(100, Math.round(todayMinutes / dailyGoal * 100)), dayState,
     last7Minutes, weeklyGoal, weeklyPct: Math.min(100, Math.round(last7Minutes / weeklyGoal * 100)),
-    calendarWeekStart, calendarWeekMinutes, streak,
-    longestStreak: Math.max(streak, Number(data.preferences?.longestStreak) || 0),
+    calendarWeekStart, calendarWeekMinutes, streak, longestStreak,
     lessonRows,
     completedLessons: lessonRows.filter(x => x.state === "Completed" && x.lesson.status !== "Skipped").length,
     measurableLessons: lessonRows.filter(x => x.measurable).length,
