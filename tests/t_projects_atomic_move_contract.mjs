@@ -28,7 +28,7 @@ assert.match(statusBody, /ops\.push\(\{ coll: "projects"/);
 assert.match(statusBody, /R\.putAtomic\(ops\)/);
 assert.doesNotMatch(statusBody, /for \(const t of plan\.openLeaves\) await R\.put/);
 const trashMigration = await readFile(new URL("../supabase/migrations/20261029180000_projects_atomic_trash_batch.sql", import.meta.url), "utf8");
-assert.match(trashMigration, /collection_name not in \('tasks','outputs','projects','risks','issues','decisions','prds','updates'\)/);
+assert.match(trashMigration, /collection_name not in \('tasks','outputs','projects','risks','issues','decisions','prds','updates','discovery'\)/);
 assert.match(trashMigration, /security invoker/i);
 assert.match(trashMigration, /auth\.uid\(\) is null/i);
 assert.match(trashMigration, /ws_access_level\(p_workspace_id, 'projects', collection_name\) is distinct from 'edit'/i);
