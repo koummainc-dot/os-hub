@@ -52,7 +52,9 @@ export function subtreeMetrics(items, lessons, sessions, childrenFor, childrenOf
   const completed = rows.reduce((n, m) => n + m.completed, 0);
   return { total, completed, remaining: Math.max(0, total - completed), progress: total ? completed / total : null };
 }
-export function getLearningStats(data, { date = dateInZone(), timeZone = data.preferences?.timezone || "Africa/Cairo" } = {}) {
+export function getLearningStats(data, options = {}) {
+  const timeZone = options.timeZone || data.preferences?.timezone || "Africa/Cairo";
+  const date = options.date || dateInZone(new Date(), timeZone);
   const tree = indexLearningTree(data);
   const minimum = Math.max(1, Number(data.preferences?.dailyMinimumMinutes) || 10);
   const dailyGoal = Math.max(minimum, Number(data.preferences?.dailyGoalMinutes) || 30);
@@ -62,7 +64,9 @@ export function getLearningStats(data, { date = dateInZone(), timeZone = data.pr
     const area = tree.lessonArea(s.lessonId);
     return area ? area.countsTowardStreak !== false : s.countsTowardStreak !== false;
   };
-  const minutesForDate = d => validSessions.filter(s => s.sessionDate === d && countsForStreak(s)).reduce((n, s) => n + asNumber(s.minutes), 0);
+  const totalsByDate = new Map();
+  for (const s of validSessions) if (countsForStreak(s)) totalsByDate.set(s.sessionDate, (totalsByDate.get(s.sessionDate) || 0) + asNumber(s.minutes));
+  const minutesForDate = d => totalsByDate.get(d) || 0;
   const todayMinutes = minutesForDate(date);
   const last7Start = shiftDate(date, -6);
   const last7Minutes = validSessions.filter(s => s.sessionDate >= last7Start && s.sessionDate <= date).reduce((n, s) => n + (countsForStreak(s) ? asNumber(s.minutes) : 0), 0);
@@ -107,5 +111,8 @@ export function computeAreaMetrics(area, data) {
   const metrics = courses.map(c => computeCourseMetrics(c, data));
   const total = metrics.reduce((n, m) => n + m.total, 0);
   const completed = metrics.reduce((n, m) => n + m.completed, 0);
-  return { total, completed, remaining: Math.max(0, total - completed), progress: total ? completed / total : null, coursesTotal: courses.length, coursesCompleted: metrics.filter(m => m.state === "Completed").length, minutesLast7Days: getLearningStats(data).lessonRows.filter(x => { const start = shiftDate(dateInZone(), -6); return (data.sessions || []).some(s => s.lessonId === x.lesson.id && s.sessionDate >= start && s.sessionDate <= dateInZone()); }).reduce((n, x) => n + x.sessionMinutes, 0) };
+  const tree = indexLearningTree(data), today = dateInZone(new Date(), data.preferences?.timezone || "Africa/Cairo"), start = shiftDate(today, -6);
+  const lessonIds = new Set((data.lessons || []).filter(l => { const unit=tree.units.get(l.unitId), course=tree.courses.get(unit?.courseId); return course?.areaId===area.id && l.status!=="Skipped" && l.status!=="Archived"; }).map(l=>l.id));
+  const minutesLast7Days = (data.sessions || []).filter(s => lessonIds.has(s.lessonId) && !s.deletedAt && s.kind!=="adjustment" && s.sessionDate>=start && s.sessionDate<=today).reduce((n,s)=>n+asNumber(s.minutes),0);
+  return { total, completed, remaining: Math.max(0, total - completed), progress: total ? completed / total : null, coursesTotal: courses.length, coursesCompleted: metrics.filter(m => m.state === "Completed").length, minutesLast7Days };
 }
