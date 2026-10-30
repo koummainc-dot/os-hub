@@ -12,8 +12,9 @@ export default function FinanceFamilyCash({ws,access,isDemo=false}){
  const [memberId,setMemberId]=useState(""),[transactionId,setTransactionId]=useState(""),[note,setNote]=useState("");
  const [advanceId,setAdvanceId]=useState(""),[entryType,setEntryType]=useState("Expense"),[amount,setAmount]=useState(""),[date,setDate]=useState(today()),[categoryId,setCategoryId]=useState(""),[description,setDescription]=useState(""),[receipt,setReceipt]=useState("");
  const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
- const canView=!isDemo&&!!ws?.id&&(access?.owner||access?.level==="view"||access?.level==="edit");
- const canEdit=!isDemo&&!!ws?.id&&(access?.owner||access?.level==="edit"||access?.manage);
+ const familyLevel=access?.sections?.family;
+ const canView=!isDemo&&!!ws?.id&&(access?.owner||((access?.level==="view"||access?.level==="edit")&&familyLevel!=="none"));
+ const canEdit=!isDemo&&!!ws?.id&&(access?.owner||(access?.level==="edit"&&familyLevel!=="none"&&familyLevel!=="view"));
  const load=useCallback(async()=>{
   if(!ws?.id||isDemo){setMembers([]);setTransactions([]);setAdvances([]);setEntries([]);setCategories([]);setLoading(false);return;}
   setLoading(true);setError("");
@@ -52,6 +53,7 @@ export default function FinanceFamilyCash({ws,access,isDemo=false}){
   catch(err){setError(err?.message||"تعذّر تسجيل الحركة. قد يكون المبلغ أكبر من الرصيد المتبقي.");}finally{setSaving(false);}
  }
  if(isDemo)return <div dir="rtl" style={{color:INK}}><Card><h2>💵 عهد ومصروفات الأفراد</h2><p>اربط حركة صرف مسجلة بفرد، ثم سجّل مصروفاته أو المبلغ الذي أعاده. لا تُحفظ بيانات حقيقية في الوضع التجريبي.</p></Card></div>;
+ if(!canView)return <div dir="rtl" style={{color:INK}}><Card><h3>لا توجد صلاحية للوصول إلى عهد ومصروفات الأفراد</h3><p style={{color:MUTED}}>اطلب صلاحية عرض Finance / Family من مالك مساحة العمل.</p></Card></div>;
  return <div dir="rtl" style={{display:"grid",gap:14,color:INK}}>
   <div><h2 style={{margin:"0 0 6px"}}>💵 عهد ومصروفات الأفراد</h2><p style={{margin:0,color:MUTED,fontSize:13,lineHeight:1.8}}>اربط حركة صرف موجودة في دفتر الماليات بفرد، ثم سجّل ما أنفقه وما أعاده واعرف الرصيد المتبقي. مصروفات العهدة هنا سجل توثيقي ولا تُضاف مرة ثانية إلى دفتر الماليات.</p></div>
   {error&&<div role="alert" style={{padding:12,borderRadius:10,background:"#FFF1F0",color:"#B42318"}}>{error}</div>}{notice&&<div role="status" style={{padding:12,borderRadius:10,background:"#ECFDF3",color:"#067647"}}>{notice}</div>}
