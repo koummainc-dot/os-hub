@@ -226,7 +226,7 @@ returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $
+as $$
  select jsonb_strip_nulls(jsonb_build_object(
    'id',p_item.id,'title',p_item.title,'summary',p_item.summary,'body',p_item.body,'url',p_item.canonical_url,
    'sourceType',p_item.source_type,'author',p_item.author,'publishedAt',p_item.published_at,'readAt',p_item.read_at,'reviewAt',p_item.review_at,
@@ -239,14 +239,14 @@ as $
    'relatedItemIds',coalesce((select jsonb_agg(r.to_item_id) from public.knowledge_relations r where r.workspace_id=p_workspace_id and r.from_item_id=p_item.id and r.relation_type='related'),'[]'::jsonb),
    'relatedSystem',p_item.metadata->>'relatedSystem','relatedId',p_item.metadata->>'relatedId','createdAt',p_item.created_at,'updatedAt',p_item.updated_at
  ))
-$;
+$$;
 
 create or replace function public.knowledge_load_snapshot(p_workspace_id uuid)
 returns jsonb
 language plpgsql
 security invoker
 set search_path = ''
-as $
+as $$
 declare v_result jsonb;
 begin
   if auth.uid() is null or public.ws_access_level(p_workspace_id, 'knowledge', 'main') not in ('view','edit') then
@@ -266,14 +266,14 @@ begin
   ) into v_result;
   return jsonb_build_object('data',v_result,'updatedAt',(select updated_at from public.knowledge_workspace_state where workspace_id=p_workspace_id));
 end;
-$;
+$$;
 
 create or replace function public.knowledge_save_snapshot(p_workspace_id uuid,p_snapshot jsonb,p_expected_updated_at timestamptz default null)
 returns jsonb
 language plpgsql
 security invoker
 set search_path = ''
-as $
+as $$
 declare v_now timestamptz := clock_timestamp(); v_current timestamptz; v_kind text; v_collection text; v_item jsonb; v_cat jsonb; v_id text; v_tag text; v_tag_id uuid; v_related text;
 begin
   if auth.uid() is null or public.ws_access_level(p_workspace_id, 'knowledge', 'main') <> 'edit' then
@@ -351,7 +351,7 @@ begin
   on conflict(workspace_id) do update set updated_at=excluded.updated_at,updated_by=excluded.updated_by,preferences=excluded.preferences,link_types=excluded.link_types;
   return jsonb_build_object('ok',true,'conflict',false,'updatedAt',v_now);
 end;
-$;
+$$;
 
 revoke all on function public.knowledge_load_snapshot(uuid) from public,anon;
 revoke all on function public.knowledge_save_snapshot(uuid,jsonb,timestamptz) from public,anon;
