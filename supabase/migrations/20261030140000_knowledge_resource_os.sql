@@ -204,7 +204,8 @@ grant usage,select on sequence public.knowledge_activity_id_seq to authenticated
 create table if not exists public.knowledge_workspace_state (
   workspace_id uuid primary key references public.workspaces(id) on delete cascade,
   updated_at timestamptz not null default now(),
-  updated_by uuid references auth.users(id) on delete set null
+  updated_by uuid references auth.users(id) on delete set null,
+  preferences jsonb not null default '{"defaultView":"hub","reviewReminderDays":7}'::jsonb
 );
 alter table public.knowledge_workspace_state enable row level security;
 drop policy if exists knowledge_workspace_state_select on public.knowledge_workspace_state;
@@ -233,13 +234,13 @@ begin
     'version',1,
     'categories',coalesce((select jsonb_agg(jsonb_build_object('id',c.id,'name',c.name,'color',c.color,'description',c.description,'parentId',c.parent_id,'sortOrder',c.sort_order,'isArchived',c.is_archived) order by c.sort_order,c.name) from public.knowledge_categories c where c.workspace_id=p_workspace_id),'[]'::jsonb),
     'linkTypes',coalesce((select jsonb_agg(x.source_type order by x.source_type) from (select distinct source_type from public.knowledge_items where workspace_id=p_workspace_id and source_type is not null) x),'[]'::jsonb),
-    'resources',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'resource',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='resource' and not i.is_archived),'[]'::jsonb),
-    'ideas',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'idea',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='idea' and not i.is_archived),'[]'::jsonb),
-    'notes',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'note',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='note' and not i.is_archived),'[]'::jsonb),
-    'meetings',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'meeting',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='meeting' and not i.is_archived),'[]'::jsonb),
-    'events',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'event',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='event' and not i.is_archived),'[]'::jsonb),
-    'inbox',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'inbox',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='inbox' and not i.is_archived),'[]'::jsonb),
-    'preferences',coalesce((select metadata->'preferences' from public.knowledge_items where workspace_id=p_workspace_id and item_type='note' and id='__knowledge_preferences__' limit 1),'{"defaultView":"hub","reviewReminderDays":7}'::jsonb)
+    'resources',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'resource',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='resource'),'[]'::jsonb),
+    'ideas',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'idea',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='idea'),'[]'::jsonb),
+    'notes',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'note',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='note'),'[]'::jsonb),
+    'meetings',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'meeting',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='meeting'),'[]'::jsonb),
+    'events',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'event',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='event'),'[]'::jsonb),
+    'inbox',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'inbox',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='inbox'),'[]'::jsonb),
+    'preferences',coalesce((select preferences from public.knowledge_workspace_state where workspace_id=p_workspace_id),'{"defaultView":"hub","reviewReminderDays":7}'::jsonb)
   ) into v_result;
   return jsonb_build_object('data',v_result,'updatedAt',(select updated_at from public.knowledge_workspace_state where workspace_id=p_workspace_id));
 end;
@@ -261,7 +262,7 @@ as $
    coalesce((select jsonb_agg(t.name order by t.name) from public.knowledge_item_tags it join public.knowledge_tags t on t.id=it.tag_id and t.workspace_id=it.workspace_id where it.workspace_id=p_workspace_id and it.item_id=p_item.id),'[]'::jsonb),
    'followups',coalesce((select jsonb_agg(f.title order by f.sort_order) from public.knowledge_followups f where f.workspace_id=p_workspace_id and f.item_id=p_item.id and f.status<>'cancelled'),'[]'::jsonb),
    'relatedItemIds',coalesce((select jsonb_agg(r.to_item_id) from public.knowledge_relations r where r.workspace_id=p_workspace_id and r.from_item_id=p_item.id and r.relation_type='related'),'[]'::jsonb),
-   'createdAt',p_item.created_at,'updatedAt',p_item.updated_at
+   'relatedSystem',p_item.metadata->>'relatedSystem','relatedId',p_item.metadata->>'relatedId','createdAt',p_item.created_at,'updatedAt',p_item.updated_at
  ))
 $;
 
@@ -289,6 +290,7 @@ begin
   delete from public.knowledge_followups where workspace_id=p_workspace_id;
   delete from public.knowledge_external_links where workspace_id=p_workspace_id;
   delete from public.knowledge_items where workspace_id=p_workspace_id;
+  update public.knowledge_categories set parent_id=null where workspace_id=p_workspace_id;
   delete from public.knowledge_categories where workspace_id=p_workspace_id;
 
   for v_cat in select value from jsonb_array_elements(coalesce(p_snapshot->'categories','[]'::jsonb)) loop
@@ -313,23 +315,30 @@ begin
       for v_tag in select value from jsonb_array_elements_text(coalesce(v_item->'followups','[]'::jsonb)) loop
         insert into public.knowledge_followups(workspace_id,item_id,title,created_by) values(p_workspace_id,v_id,trim(v_tag),auth.uid());
       end loop;
+    end loop;
+  end loop;
+
+  for v_collection,v_kind in select * from (values ('resources','resource'),('ideas','idea'),('notes','note'),('meetings','meeting'),('events','event'),('inbox','inbox')) as x(collection,kind) loop
+    for v_item in select value from jsonb_array_elements(coalesce(p_snapshot->v_collection,'[]'::jsonb)) loop
+      v_id:=coalesce(v_item->>'id',gen_random_uuid()::text);
       for v_related in select value from jsonb_array_elements_text(coalesce(v_item->'relatedItemIds','[]'::jsonb)) loop
-        if v_related<>v_id and exists(select 1 from jsonb_array_elements(coalesce(p_snapshot->'resources','[]'::jsonb)||coalesce(p_snapshot->'ideas','[]'::jsonb)||coalesce(p_snapshot->'notes','[]'::jsonb)||coalesce(p_snapshot->'meetings','[]'::jsonb)||coalesce(p_snapshot->'events','[]'::jsonb)||coalesce(p_snapshot->'inbox','[]'::jsonb)) q where q->>'id'=v_related) then
+        if v_related<>v_id and exists(select 1 from public.knowledge_items where workspace_id=p_workspace_id and id=v_related) then
           insert into public.knowledge_relations(workspace_id,from_item_id,to_item_id,relation_type,created_by) values(p_workspace_id,v_id,v_related,'related',auth.uid()) on conflict do nothing;
         end if;
       end loop;
     end loop;
   end loop;
 
-  insert into public.knowledge_workspace_state(workspace_id,updated_at,updated_by) values(p_workspace_id,v_now,auth.uid())
-  on conflict(workspace_id) do update set updated_at=excluded.updated_at,updated_by=excluded.updated_by;
+  insert into public.knowledge_workspace_state(workspace_id,updated_at,updated_by,preferences) values(p_workspace_id,v_now,auth.uid(),coalesce(p_snapshot->'preferences','{"defaultView":"hub","reviewReminderDays":7}'::jsonb))
+  on conflict(workspace_id) do update set updated_at=excluded.updated_at,updated_by=excluded.updated_by,preferences=excluded.preferences;
   return jsonb_build_object('ok',true,'conflict',false,'updatedAt',v_now);
 end;
 $;
 
 revoke all on function public.knowledge_load_snapshot(uuid) from public,anon;
 revoke all on function public.knowledge_save_snapshot(uuid,jsonb,timestamptz) from public,anon;
-revoke all on function public.knowledge_item_to_json(public.knowledge_items,text,uuid) from public,anon,authenticated;
+revoke all on function public.knowledge_item_to_json(public.knowledge_items,text,uuid) from public,anon;
+grant execute on function public.knowledge_item_to_json(public.knowledge_items,text,uuid) to authenticated;
 grant execute on function public.knowledge_load_snapshot(uuid) to authenticated;
 grant execute on function public.knowledge_save_snapshot(uuid,jsonb,timestamptz) to authenticated;
 
