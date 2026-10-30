@@ -19,7 +19,7 @@ const emptyData = () => ({
   linkTypes:[...SOURCE_TYPES],
   preferences:{defaultView:"hub",reviewReminderDays:7}
 });
-const demoSeed = () => {
+export const demoSeed = () => {
   const d=emptyData(), now=isoNow();
   d.resources=[
     {id:"demo-r1",title:"مقدمة في التفكير المنظومي",url:"https://example.com/systems-thinking",summary:"مصدر تجريبي لفهم العلاقات بين أجزاء النظام.",sourceType:"مقال",status:"unread",categoryId:"cat-learning",tags:["تفكير","أنظمة"],createdAt:now,updatedAt:now,pinned:true},
@@ -50,7 +50,7 @@ const esc = s => String(s||"").trim();
 const card = {background:C.white,border:"1px solid "+C.line,borderRadius:16,padding:16};
 const input = {width:"100%",boxSizing:"border-box",border:"1px solid "+C.line,borderRadius:10,padding:"10px 12px",font:"inherit",fontSize:13,color:C.ink,background:C.white};
 function Btn({children,onClick,secondary=false,disabled=false,type="button"}) {
-  return <button type={type} disabled={disabled} onClick={onClick} style={{border:"1px solid "+(secondary?C.line:C.accent),background:secondary?C.white:C.accent,color:secondary?C.ink:C.white,borderRadius:10,padding:"9px 13px",fontWeight:750,fontFamily:"inherit",fontSize:12,cursor:disabled?"not-allowed":"pointer",opacity:disabled?.55:1}}>{children}</button>;
+  return <button type={type} disabled={disabled} onClick={onClick} style={{border:"1px solid "+(secondary?C.line:C.accent),background:secondary?C.white:C.accent,color:secondary?C.ink:C.white,borderRadius:10,padding:"9px 13px",fontWeight:750,fontFamily:"inherit",fontSize:12,cursor:disabled?"not-allowed":"pointer",opacity:disabled ? .55 : 1}}>{children}</button>;
 }
 function Field({label,children}) { return <label style={{display:"grid",gap:6,fontSize:12,fontWeight:750,color:"#475569"}}>{label}{children}</label>; }
 function Tag({children}) { return <span style={{fontSize:11,padding:"4px 8px",borderRadius:999,background:C.soft,color:"#075985",whiteSpace:"nowrap"}}>{children}</span>; }
