@@ -1,0 +1,49 @@
+name: Knowledge SQL smoke tests
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - "tests/knowledge_sql_bootstrap.sql"
+      - ".github/workflows/knowledge-sql-smoke.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - "tests/knowledge_sql_bootstrap.sql"
+      - ".github/workflows/knowledge-sql-smoke.yml"
+
+jobs:
+  knowledge-postgres-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: knowledge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d knowledge_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: knowledge_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Bootstrap disposable schema
+        run: psql -v ON_ERROR_STOP=1 -f tests/knowledge_sql_bootstrap.sql
+      - name: Apply Knowledge migration to disposable database
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261030140000_knowledge_resource_os.sql
+      - name: Verify RLS workspace isolation and attachment permissions
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/knowledge_resource_os_smoke.sql
