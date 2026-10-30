@@ -117,6 +117,7 @@ create table if not exists public.knowledge_followups (
   foreign key(workspace_id,item_id) references public.knowledge_items(workspace_id,id) on delete cascade
 );
 create index if not exists knowledge_followups_due_idx on public.knowledge_followups(workspace_id,due_at) where status in ('open','in_progress');
+create unique index if not exists knowledge_followups_item_title_uq on public.knowledge_followups(workspace_id,item_id,title);
 
 create table if not exists public.knowledge_attachments (
   id uuid primary key default gen_random_uuid(),
@@ -286,9 +287,9 @@ begin
     end if;
   end if;
 
-  delete from public.knowledge_relations where workspace_id=p_workspace_id;
+  delete from public.knowledge_relations where workspace_id=p_workspace_id and relation_type='related';
   delete from public.knowledge_item_tags where workspace_id=p_workspace_id;
-  delete from public.knowledge_followups where workspace_id=p_workspace_id;
+  delete from public.knowledge_followups f where f.workspace_id=p_workspace_id and f.status='open' and f.due_at is null and f.assigned_to is null and exists (select 1 from public.knowledge_items i where i.workspace_id=f.workspace_id and i.id=f.item_id) and not exists (select 1 from jsonb_array_elements(coalesce(p_snapshot->'meetings','[]'::jsonb)) m cross join lateral jsonb_array_elements_text(coalesce(m->'followups','[]'::jsonb)) title where m->>'id'=f.item_id and trim(title.value)=f.title);
   delete from public.knowledge_items i where i.workspace_id=p_workspace_id and not exists (
     select 1 from jsonb_array_elements(
       coalesce(p_snapshot->'resources','[]'::jsonb)||coalesce(p_snapshot->'ideas','[]'::jsonb)||
@@ -321,14 +322,14 @@ begin
     for v_item in select value from jsonb_array_elements(coalesce(p_snapshot->v_collection,'[]'::jsonb)) loop
       v_id:=coalesce(v_item->>'id',gen_random_uuid()::text);
       insert into public.knowledge_items(id,workspace_id,item_type,title,summary,body,canonical_url,source_type,author,published_at,read_at,review_at,item_date,start_time,end_time,timezone,location,status,idea_stage,priority,rating,is_pinned,is_archived,archived_at,category_id,notes,next_action,decisions,attendees,metadata,created_by,updated_by,created_at,updated_at)
-      values(v_id,p_workspace_id,v_kind,coalesce(v_item->>'title','(بدون عنوان)'),v_item->>'summary',v_item->>'body',v_item->>'url',v_item->>'sourceType',v_item->>'author',nullif(v_item->>'publishedAt','')::date,nullif(v_item->>'readAt','')::date,nullif(v_item->>'reviewAt','')::date,nullif(v_item->>'date','')::date,nullif(v_item->>'startTime','')::time,nullif(v_item->>'endTime','')::time,coalesce(v_item->>'timezone','Africa/Cairo'),v_item->>'location',coalesce(v_item->>'status',case when v_kind='inbox' then 'inbox' else 'active' end),v_item->>'stage',coalesce(v_item->>'priority','normal'),nullif(v_item->>'rating','')::smallint,coalesce((v_item->>'pinned')::boolean,false),coalesce((v_item->>'status'='archived'),false),nullif(v_item->>'archivedAt','')::timestamptz,nullif(v_item->>'categoryId',''),v_item->>'notes',v_item->>'nextAction',v_item->>'decisions',coalesce(v_item->'attendees','[]'::jsonb),jsonb_build_object('relatedSystem',v_item->>'relatedSystem','relatedId',v_item->>'relatedId'),auth.uid(),auth.uid(),coalesce(nullif(v_item->>'createdAt','')::timestamptz,v_now),v_now);
+      values(v_id,p_workspace_id,v_kind,coalesce(v_item->>'title','(بدون عنوان)'),v_item->>'summary',v_item->>'body',v_item->>'url',v_item->>'sourceType',v_item->>'author',nullif(v_item->>'publishedAt','')::date,nullif(v_item->>'readAt','')::date,nullif(v_item->>'reviewAt','')::date,nullif(v_item->>'date','')::date,nullif(v_item->>'startTime','')::time,nullif(v_item->>'endTime','')::time,coalesce(v_item->>'timezone','Africa/Cairo'),v_item->>'location',coalesce(v_item->>'status',case when v_kind='inbox' then 'inbox' else 'active' end),v_item->>'stage',coalesce(v_item->>'priority','normal'),nullif(v_item->>'rating','')::smallint,coalesce((v_item->>'pinned')::boolean,false),coalesce((v_item->>'status'='archived'),false),nullif(v_item->>'archivedAt','')::timestamptz,case when exists(select 1 from public.knowledge_categories c where c.workspace_id=p_workspace_id and c.id=v_item->>'categoryId') then v_item->>'categoryId' else null end,v_item->>'notes',v_item->>'nextAction',v_item->>'decisions',coalesce(v_item->'attendees','[]'::jsonb),jsonb_build_object('relatedSystem',v_item->>'relatedSystem','relatedId',v_item->>'relatedId'),auth.uid(),auth.uid(),coalesce(nullif(v_item->>'createdAt','')::timestamptz,v_now),v_now);
       on conflict(workspace_id,id) do update set item_type=excluded.item_type,title=excluded.title,summary=excluded.summary,body=excluded.body,canonical_url=excluded.canonical_url,source_type=excluded.source_type,author=excluded.author,published_at=excluded.published_at,read_at=excluded.read_at,review_at=excluded.review_at,item_date=excluded.item_date,start_time=excluded.start_time,end_time=excluded.end_time,timezone=excluded.timezone,location=excluded.location,status=excluded.status,idea_stage=excluded.idea_stage,priority=excluded.priority,rating=excluded.rating,is_pinned=excluded.is_pinned,is_archived=excluded.is_archived,archived_at=excluded.archived_at,category_id=excluded.category_id,notes=excluded.notes,next_action=excluded.next_action,decisions=excluded.decisions,attendees=excluded.attendees,metadata=excluded.metadata,updated_by=excluded.updated_by,updated_at=excluded.updated_at;
       for v_tag in select value from jsonb_array_elements_text(coalesce(v_item->'tags','[]'::jsonb)) loop
         insert into public.knowledge_tags(workspace_id,name) values(p_workspace_id,trim(v_tag)) on conflict(workspace_id,normalized_name) do update set name=excluded.name returning id into v_tag_id;
         insert into public.knowledge_item_tags(workspace_id,item_id,tag_id) values(p_workspace_id,v_id,v_tag_id) on conflict do nothing;
       end loop;
       for v_tag in select value from jsonb_array_elements_text(coalesce(v_item->'followups','[]'::jsonb)) loop
-        insert into public.knowledge_followups(workspace_id,item_id,title,created_by) values(p_workspace_id,v_id,trim(v_tag),auth.uid());
+        insert into public.knowledge_followups(workspace_id,item_id,title,created_by) values(p_workspace_id,v_id,trim(v_tag),auth.uid()) on conflict(workspace_id,item_id,title) do nothing;
       end loop;
     end loop;
   end loop;
