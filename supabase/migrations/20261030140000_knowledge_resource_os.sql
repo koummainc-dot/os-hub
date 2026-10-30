@@ -3,7 +3,7 @@
 begin;
 
 create table if not exists public.knowledge_categories (
-  id text primary key default gen_random_uuid()::text,
+  id text not null default gen_random_uuid()::text,
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   name text not null,
   color text not null default '#0284C7',
@@ -14,7 +14,7 @@ create table if not exists public.knowledge_categories (
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique(workspace_id,id),
+  primary key(workspace_id,id),
   unique(workspace_id,name),
   foreign key(workspace_id,parent_id) references public.knowledge_categories(workspace_id,id) on delete no action
 );
@@ -55,7 +55,7 @@ create table if not exists public.knowledge_items (
   updated_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique(workspace_id,id),
+  primary key(workspace_id,id),
   foreign key(workspace_id,category_id) references public.knowledge_categories(workspace_id,id) on delete no action,
   check(end_time is null or start_time is null or end_time >= start_time)
 );
@@ -288,14 +288,27 @@ begin
   delete from public.knowledge_relations where workspace_id=p_workspace_id;
   delete from public.knowledge_item_tags where workspace_id=p_workspace_id;
   delete from public.knowledge_followups where workspace_id=p_workspace_id;
-  delete from public.knowledge_external_links where workspace_id=p_workspace_id;
-  delete from public.knowledge_items where workspace_id=p_workspace_id;
-  update public.knowledge_categories set parent_id=null where workspace_id=p_workspace_id;
-  delete from public.knowledge_categories where workspace_id=p_workspace_id;
+  delete from public.knowledge_items i where i.workspace_id=p_workspace_id and not exists (
+    select 1 from jsonb_array_elements(
+      coalesce(p_snapshot->'resources','[]'::jsonb)||coalesce(p_snapshot->'ideas','[]'::jsonb)||
+      coalesce(p_snapshot->'notes','[]'::jsonb)||coalesce(p_snapshot->'meetings','[]'::jsonb)||
+      coalesce(p_snapshot->'events','[]'::jsonb)||coalesce(p_snapshot->'inbox','[]'::jsonb)
+    ) q where q->>'id'=i.id
+  );
+  update public.knowledge_categories c set parent_id=null where c.workspace_id=p_workspace_id and c.parent_id is not null and not exists (
+    select 1 from jsonb_array_elements(coalesce(p_snapshot->'categories','[]'::jsonb)) q where q->>'id'=c.parent_id
+  );
+  update public.knowledge_items i set category_id=null where i.workspace_id=p_workspace_id and i.category_id is not null and not exists (
+    select 1 from jsonb_array_elements(coalesce(p_snapshot->'categories','[]'::jsonb)) q where q->>'id'=i.category_id
+  );
+  delete from public.knowledge_categories c where c.workspace_id=p_workspace_id and not exists (
+    select 1 from jsonb_array_elements(coalesce(p_snapshot->'categories','[]'::jsonb)) q where q->>'id'=c.id
+  );
 
   for v_cat in select value from jsonb_array_elements(coalesce(p_snapshot->'categories','[]'::jsonb)) loop
-    insert into public.knowledge_categories(id,workspace_id,name,color,description,sort_order,is_archived,created_by,updated_at)
-    values(coalesce(v_cat->>'id',gen_random_uuid()::text),p_workspace_id,coalesce(v_cat->>'name','غير مصنف'),coalesce(v_cat->>'color','#0284C7'),v_cat->>'description',coalesce((v_cat->>'sortOrder')::int,0),coalesce((v_cat->>'isArchived')::boolean,false),auth.uid(),v_now);
+    insert into public.knowledge_categories(id,workspace_id,name,color,description,parent_id,sort_order,is_archived,created_by,updated_at)
+    values(coalesce(v_cat->>'id',gen_random_uuid()::text),p_workspace_id,coalesce(v_cat->>'name','غير مصنف'),coalesce(v_cat->>'color','#0284C7'),v_cat->>'description',null,coalesce((v_cat->>'sortOrder')::int,0),coalesce((v_cat->>'isArchived')::boolean,false),auth.uid(),v_now)
+    on conflict(workspace_id,id) do update set name=excluded.name,color=excluded.color,description=excluded.description,sort_order=excluded.sort_order,is_archived=excluded.is_archived,updated_at=excluded.updated_at;
   end loop;
   for v_cat in select value from jsonb_array_elements(coalesce(p_snapshot->'categories','[]'::jsonb)) loop
     if nullif(v_cat->>'parentId','') is not null then
@@ -308,6 +321,7 @@ begin
       v_id:=coalesce(v_item->>'id',gen_random_uuid()::text);
       insert into public.knowledge_items(id,workspace_id,item_type,title,summary,body,canonical_url,source_type,author,published_at,read_at,review_at,item_date,start_time,end_time,timezone,location,status,idea_stage,priority,rating,is_pinned,is_archived,archived_at,category_id,notes,next_action,decisions,attendees,metadata,created_by,updated_by,created_at,updated_at)
       values(v_id,p_workspace_id,v_kind,coalesce(v_item->>'title','(بدون عنوان)'),v_item->>'summary',v_item->>'body',v_item->>'url',v_item->>'sourceType',v_item->>'author',nullif(v_item->>'publishedAt','')::date,nullif(v_item->>'readAt','')::date,nullif(v_item->>'reviewAt','')::date,nullif(v_item->>'date','')::date,nullif(v_item->>'startTime','')::time,nullif(v_item->>'endTime','')::time,coalesce(v_item->>'timezone','Africa/Cairo'),v_item->>'location',coalesce(v_item->>'status',case when v_kind='inbox' then 'inbox' else 'active' end),v_item->>'stage',coalesce(v_item->>'priority','normal'),nullif(v_item->>'rating','')::smallint,coalesce((v_item->>'pinned')::boolean,false),coalesce((v_item->>'status'='archived'),false),nullif(v_item->>'archivedAt','')::timestamptz,nullif(v_item->>'categoryId',''),v_item->>'notes',v_item->>'nextAction',v_item->>'decisions',coalesce(v_item->'attendees','[]'::jsonb),jsonb_build_object('relatedSystem',v_item->>'relatedSystem','relatedId',v_item->>'relatedId'),auth.uid(),auth.uid(),coalesce(nullif(v_item->>'createdAt','')::timestamptz,v_now),v_now);
+      on conflict(workspace_id,id) do update set item_type=excluded.item_type,title=excluded.title,summary=excluded.summary,body=excluded.body,canonical_url=excluded.canonical_url,source_type=excluded.source_type,author=excluded.author,published_at=excluded.published_at,read_at=excluded.read_at,review_at=excluded.review_at,item_date=excluded.item_date,start_time=excluded.start_time,end_time=excluded.end_time,timezone=excluded.timezone,location=excluded.location,status=excluded.status,idea_stage=excluded.idea_stage,priority=excluded.priority,rating=excluded.rating,is_pinned=excluded.is_pinned,is_archived=excluded.is_archived,archived_at=excluded.archived_at,category_id=excluded.category_id,notes=excluded.notes,next_action=excluded.next_action,decisions=excluded.decisions,attendees=excluded.attendees,metadata=excluded.metadata,updated_by=excluded.updated_by,updated_at=excluded.updated_at;
       for v_tag in select value from jsonb_array_elements_text(coalesce(v_item->'tags','[]'::jsonb)) loop
         insert into public.knowledge_tags(workspace_id,name) values(p_workspace_id,trim(v_tag)) on conflict(workspace_id,normalized_name) do update set name=excluded.name returning id into v_tag_id;
         insert into public.knowledge_item_tags(workspace_id,item_id,tag_id) values(p_workspace_id,v_id,v_tag_id) on conflict do nothing;
@@ -329,6 +343,7 @@ begin
     end loop;
   end loop;
 
+  insert into public.knowledge_activity(workspace_id,item_id,actor_id,action,change_summary) values(p_workspace_id,null,auth.uid(),'updated','Knowledge workspace snapshot saved');
   insert into public.knowledge_workspace_state(workspace_id,updated_at,updated_by,preferences) values(p_workspace_id,v_now,auth.uid(),coalesce(p_snapshot->'preferences','{"defaultView":"hub","reviewReminderDays":7}'::jsonb))
   on conflict(workspace_id) do update set updated_at=excluded.updated_at,updated_by=excluded.updated_by,preferences=excluded.preferences;
   return jsonb_build_object('ok',true,'conflict',false,'updatedAt',v_now);
