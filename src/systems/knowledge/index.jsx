@@ -8,7 +8,9 @@ const SECTIONS = [
 ];
 const KINDS = { resource:"مصدر", idea:"فكرة", meeting:"اجتماع", event:"فعالية" };
 const STATUSES = { inbox:"الوارد", unread:"لم يُراجع", reviewing:"قيد المراجعة", processed:"تمت المعالجة", active:"نشط", archived:"مؤرشف", done:"مكتمل" };
-const SOURCE_TYPES = ["مقال","كتاب","فيديو","بودكاست","دورة","بحث","موقع","أداة","ملف","أخرى"];
+const SOURCE_TYPES = ["مقال","كتاب","فيديو","بودكاست","دورة","بحث","موقع","أداة","ملف","ورقة علمية","نشرة بريدية","أخرى"];
+const PRIORITIES = {low:"منخفضة",normal:"عادية",high:"مرتفعة",urgent:"عاجلة"};
+const IDEA_STAGES = {captured:"ملتَقطة",exploring:"قيد الاستكشاف",validated:"تم التحقق",planned:"مخططة",implemented:"تم التنفيذ",rejected:"مرفوضة"};
 const uid = () => globalThis.crypto?.randomUUID?.() || "kn-" + Date.now().toString(36) + Math.random().toString(36).slice(2,9);
 const isoNow = () => new Date().toISOString();
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone:"Africa/Cairo" });
@@ -22,10 +24,10 @@ const emptyData = () => ({
 export const demoSeed = () => {
   const d=emptyData(), now=isoNow();
   d.resources=[
-    {id:"demo-r1",title:"مقدمة في التفكير المنظومي",url:"https://example.com/systems-thinking",summary:"مصدر تجريبي لفهم العلاقات بين أجزاء النظام.",sourceType:"مقال",status:"unread",categoryId:"cat-learning",tags:["تفكير","أنظمة"],createdAt:now,updatedAt:now,pinned:true},
-    {id:"demo-r2",title:"أداة لإدارة المراجع",url:"https://example.com/research-tool",summary:"مكان لتجميع أدوات البحث والمراجع.",sourceType:"أداة",status:"processed",categoryId:"cat-work",tags:["أدوات"],createdAt:now,updatedAt:now,pinned:false}
+    {id:"demo-r1",title:"مقدمة في التفكير المنظومي",url:"https://example.com/systems-thinking",summary:"مصدر تجريبي لفهم العلاقات بين أجزاء النظام.",sourceType:"مقال",status:"unread",categoryId:"cat-learning",tags:["تفكير","أنظمة"],priority:"high",reviewAt:today(),createdAt:now,updatedAt:now,pinned:true},
+    {id:"demo-r2",title:"أداة لإدارة المراجع",url:"https://example.com/research-tool",summary:"مكان لتجميع أدوات البحث والمراجع.",sourceType:"أداة",status:"processed",categoryId:"cat-work",tags:["أدوات"],priority:"normal",createdAt:now,updatedAt:now,pinned:false}
   ];
-  d.ideas=[{id:"demo-i1",title:"إنشاء خريطة للمفاهيم المتكررة",summary:"ربط الأفكار المتشابهة بالمشاريع والمحتوى.",status:"active",categoryId:"cat-work",tags:["نظام المعرفة"],createdAt:now,updatedAt:now}];
+  d.ideas=[{id:"demo-i1",title:"إنشاء خريطة للمفاهيم المتكررة",summary:"ربط الأفكار المتشابهة بالمشاريع والمحتوى.",status:"active",stage:"exploring",priority:"high",categoryId:"cat-work",tags:["نظام المعرفة"],createdAt:now,updatedAt:now}];
   d.inbox=[{id:"demo-in1",title:"مثال: رابط يحتاج إلى مراجعة",url:"https://example.com/review",summary:"عنصر تجريبي في صندوق الوارد.",sourceType:"مقال",status:"inbox",createdAt:now,updatedAt:now}];
   d.meetings=[{id:"demo-m1",title:"اجتماع تخطيط أسبوعي",date:today(),summary:"نقاط النقاش والقرارات والمتابعات.",status:"active",tags:["تخطيط"],createdAt:now,updatedAt:now}];
   d.events=[{id:"demo-e1",title:"موعد مراجعة المعرفة",date:today(),summary:"مراجعة العناصر المحفوظة وتحويل المهم منها إلى إجراءات.",status:"active",createdAt:now,updatedAt:now}];
@@ -101,7 +103,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
     else if(section==="linktypes"||section==="settings") rows=[];
     else if(section==="hub") rows=rows.filter(x=>x.pinned||x.status==="inbox"||x.status==="unread"||x.kind==="meeting"||x.kind==="event");
     const q=query.trim().toLocaleLowerCase();
-    if(q) rows=rows.filter(x=>[x.title,x.summary,x.url,x.sourceType,x.date,categoryName(x.categoryId),(x.tags||[]).join(" ")].join(" ").toLocaleLowerCase().includes(q));
+    if(q) rows=rows.filter(x=>[x.title,x.summary,x.notes,x.nextAction,x.url,x.sourceType,x.date,x.location,x.author,x.decisions,(x.followups||[]).join(" "),categoryName(x.categoryId),(x.tags||[]).join(" ")].join(" ").toLocaleLowerCase().includes(q));
     if(filter!=="all") rows=rows.filter(x=>x.kind===filter||x.status===filter);
     return rows.sort((a,b)=>String(b.updatedAt||b.createdAt||b.date||"").localeCompare(String(a.updatedAt||a.createdAt||a.date||"")));
   },[allItems,section,query,filter,showArchived,data.categories]);
@@ -121,20 +123,20 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   const openNew=(kind)=>{
     if(!canEdit)return;
     setEditor({kind,id:null});
-    setForm({title:"",url:"",summary:"",sourceType:"مقال",status:kind==="inbox"?"inbox":"active",categoryId:"",tags:"",date:today(),location:"",attendees:"",decisions:"",followups:"",pinned:false});
+    setForm({title:"",url:"",summary:"",notes:"",nextAction:"",sourceType:"مقال",status:kind==="inbox"?"inbox":"active",stage:"captured",priority:"normal",categoryId:"",tags:"",date:today(),startTime:"",endTime:"",location:"",attendees:"",decisions:"",followups:"",author:"",publishedAt:"",readAt:"",reviewAt:"",rating:"",relatedSystem:"",relatedId:"",pinned:false});
     setError("");
   };
   const openEdit=item=>{
     if(!canEdit)return;
     setEditor({kind:item.kind,id:item.id});
-    setForm({...item,tags:(item.tags||[]).join(", "),attendees:(item.attendees||[]).join(", "),followups:(item.followups||[]).join("\n")});
+    setForm({...item,tags:(item.tags||[]).join(", "),attendees:(item.attendees||[]).join(", "),followups:(item.followups||[]).join("\n"),rating:item.rating||""});
     setError("");
   };
   const saveItem=async e=>{
     e.preventDefault();
     if(!canEdit||!esc(form.title)){setError("العنوان مطلوب.");return;}
     const kind=editor.kind==="inbox"?"inbox":editor.kind;
-    const row={...form,id:editor.id||uid(),title:esc(form.title),url:esc(form.url),summary:esc(form.summary),categoryId:form.categoryId||null,tags:esc(form.tags).split(",").map(x=>x.trim()).filter(Boolean),attendees:esc(form.attendees).split(",").map(x=>x.trim()).filter(Boolean),followups:esc(form.followups).split("\n").map(x=>x.trim()).filter(Boolean),updatedAt:isoNow(),createdAt:form.createdAt||isoNow()};
+    const row={...form,id:editor.id||uid(),title:esc(form.title),url:esc(form.url),summary:esc(form.summary),notes:esc(form.notes),nextAction:esc(form.nextAction),author:esc(form.author),location:esc(form.location),relatedSystem:esc(form.relatedSystem),relatedId:esc(form.relatedId),rating:form.rating===""?null:Number(form.rating)||null,categoryId:form.categoryId||null,tags:[...new Set(esc(form.tags).split(",").map(x=>x.trim()).filter(Boolean))],attendees:esc(form.attendees).split(",").map(x=>x.trim()).filter(Boolean),followups:esc(form.followups).split("\n").map(x=>x.trim()).filter(Boolean),updatedAt:isoNow(),createdAt:form.createdAt||isoNow()};
     delete row.kind;
     const key=kind==="resource"?"resources":kind==="idea"?"ideas":kind==="meeting"?"meetings":kind==="event"?"events":"inbox";
     const next={...data,[key]:editor.id?data[key].map(x=>x.id===editor.id?row:x):[row,...data[key]]};
@@ -197,7 +199,8 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
             <div style={{minWidth:0,flex:1}}><div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}><Tag>{KINDS[item.kind]||"وارد"}</Tag><Tag>{STATUSES[item.status]||item.status||"نشط"}</Tag>{item.sourceType&&<Tag>{item.sourceType}</Tag>}{item.pinned&&<Tag>مثبّت</Tag>}</div><h3 style={{fontSize:16,margin:"9px 0 5px",overflowWrap:"anywhere"}}>{item.title}</h3>{item.url&&<a href={item.url} target="_blank" rel="noreferrer" style={{fontSize:12,color:C.accent,overflowWrap:"anywhere"}}>{item.url}</a>}<p style={{fontSize:13,color:C.muted,lineHeight:1.8,margin:"6px 0"}}>{item.summary||"لا يوجد ملخص بعد."}</p></div>
             {canEdit&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}><Btn secondary onClick={()=>openEdit(item)}>تعديل</Btn><Btn secondary onClick={()=>mutateItem(item,{pinned:!item.pinned})}>{item.pinned?"إلغاء التثبيت":"تثبيت"}</Btn>{item.status==="inbox"||item.status==="unread"?<Btn onClick={()=>mutateItem(item,{status:"processed"})}>تمت المراجعة</Btn>:null}<Btn secondary onClick={()=>removeItem(item)}>أرشفة</Btn></div>}
           </div>
-          <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>{item.categoryId&&<Tag>{categoryName(item.categoryId)}</Tag>}{item.date&&<Tag>📅 {item.date}</Tag>}{(item.tags||[]).map(t=><Tag key={t}>#{t}</Tag>)}</div>
+          <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>{item.categoryId&&<Tag>{categoryName(item.categoryId)}</Tag>}{item.date&&<Tag>📅 {item.date}{item.startTime?` · ${item.startTime}`:""}{item.endTime?`–${item.endTime}`:""}</Tag>}{item.priority&&<Tag>الأولوية: {PRIORITIES[item.priority]||item.priority}</Tag>}{item.reviewAt&&<Tag>مراجعة: {item.reviewAt}</Tag>}{item.author&&<Tag>✍ {item.author}</Tag>}{item.rating&&<Tag>★ {item.rating}/5</Tag>}{(item.tags||[]).map(t=><Tag key={t}>#{t}</Tag>)}</div>
+          {(item.notes||item.nextAction||item.relatedSystem)&&<div style={{background:C.bg,borderRadius:10,padding:12,fontSize:12,lineHeight:1.8}}>{item.notes&&<div><b>ملاحظات مستخرجة:</b> {item.notes}</div>}{item.nextAction&&<div><b>الخطوة التالية:</b> {item.nextAction}</div>}{item.relatedSystem&&<div><b>ارتباط خارجي:</b> {item.relatedSystem}{item.relatedId?` · ${item.relatedId}`:""} (مرجع نصي؛ لا ينشئ علاقة قاعدة بيانات تلقائيًا)</div>}</div>
           {(item.kind==="meeting"&&(item.decisions||item.followups?.length||item.attendees?.length))&&<div style={{background:C.bg,borderRadius:10,padding:12,fontSize:12,lineHeight:1.8}}>{item.attendees?.length>0&&<div><b>الحضور:</b> {item.attendees.join("، ")}</div>}{item.decisions&&<div><b>القرارات:</b> {item.decisions}</div>}{item.followups?.length>0&&<div><b>المتابعات:</b> {item.followups.join("، ")}</div>}</div>}
         </article>)}
       </section>}
@@ -205,15 +208,19 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
     {editor&&<div role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!saving)setEditor(null)}} style={{position:"fixed",inset:0,zIndex:1000,background:"#0F172A88",display:"grid",placeItems:"center",padding:16,overflowY:"auto"}}><div role="dialog" aria-modal="true" aria-label="تعديل عنصر معرفة" style={{background:C.white,borderRadius:18,padding:22,width:"min(720px,100%)",maxHeight:"calc(100vh - 32px)",overflowY:"auto",boxSizing:"border-box"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><h2 style={{fontSize:19,margin:0}}>{editor.id?"تعديل":"إضافة"} {KINDS[editor.kind]||"عنصر وارد"}</h2><button onClick={()=>setEditor(null)} disabled={saving} style={{border:0,background:"transparent",fontSize:24,cursor:"pointer"}}>×</button></div><form onSubmit={saveItem} style={{display:"grid",gap:12}}>
       <Field label="العنوان *"><input required style={input} value={form.title||""} onChange={e=>setField("title",e.target.value)} placeholder="عنوان واضح يسهل استرجاعه"/></Field>
       {(editor.kind==="resource"||editor.kind==="inbox")&&<><Field label="الرابط"><input type="url" style={input} value={form.url||""} onChange={e=>setField("url",e.target.value)} placeholder="https://…"/></Field><Field label="نوع المصدر"><select style={input} value={form.sourceType||"مقال"} onChange={e=>setField("sourceType",e.target.value)}>{data.linkTypes.map(t=><option key={t}>{t}</option>)}</select></Field></>}
-      <Field label="ملخص / ملاحظات"><textarea style={{...input,minHeight:90,resize:"vertical"}} value={form.summary||""} onChange={e=>setField("summary",e.target.value)} placeholder="الفكرة الأساسية، ما تريد تذكره، أو أهم النقاط…"/></Field>
+      <Field label="ملخص / وصف"><textarea style={{...input,minHeight:75,resize:"vertical"}} value={form.summary||""} onChange={e=>setField("summary",e.target.value)} placeholder="الفكرة الأساسية أو وصف العنصر…"/></Field>
+      {(editor.kind==="resource"||editor.kind==="inbox")&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}><Field label="المؤلف / الجهة"><input style={input} value={form.author||""} onChange={e=>setField("author",e.target.value)}/></Field><Field label="تاريخ النشر"><input type="date" style={input} value={form.publishedAt||""} onChange={e=>setField("publishedAt",e.target.value)}/></Field><Field label="تاريخ القراءة / المراجعة"><input type="date" style={input} value={form.readAt||""} onChange={e=>setField("readAt",e.target.value)}/></Field><Field label="موعد المراجعة القادمة"><input type="date" style={input} value={form.reviewAt||""} onChange={e=>setField("reviewAt",e.target.value)}/></Field><Field label="التقييم (1–5)"><input type="number" min="1" max="5" style={input} value={form.rating||""} onChange={e=>setField("rating",e.target.value)}/></Field></div>}
+      {editor.kind==="idea"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}><Field label="مرحلة الفكرة"><select style={input} value={form.stage||"captured"} onChange={e=>setField("stage",e.target.value)}>{Object.entries(IDEA_STAGES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></Field><Field label="الخطوة التالية"><input style={input} value={form.nextAction||""} onChange={e=>setField("nextAction",e.target.value)}/></Field></div>}
+      <Field label="ملاحظات / اقتباسات / ما تعلمته"><textarea style={{...input,minHeight:75,resize:"vertical"}} value={form.notes||""} onChange={e=>setField("notes",e.target.value)} placeholder="ملاحظاتك الخاصة أو اقتباسات مختصرة مع مراعاة حقوق النشر…"/></Field>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}><Field label="الأولوية"><select style={input} value={form.priority||"normal"} onChange={e=>setField("priority",e.target.value)}>{Object.entries(PRIORITIES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></Field><Field label="ارتباط بنظام آخر"><select style={input} value={form.relatedSystem||""} onChange={e=>setField("relatedSystem",e.target.value)}><option value="">بدون</option><option value="projects">Projects OS</option><option value="learning">Learning OS</option><option value="content">Content OS</option><option value="habits">Habit OS</option></select></Field><Field label="معرّف العنصر المرتبط"><input style={input} value={form.relatedId||""} onChange={e=>setField("relatedId",e.target.value)} placeholder="ID / slug"/></Field></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
         <Field label="التصنيف"><select style={input} value={form.categoryId||""} onChange={e=>setField("categoryId",e.target.value)}><option value="">بدون تصنيف</option>{data.categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
         <Field label="الحالة"><select style={input} value={form.status||"active"} onChange={e=>setField("status",e.target.value)}>{Object.entries(STATUSES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></Field>
         <Field label="الوسوم (افصل بينها بفواصل)"><input style={input} value={form.tags||""} onChange={e=>setField("tags",e.target.value)} placeholder="فكرة، مرجع، متابعة"/></Field>
-        {(editor.kind==="meeting"||editor.kind==="event")&&<Field label="التاريخ"><input type="date" style={input} value={form.date||today()} onChange={e=>setField("date",e.target.value)}/></Field>}
+        {(editor.kind==="meeting"||editor.kind==="event")&&<><Field label="التاريخ"><input type="date" style={input} value={form.date||today()} onChange={e=>setField("date",e.target.value)}/></Field><Field label="وقت البداية"><input type="time" style={input} value={form.startTime||""} onChange={e=>setField("startTime",e.target.value)}/></Field><Field label="وقت النهاية"><input type="time" style={input} value={form.endTime||""} onChange={e=>setField("endTime",e.target.value)}/></Field></>}
       </div>
       {editor.kind==="meeting"&&<><Field label="المشاركون"><input style={input} value={form.attendees||""} onChange={e=>setField("attendees",e.target.value)} placeholder="الأسماء مفصولة بفواصل"/></Field><Field label="القرارات"><textarea style={input} value={form.decisions||""} onChange={e=>setField("decisions",e.target.value)}/></Field><Field label="المتابعات (كل متابعة في سطر)"><textarea style={input} value={form.followups||""} onChange={e=>setField("followups",e.target.value)}/></Field></>}
-      {editor.kind==="event"&&<Field label="المكان / رابط الفعالية"><input style={input} value={form.location||""} onChange={e=>setField("location",e.target.value)}/></Field>}
+      {editor.kind==="event"&&<><Field label="المكان"><input style={input} value={form.location||""} onChange={e=>setField("location",e.target.value)}/></Field><Field label="رابط الحجز / الفعالية"><input type="url" style={input} value={form.url||""} onChange={e=>setField("url",e.target.value)}/></Field></>}
       <label style={{display:"flex",gap:8,alignItems:"center",fontSize:12,fontWeight:750}}><input type="checkbox" checked={!!form.pinned} onChange={e=>setField("pinned",e.target.checked)}/> تثبيت العنصر في الرئيسية</label>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:5}}><Btn secondary onClick={()=>setEditor(null)} disabled={saving}>إلغاء</Btn><Btn type="submit" disabled={saving||!esc(form.title)}>{saving?"جارٍ الحفظ…":"حفظ"}</Btn></div>
     </form></div></div>}
