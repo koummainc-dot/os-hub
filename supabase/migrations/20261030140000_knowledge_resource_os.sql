@@ -121,7 +121,7 @@ create index if not exists knowledge_followups_due_idx on public.knowledge_follo
 create table if not exists public.knowledge_attachments (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
-  item_id uuid not null,
+  item_id text not null,
   storage_path text not null,
   file_name text not null,
   mime_type text,
@@ -136,7 +136,7 @@ create index if not exists knowledge_attachments_item_idx on public.knowledge_at
 create table if not exists public.knowledge_external_links (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
-  item_id uuid not null,
+  item_id text not null,
   target_system text not null check(target_system in ('projects','learning','content','habits','finance','home','relationships','travel','inventory','shopping')),
   target_id text not null check(length(trim(target_id)) > 0),
   relation_type text not null default 'related' check(relation_type in ('related','derived_from','supports','used_in','follow_up_to')),
@@ -151,7 +151,7 @@ create index if not exists knowledge_external_links_target_idx on public.knowled
 create table if not exists public.knowledge_reminders (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
-  item_id uuid not null,
+  item_id text not null,
   reminder_type text not null check(reminder_type in ('review','event','followup','custom')),
   title text not null,
   due_at timestamptz not null,
