@@ -4,8 +4,8 @@
 Arabic-first workspace-scoped knowledge capture and retrieval, integrated into OS Hub's shared authentication and system permission model.
 
 ## Current UI capabilities
-- Home dashboard and counts; inbox; resources/bookmarks; ideas; meetings; events; date-based calendar view; categories; source types; global search; settings.
-- Create/edit/archive/restore-by-filter/pin/review items; title, URL, summary, notes/quotes, next action, category, tags, priority, author/published/read/review dates, rating, idea lifecycle, meeting attendees/decisions/follow-ups, event location/date/time.
+- Home dashboard and counts; inbox; resources/bookmarks; ideas; standalone notes; meetings; events; date-based calendar view; categories; source types; global search; settings.
+- Create/edit/archive/restore/pin/review items; title, URL, summary, full note body, extracted notes/quotes, next action, category, tags, priority, author/published/read/review dates, rating, idea lifecycle, meeting attendees/decisions/follow-ups, event location/date/time. Due review items surface on the home page.
 - JSON backup export/import; demo seed; optimistic compare-and-set saves through the existing workspace API.
 - Related-system reference fields can store Projects/Learning/Content/Habit identifiers, but are not yet validated foreign-key relationships.
 
@@ -14,6 +14,8 @@ Arabic-first workspace-scoped knowledge capture and retrieval, integrated into O
 - `knowledge_items`: resources, ideas, meetings, events, notes and inbox entries with lifecycle, metadata, dates, rating, notes and next action.
 - `knowledge_tags` + `knowledge_item_tags`: deduplicated tags and many-to-many item tagging.
 - `knowledge_relations`: typed item-to-item relations, enforced to remain within a workspace.
+- `knowledge_external_links`: references to Projects/Learning/Content/Habit and other OS records.
+- `knowledge_reminders`: scheduled review/event/follow-up reminders with delivery status and snooze state.
 - `knowledge_followups`: independently trackable actions with due dates, assignee and lifecycle.
 - `knowledge_attachments`: Storage object metadata; actual uploads require a Storage bucket and policy.
 - `knowledge_activity`: append-only-style audit history of meaningful actions.
