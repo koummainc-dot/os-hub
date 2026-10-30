@@ -25,7 +25,7 @@ const OS_SYSTEMS=[
 {id:"habits",group:"life",scope:"personal",icon:"🌱",color:"#84CC16",name:"Habit OS",title:"العادات",status:"planned",phase:"المرحلة 2",sensitive:true,plan:"Habit_OS_v4_Unified_Master_Plan.md",
  desc:"مكتبة العادات والتسجيل السريع والسلاسل والأيام النظيفة والجورنال والكتب والتركيز الأسبوعي والإنجازات.",
  sections:osSec("dashboard:اليوم:◷|habits:العادات:🌿|logs:السجل اليومي:📒|relapses:التعافي:🛟|journal:الجورنال:✍️|books:الكتب والقراءة:📚|focus:التركيز الأسبوعي:🎯|achievements:الإنجازات:🏅|settings:الإعدادات والخصوصية:⚙️")},
-{id:"knowledge",group:"work",scope:"shared",icon:"🧠",color:"#0EA5E9",name:"Knowledge OS",title:"المعرفة والموارد",status:"planned",phase:"المرحلة 3",sensitive:false,plan:"Knowledge_OS_v4_Unified_Master_Plan.md",
+{id:"knowledge",group:"work",scope:"shared",icon:"🧠",color:"#0EA5E9",name:"Knowledge OS",title:"المعرفة والموارد",status:"live",phase:"جاهز",sensitive:false,plan:"Knowledge_OS_v4_Unified_Master_Plan.md",
  desc:"التقط ← وضّح ← نظّم ← استخدم: الروابط والأفكار والاجتماعات والفعاليات.",
  sections:osSec("hub:الرئيسية:⌂|inbox:Inbox:📥|bookmarks:الروابط والمصادر:🔖|ideas:الأفكار:💡|notes:الملاحظات:📝|meetings:الاجتماعات:👥|events:الفعاليات:🎟️|calendar:التقويم الموحّد:📅|categories:التصنيفات:🗂️|linktypes:أنواع الروابط:🏷️|search:البحث:🔍|settings:الإعدادات:⚙️")},
 {id:"learning",group:"work",scope:"personal",icon:"🎓",color:"#8B5CF6",name:"Learning OS",title:"التعلّم والتطوير",status:"planned",phase:"المرحلة 4",sensitive:false,plan:"Learning_OS_v4_Unified_Master_Plan.md",
