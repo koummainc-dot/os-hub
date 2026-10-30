@@ -29,6 +29,10 @@ assert.match(migration, /ws_access_level\(p_workspace_id, 'knowledge', 'main'\)/
 assert.match(migration, /pg_advisory_xact_lock/);
 assert.match(migration, /p_expected_updated_at/);
 assert.match(migration, /security invoker/i);
+assert.equal((migration.match(/^as \\$\\$/gm) || []).length, 3, "all SQL functions use valid dollar-quoted bodies");
+assert.equal((migration.match(/^\\$\\$;$/gm) || []).length, 3, "all SQL function bodies close correctly");
+assert.match(migration, /primary key\\(workspace_id,id\\)/i);
+assert.doesNotMatch(migration, /v_now\\);\\s*on conflict/i, "upsert clause must be part of the INSERT statement");
 assert.doesNotMatch(migration, /security definer/i);
 assert.match(migration, /on conflict\(workspace_id,id\) do update/i);
 assert.match(migration, /knowledge_activity\(workspace_id,item_id,actor_id,action,change_summary\)/);
