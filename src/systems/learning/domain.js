@@ -82,7 +82,7 @@ export function getLearningStats(data, options = {}) {
     streak++;
     cursor = shiftDate(cursor, -1);
   }
-  const qualifyingDates = [...totalsByDate.entries()].filter(([, minutes]) => minutes >= minimum).map(([d]) => d).sort();
+  const qualifyingDates = [...totalsByDate.entries()].filter(([d, minutes]) => d <= date && minutes >= minimum).map(([d]) => d).sort();
   let longestStreak = 0, run = 0, previous = null;
   for (const d of qualifyingDates) { run = previous && shiftDate(previous, 1) === d ? run + 1 : 1; longestStreak = Math.max(longestStreak, run); previous = d; }
   const dayState = todayMinutes >= dailyGoal ? "goal-reached" : todayMinutes >= minimum ? "minimum-met" : "not-met";
