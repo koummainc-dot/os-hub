@@ -3,12 +3,12 @@
 begin;
 
 create table if not exists public.knowledge_categories (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key default gen_random_uuid()::text,
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   name text not null,
   color text not null default '#0284C7',
   description text,
-  parent_id uuid,
+  parent_id text,
   sort_order integer not null default 0,
   is_archived boolean not null default false,
   created_by uuid references auth.users(id) on delete set null,
@@ -21,7 +21,7 @@ create table if not exists public.knowledge_categories (
 create index if not exists knowledge_categories_ws_order_idx on public.knowledge_categories(workspace_id,sort_order,name);
 
 create table if not exists public.knowledge_items (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key default gen_random_uuid()::text,
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   item_type text not null check(item_type in ('resource','idea','meeting','event','note','inbox')),
   title text not null check(length(trim(title)) > 0),
@@ -45,7 +45,7 @@ create table if not exists public.knowledge_items (
   is_pinned boolean not null default false,
   is_archived boolean not null default false,
   archived_at timestamptz,
-  category_id uuid,
+  category_id text,
   notes text,
   next_action text,
   decisions text,
@@ -75,7 +75,7 @@ create table if not exists public.knowledge_tags (
 );
 create table if not exists public.knowledge_item_tags (
   workspace_id uuid not null,
-  item_id uuid not null,
+  item_id text not null,
   tag_id uuid not null,
   created_at timestamptz not null default now(),
   primary key(workspace_id,item_id,tag_id),
@@ -87,8 +87,8 @@ create index if not exists knowledge_item_tags_tag_idx on public.knowledge_item_
 create table if not exists public.knowledge_relations (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
-  from_item_id uuid not null,
-  to_item_id uuid not null,
+  from_item_id text not null,
+  to_item_id text not null,
   relation_type text not null check(relation_type in ('related','derived_from','supports','contradicts','follow_up_to','duplicate_of','uses')),
   label text,
   created_by uuid references auth.users(id) on delete set null,
@@ -103,7 +103,7 @@ create index if not exists knowledge_relations_to_idx on public.knowledge_relati
 create table if not exists public.knowledge_followups (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
-  item_id uuid not null,
+  item_id text not null,
   title text not null check(length(trim(title)) > 0),
   details text,
   due_at timestamptz,
@@ -170,7 +170,7 @@ create index if not exists knowledge_reminders_due_idx on public.knowledge_remin
 create table if not exists public.knowledge_activity (
   id bigint generated always as identity primary key,
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
-  item_id uuid,
+  item_id text,
   actor_id uuid references auth.users(id) on delete set null,
   action text not null check(action in ('created','updated','archived','restored','pinned','unpinned','reviewed','related','exported','imported')),
   change_summary text,
