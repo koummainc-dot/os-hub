@@ -167,6 +167,7 @@ create table if not exists public.knowledge_reminders (
   foreign key(workspace_id,item_id) references public.knowledge_items(workspace_id,id) on delete cascade
 );
 create index if not exists knowledge_reminders_due_idx on public.knowledge_reminders(workspace_id,due_at) where status in ('pending','snoozed');
+create unique index if not exists knowledge_reminders_item_type_due_uq on public.knowledge_reminders(workspace_id,item_id,reminder_type,due_at);
 
 create table if not exists public.knowledge_activity (
   id bigint generated always as identity primary key,
@@ -372,6 +373,39 @@ begin
       end loop;
     end loop;
   end loop;
+
+  -- Keep due review/event reminders in sync with the snapshot; never reopen sent/done reminders.
+  delete from public.knowledge_reminders r
+  using public.knowledge_items i
+  where r.workspace_id=p_workspace_id and i.workspace_id=r.workspace_id and i.id=r.item_id
+    and r.reminder_type='review' and r.status in ('pending','snoozed')
+    and (i.item_type<>'resource' or i.review_at is null or i.is_archived
+         or r.due_at is distinct from (i.review_at::timestamp at time zone i.timezone));
+
+  insert into public.knowledge_reminders(workspace_id,item_id,reminder_type,title,due_at,status,delivery_channel,created_by,updated_at)
+  select i.workspace_id,i.id,'review','مراجعة: '||i.title,(i.review_at::timestamp at time zone i.timezone),'pending','in_app',i.created_by,v_now
+  from public.knowledge_items i
+  where i.workspace_id=p_workspace_id and i.item_type='resource' and i.review_at is not null and not i.is_archived
+  on conflict(workspace_id,item_id,reminder_type,due_at) do update
+    set title=excluded.title,updated_at=excluded.updated_at
+    where public.knowledge_reminders.status in ('pending','snoozed');
+
+  delete from public.knowledge_reminders r
+  using public.knowledge_items i
+  where r.workspace_id=p_workspace_id and i.workspace_id=r.workspace_id and i.id=r.item_id
+    and r.reminder_type='event' and r.status in ('pending','snoozed')
+    and (i.item_type<>'event' or i.item_date is null or i.is_archived
+         or r.due_at is distinct from ((i.item_date+coalesce(i.start_time,time '09:00')) at time zone i.timezone));
+
+  insert into public.knowledge_reminders(workspace_id,item_id,reminder_type,title,due_at,status,delivery_channel,created_by,updated_at)
+  select i.workspace_id,i.id,'event','موعد: '||i.title,
+    ((i.item_date+coalesce(i.start_time,time '09:00')) at time zone i.timezone),
+    'pending','in_app',i.created_by,v_now
+  from public.knowledge_items i
+  where i.workspace_id=p_workspace_id and i.item_type='event' and i.item_date is not null and not i.is_archived
+  on conflict(workspace_id,item_id,reminder_type,due_at) do update
+    set title=excluded.title,updated_at=excluded.updated_at
+    where public.knowledge_reminders.status in ('pending','snoozed');
 
   insert into public.knowledge_activity(workspace_id,item_id,actor_id,action,change_summary) values(p_workspace_id,null,auth.uid(),'updated','Knowledge workspace snapshot saved');
   insert into public.knowledge_workspace_state(workspace_id,updated_at,updated_by,preferences,link_types) values(p_workspace_id,v_now,auth.uid(),coalesce(p_snapshot->'preferences','{"defaultView":"hub","reviewReminderDays":7}'::jsonb),coalesce(p_snapshot->'linkTypes','[]'::jsonb))
