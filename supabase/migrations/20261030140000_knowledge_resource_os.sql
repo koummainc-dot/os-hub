@@ -206,7 +206,8 @@ create table if not exists public.knowledge_workspace_state (
   workspace_id uuid primary key references public.workspaces(id) on delete cascade,
   updated_at timestamptz not null default now(),
   updated_by uuid references auth.users(id) on delete set null,
-  preferences jsonb not null default '{"defaultView":"hub","reviewReminderDays":7}'::jsonb
+  preferences jsonb not null default '{"defaultView":"hub","reviewReminderDays":7}'::jsonb,
+  link_types jsonb not null default '[]'::jsonb
 );
 alter table public.knowledge_workspace_state enable row level security;
 drop policy if exists knowledge_workspace_state_select on public.knowledge_workspace_state;
@@ -234,7 +235,7 @@ begin
   select jsonb_build_object(
     'version',1,
     'categories',coalesce((select jsonb_agg(jsonb_build_object('id',c.id,'name',c.name,'color',c.color,'description',c.description,'parentId',c.parent_id,'sortOrder',c.sort_order,'isArchived',c.is_archived) order by c.sort_order,c.name) from public.knowledge_categories c where c.workspace_id=p_workspace_id),'[]'::jsonb),
-    'linkTypes',coalesce((select jsonb_agg(x.source_type order by x.source_type) from (select distinct source_type from public.knowledge_items where workspace_id=p_workspace_id and source_type is not null) x),'[]'::jsonb),
+    'linkTypes',coalesce((select link_types from public.knowledge_workspace_state where workspace_id=p_workspace_id),(select coalesce(jsonb_agg(x.source_type order by x.source_type),'[]'::jsonb) from (select distinct source_type from public.knowledge_items where workspace_id=p_workspace_id and source_type is not null) x)),
     'resources',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'resource',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='resource'),'[]'::jsonb),
     'ideas',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'idea',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='idea'),'[]'::jsonb),
     'notes',coalesce((select jsonb_agg(public.knowledge_item_to_json(i,'note',p_workspace_id)) from public.knowledge_items i where i.workspace_id=p_workspace_id and i.item_type='note'),'[]'::jsonb),
@@ -346,8 +347,8 @@ begin
   end loop;
 
   insert into public.knowledge_activity(workspace_id,item_id,actor_id,action,change_summary) values(p_workspace_id,null,auth.uid(),'updated','Knowledge workspace snapshot saved');
-  insert into public.knowledge_workspace_state(workspace_id,updated_at,updated_by,preferences) values(p_workspace_id,v_now,auth.uid(),coalesce(p_snapshot->'preferences','{"defaultView":"hub","reviewReminderDays":7}'::jsonb))
-  on conflict(workspace_id) do update set updated_at=excluded.updated_at,updated_by=excluded.updated_by,preferences=excluded.preferences;
+  insert into public.knowledge_workspace_state(workspace_id,updated_at,updated_by,preferences,link_types) values(p_workspace_id,v_now,auth.uid(),coalesce(p_snapshot->'preferences','{"defaultView":"hub","reviewReminderDays":7}'::jsonb),coalesce(p_snapshot->'linkTypes','[]'::jsonb))
+  on conflict(workspace_id) do update set updated_at=excluded.updated_at,updated_by=excluded.updated_by,preferences=excluded.preferences,link_types=excluded.link_types;
   return jsonb_build_object('ok',true,'conflict',false,'updatedAt',v_now);
 end;
 $;
