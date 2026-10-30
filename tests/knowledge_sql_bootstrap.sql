@@ -24,6 +24,7 @@ create table storage.objects (
   bucket_id text not null references storage.buckets(id),
   name text not null
 );
+alter table storage.objects enable row level security;
 create function storage.foldername(name text) returns text[]
 language sql immutable as $$
   select (string_to_array(name, '/'))[1:2]
