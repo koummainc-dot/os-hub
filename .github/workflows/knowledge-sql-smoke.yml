@@ -47,3 +47,5 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261030140000_knowledge_resource_os.sql
       - name: Verify RLS workspace isolation and attachment permissions
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/knowledge_resource_os_smoke.sql
+      - name: Run read-only migration preview against fixture
+        run: psql -v ON_ERROR_STOP=1 -f docs/sql/knowledge_migration_preview.sql
