@@ -28,7 +28,7 @@ const OS_SYSTEMS=[
 {id:"knowledge",group:"work",scope:"shared",icon:"🧠",color:"#0EA5E9",name:"Knowledge OS",title:"المعرفة والموارد",status:"live",phase:"جاهز",sensitive:false,plan:"Knowledge_OS_v4_Unified_Master_Plan.md",
  desc:"التقط ← وضّح ← نظّم ← استخدم: الروابط والأفكار والاجتماعات والفعاليات.",
  sections:osSec("hub:الرئيسية:⌂|inbox:Inbox:📥|bookmarks:الروابط والمصادر:🔖|ideas:الأفكار:💡|notes:الملاحظات:📝|meetings:الاجتماعات:👥|events:الفعاليات:🎟️|calendar:التقويم الموحّد:📅|categories:التصنيفات:🗂️|linktypes:أنواع الروابط:🏷️|search:البحث:🔍|settings:الإعدادات:⚙️")},
-{id:"learning",group:"work",scope:"personal",icon:"🎓",color:"#8B5CF6",name:"Learning OS",title:"التعلّم والتطوير",status:"planned",phase:"المرحلة 4",sensitive:false,plan:"Learning_OS_v4_Unified_Master_Plan.md",
+{id:"learning",group:"work",scope:"personal",icon:"🎓",color:"#8B5CF6",name:"Learning OS",title:"التعلّم والتطوير",status:"live",phase:"المرحلة 1 · الهيكل الأساسي",sensitive:false,plan:"Learning_OS_v4_Unified_Master_Plan.md",
  desc:"المجالات والدورات والدروس وجلسات الدراسة والمهارات والمفردات.",
  sections:osSec("dashboard:الرئيسية:⌂|areas:المجالات:🧭|courses:الدورات:📚|skills:المهارات:🛠️|placement:اختبارات المستوى:🧪|careergoals:الأهداف المهنية:🎯|vocab:المفردات والمراجعة:🔤|analytics:التاريخ والتحليلات:📊|settings:الإعدادات:⚙️")},
 {id:"finance",group:"money",scope:"personal",icon:"💰",color:"#10B981",name:"Finance OS",title:"المال",status:"live",phase:"المرحلة 1 · الأساس المالي",sensitive:true,plan:"Finance_OS_v4.2_Full_Specification_AR.md",
