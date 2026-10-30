@@ -191,13 +191,13 @@ begin
     execute format('create policy %I on public.%I for select to authenticated using (public.ws_access_level(workspace_id, ''knowledge'', ''main'') in (''view'',''edit''))',t || '_select',t);
     execute format('create policy %I on public.%I for insert to authenticated with check (public.ws_access_level(workspace_id, ''knowledge'', ''main'') = ''edit'')',t || '_insert',t);
     execute format('create policy %I on public.%I for update to authenticated using (public.ws_access_level(workspace_id, ''knowledge'', ''main'') = ''edit'') with check (public.ws_access_level(workspace_id, ''knowledge'', ''main'') = ''edit'')',t || '_update',t);
-    execute format('create policy %I on public.%I for delete to authenticated using (public.is_ws_owner(workspace_id))',t || '_delete',t);
+    execute format('create policy %I on public.%I for delete to authenticated using (public.ws_access_level(workspace_id, ''knowledge'', ''main'') = ''edit'')',t || '_delete',t);
   end loop;
 end $$;
 
 revoke all on public.knowledge_categories,public.knowledge_items,public.knowledge_tags,public.knowledge_item_tags,public.knowledge_relations,public.knowledge_followups,public.knowledge_attachments,public.knowledge_external_links,public.knowledge_reminders,public.knowledge_activity from anon;
 grant select,insert,update,delete on public.knowledge_categories,public.knowledge_items,public.knowledge_tags,public.knowledge_item_tags,public.knowledge_relations,public.knowledge_followups,public.knowledge_attachments,public.knowledge_external_links,public.knowledge_reminders to authenticated;
-grant select on public.knowledge_activity to authenticated;
+grant select,insert on public.knowledge_activity to authenticated;
 grant usage,select on sequence public.knowledge_activity_id_seq to authenticated;
 
 
@@ -278,6 +278,7 @@ begin
     raise exception 'Knowledge workspace edit access denied' using errcode='42501';
   end if;
   if jsonb_typeof(p_snapshot) <> 'object' then raise exception 'Invalid snapshot'; end if;
+  perform pg_advisory_xact_lock(hashtext(p_workspace_id::text));
   select updated_at into v_current from public.knowledge_workspace_state where workspace_id=p_workspace_id for update;
   if v_current is distinct from p_expected_updated_at then
     if not (v_current is null and p_expected_updated_at is null) then
