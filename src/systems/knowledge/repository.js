@@ -10,7 +10,8 @@ function missingObject(error) {
 function hasKnowledgeContent(snapshot) {
   if (!snapshot) return false;
   return ["resources", "ideas", "notes", "meetings", "events", "inbox"]
-    .some((key) => Array.isArray(snapshot[key]) && snapshot[key].length > 0);
+    .some((key) => Array.isArray(snapshot[key]) && snapshot[key].length > 0)
+    || (Array.isArray(snapshot.categories) && snapshot.categories.length > 0);
 }
 
 export async function loadNormalizedKnowledge(workspaceId) {
