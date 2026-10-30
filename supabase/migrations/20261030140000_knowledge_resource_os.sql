@@ -133,6 +133,40 @@ create table if not exists public.knowledge_attachments (
 );
 create index if not exists knowledge_attachments_item_idx on public.knowledge_attachments(workspace_id,item_id);
 
+create table if not exists public.knowledge_external_links (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  item_id uuid not null,
+  target_system text not null check(target_system in ('projects','learning','content','habits','finance','home','relationships','travel','inventory','shopping')),
+  target_id text not null check(length(trim(target_id)) > 0),
+  relation_type text not null default 'related' check(relation_type in ('related','derived_from','supports','used_in','follow_up_to')),
+  label text,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  foreign key(workspace_id,item_id) references public.knowledge_items(workspace_id,id) on delete cascade,
+  unique(workspace_id,item_id,target_system,target_id,relation_type)
+);
+create index if not exists knowledge_external_links_target_idx on public.knowledge_external_links(workspace_id,target_system,target_id);
+
+create table if not exists public.knowledge_reminders (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  item_id uuid not null,
+  reminder_type text not null check(reminder_type in ('review','event','followup','custom')),
+  title text not null,
+  due_at timestamptz not null,
+  status text not null default 'pending' check(status in ('pending','snoozed','sent','done','dismissed','failed')),
+  snoozed_until timestamptz,
+  delivery_channel text not null default 'in_app' check(delivery_channel in ('in_app','email','push')),
+  delivered_at timestamptz,
+  last_error text,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  foreign key(workspace_id,item_id) references public.knowledge_items(workspace_id,id) on delete cascade
+);
+create index if not exists knowledge_reminders_due_idx on public.knowledge_reminders(workspace_id,due_at) where status in ('pending','snoozed');
+
 create table if not exists public.knowledge_activity (
   id bigint generated always as identity primary key,
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
@@ -148,7 +182,7 @@ create index if not exists knowledge_activity_ws_created_idx on public.knowledge
 do $$
 declare t text;
 begin
-  foreach t in array array['knowledge_categories','knowledge_items','knowledge_tags','knowledge_item_tags','knowledge_relations','knowledge_followups','knowledge_attachments','knowledge_activity'] loop
+  foreach t in array array['knowledge_categories','knowledge_items','knowledge_tags','knowledge_item_tags','knowledge_relations','knowledge_followups','knowledge_attachments','knowledge_external_links','knowledge_reminders','knowledge_activity'] loop
     execute format('alter table public.%I enable row level security',t);
     execute format('drop policy if exists %I on public.%I',t || '_select',t);
     execute format('drop policy if exists %I on public.%I',t || '_insert',t);
@@ -161,8 +195,8 @@ begin
   end loop;
 end $$;
 
-revoke all on public.knowledge_categories,public.knowledge_items,public.knowledge_tags,public.knowledge_item_tags,public.knowledge_relations,public.knowledge_followups,public.knowledge_attachments,public.knowledge_activity from anon;
-grant select,insert,update,delete on public.knowledge_categories,public.knowledge_items,public.knowledge_tags,public.knowledge_item_tags,public.knowledge_relations,public.knowledge_followups,public.knowledge_attachments to authenticated;
+revoke all on public.knowledge_categories,public.knowledge_items,public.knowledge_tags,public.knowledge_item_tags,public.knowledge_relations,public.knowledge_followups,public.knowledge_attachments,public.knowledge_external_links,public.knowledge_reminders,public.knowledge_activity from anon;
+grant select,insert,update,delete on public.knowledge_categories,public.knowledge_items,public.knowledge_tags,public.knowledge_item_tags,public.knowledge_relations,public.knowledge_followups,public.knowledge_attachments,public.knowledge_external_links,public.knowledge_reminders to authenticated;
 grant select on public.knowledge_activity to authenticated;
 grant usage,select on sequence public.knowledge_activity_id_seq to authenticated;
 
