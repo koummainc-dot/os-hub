@@ -15,39 +15,51 @@ function hasKnowledgeContent(snapshot) {
 }
 
 export async function loadNormalizedKnowledge(workspaceId) {
-  if (!workspaceId) return { available: false, reason: "workspace-id-missing" };
-  const { data, error } = await supabase.rpc("knowledge_load_snapshot", {
-    p_workspace_id: workspaceId,
-  });
-  if (error) {
-    if (missingObject(error)) return { available: false, reason: "migration-not-applied" };
+  if (!workspaceId || !supabase || typeof supabase.rpc !== "function") {
+    return { available: false, reason: "supabase-client-unavailable" };
+  }
+  try {
+    const { data, error } = await supabase.rpc("knowledge_load_snapshot", {
+      p_workspace_id: workspaceId,
+    });
+    if (error) {
+      if (missingObject(error)) return { available: false, reason: "migration-not-applied" };
+      return { available: true, error };
+    }
+    return {
+      available: true,
+      data: data?.data || null,
+      updatedAt: data?.updatedAt || null,
+      hasContent: hasKnowledgeContent(data?.data),
+    };
+  } catch (error) {
     return { available: true, error };
   }
-  return {
-    available: true,
-    data: data?.data || null,
-    updatedAt: data?.updatedAt || null,
-    hasContent: hasKnowledgeContent(data?.data),
-  };
 }
 
 export async function saveNormalizedKnowledge(workspaceId, snapshot, expectedUpdatedAt = null) {
-  if (!workspaceId) return { available: false, reason: "workspace-id-missing" };
-  const { data, error } = await supabase.rpc("knowledge_save_snapshot", {
-    p_workspace_id: workspaceId,
-    p_snapshot: snapshot,
-    p_expected_updated_at: expectedUpdatedAt,
-  });
-  if (error) {
-    if (missingObject(error)) return { available: false, reason: "migration-not-applied" };
+  if (!workspaceId || !supabase || typeof supabase.rpc !== "function") {
+    return { available: false, reason: "supabase-client-unavailable" };
+  }
+  try {
+    const { data, error } = await supabase.rpc("knowledge_save_snapshot", {
+      p_workspace_id: workspaceId,
+      p_snapshot: snapshot,
+      p_expected_updated_at: expectedUpdatedAt,
+    });
+    if (error) {
+      if (missingObject(error)) return { available: false, reason: "migration-not-applied" };
+      return { available: true, ok: false, error };
+    }
+    return {
+      available: true,
+      ok: !!data?.ok,
+      conflict: !!data?.conflict,
+      updatedAt: data?.updatedAt || null,
+    };
+  } catch (error) {
     return { available: true, ok: false, error };
   }
-  return {
-    available: true,
-    ok: !!data?.ok,
-    conflict: !!data?.conflict,
-    updatedAt: data?.updatedAt || null,
-  };
 }
 
 export { hasKnowledgeContent };
