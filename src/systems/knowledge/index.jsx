@@ -227,6 +227,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
     const key=kind==="resource"?"resources":kind==="idea"?"ideas":kind==="note"?"notes":kind==="meeting"?"meetings":kind==="event"?"events":"inbox";
     const next={...data,[key]:editor.id?data[key].map(x=>x.id===editor.id?row:x):[row,...data[key]]};
     if(await persist(next)) {
+      setEditor(current=>current?{...current,id:row.id}:current);
       if(attachmentFile) {
         if(isDemo || !api?.workspaceId || storageMode!=="normalized") {
           setError("رفع المرفقات يتطلب اتصالًا بالتخزين المنظم؛ احفظ الملف محليًا حتى تكتمل تهيئة قاعدة البيانات.");
