@@ -221,6 +221,26 @@ create policy knowledge_workspace_state_delete on public.knowledge_workspace_sta
 revoke all on public.knowledge_workspace_state from anon;
 grant select,insert,update,delete on public.knowledge_workspace_state to authenticated;
 
+create or replace function public.knowledge_item_to_json(p_item public.knowledge_items, p_kind text, p_workspace_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $
+ select jsonb_strip_nulls(jsonb_build_object(
+   'id',p_item.id,'title',p_item.title,'summary',p_item.summary,'body',p_item.body,'url',p_item.canonical_url,
+   'sourceType',p_item.source_type,'author',p_item.author,'publishedAt',p_item.published_at,'readAt',p_item.read_at,'reviewAt',p_item.review_at,
+   'date',p_item.item_date,'startTime',p_item.start_time,'endTime',p_item.end_time,'timezone',p_item.timezone,'location',p_item.location,
+   'status',case when p_item.is_archived then 'archived' else p_item.status end,'stage',p_item.idea_stage,'priority',p_item.priority,
+   'rating',p_item.rating,'pinned',p_item.is_pinned,'archivedAt',p_item.archived_at,'categoryId',p_item.category_id,'notes',p_item.notes,
+   'nextAction',p_item.next_action,'decisions',p_item.decisions,'attendees',p_item.attendees,'tags',
+   coalesce((select jsonb_agg(t.name order by t.name) from public.knowledge_item_tags it join public.knowledge_tags t on t.id=it.tag_id and t.workspace_id=it.workspace_id where it.workspace_id=p_workspace_id and it.item_id=p_item.id),'[]'::jsonb),
+   'followups',coalesce((select jsonb_agg(f.title order by f.sort_order) from public.knowledge_followups f where f.workspace_id=p_workspace_id and f.item_id=p_item.id and f.status<>'cancelled'),'[]'::jsonb),
+   'relatedItemIds',coalesce((select jsonb_agg(r.to_item_id) from public.knowledge_relations r where r.workspace_id=p_workspace_id and r.from_item_id=p_item.id and r.relation_type='related'),'[]'::jsonb),
+   'relatedSystem',p_item.metadata->>'relatedSystem','relatedId',p_item.metadata->>'relatedId','createdAt',p_item.created_at,'updatedAt',p_item.updated_at
+ ))
+$;
+
 create or replace function public.knowledge_load_snapshot(p_workspace_id uuid)
 returns jsonb
 language plpgsql
@@ -246,26 +266,6 @@ begin
   ) into v_result;
   return jsonb_build_object('data',v_result,'updatedAt',(select updated_at from public.knowledge_workspace_state where workspace_id=p_workspace_id));
 end;
-$;
-
-create or replace function public.knowledge_item_to_json(p_item public.knowledge_items, p_kind text, p_workspace_id uuid)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $
- select jsonb_strip_nulls(jsonb_build_object(
-   'id',p_item.id,'title',p_item.title,'summary',p_item.summary,'body',p_item.body,'url',p_item.canonical_url,
-   'sourceType',p_item.source_type,'author',p_item.author,'publishedAt',p_item.published_at,'readAt',p_item.read_at,'reviewAt',p_item.review_at,
-   'date',p_item.item_date,'startTime',p_item.start_time,'endTime',p_item.end_time,'timezone',p_item.timezone,'location',p_item.location,
-   'status',case when p_item.is_archived then 'archived' else p_item.status end,'stage',p_item.idea_stage,'priority',p_item.priority,
-   'rating',p_item.rating,'pinned',p_item.is_pinned,'archivedAt',p_item.archived_at,'categoryId',p_item.category_id,'notes',p_item.notes,
-   'nextAction',p_item.next_action,'decisions',p_item.decisions,'attendees',p_item.attendees,'tags',
-   coalesce((select jsonb_agg(t.name order by t.name) from public.knowledge_item_tags it join public.knowledge_tags t on t.id=it.tag_id and t.workspace_id=it.workspace_id where it.workspace_id=p_workspace_id and it.item_id=p_item.id),'[]'::jsonb),
-   'followups',coalesce((select jsonb_agg(f.title order by f.sort_order) from public.knowledge_followups f where f.workspace_id=p_workspace_id and f.item_id=p_item.id and f.status<>'cancelled'),'[]'::jsonb),
-   'relatedItemIds',coalesce((select jsonb_agg(r.to_item_id) from public.knowledge_relations r where r.workspace_id=p_workspace_id and r.from_item_id=p_item.id and r.relation_type='related'),'[]'::jsonb),
-   'relatedSystem',p_item.metadata->>'relatedSystem','relatedId',p_item.metadata->>'relatedId','createdAt',p_item.created_at,'updatedAt',p_item.updated_at
- ))
 $;
 
 create or replace function public.knowledge_save_snapshot(p_workspace_id uuid,p_snapshot jsonb,p_expected_updated_at timestamptz default null)
