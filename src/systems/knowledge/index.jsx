@@ -52,8 +52,8 @@ const normalize = raw => {
   };
 };
 const esc = s => String(s||"").trim();
-const validISODate = value => !value || (/^\\d{4}-\\d{2}-\\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && new Date(value+"T00:00:00Z").toISOString().slice(0,10)===value);
-const validTime = value => !value || /^([01]\\d|2[0-3]):[0-5]\\d$/.test(value);
+const validISODate = value => !value || (/^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && new Date(value+"T00:00:00Z").toISOString().slice(0,10)===value);
+const validTime = value => !value || /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 const card = {background:C.white,border:"1px solid "+C.line,borderRadius:16,padding:16};
 const input = {width:"100%",boxSizing:"border-box",border:"1px solid "+C.line,borderRadius:10,padding:"10px 12px",font:"inherit",fontSize:13,color:C.ink,background:C.white};
 function Btn({children,onClick,secondary=false,disabled=false,type="button"}) {
