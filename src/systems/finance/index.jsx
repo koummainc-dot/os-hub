@@ -8,6 +8,7 @@ import FinanceProjects from "./Projects.jsx";
 import FinanceAssets from "./Assets.jsx";
 import FinanceNetWorthHistory from "./NetWorthHistory.jsx";
 import FinanceFXRates from "./FXRates.jsx";
+import FinanceFamilyCash from "./FamilyCash.jsx";
 import TransactionImport from "./TransactionImport.jsx";
 
 const GREEN = "#059669";
@@ -475,10 +476,11 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     finally { setSaving(false); }
   }
 
-  const pageTitle = ({ dashboard: "لوحة القيادة", inbox: "الوارد", transactions: "الحركات المالية", accounts: "الحسابات", categories: "التصنيفات", budgets: "الميزانيات", reconciliation: "التسوية البنكية", assets: "الأصول والاستثمارات", debts: "الديون والأقساط", recurring: "المتكرر والاشتراكات", projects: "المشاريع المالية", networth: "صافي الثروة", fx: "أسعار الصرف", reports: "التقارير", settings: "الإعدادات والأمان" })[section] || "الماليات";
+  const pageTitle = ({ dashboard: "لوحة القيادة", inbox: "الوارد", transactions: "الحركات المالية", accounts: "الحسابات", categories: "التصنيفات", budgets: "الميزانيات", reconciliation: "التسوية البنكية", assets: "الأصول والاستثمارات", debts: "الديون والأقساط", recurring: "المتكرر والاشتراكات", projects: "المشاريع المالية", networth: "صافي الثروة", fx: "أسعار الصرف", reports: "التقارير", settings: "الإعدادات والأمان", "family-cash": "عهد ومصروفات الأفراد" })[section] || "الماليات";
   const navGroups = [
     { id: "overview", label: "الرئيسية", items: [["dashboard", "لوحة القيادة", "⌂"], ["inbox", "الوارد (الدخل)", "📥"], ["transactions", "الحركات المالية", "🧾"], ["accounts", "الحسابات", "🏦"]] },
     { id: "planning", label: "التخطيط والميزانية", items: [["budgets", "الميزانيات", "📊"], ["goals", "الأهداف المالية", "🎯"], ["recurring", "المتكرر والاشتراكات", "🔁"], ["projects", "مشاريع مرتبطة بالمشاريع الأساسية", "📁"]] },
+    { id: "family", label: "الأسرة", items: [["family-cash", "عهد ومصروفات الأفراد", "👪"]] },
     { id: "wealth", label: "الثروة والالتزامات", items: [["assets", "الأصول", "📈"], ["debts", "الديون والأقساط", "💳"], ["networth", "صافي الثروة", "💎"], ["reconciliation", "التسوية البنكية", "☑️"]] },
     { id: "analysis", label: "التحليل والإعدادات", items: [["reports", "التقارير والتحليلات", "📑"], ["categories", "التصنيفات", "🗂️"], ["fx", "العملات وأسعار الصرف", "💱"], ["settings", "الإعدادات والأمان", "🔐"]] }
   ];
@@ -644,8 +646,9 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       {section === "assets" && <FinanceAssets ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
       {section === "fx" && <FinanceFXRates ws={ws} access={access} isDemo={isDemo} baseCurrency={baseCurrency} />}
       {section === "reports" && <FinanceReports ws={ws} isDemo={isDemo} baseCurrency={baseCurrency} />}
+      {section === "family-cash" && <FinanceFamilyCash ws={ws} access={access} isDemo={isDemo} />}
 
-      {!["dashboard", "transactions", "accounts", "categories", "budgets", "reconciliation", "settings", "networth", "debts", "goals", "recurring", "reports", "projects", "assets", "fx"].includes(section) && <Card><div style={{ fontSize: 32, marginBottom: 8 }}>{nav.find(x => x[0] === section)?.[2] || "💰"}</div><h3 style={{ margin: "0 0 8px" }}>{pageTitle}</h3><p style={{ color: MUTED, fontSize: 13, lineHeight: 1.9 }}>هذا القسم موجود ضمن خريطة Finance OS v4.2، وسيُفعّل على مراحل مع الالتزام بنفس دفتر الحركات ومصدر الحقيقة المحاسبي. لم يتم تفعيل عمليات الكتابة لهذا القسم بعد حتى لا تُسجّل بيانات غير مكتملة.</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button secondary onClick={() => go("dashboard")}>العودة للوحة القيادة</Button>{section === "fx" && <Button onClick={() => go("settings")}>إعدادات العملة</Button>}</div></Card>}
+      {!["dashboard", "transactions", "accounts", "categories", "budgets", "reconciliation", "settings", "networth", "debts", "goals", "recurring", "reports", "projects", "assets", "fx", "family-cash"].includes(section) && <Card><div style={{ fontSize: 32, marginBottom: 8 }}>{nav.find(x => x[0] === section)?.[2] || "💰"}</div><h3 style={{ margin: "0 0 8px" }}>{pageTitle}</h3><p style={{ color: MUTED, fontSize: 13, lineHeight: 1.9 }}>هذا القسم موجود ضمن خريطة Finance OS v4.2، وسيُفعّل على مراحل مع الالتزام بنفس دفتر الحركات ومصدر الحقيقة المحاسبي. لم يتم تفعيل عمليات الكتابة لهذا القسم بعد حتى لا تُسجّل بيانات غير مكتملة.</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button secondary onClick={() => go("dashboard")}>العودة للوحة القيادة</Button>{section === "fx" && <Button onClick={() => go("settings")}>إعدادات العملة</Button>}</div></Card>}
     </>}
 
     {txAction && <div role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setTxAction(null); }} style={{ position: "fixed", inset: 0, zIndex: 1001, background: "#14251DB8", display: "grid", placeItems: "center", padding: 20, overflowY: "auto" }}><div className="fin-modal" role="dialog" aria-modal="true" aria-label="تصحيح حركة مالية" style={{ background: "#fff", width: "min(520px,100%)", borderRadius: 18, padding: 22, boxSizing: "border-box" }}><h2 style={{ margin: "0 0 8px", fontSize: 19 }}>{txAction.kind === "reverse" ? "عكس حركة مالية" : "إلغاء حركة مقترحة"}</h2><p style={{ color: MUTED, fontSize: 12, lineHeight: 1.8 }}>الحركة: <b>{txAction.transaction.name}</b> · {money(txAction.transaction.amount,txAction.transaction.currency)}. {txAction.kind === "reverse" ? "سيُنشأ قيد عكسي مرتبط بالأصل؛ لن تُحذف الحركة الأصلية." : "سيتم إلغاء المقترح قبل نشره في الدفتر."}</p><form onSubmit={confirmTransactionAction} style={{ display: "grid", gap: 12 }}><Field label="سبب التصحيح (مطلوب)"><textarea required minLength={3} rows={3} style={{ ...inputStyle, resize: "vertical" }} value={txActionReason} onChange={e => setTxActionReason(e.target.value)} placeholder="اشرح سبب العكس أو الإلغاء…" /></Field><div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><Button secondary onClick={() => setTxAction(null)}>إلغاء</Button><Button type="submit" disabled={saving || txActionReason.trim().length < 3}>{saving ? "جارٍ التنفيذ…" : txAction.kind === "reverse" ? "تأكيد العكس" : "تأكيد الإلغاء"}</Button></div></form></div></div>}
