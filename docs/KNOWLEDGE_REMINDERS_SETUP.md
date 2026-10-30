@@ -16,7 +16,7 @@ Configure these as Edge Function secrets, never in browser-visible environment v
 ## Schedule after database rollout
 Do not schedule this function until the Knowledge migration has been tested and Issue #85 migration-history reconciliation is complete.
 
-Deploy the function named `knowledge-reminders`, then configure Supabase Cron (or an external scheduler) to send an HTTP POST to the function URL every 5 minutes with header `x-knowledge-cron-secret: <KNOWLEDGE_REMINDER_CRON_SECRET>`. Do not expose the secret in a client app. A successful response reports `scanned`, `delivered`, `skipped`, and `failed` counts.
+Deploy the function named `knowledge-reminders`, then configure Supabase Cron (or an external scheduler) to send an HTTP POST to the function URL every 5 minutes with headers `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>` and `x-knowledge-cron-secret: <KNOWLEDGE_REMINDER_CRON_SECRET>`. Store both values only in the scheduler's secret store; never put either in browser code or a public repository. A successful response reports `scanned`, `delivered`, `skipped`, and `failed` counts.
 
 ## Safety and operational notes
 - The bucket is private; signed attachment URLs expire after 10 minutes.
