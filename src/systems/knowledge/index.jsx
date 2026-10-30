@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { loadNormalizedKnowledge, saveNormalizedKnowledge, hasKnowledgeContent } from "./repository.js";
 
 const C = { ink:"#172033", muted:"#64748B", line:"#E2E8F0", bg:"#F8FAFC", accent:"#0284C7", soft:"#E0F2FE", green:"#047857", amber:"#B45309", red:"#B91C1C", white:"#FFFFFF" };
 const SECTIONS = [
@@ -62,6 +63,7 @@ function Tag({children}) { return <span style={{fontSize:11,padding:"4px 8px",bo
 export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,ws}) {
   const [data,setData]=useState(emptyData);
   const [updatedAt,setUpdatedAt]=useState(null);
+  const [storageMode,setStorageMode]=useState("legacy");
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
@@ -77,13 +79,45 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   const load=useCallback(async()=>{
     setLoading(true);setError("");
     try {
+      if(!isDemo && api?.workspaceId) {
+        const normalized=await loadNormalizedKnowledge(api.workspaceId);
+        if(normalized.available) {
+          if(normalized.error) throw normalized.error;
+          if(normalized.hasContent || normalized.updatedAt) {
+            setStorageMode("normalized");
+            setData(normalize(normalized.data));
+            setUpdatedAt(normalized.updatedAt);
+            return;
+          }
+          // First-run/backfill path: never replace non-empty normalized data with legacy JSON.
+          const legacy=await api.load();
+          if(legacy?.error && !legacy?.data) throw legacy.error;
+          const legacyData=normalize(legacy?.data || null);
+          setStorageMode("normalized");
+          setData(legacyData);
+          setUpdatedAt(normalized.updatedAt || null);
+          if(hasKnowledgeContent(legacyData) && (access?.level==="edit" || access?.manage || access?.owner)) {
+            const migrated=await saveNormalizedKnowledge(api.workspaceId,legacyData,normalized.updatedAt || null);
+            if(migrated.available && migrated.ok) {
+              setUpdatedAt(migrated.updatedAt);
+              setNotice("تم نقل بيانات المعرفة الحالية إلى التخزين المنظم.");
+            } else if(migrated.available && migrated.conflict) {
+              setNotice("توجد تغييرات أحدث على الخادم؛ أعد التحميل قبل التعديل.");
+            } else if(migrated.available && migrated.error) {
+              setNotice("تم تحميل البيانات القديمة، لكن النقل إلى التخزين المنظم لم يكتمل.");
+            }
+          }
+          return;
+        }
+      }
+      setStorageMode("legacy");
       const result=await api.load();
       if(result?.error && !result?.data) throw result.error;
       setData(normalize(result?.data || (isDemo?demoSeed():null)));
       setUpdatedAt(result?.updatedAt||null);
     } catch(e) { setError(e?.message||"تعذر تحميل بيانات المعرفة.");setData(normalize(isDemo?demoSeed():null)); }
     finally { setLoading(false); }
-  },[api,isDemo]);
+  },[api,isDemo,access?.level,access?.manage,access?.owner]);
   useEffect(()=>{load();},[load]);
   const allItems=useMemo(()=>[
     ...data.resources.map(x=>({...x,kind:"resource"})),
@@ -114,10 +148,16 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   const persist=async next=>{
     setSaving(true);setError("");setNotice("");
     try {
-      const result=await api.save(next,updatedAt||undefined);
+      const result=storageMode==="normalized" && !isDemo
+        ? await saveNormalizedKnowledge(api.workspaceId,next,updatedAt||null)
+        : await api.save(next,updatedAt||undefined);
+      if(result?.available===false && storageMode==="normalized") {
+        setError("تعذر الوصول إلى تخزين المعرفة المنظم. لم يتم تحويل الحفظ إلى التخزين القديم تلقائيًا حتى لا تنقسم البيانات بين مصدرين.");
+        return false;
+      }
       if(result?.ok===false) {
         if(result.conflict) {setError("توجد نسخة أحدث من البيانات على الخادم. أعد التحميل قبل الحفظ لتجنب الكتابة فوق التعديلات.");}
-        else setError("تعذر حفظ التغييرات على الخادم. احتفظ بنسخة من تعديلاتك وأعد المحاولة.");
+        else setError(result?.error?.message||"تعذر حفظ التغييرات على الخادم. احتفظ بنسخة من تعديلاتك وأعد المحاولة.");
         return false;
       }
       setData(next);setUpdatedAt(result?.updatedAt||updatedAt);setNotice("تم الحفظ.");return true;
