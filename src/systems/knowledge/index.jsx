@@ -38,17 +38,21 @@ export const demoSeed = () => {
 const normalize = raw => {
   const d = raw && typeof raw==="object" ? raw : {};
   const base=emptyData();
+  const rows=key=>Array.isArray(d[key])?d[key].filter(x=>x&&typeof x==="object"&&!Array.isArray(x)).map(x=>({...x,id:esc(x.id)||uid()})):[];
+  const categories=Array.isArray(d.categories)
+    ? d.categories.filter(x=>x&&typeof x==="object"&&!Array.isArray(x)&&esc(x.name)).map(x=>({...x,id:esc(x.id)||uid(),name:esc(x.name)}))
+    : base.categories;
   return {
     ...base,...d,
-    resources:Array.isArray(d.resources)?d.resources:[],
-    ideas:Array.isArray(d.ideas)?d.ideas:[],
-    notes:Array.isArray(d.notes)?d.notes:[],
-    meetings:Array.isArray(d.meetings)?d.meetings:[],
-    events:Array.isArray(d.events)?d.events:[],
-    inbox:Array.isArray(d.inbox)?d.inbox:[],
-    categories:Array.isArray(d.categories)?d.categories:base.categories,
-    linkTypes:Array.isArray(d.linkTypes)?d.linkTypes:base.linkTypes,
-    preferences:{...base.preferences,...(d.preferences||{})}
+    resources:rows("resources"),
+    ideas:rows("ideas"),
+    notes:rows("notes"),
+    meetings:rows("meetings"),
+    events:rows("events"),
+    inbox:rows("inbox"),
+    categories,
+    linkTypes:Array.isArray(d.linkTypes)?d.linkTypes.filter(x=>typeof x==="string"&&esc(x)):base.linkTypes,
+    preferences:{...base.preferences,...(d.preferences&&typeof d.preferences==="object"?d.preferences:{})}
   };
 };
 const esc = s => String(s||"").trim();
