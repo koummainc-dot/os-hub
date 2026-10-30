@@ -2,11 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 const C = { ink:"#172033", muted:"#64748B", line:"#E2E8F0", bg:"#F8FAFC", accent:"#0284C7", soft:"#E0F2FE", green:"#047857", amber:"#B45309", red:"#B91C1C", white:"#FFFFFF" };
 const SECTIONS = [
-  ["hub","الرئيسية","⌂"],["inbox","Inbox","📥"],["bookmarks","الروابط والمصادر","🔖"],["ideas","الأفكار","💡"],
+  ["hub","الرئيسية","⌂"],["inbox","Inbox","📥"],["bookmarks","الروابط والمصادر","🔖"],["ideas","الأفكار","💡"],["notes","الملاحظات","📝"],
   ["meetings","الاجتماعات","👥"],["events","الفعاليات","🎟️"],["calendar","التقويم الموحّد","📅"],
   ["categories","التصنيفات","🗂️"],["linktypes","أنواع الروابط","🏷️"],["search","البحث","🔍"],["settings","الإعدادات","⚙️"]
 ];
-const KINDS = { resource:"مصدر", idea:"فكرة", meeting:"اجتماع", event:"فعالية" };
+const KINDS = { resource:"مصدر", idea:"فكرة", note:"ملاحظة", meeting:"اجتماع", event:"فعالية", inbox:"وارد" };
 const STATUSES = { inbox:"الوارد", unread:"لم يُراجع", reviewing:"قيد المراجعة", processed:"تمت المعالجة", active:"نشط", archived:"مؤرشف", done:"مكتمل" };
 const SOURCE_TYPES = ["مقال","كتاب","فيديو","بودكاست","دورة","بحث","موقع","أداة","ملف","ورقة علمية","نشرة بريدية","أخرى"];
 const PRIORITIES = {low:"منخفضة",normal:"عادية",high:"مرتفعة",urgent:"عاجلة"};
@@ -16,7 +16,7 @@ const isoNow = () => new Date().toISOString();
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone:"Africa/Cairo" });
 const emptyData = () => ({
   version:1,
-  resources:[], ideas:[], meetings:[], events:[], inbox:[],
+  resources:[], ideas:[], notes:[], meetings:[], events:[], inbox:[],
   categories:[{id:"cat-work",name:"العمل",color:"#0284C7"},{id:"cat-learning",name:"التعلّم",color:"#7C3AED"},{id:"cat-personal",name:"شخصي",color:"#059669"}],
   linkTypes:[...SOURCE_TYPES],
   preferences:{defaultView:"hub",reviewReminderDays:7}
@@ -28,6 +28,7 @@ export const demoSeed = () => {
     {id:"demo-r2",title:"أداة لإدارة المراجع",url:"https://example.com/research-tool",summary:"مكان لتجميع أدوات البحث والمراجع.",sourceType:"أداة",status:"processed",categoryId:"cat-work",tags:["أدوات"],priority:"normal",createdAt:now,updatedAt:now,pinned:false}
   ];
   d.ideas=[{id:"demo-i1",title:"إنشاء خريطة للمفاهيم المتكررة",summary:"ربط الأفكار المتشابهة بالمشاريع والمحتوى.",status:"active",stage:"exploring",priority:"high",categoryId:"cat-work",tags:["نظام المعرفة"],createdAt:now,updatedAt:now}];
+  d.notes=[{id:"demo-n1",title:"ملاحظة: مبادئ تنظيم المعرفة",summary:"اجمع الفكرة الأساسية ثم اربطها بمصدر أو مشروع عند الحاجة.",body:"1. احفظ المصدر مع سياقه.\\n2. استخرج الفكرة بلغتك.\\n3. اربطها بما تعمل عليه.",status:"active",categoryId:"cat-learning",tags:["ملاحظات","منهجية"],createdAt:now,updatedAt:now}];
   d.inbox=[{id:"demo-in1",title:"مثال: رابط يحتاج إلى مراجعة",url:"https://example.com/review",summary:"عنصر تجريبي في صندوق الوارد.",sourceType:"مقال",status:"inbox",createdAt:now,updatedAt:now}];
   d.meetings=[{id:"demo-m1",title:"اجتماع تخطيط أسبوعي",date:today(),summary:"نقاط النقاش والقرارات والمتابعات.",status:"active",tags:["تخطيط"],createdAt:now,updatedAt:now}];
   d.events=[{id:"demo-e1",title:"موعد مراجعة المعرفة",date:today(),summary:"مراجعة العناصر المحفوظة وتحويل المهم منها إلى إجراءات.",status:"active",createdAt:now,updatedAt:now}];
@@ -86,6 +87,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   const allItems=useMemo(()=>[
     ...data.resources.map(x=>({...x,kind:"resource"})),
     ...data.ideas.map(x=>({...x,kind:"idea"})),
+    ...data.notes.map(x=>({...x,kind:"note"})),
     ...data.meetings.map(x=>({...x,kind:"meeting"})),
     ...data.events.map(x=>({...x,kind:"event"})),
     ...data.inbox.map(x=>({...x,kind:"inbox"}))
@@ -95,6 +97,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
     let rows=allItems.filter(x=>showArchived||x.status!=="archived");
     if(section==="bookmarks") rows=rows.filter(x=>x.kind==="resource");
     else if(section==="ideas") rows=rows.filter(x=>x.kind==="idea");
+    else if(section==="notes") rows=rows.filter(x=>x.kind==="note");
     else if(section==="meetings") rows=rows.filter(x=>x.kind==="meeting");
     else if(section==="events") rows=rows.filter(x=>x.kind==="event");
     else if(section==="inbox") rows=rows.filter(x=>x.kind==="inbox"||x.status==="inbox"||x.status==="unread");
@@ -138,13 +141,13 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
     const kind=editor.kind==="inbox"?"inbox":editor.kind;
     const row={...form,id:editor.id||uid(),title:esc(form.title),url:esc(form.url),summary:esc(form.summary),notes:esc(form.notes),nextAction:esc(form.nextAction),author:esc(form.author),location:esc(form.location),relatedSystem:esc(form.relatedSystem),relatedId:esc(form.relatedId),rating:form.rating===""?null:Number(form.rating)||null,categoryId:form.categoryId||null,tags:[...new Set(esc(form.tags).split(",").map(x=>x.trim()).filter(Boolean))],attendees:esc(form.attendees).split(",").map(x=>x.trim()).filter(Boolean),followups:esc(form.followups).split("\n").map(x=>x.trim()).filter(Boolean),updatedAt:isoNow(),createdAt:form.createdAt||isoNow()};
     delete row.kind;
-    const key=kind==="resource"?"resources":kind==="idea"?"ideas":kind==="meeting"?"meetings":kind==="event"?"events":"inbox";
+    const key=kind==="resource"?"resources":kind==="idea"?"ideas":kind==="note"?"notes":kind==="meeting"?"meetings":kind==="event"?"events":"inbox";
     const next={...data,[key]:editor.id?data[key].map(x=>x.id===editor.id?row:x):[row,...data[key]]};
     if(await persist(next))setEditor(null);
   };
   const mutateItem=async(item,patch)=>{
     if(!canEdit)return;
-    const key=item.kind==="resource"?"resources":item.kind==="idea"?"ideas":item.kind==="meeting"?"meetings":item.kind==="event"?"events":"inbox";
+    const key=item.kind==="resource"?"resources":item.kind==="idea"?"ideas":item.kind==="note"?"notes":item.kind==="meeting"?"meetings":item.kind==="event"?"events":"inbox";
     const next={...data,[key]:data[key].map(x=>x.id===item.id?{...x,...patch,updatedAt:isoNow()}:x)};
     await persist(next);
   };
@@ -170,7 +173,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   };
   const pageTitle=SECTIONS.find(s=>s[0]===section)?.[1]||"المعرفة والموارد";
   const count=(kind)=>allItems.filter(x=>x.kind===kind&&x.status!=="archived").length;
-  const newKind=section==="ideas"?"idea":section==="meetings"?"meeting":section==="events"?"event":section==="inbox"?"inbox":"resource";
+  const newKind=section==="ideas"?"idea":section==="notes"?"note":section==="meetings"?"meeting":section==="events"?"event":section==="inbox"?"inbox":"resource";
   const addLabel=({resource:"＋ حفظ مصدر",idea:"＋ فكرة جديدة",meeting:"＋ اجتماع",event:"＋ فعالية",inbox:"＋ إضافة للوارد"})[newKind];
   const setField=(key,value)=>setForm(f=>({...f,[key]:value}));
   return <div dir="rtl" style={{color:C.ink,fontFamily:"inherit",display:"grid",gap:16,maxWidth:1400,margin:"0 auto"}}>
@@ -200,7 +203,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
             {canEdit&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}><Btn secondary onClick={()=>openEdit(item)}>تعديل</Btn><Btn secondary onClick={()=>mutateItem(item,{pinned:!item.pinned})}>{item.pinned?"إلغاء التثبيت":"تثبيت"}</Btn>{item.status==="inbox"||item.status==="unread"?<Btn onClick={()=>mutateItem(item,{status:"processed"})}>تمت المراجعة</Btn>:null}<Btn secondary onClick={()=>removeItem(item)}>أرشفة</Btn></div>}
           </div>
           <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>{item.categoryId&&<Tag>{categoryName(item.categoryId)}</Tag>}{item.date&&<Tag>📅 {item.date}{item.startTime?` · ${item.startTime}`:""}{item.endTime?`–${item.endTime}`:""}</Tag>}{item.priority&&<Tag>الأولوية: {PRIORITIES[item.priority]||item.priority}</Tag>}{item.reviewAt&&<Tag>مراجعة: {item.reviewAt}</Tag>}{item.author&&<Tag>✍ {item.author}</Tag>}{item.rating&&<Tag>★ {item.rating}/5</Tag>}{(item.tags||[]).map(t=><Tag key={t}>#{t}</Tag>)}</div>
-          {(item.notes||item.nextAction||item.relatedSystem)&&<div style={{background:C.bg,borderRadius:10,padding:12,fontSize:12,lineHeight:1.8}}>{item.notes&&<div><b>ملاحظات مستخرجة:</b> {item.notes}</div>}{item.nextAction&&<div><b>الخطوة التالية:</b> {item.nextAction}</div>}{item.relatedSystem&&<div><b>ارتباط خارجي:</b> {item.relatedSystem}{item.relatedId?` · ${item.relatedId}`:""} (مرجع نصي؛ لا ينشئ علاقة قاعدة بيانات تلقائيًا)</div>}</div>
+          {(item.notes||item.nextAction||item.relatedSystem)&&<div style={{background:C.bg,borderRadius:10,padding:12,fontSize:12,lineHeight:1.8}}>{item.body&&<div><b>نص الملاحظة:</b> {item.body}</div>}{item.notes&&<div><b>ملاحظات مستخرجة:</b> {item.notes}</div>}{item.nextAction&&<div><b>الخطوة التالية:</b> {item.nextAction}</div>}{item.relatedSystem&&<div><b>ارتباط خارجي:</b> {item.relatedSystem}{item.relatedId?` · ${item.relatedId}`:""} (مرجع نصي؛ لا ينشئ علاقة قاعدة بيانات تلقائيًا)</div>}</div>
           {(item.kind==="meeting"&&(item.decisions||item.followups?.length||item.attendees?.length))&&<div style={{background:C.bg,borderRadius:10,padding:12,fontSize:12,lineHeight:1.8}}>{item.attendees?.length>0&&<div><b>الحضور:</b> {item.attendees.join("، ")}</div>}{item.decisions&&<div><b>القرارات:</b> {item.decisions}</div>}{item.followups?.length>0&&<div><b>المتابعات:</b> {item.followups.join("، ")}</div>}</div>}
         </article>)}
       </section>}
@@ -209,6 +212,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
       <Field label="العنوان *"><input required style={input} value={form.title||""} onChange={e=>setField("title",e.target.value)} placeholder="عنوان واضح يسهل استرجاعه"/></Field>
       {(editor.kind==="resource"||editor.kind==="inbox")&&<><Field label="الرابط"><input type="url" style={input} value={form.url||""} onChange={e=>setField("url",e.target.value)} placeholder="https://…"/></Field><Field label="نوع المصدر"><select style={input} value={form.sourceType||"مقال"} onChange={e=>setField("sourceType",e.target.value)}>{data.linkTypes.map(t=><option key={t}>{t}</option>)}</select></Field></>}
       <Field label="ملخص / وصف"><textarea style={{...input,minHeight:75,resize:"vertical"}} value={form.summary||""} onChange={e=>setField("summary",e.target.value)} placeholder="الفكرة الأساسية أو وصف العنصر…"/></Field>
+      {editor.kind==="note"&&<Field label="نص الملاحظة"><textarea style={{...input,minHeight:180,resize:"vertical"}} value={form.body||""} onChange={e=>setField("body",e.target.value)} placeholder="اكتب المعرفة بصياغتك، مع أمثلة وروابط داخلية…"/></Field>}
       {(editor.kind==="resource"||editor.kind==="inbox")&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}><Field label="المؤلف / الجهة"><input style={input} value={form.author||""} onChange={e=>setField("author",e.target.value)}/></Field><Field label="تاريخ النشر"><input type="date" style={input} value={form.publishedAt||""} onChange={e=>setField("publishedAt",e.target.value)}/></Field><Field label="تاريخ القراءة / المراجعة"><input type="date" style={input} value={form.readAt||""} onChange={e=>setField("readAt",e.target.value)}/></Field><Field label="موعد المراجعة القادمة"><input type="date" style={input} value={form.reviewAt||""} onChange={e=>setField("reviewAt",e.target.value)}/></Field><Field label="التقييم (1–5)"><input type="number" min="1" max="5" style={input} value={form.rating||""} onChange={e=>setField("rating",e.target.value)}/></Field></div>}
       {editor.kind==="idea"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}><Field label="مرحلة الفكرة"><select style={input} value={form.stage||"captured"} onChange={e=>setField("stage",e.target.value)}>{Object.entries(IDEA_STAGES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></Field><Field label="الخطوة التالية"><input style={input} value={form.nextAction||""} onChange={e=>setField("nextAction",e.target.value)}/></Field></div>}
       <Field label="ملاحظات / اقتباسات / ما تعلمته"><textarea style={{...input,minHeight:75,resize:"vertical"}} value={form.notes||""} onChange={e=>setField("notes",e.target.value)} placeholder="ملاحظاتك الخاصة أو اقتباسات مختصرة مع مراعاة حقوق النشر…"/></Field>
