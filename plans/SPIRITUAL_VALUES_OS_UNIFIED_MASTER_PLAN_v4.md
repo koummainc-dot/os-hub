@@ -1146,3 +1146,38 @@ RTL كامل، قارئ شاشة، تباين WCAG AA، لا اعتماد على
 - **Finance:** لا طلبات.
 
 **غير مؤكد:** خوارزمية الهجري، عقد سجلات Habit، مصادر ICS للمواقيت، الإطار القانوني لبيانات المعتقد، ومحتوى Ramadan Tracker وبقية صفوف قوالب Notion (لم تُقرأ).
+
+
+---
+
+# Appendix — Sadaqat, Zakat & Giving (future implementation scope)
+
+> **Implementation trigger:** Build this appendix when Spiritual & Values OS implementation begins. Do not create a giving/donations center or its tables inside Finance OS.
+
+## Purpose and privacy
+A private personal record of charitable giving and religious/values-based commitments. The user controls whether the feature is enabled and which categories they use. Do not expose giving history in shared Finance summaries by default; giving records may reveal beliefs, hardship, or sensitive personal associations.
+
+## Records and workflows
+- Recipient/organization directory: display name, type (person, charity, mosque, relief effort, waqf, other), optional verified contact/website, notes, and active/archived status.
+- Giving types: Sadaqah, Zakat, Zakat al-Fitr, Waqf, emergency relief, in-kind giving, recurring contribution, and custom types. Do not make a religious ruling or assert Sharia compliance on the user's behalf.
+- A giving record includes type, recipient, intention/reference, planned amount/currency, due or target date, privacy, notes, and status: Planned, Pledged, Partially Paid, Paid, Cancelled, Refunded.
+- Support installments, partial payments, recurring intentions, campaign goals, receipts/acknowledgements, and optional in-kind descriptions.
+- Distinguish intention/pledge from money actually paid. A pledge must never reduce account balances.
+- Allow archive/void with reason and preserve audit history; avoid hard deletion after a payment is linked.
+
+## Finance integration contract
+- Spirituality OS owns the giving intention, recipient context, spiritual reflection, and privacy classification.
+- Finance OS owns actual money movements and account balances.
+- Each actual cash/card/bank payment may link to exactly one existing Finance transaction; a transaction must not be posted twice by both systems.
+- Installments can link to separate transactions for each actual payment. Partial payment status is calculated from linked posted transactions, not merely the planned amount.
+- In-kind giving can be recorded without a financial transaction; optionally link a personal inventory item through a stable cross-system reference.
+- Recurring giving should use the platform/Finance recurring capability only when the user explicitly wants an actual recurring payment; a spiritual reminder alone must not initiate a payment.
+- Never expose recipient, type, notes, or history to Finance OS members unless the user explicitly shares them. Finance reports may show a generic linked transaction/category, not private reflection.
+- Do not create donation-specific financial accounts or a second ledger. Do not mix currencies without a documented rate and date.
+
+## Acceptance criteria
+- Planned, pledged, partially paid, paid, cancelled, and refunded states are distinct.
+- Each actual installment reconciles to a posted Finance transaction without duplicate balances.
+- Privacy defaults are stricter than general Finance permissions; cross-workspace access is denied.
+- Export includes only fields the current user is authorized to see.
+- No auto-payment, religious ruling, or recipient verification is implied by a record's existence.
