@@ -179,6 +179,33 @@ create table if not exists public.knowledge_activity (
 );
 create index if not exists knowledge_activity_ws_created_idx on public.knowledge_activity(workspace_id,created_at desc);
 
+create table if not exists public.knowledge_notifications (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  recipient_user_id uuid not null references auth.users(id) on delete cascade,
+  reminder_id uuid not null unique references public.knowledge_reminders(id) on delete cascade,
+  title text not null,
+  body text,
+  read_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique(workspace_id,reminder_id)
+);
+create index if not exists knowledge_notifications_recipient_idx
+  on public.knowledge_notifications(recipient_user_id,created_at desc);
+
+alter table public.knowledge_notifications enable row level security;
+drop policy if exists knowledge_notifications_select on public.knowledge_notifications;
+drop policy if exists knowledge_notifications_update on public.knowledge_notifications;
+create policy knowledge_notifications_select on public.knowledge_notifications
+  for select to authenticated
+  using (recipient_user_id=(select auth.uid()) and public.ws_access_level(workspace_id,'knowledge','main') in ('view','edit'));
+create policy knowledge_notifications_update on public.knowledge_notifications
+  for update to authenticated
+  using (recipient_user_id=(select auth.uid()) and public.ws_access_level(workspace_id,'knowledge','main') in ('view','edit'))
+  with check (recipient_user_id=(select auth.uid()) and public.ws_access_level(workspace_id,'knowledge','main') in ('view','edit'));
+revoke all on public.knowledge_notifications from anon;
+grant select,update on public.knowledge_notifications to authenticated;
+
 -- All normalized Knowledge tables use the same server-side workspace access contract.
 do $$
 declare t text;
@@ -359,6 +386,64 @@ revoke all on function public.knowledge_item_to_json(public.knowledge_items,text
 grant execute on function public.knowledge_item_to_json(public.knowledge_items,text,uuid) to authenticated;
 grant execute on function public.knowledge_load_snapshot(uuid) to authenticated;
 grant execute on function public.knowledge_save_snapshot(uuid,jsonb,timestamptz) to authenticated;
+
+
+-- Private attachments bucket. Object paths are <workspace UUID>/<item ID>/<safe filename>.
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
+values (
+  'knowledge-attachments','knowledge-attachments',false,10485760,
+  array['application/pdf','text/plain','text/markdown','image/jpeg','image/png','image/webp',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation']
+)
+on conflict(id) do update set
+  public=false,
+  file_size_limit=excluded.file_size_limit,
+  allowed_mime_types=excluded.allowed_mime_types;
+
+drop policy if exists knowledge_attachments_object_select on storage.objects;
+drop policy if exists knowledge_attachments_object_insert on storage.objects;
+drop policy if exists knowledge_attachments_object_update on storage.objects;
+drop policy if exists knowledge_attachments_object_delete on storage.objects;
+create policy knowledge_attachments_object_select on storage.objects
+for select to authenticated
+using (
+  bucket_id='knowledge-attachments'
+  and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+
+  and public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main') in ('view','edit')
+);
+create policy knowledge_attachments_object_insert on storage.objects
+for insert to authenticated
+with check (
+  bucket_id='knowledge-attachments'
+  and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+
+  and public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main')='edit'
+);
+create policy knowledge_attachments_object_update on storage.objects
+for update to authenticated
+using (
+  bucket_id='knowledge-attachments'
+  and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+
+  and public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main')='edit'
+)
+with check (
+  bucket_id='knowledge-attachments'
+  and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+
+  and public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main')='edit'
+);
+create policy knowledge_attachments_object_delete on storage.objects
+for delete to authenticated
+using (
+  bucket_id='knowledge-attachments'
+  and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+
+  and public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main')='edit'
+);
 
 
 commit;
