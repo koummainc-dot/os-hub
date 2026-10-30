@@ -107,11 +107,30 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       const errs = [...D.validateDates(v.start_date, v.target_date, "V-14: تاريخ البدء بعد الموعد المستهدف")]; if (errs.length) throw new Error(errs[0]);
       const rec = { ...v, id: v.id || uid() };
       if (isNew) { rec.status = rec.status || "Planned"; rec.lead_id = rec.lead_id || me; rec.members = rec.members && rec.members.length ? rec.members : [{ member_id: rec.lead_id, role: "Lead" }]; rec.created_by = me; }
-      const saved = await putIn("projects", rec, rec); if (!saved) throw new Error("تعذّر الحفظ");
-      if (!isNew) { // privacy changes cascade to children
+      let saved;
+      if (isNew) {
+        saved = await putIn("projects", rec, rec);
+        if (!saved) throw new Error("تعذّر الحفظ");
+      } else {
         const vis = visFor(rec);
         const kids = [["tasks", data.tasks], ["outputs", data.outputs], ["risks", data.risks], ["issues", data.issues], ["decisions", data.decisions], ["prds", data.prds], ["updates", data.updates]];
-        for (const [c, list] of kids) for (const k of list.filter((x) => x.project_id === rec.id)) { const a = JSON.stringify(k._vis || null), b = JSON.stringify(vis); if (a !== b) await R.put(c, { ...k, _vis: vis }); }
+        const changed = kids.flatMap(([coll, list]) => list
+          .filter((child) => child.project_id === rec.id && JSON.stringify(child._vis || null) !== JSON.stringify(vis))
+          .map((child) => ({ coll, rec: { ...child, _vis: vis } })));
+        if (!isDemo && changed.length) {
+          const ops = [{ coll: "projects", rec: stamp({ ...rec, _vis: vis }) }, ...changed];
+          if (ops.length > 1000) throw new Error("تغيير خصوصية المشروع يحتاج تحديث أكثر من 999 سجلًا تابعًا. لم يُحفظ أي تغيير؛ قسّم العملية أو نفّذها في نافذة صيانة.");
+          const batch = await R.putAtomic(ops);
+          if (!Array.isArray(batch) || batch.length !== ops.length) throw new Error("لم يؤكد الخادم تحديث خصوصية المشروع وسجلاته التابعة معًا.");
+          saved = batch[0];
+        } else {
+          saved = await putIn("projects", rec, rec);
+          if (!saved) throw new Error("تعذّر الحفظ");
+          for (const { coll, rec: child } of changed) {
+            const updated = await R.put(coll, child);
+            if (!updated) throw new Error("تغيّرت خصوصية المشروع، لكن تعذّر تحديث " + coll + "/" + child.id + ". راجع صلاحيات السجلات التابعة.");
+          }
+        }
       }
       act("projects", rec.id, isNew ? "created" : "updated", rec.name); return saved;
     },
@@ -218,14 +237,199 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       toast("🗑 نُقل المشروع وسجلاته إلى السلة؛ جلسات الوقت التاريخية محفوظة.");
       return true;
     },
+    async createPrdVersion(prd) {
+      const project = prd && projectsById[prd.project_id];
+      if (!prd || prd.status !== "Approved" || !project || project.is_system) {
+        throw new Error("لا يمكن إنشاء نسخة جديدة إلا من مواصفة معتمدة في مشروع صالح.");
+      }
+      if (!can("prd.approve", project)) throw new Error("إنشاء نسخة جديدة يحتاج صلاحية قائد المشروع أو المراجع.");
+      const next = stamp({
+        ...prd,
+        id: uid(),
+        version: (prd.version || 1) + 1,
+        supersedes_id: prd.id,
+        status: "In Progress",
+        approved_at: null,
+        approvals: [],
+        created_by: me,
+      });
+      const previous = stamp({ ...prd, status: "Superseded" });
+      const saved = await R.putAtomic([
+        { coll: "prds", rec: next },
+        { coll: "prds", rec: previous },
+      ]);
+      if (!Array.isArray(saved) || saved.length !== 2) throw new Error("لم يؤكد الخادم إنشاء النسخة وتحديث السابقة معًا.");
+      act("prds", next.id, "version_created", next.title + " v" + next.version);
+      return next;
+    },
     async createFromTemplate(tpl, opts) {
       const r = D.instantiateProjectTemplate(tpl, opts, uid); r.project.created_by = me; if (!r.project.members.length) r.project.members = [{ member_id: me, role: "Lead" }], r.project.lead_id = me;
       await persistTemplateBundle({
         project: r.project, tasks: r.tasks, risks: r.risks, stamp, actorId: me,
+        atomic: !isDemo,
+        putAtomic: R.putAtomic,
         put: (collection, record) => R.put(collection, record),
         softDelete: (collection, id, actorId) => R.softDelete(collection, id, actorId),
       });
       act("projects", r.project.id, "created_from_template", tpl.name); return r.project;
+    },
+    // Convert a discovery to an issue and complete its source link in one server transaction.
+    async convertRiskToIssue(riskId) {
+      const risk = (data.risks || []).find((item) => item.id === riskId);
+      const project = risk && projectsById[risk.project_id];
+      if (!risk || !project || project.is_system || project.archived_at) throw new Error("الخطر أو المشروع غير صالح.");
+      const existing = D.issueForRisk(risk, data.issues);
+      if (existing) {
+        if (existing.project_id !== risk.project_id) throw new Error("المشكلة المرتبطة بالخطر موجودة في مشروع مختلف؛ لم يتم تغيير الارتباط.");
+        if (existing.from_risk_id && existing.from_risk_id !== risk.id) throw new Error("المشكلة مرتبطة بالفعل بخطر آخر؛ لم يتم تغيير أي ارتباط.");
+        const issuePatch = existing.from_risk_id === risk.id ? null : { ...existing, from_risk_id: risk.id };
+        const riskPatch = { ...risk, status: "Materialized", converted_issue_id: existing.id };
+        const ops = [
+          ...(issuePatch ? [{ coll: "issues", rec: issuePatch }] : []),
+          { coll: "risks", rec: riskPatch },
+        ];
+        await R.putAtomic(ops);
+        return issuePatch || existing;
+      }
+      if (risk.status === "Materialized" || risk.converted_issue_id) throw new Error("الخطر معلّم كمحوّل لكن المشكلة المرتبطة غير موجودة؛ راجع السجلات قبل إعادة التحويل.");
+      const issueId = uid();
+      const issue = {
+        id: issueId,
+        title: risk.title,
+        project_id: risk.project_id,
+        severity: D.riskScore(risk) >= settings.riskHigh ? "High" : "Medium",
+        status: "Open",
+        discovered_at: todayStr(),
+        owner_id: risk.owner_id || null,
+        description: risk.notes || risk.mitigation || "",
+        from_risk_id: risk.id,
+      };
+      const riskPatch = { ...risk, status: "Materialized", converted_issue_id: issueId };
+      await R.putAtomic([{ coll: "issues", rec: issue }, { coll: "risks", rec: riskPatch }]);
+      act("risks", risk.id, "materialized", risk.title);
+      return issue;
+    },
+    async convertDiscoveryToTask(discoveryId, projectId) {
+      const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
+      const project = projectsById[projectId];
+      if (!discovery || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      const linkedProjects = (discovery.project_ids || []).filter((id) => projectsById[id] && !projectsById[id].archived_at);
+      if ((discovery.project_ids || []).length && !linkedProjects.includes(projectId)) throw new Error("المشروع الهدف يجب أن يكون من المشاريع المرتبطة النشطة بالاكتشاف.");
+      const existing = (data.tasks || []).find((item) => (item.discovery_ids || []).includes(discoveryId));
+      if (existing && existing.project_id !== projectId) throw new Error("يوجد بالفعل مسار مهمة لهذا الاكتشاف في مشروع آخر. افتح المهمة الحالية أو حدّث ارتباطها قبل إعادة التحويل.");
+      if (existing) {
+        const links = [...new Map([...(discovery.resolution_links || []), { kind: "task", id: existing.id }].map((link) => [link.kind + ":" + link.id, link])).values()];
+        await R.putAtomic([{ coll: "discovery", rec: { ...discovery, status: "Completed", resolution_links: links } }]);
+        return existing;
+      }
+      if ((discovery.resolution_links || []).some((link) => link.kind === "task")) throw new Error("للاكتشاف رابط مهمة قائم؛ حدّث الرابط بدل إنشاء نسخة جديدة.");
+      const taskId = uid();
+      const task = {
+        id: taskId,
+        title: discovery.title,
+        project_id: projectId,
+        description: discovery.proposed_solution || discovery.description || "",
+        assignee_id: discovery.owner_id || null,
+        priority: discovery.impact_level === "Critical" ? "Urgent" : discovery.impact_level === "High" ? "High" : "Medium",
+        status: "Not Started",
+        planning_bucket: "Inbox",
+        discovery_ids: [discoveryId],
+        created_by: me,
+        sort_order: Date.now(),
+      };
+      const errs = D.validateTaskRefs({ ...task, id: taskId }, { projectsById, tasksById: idx.byId, prdsById });
+      if (errs.length) throw new Error(errs[0]);
+      if (D.traceabilityBlocked(settings, project.type, project.is_system, task)) throw new Error("سياسة التتبع تمنع إنشاء مهمة دون ربط مواصفة أو اكتشاف.");
+      const links = [...new Map([...(discovery.resolution_links || []), { kind: "task", id: taskId }].map((link) => [link.kind + ":" + link.id, link])).values()];
+      await R.putAtomic([{ coll: "tasks", rec: task }, { coll: "discovery", rec: { ...discovery, status: "Completed", resolution_links: links } }]);
+      act("discovery", discovery.id, "converted_to_task", task.title);
+      return task;
+    },
+    async convertDiscoveryToProject(discoveryId) {
+      const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
+      if (!discovery) throw new Error("الاكتشاف غير موجود.");
+      const existing = (data.projects || []).find((item) => item.source_discovery_id === discoveryId);
+      if (existing) {
+        const links = [...new Map([...(discovery.resolution_links || []), { kind: "project", id: existing.id }].map((link) => [link.kind + ":" + link.id, link])).values()];
+        const projectIds = [...new Set([...(discovery.project_ids || []), existing.id])];
+        await R.putAtomic([{ coll: "discovery", rec: { ...discovery, project_ids: projectIds, status: "Completed", resolution_links: links } }]);
+        return existing;
+      }
+      const projectId = uid();
+      const project = {
+        id: projectId, name: discovery.title, type: "أخرى", status: "Idea",
+        priority: discovery.impact_level === "Critical" ? "High" : "Medium",
+        description: discovery.description || "", visibility: "workspace",
+        source_discovery_id: discovery.id, lead_id: discovery.owner_id || me,
+        members: [{ member_id: discovery.owner_id || me, role: "Lead" }],
+        created_by: me,
+      };
+      const links = [...new Map([...(discovery.resolution_links || []), { kind: "project", id: projectId }].map((link) => [link.kind + ":" + link.id, link])).values()];
+      const projectIds = [...new Set([...(discovery.project_ids || []), projectId])];
+      await R.putAtomic([
+        { coll: "projects", rec: project },
+        { coll: "discovery", rec: { ...discovery, project_ids: projectIds, status: "Completed", resolution_links: links } },
+      ]);
+      act("projects", projectId, "created_from_discovery", project.name);
+      return project;
+    },
+    async convertDiscoveryToPrd(discoveryId, projectId) {
+      const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
+      const project = projectsById[projectId];
+      if (!discovery || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      const linkedProjects = (discovery.project_ids || []).filter((id) => projectsById[id] && !projectsById[id].archived_at);
+      if ((discovery.project_ids || []).length && !linkedProjects.includes(projectId)) throw new Error("المشروع الهدف يجب أن يكون من المشاريع المرتبطة النشطة بالاكتشاف.");
+      const existing = (data.prds || []).find((item) => (item.discovery_ids || []).includes(discoveryId));
+      if (existing && existing.project_id !== projectId) throw new Error("توجد مواصفة مرتبطة بهذا الاكتشاف في مشروع آخر؛ لن نعيد ربطها بمشروع غير مطابق.");
+      const prdId = existing?.id || uid();
+      const prd = existing || {
+        id: prdId, title: discovery.title, project_id: projectId, status: "In Progress", version: 1, lead_id: me,
+        tldr: discovery.description || "",
+        sections: [
+          { key: "problem_overview", title: "نظرة عامة", group: "المشكلة", content: discovery.description || "" },
+          { key: "evidence", title: "الأدلة", group: "المشكلة", content: discovery.insights || "" },
+          { key: "proposed_solution", title: "الحل المقترح (ملخص)", group: "المشكلة", content: discovery.proposed_solution || "" },
+        ],
+        approvals: [], reviewer_ids: [], discovery_ids: [discoveryId],
+      };
+      const links = [...new Map([...(discovery.resolution_links || []), { kind: "prd", id: prdId }].map((link) => [link.kind + ":" + link.id, link])).values()];
+      await R.putAtomic([
+        { coll: "prds", rec: prd },
+        { coll: "discovery", rec: { ...discovery, status: "Completed", resolution_links: links } },
+      ]);
+      if (!existing) act("discovery", discovery.id, "converted_to_prd", prd.title);
+      return prd;
+    },
+    async convertDiscoveryToIssue(discoveryId, projectId, discoveredAt) {
+      const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
+      const project = projectsById[projectId];
+      if (!discovery || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      const linkedProjects = (discovery.project_ids || []).filter((id) => projectsById[id] && !projectsById[id].archived_at);
+      if ((discovery.project_ids || []).length && !linkedProjects.includes(projectId)) throw new Error("المشروع الهدف يجب أن يكون من المشاريع المرتبطة النشطة بالاكتشاف.");
+      const existing = (data.issues || []).find((item) => item.from_discovery_id === discoveryId);
+      if (existing && existing.project_id !== projectId) throw new Error("توجد مشكلة مرتبطة بهذا الاكتشاف في مشروع آخر؛ لن نعيد ربط الاكتشاف بمشروع غير مطابق.");
+      if (existing) {
+        const links = [...new Map([...(discovery.resolution_links || []), { kind: "issue", id: existing.id }].map((link) => [link.kind + ":" + link.id, link])).values()];
+        await R.putAtomic([{ coll: "discovery", rec: { ...discovery, status: "Completed", resolution_links: links } }]);
+        return existing;
+      }
+      if ((discovery.resolution_links || []).some((link) => link.kind === "issue")) throw new Error("للاكتشاف رابط مشكلة قائم؛ حدّث الرابط بدل إنشاء نسخة جديدة.");
+      const issueId = uid();
+      const issue = {
+        id: issueId,
+        title: discovery.title,
+        project_id: projectId,
+        severity: discovery.impact_level || "Medium",
+        status: "Open",
+        discovered_at: discoveredAt || todayStr(),
+        owner_id: discovery.owner_id || null,
+        description: discovery.description || "",
+        from_discovery_id: discovery.id,
+      };
+      const links = [...new Map([...(discovery.resolution_links || []), { kind: "issue", id: issueId }].map((link) => [link.kind + ":" + link.id, link])).values()];
+      await R.putAtomic([{ coll: "issues", rec: issue }, { coll: "discovery", rec: { ...discovery, status: "Completed", resolution_links: links } }]);
+      act("discovery", discovery.id, "converted_to_issue", issue.title);
+      return issue;
     },
     // Create a repair task and link it to its issue in one server transaction.
     async createRepairTask(issue) {
@@ -263,11 +467,31 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (D.traceabilityBlocked(settings, project && project.type, project && project.is_system, v)) throw new Error("سياسة التتبع: هذا النوع من المشاريع يتطلب ربط المهمة بمواصفة أو اكتشاف");
       const rec = { ...v, id: v.id || uid(), planning_bucket: v.planning_bucket || "Inbox", status: v.status || "Not Started" };
       const prev = v.id ? idx.byId[v.id] || (recs.tasks || {})[v.id] : null;
-      if (isNew) { rec.created_by = me; rec.sort_order = rec.sort_order || Date.now(); if (rec.parent_task_id) { const par = idx.byId[rec.parent_task_id]; if (par && idx.isLeaf(par.id)) { const fc = D.onFirstChild(par); if (fc.warnCompleted && !(await confirm("المهمة الأب كانت «مكتملة». ستصبح مجمّعاً وتُشتق حالتها من أبنائها. متابعة؟"))) return null; await R.put("tasks", fc.patch); } } }
+      let firstChildParentPatch = null;
+      if (isNew) {
+        rec.created_by = me; rec.sort_order = rec.sort_order || Date.now();
+        if (rec.parent_task_id) {
+          const par = idx.byId[rec.parent_task_id];
+          if (par && idx.isLeaf(par.id)) {
+            const fc = D.onFirstChild(par);
+            if (fc.warnCompleted && !(await confirm("المهمة الأب كانت «مكتملة». ستصبح مجمّعاً وتُشتق حالتها من أبنائها. متابعة؟"))) return null;
+            firstChildParentPatch = fc.patch;
+          }
+        }
+      }
       const becameDone = D.cat(rec.status) === "done" && (!prev || D.cat(prev.status) !== "done");
       if (becameDone) { rec.completed_at = nowIso(); rec.completed_by = me; } else if (prev && D.cat(rec.status) !== "done") { rec.completed_at = null; }
       if (D.cat(rec.status) === "cancelled" && !rec.cancelled_reason) throw new Error("V-19: سبب الإلغاء مطلوب");
       if (prev && rec.assignee_id !== prev.assignee_id && rec.assignee_id && rec.assignee_id !== me) act("tasks", rec.id, "assigned", nameOf(rec.assignee_id));
+      if (firstChildParentPatch) {
+        const parentProject = projectsById[firstChildParentPatch.project_id] || project;
+        const saved = await R.putAtomic([
+          { coll: "tasks", rec: { ...stamp(firstChildParentPatch), _vis: visFor(parentProject) } },
+          { coll: "tasks", rec: { ...stamp(rec), _vis: visFor(project) } },
+        ]);
+        if (!Array.isArray(saved) || !saved[1]) throw new Error("لم يتم حفظ المهمة الجديدة وتحديث المهمة الأب معًا.");
+        return saved[1];
+      }
       const saved = await putIn("tasks", rec, project); return saved;
     },
     async setTaskStatus(t, to, reason) {
@@ -282,8 +506,22 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async reparent(taskId, newParentId) {
       const chk = D.canReparent(taskId, newParentId, idx); if (!chk.ok) { toast("⛔ " + chk.error); return false; }
       const t = idx.byId[taskId];
-      if (newParentId) { const par = idx.byId[newParentId]; if (par && idx.isLeaf(par.id)) { const fc = D.onFirstChild(par); await R.put("tasks", fc.patch); } }
-      await R.put("tasks", { ...t, parent_task_id: newParentId || null, sort_order: Date.now() }); return true;
+      const nextTask = { ...t, parent_task_id: newParentId || null, sort_order: Date.now() };
+      if (newParentId) {
+        const par = idx.byId[newParentId];
+        if (par && idx.isLeaf(par.id)) {
+          const fc = D.onFirstChild(par);
+          if (fc.warnCompleted && !(await confirm("المهمة الأب مكتملة. عند إضافة ابن ستصبح حالتها مشتقة من أبنائها. هل تريد المتابعة؟", { title: "تغيير بنية المهام", ok: "متابعة" }))) return false;
+          const project = projectsById[par.project_id] || projectsById[t.project_id];
+          const saved = await R.putAtomic([
+            { coll: "tasks", rec: { ...stamp(fc.patch), _vis: visFor(project) } },
+            { coll: "tasks", rec: { ...stamp(nextTask), _vis: visFor(projectsById[t.project_id] || project) } },
+          ]);
+          if (!Array.isArray(saved) || !saved[1]) throw new Error("لم يتم حفظ نقل المهمة وتحديث الأب معًا.");
+          return true;
+        }
+      }
+      await putIn("tasks", nextTask, projectsById[t.project_id]); return true;
     },
     async moveTree(taskId, targetProjectId) {
       const target = projectsById[targetProjectId];
@@ -350,11 +588,19 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     },
     // time
     async startTimer(taskId) {
+      const task = idx.byId[taskId];
+      if (!task || !idx.isLeaf(taskId)) throw new Error("اختَر مهمة موجودة ونهائية في شجرة المهام قبل بدء المؤقّت.");
+      if (!can("session.write", projectsById[task.project_id])) throw new Error("لا تملك صلاحية تسجيل جلسة لهذا المشروع.");
       const cur = (recs.timers || {})["timer_" + me]; if (cur && cur.task_id && !cur.ended_at) { toast("⛔ TIMER_ALREADY_RUNNING — أوقف المؤقّت الحالي أولاً"); return false; }
       await R.put("timers", { id: "timer_" + me, member_id: me, task_id: taskId, started_at: nowIso(), ended_at: null }); return true;
     },
     async stopTimer(note) {
       const cur = (recs.timers || {})["timer_" + me]; if (!cur || !cur.task_id || cur.ended_at) return null;
+      const task = idx.byId[cur.task_id];
+      if (!task || !idx.isLeaf(cur.task_id) || !can("session.write", projectsById[task.project_id])) {
+        toast("⛔ تعذّر تسجيل الجلسة: المهمة لم تعد متاحة أو تغيّرت صلاحيات المشروع.");
+        return null;
+      }
       const end = nowIso(); const minutes = Math.min(1440, Math.max(1, Math.round((new Date(end) - new Date(cur.started_at)) / 60000)));
       const s = { id: D.sessionId(me, cur.started_at), member_id: me, task_id: cur.task_id, date: dateOf(cur.started_at, settings.timezone), minutes, started_at: cur.started_at, ended_at: end, note: note || "", source: "timer", client_generated_id: cur.started_at };
       const errs = D.validateSession(s); if (errs.length) { toast("⛔ " + errs[0]); return null; }
@@ -362,7 +608,11 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     },
     async discardTimer() { const cur = (recs.timers || {})["timer_" + me]; if (cur) await R.put("timers", { ...cur, task_id: null, started_at: null, ended_at: nowIso() }); },
     async addSession(v) {
-      const s = { member_id: me, source: "manual", ...v, id: v.id || D.sessionId(me, uid()) }; const errs = D.validateSession(s); if (errs.length) throw new Error(errs[0]);
+      const task = idx.byId[v?.task_id];
+      if (!task || !idx.isLeaf(task.id)) throw new Error("الجلسة يجب أن ترتبط بمهمة موجودة ونهائية في شجرة المهام.");
+      if (!can("session.write", projectsById[task.project_id])) throw new Error("لا تملك صلاحية تسجيل جلسة لهذا المشروع.");
+      const s = { ...v, member_id: me, source: v.source || "manual", id: v.id || D.sessionId(me, uid()) };
+      const errs = D.validateSession(s); if (errs.length) throw new Error(errs[0]);
       return R.put("sessions", stamp(s));
     },
     async voidSession(s, reason) { await R.put("sessions", { ...s, voided_at: nowIso(), voided_by: me, void_reason: reason || "" }); },
@@ -371,7 +621,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async saveSettings(patch) { return R.put("settings", { id: "ws", ...((recs.settings || {}).ws || {}), ...patch }); },
     async saveLookups(lists) { return R.put("lookups", { id: "main", lists }); },
     act,
-  }), [R, recs, idx, data, settings, projectsById, prdsById, me, confirm, toast, putIn, visFor, stamp, act, del, nameOf]);
+  }), [R, recs, idx, data, settings, projectsById, prdsById, me, confirm, toast, putIn, visFor, stamp, act, del, nameOf, can]);
 
   const alerts = useMemo(() => (ready ? D.computeAlerts(me, { idx, issues: data.issues, projects: data.projects, contacts: data.contacts, discovery: data.discovery, krs: data.krs, checkins: data.checkins, timers: data.timers, wins: data.wins, today, settings, metrics }) : []), [ready, me, idx, data, today, settings, metrics]);
   const timer = (recs.timers || {})["timer_" + me]; const runningTimer = timer && timer.task_id && !timer.ended_at ? timer : null;

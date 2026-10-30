@@ -322,7 +322,7 @@ export function coverageOf(project, idx) {
 export function traceabilityBlocked(policy, projectType, isSystem, task) {
   if (policy.traceabilityPolicy !== "require" || isSystem) return false;
   if (!(policy.traceabilityTypes || []).includes(projectType)) return false;
-  return !task.prd_id && !(task.discovery_ids && task.discovery_ids.length);
+  return !task.prd_id && !(task.discovery_ids && task.discovery_ids.length) && !(task.issue_ids && task.issue_ids.length);
 }
 // client-side automations → in-app alerts with dedupe keys (A-09/10/11/12/15/16/17/18/20/21)
 export function computeAlerts(memberId, ctx) {

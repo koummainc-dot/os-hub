@@ -44,4 +44,17 @@ const stamp = (record) => ({ ...record, stamped: true });
   assert.deepEqual(deleted, [["tasks", "t2"], ["tasks", "t1"], ["projects", "p1"]]);
 }
 
+{
+  const batches = [], fallbackWrites = [];
+  const result = await persistTemplateBundle({
+    ...bundle(), stamp, atomic: true, actorId: "u1",
+    putAtomic: async (ops) => { batches.push(ops); return ops.map(({ coll, rec }) => ({ coll, id: rec.id })); },
+    put: async (coll, rec) => { fallbackWrites.push([coll, rec.id]); return rec; },
+    softDelete: async () => ({ deleted: true }),
+  });
+  assert.equal(result.id, "p1");
+  assert.equal(batches.length, 1, "online template bundle must use one atomic batch");
+  assert.deepEqual(batches[0].map((op) => [op.coll, op.rec.id]), [["projects", "p1"], ["tasks", "t1"], ["tasks", "t2"], ["risks", "r1"]]);
+  assert.deepEqual(fallbackWrites, [], "atomic online path must not issue sequential fallback writes");
+}
 console.log("PASS template bundle failure safety");

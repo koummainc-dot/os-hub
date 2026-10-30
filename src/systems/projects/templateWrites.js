@@ -1,6 +1,16 @@
 // Coordinates a template-created project bundle and compensates for partial writes.
 // A falsy result from the record API is a failed write (network-queued writes return a record).
-export async function persistTemplateBundle({ project, tasks, risks, put, softDelete, stamp, actorId }) {
+export async function persistTemplateBundle({ project, tasks, risks, put, putAtomic, atomic = false, softDelete, stamp, actorId }) {
+  if (atomic && typeof putAtomic === "function") {
+    const ops = [
+      { coll: "projects", rec: stamp(project) },
+      ...(tasks || []).map((record) => ({ coll: "tasks", rec: stamp(record) })),
+      ...(risks || []).map((record) => ({ coll: "risks", rec: stamp(record) })),
+    ];
+    const saved = await putAtomic(ops);
+    if (!Array.isArray(saved) || saved.length !== ops.length) throw new Error("لم يؤكد الخادم حفظ حزمة القالب بالكامل.");
+    return project;
+  }
   const written = { project: false, tasks: [], risks: [] };
   const write = async (collection, record) => {
     const saved = await put(collection, stamp(record));

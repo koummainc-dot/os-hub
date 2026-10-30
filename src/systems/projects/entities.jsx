@@ -77,34 +77,18 @@ export function RisksView({ projectId }) {
     const p = projectsById[r.project_id];
     if (to === "Closed") return setClosing(r);
     if (to === "Materialized") {
-      // Prevent same-mount double clicks and recover from a previous partial write.
       if (convertingRiskIds.current.has(r.id)) return;
       convertingRiskIds.current.add(r.id);
       try {
         const linkedIssue = D.issueForRisk(r, data.issues);
-        if (linkedIssue) {
-          if (r.status !== "Materialized" || r.converted_issue_id !== linkedIssue.id) {
-            await act.put("risks", { ...r, status: "Materialized", converted_issue_id: linkedIssue.id }, p);
-          }
-          toast("تم العثور على المشكلة المرتبطة بالفعل؛ لم يتم إنشاء نسخة أخرى.");
-          return;
+        if (!linkedIssue && !(r.status === "Materialized" || r.converted_issue_id)) {
+          if (!(await confirm(`تحويل الخطر «${r.title}» إلى مشكلة؟ سيُنشأ سجل مشكلة مفتوحة ويُربط به.`))) return;
         }
-        if (r.status === "Materialized" || r.converted_issue_id) {
-          toast("الخطر مُحوّل بالفعل، لكن سجل المشكلة المرتبطة غير موجود. راجع السجلات قبل إعادة التحويل.");
-          return;
-        }
-        if (!(await confirm(`تحويل الخطر «${r.title}» إلى مشكلة؟ سيُنشأ سجل مشكلة مفتوحة ويُربط به.`))) return;
-        // Re-check after confirmation in case the view updated while the dialog was open.
-        const existing = D.issueForRisk(r, data.issues);
-        if (existing) {
-          await act.put("risks", { ...r, status: "Materialized", converted_issue_id: existing.id }, p);
-          toast("تم العثور على المشكلة المرتبطة بالفعل؛ لم يتم إنشاء نسخة أخرى.");
-          return;
-        }
-        const iid = uid();
-        await act.put("issues", { id: iid, title: r.title, project_id: r.project_id, severity: D.riskScore(r) >= settings.riskHigh ? "High" : "Medium", status: "Open", discovered_at: new Date().toISOString().slice(0, 10), owner_id: r.owner_id, description: r.notes || r.mitigation || "", from_risk_id: r.id }, p);
-        await act.put("risks", { ...r, status: "Materialized", converted_issue_id: iid }, p);
-        act.act("risks", r.id, "materialized", r.title); toast("✅ تحوّل إلى مشكلة");
+        const issue = await act.convertRiskToIssue(r.id);
+        toast(linkedIssue ? "تم العثور على المشكلة المرتبطة بالفعل؛ لم يتم إنشاء نسخة أخرى." : issue ? "✅ تحوّل الخطر إلى مشكلة بعملية ذرية" : "تعذّر تحويل الخطر");
+        return;
+      } catch (error) {
+        toast("⛔ لم يتم تحويل الخطر: " + (error?.message || "فشل الحفظ"));
         return;
       } finally {
         convertingRiskIds.current.delete(r.id);
@@ -149,9 +133,22 @@ export function RisksView({ projectId }) {
 // ═════ Issues ═════
 export function IssuesView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, setPage, view, setView } = useP();
-  const [form, setForm] = useState(null); const [st, setSt] = useState(view.issueStatusFilter || "open"); const [sev, setSev] = useState(view.issueSeverityFilter || ""); const [resolving, setResolving] = useState(null);
+  const [form, setForm] = useState(null); const [st, setSt] = useState(view.issueStatusFilter || "open"); const [sev, setSev] = useState(view.issueSeverityFilter || ""); const [resolving, setResolving] = useState(null); const [repairing, setRepairing] = useState({});
   const list = data.issues.filter((i) => (!projectId || i.project_id === projectId) && (st === "all" ? true : st === "open" ? D.isOpenIssue(i) : i.status === st) && (!sev || i.severity === sev)).sort((a, b) => ["Critical", "High", "Medium", "Low"].indexOf(a.severity) - ["Critical", "High", "Medium", "Low"].indexOf(b.severity));
   const canNew = projectId ? can("issue.write", projectsById[projectId]) : data.projects.some((p) => can("issue.write", p));
+  const repairTasks = (issue) => [...new Set([...(issue.task_ids || []), ...idx.list.filter((t) => (t.issue_ids || []).includes(issue.id)).map((t) => t.id)])].map((id) => idx.byId[id]).filter(Boolean);
+  async function createRepairTask(i) {
+    if (repairing[i.id]) return;
+    setRepairing((current) => ({ ...current, [i.id]: true }));
+    try {
+      const task = await act.createRepairTask(i);
+      if (task) toast("✅ تم إنشاء مهمة الإصلاح وربطها بالمشكلة");
+    } catch (error) {
+      toast("⛔ لم تُنشأ مهمة الإصلاح: " + (error?.message || "فشل الحفظ"));
+    } finally {
+      setRepairing((current) => { const next = { ...current }; delete next[i.id]; return next; });
+    }
+  }
   async function change(i, to) {
     const p = projectsById[i.project_id]; if (to === "Resolved") return setResolving(i);
     const m = D.validateIssueStatus(i, to); if (m) return toast("⛔ " + m);
@@ -165,9 +162,9 @@ export function IssuesView({ projectId }) {
           <div><div style={{ fontSize: 13, fontWeight: 700 }}><Chip color={SEV_COLOR[i.severity]} solid>{L.severity[i.severity]}</Chip> {i.title} <Chip color={STATUS_COLOR[i.status]}>{L.issueStatus[i.status]}</Chip></div>
             {i.description && <div style={{ fontSize: 12, color: C.dim }}>{i.description}</div>}{i.resolution && <div style={{ fontSize: 12, color: C.ok }}>الحل: {i.resolution}</div>}
             <div style={{ fontSize: 11, color: C.muted, display: "flex", gap: 10 }}>{!projectId && <ProjectName id={i.project_id} />}<Who id={i.owner_id} size={15} /><span>{fmtShort(i.discovered_at)}</span>{i.from_risk_id && <span>⚠️ من خطر</span>}{i.from_discovery_id && <span>💡 من اكتشاف</span>}</div>
-            {(i.task_ids || []).length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}><span style={{ fontSize: 11, color: C.muted }}>مهام الإصلاح:</span>{(i.task_ids || []).map((tid) => idx.byId[tid]).filter(Boolean).map((t) => <Btn key={t.id} small onClick={() => openTask(t.id)}>🔧 {t.title}</Btn>)}</div>}
+            {repairTasks(i).length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}><span style={{ fontSize: 11, color: C.muted }}>مهام الإصلاح:</span>{repairTasks(i).map((t) => <Btn key={t.id} small onClick={() => openTask(t.id)}>🔧 {t.title}</Btn>)}</div>}
             {i.from_risk_id && <div style={{ fontSize: 11, marginTop: 4 }}>مصدرها خطر: <button type="button" onClick={() => openProject(i.project_id, "risks")} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>{(data.risks.find((r) => r.id === i.from_risk_id) || {}).title || "فتح المخاطر"} ↗</button></div>}{i.from_discovery_id && <div style={{ fontSize: 11, marginTop: 4 }}>مصدرها اكتشاف: <button type="button" onClick={() => setPage("discovery")} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>{(data.discovery.find((d) => d.id === i.from_discovery_id) || {}).title || "فتح الاكتشاف"} ↗</button></div>}</div>
-          <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>{can("issue.write", projectsById[i.project_id]) && <Btn small onClick={async () => { try { const task = await act.createRepairTask(i); if (task) { toast("✅ تم إنشاء مهمة الإصلاح وربطها بالمشكلة"); } } catch (error) { toast("⛔ لم تُنشأ مهمة الإصلاح: " + (error?.message || "فشل الحفظ")); } }}>＋ مهمة إصلاح</Btn>}{can("issue.write", projectsById[i.project_id]) && (D.ISSUE_NEXT[i.status] || []).length > 0 && <select style={{ ...S.sel, width: 110, padding: "3px 6px", fontSize: 11 }} value="" onChange={(e) => e.target.value && change(i, e.target.value)}><option value="">انقل إلى…</option>{D.ISSUE_NEXT[i.status].map((s) => <option key={s} value={s}>{L.issueStatus[s]}</option>)}</select>}<RowActions canW={can("issue.write", projectsById[i.project_id])} onEdit={() => setForm(i)} onDelete={() => act.del("issues", i.id, i.title)} /></span>
+          <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>{can("issue.write", projectsById[i.project_id]) && <Btn small disabled={!!repairing[i.id]} onClick={() => createRepairTask(i)}>{repairing[i.id] ? "جارٍ الإنشاء…" : "＋ مهمة إصلاح"}</Btn>}{can("issue.write", projectsById[i.project_id]) && (D.ISSUE_NEXT[i.status] || []).length > 0 && <select style={{ ...S.sel, width: 110, padding: "3px 6px", fontSize: 11 }} value="" onChange={(e) => e.target.value && change(i, e.target.value)}><option value="">انقل إلى…</option>{D.ISSUE_NEXT[i.status].map((s) => <option key={s} value={s}>{L.issueStatus[s]}</option>)}</select>}<RowActions canW={can("issue.write", projectsById[i.project_id])} onEdit={() => setForm(i)} onDelete={() => act.del("issues", i.id, i.title)} /></span>
         </div>))}</div>}
       {form && <FormModal title={form.id ? "تعديل المشكلة" : "مشكلة جديدة"} wide initial={{ severity: "Medium", status: "Open", discovered_at: new Date().toISOString().slice(0, 10), ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { await act.put("issues", { ...v, id: v.id || uid() }, projectsById[v.project_id]); toast("✅ تم الحفظ"); setForm(null); }} fields={[
         { key: "title", label: "العنوان", required: true, span: 2 }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) },
@@ -235,7 +232,7 @@ export function PrdsView({ projectId }) {
 function PrdEditor({ prd, onClose, onOpen }) {
   const { data, A: act, can, projectsById, people, toast, me, PRD_TEMPLATE, idx, confirm, nameOf, openTask } = useP();
   const project = projectsById[prd.project_id]; const locked = ["Approved", "Superseded", "Ready for Review"].includes(prd.status); const canW = can("prd.write", project) && !locked;
-  const [d, setD] = useState({ ...prd, sections: prd.sections || [] }); const [tab, setTab] = useState("doc"); const [busy, setBusy] = useState(false); const [rejectForm, setRejectForm] = useState(false);
+  const [d, setD] = useState({ ...prd, sections: prd.sections || [] }); const [tab, setTab] = useState("doc"); const [busy, setBusy] = useState(false); const [rejectForm, setRejectForm] = useState(false); const versioning = useRef(false);
   const secOf = (k) => (d.sections.find((s) => s.key === k) || {}).content || "";
   const setSec = (k, v, tpl) => setD((x) => { const ex = x.sections.some((s) => s.key === k); return { ...x, sections: ex ? x.sections.map((s) => (s.key === k ? { ...s, content: v } : s)) : [...x.sections, { key: k, title: tpl ? tpl.title : k, group: tpl ? tpl.group : "", content: v }] }; });
   const save = async (patch) => { setBusy(true); const rec = { ...d, ...(patch || {}) }; const s = await act.put("prds", rec, project); setBusy(false); if (s) { setD(s); toast("✅ تم الحفظ"); } return s; };
@@ -246,8 +243,19 @@ function PrdEditor({ prd, onClose, onOpen }) {
   async function requestReview() { const r = D.prdApprovalReady(d, d.sections, d.approvals); if (r.missing.length) return toast("⛔ لا يمكن طلب المراجعة قبل استكمال: " + r.missing.join("، ")); await save({ status: "Ready for Review", submitted_for_review_at: nowIso() }); }
   async function approve() { const r = D.prdApprovalReady(d, d.sections, d.approvals); if (!r.ok) return toast("⛔ " + (r.missing.length ? "أقسام ناقصة: " + r.missing.join("، ") : "") + (r.pendingReviewers.length ? " بانتظار موافقة: " + r.pendingReviewers.map(nameOf).join("، ") : "")); await save({ status: "Approved", approved_at: nowIso() }); act.act("prds", d.id, "approved", d.title); }
   async function newVersion() {
-    if (!(await confirm("إنشاء نسخة جديدة قابلة للتعديل؟ ستُوسَم النسخة الحالية «تم استبدالها».", { ok: "إنشاء نسخة" }))) return;
-    const nid = uid(); await act.put("prds", { ...d, id: nid, version: (d.version || 1) + 1, supersedes_id: d.id, status: "In Progress", approved_at: null, approvals: [] }, project); await act.put("prds", { ...d, status: "Superseded" }, project); onOpen(nid);
+    if (versioning.current) return;
+    versioning.current = true;
+    try {
+      if (!(await confirm("إنشاء نسخة جديدة قابلة للتعديل؟ ستُوسَم النسخة الحالية «تم استبدالها».", { ok: "إنشاء نسخة" }))) return;
+      setBusy(true);
+      const next = await act.createPrdVersion(d);
+      onOpen(next.id);
+    } catch (error) {
+      toast("⛔ لم يتم إنشاء النسخة الجديدة: " + (error?.message || "فشل الحفظ"));
+    } finally {
+      setBusy(false);
+      versioning.current = false;
+    }
   }
   async function risksFromSection() {
     const lines = secOf("risk_mitigation").split("\n").map((l) => l.trim()).filter(Boolean); if (!lines.length) return toast("اكتب المخاطر في قسم التخفيف أولاً (سطر لكل خطر)");
@@ -261,9 +269,9 @@ function PrdEditor({ prd, onClose, onOpen }) {
       {canW && <Btn kind="primary" onClick={() => save()} disabled={busy}>💾 حفظ</Btn>}
       {canW && d.status !== "Ready for Review" && <Btn onClick={requestReview}>📤 طلب مراجعة</Btn>}
       {can("prd.approve", project) && d.status === "Ready for Review" && <Btn kind="primary" onClick={approve}>✔ اعتماد</Btn>}
-      {d.status === "Approved" && can("prd.write", project) && <Btn onClick={newVersion}>🆕 نسخة جديدة</Btn>}
+      {d.status === "Approved" && can("prd.approve", project) && <Btn onClick={newVersion} disabled={busy}>🆕 نسخة جديدة</Btn>}
       {canW && <Btn onClick={risksFromSection}>⚠️ حوّل المخاطر إلى سجلات</Btn>}
-      {d.status === "Ready for Review" && can("prd.write", project) && <Btn onClick={() => save({ status: "In Progress", submitted_for_review_at: null })}>↩ إرجاع للمسودة</Btn>}
+      {d.status === "Ready for Review" && can("prd.approve", project) && <Btn onClick={() => save({ status: "In Progress", submitted_for_review_at: null })}>↩ إرجاع للمسودة</Btn>}
       {!locked && can("prd.write", project) && <Btn danger onClick={async () => { await act.del("prds", d.id, d.title); onClose(); }}>🗑</Btn>}</>}>
       <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}><Chip color={d.status === "Approved" ? C.ok : C.info}>{L.prdStatus[d.status]}</Chip><ProjectName id={d.project_id} />{locked && <span style={{ fontSize: 11, color: C.muted }}>🔒 {d.status === "Ready for Review" ? "قيد المراجعة — أعدها للمسودة قبل التعديل" : "نسخة معتمدة/مستبدلة — أنشئ نسخة جديدة للتعديل"}</span>}</div>
       <Tabs small value={tab} onChange={setTab} tabs={[{ id: "doc", label: "المواصفة" }, { id: "meta", label: "البيانات والمراجعة" }, { id: "tasks", label: "المهام", count: linkedTasks.length }]} />
@@ -293,7 +301,8 @@ function PrdEditor({ prd, onClose, onOpen }) {
 // ═════ Discovery (PIO) ═════
 export function DiscoveryView() {
   const { data, A: act, can, projectsById, people, toast, me, today, settings, confirm, openProject, idx, nameOf } = useP();
-  const [form, setForm] = useState(null); const [mode, setMode] = useState("board"); const [q, setQ] = useState(""); const [type, setType] = useState(""); const [conv, setConv] = useState(null);
+  const [form, setForm] = useState(null); const [mode, setMode] = useState("board"); const [q, setQ] = useState(""); const [type, setType] = useState(""); const [conv, setConv] = useState(null); const convertingDiscoveryIds = useRef(new Set());
+  const runDiscoveryConversionOnce = async (id, work) => { if (convertingDiscoveryIds.current.has(id)) { toast("التحويل جارٍ بالفعل؛ انتظر اكتماله قبل إعادة المحاولة."); return null; } convertingDiscoveryIds.current.add(id); try { return await work(); } finally { convertingDiscoveryIds.current.delete(id); } };
   const list = data.discovery.filter((d) => (!type || d.type === type) && (!q || d.title.toLowerCase().includes(q.toLowerCase())));
   const statuses = Object.keys(L.discoveryStatus);
   const stale = (d) => d.status === "Inbox" && d.logged_at && diffDays(today, d.logged_at) > settings.inboxStaleDays;
@@ -313,10 +322,41 @@ export function DiscoveryView() {
     const pid = projectIds.length === 1 ? projectIds[0] : selectedProjectId;
     if (["task", "prd", "issue"].includes(kind) && !pid && projectIds.length === 0) { toast("اربط الاكتشاف بمشروع نشط أولاً، ثم أعد التحويل."); return; }
     if (["task", "prd", "issue"].includes(kind) && !pid) { setConv({ ...d, _conversionKind: kind, _conversionProjectId: "", _availableProjectIds: projectIds }); return; }
-    if (kind === "task") { if (!pid) return toast("اربط الاكتشاف بمشروع أولاً"); const existing = idx.list.find((t) => (t.discovery_ids || []).includes(d.id)); if (existing) { await act.put("discovery", { ...d, status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "task", id: existing.id }] }); toast("تم العثور على المهمة المرتبطة مسبقاً واستكمال ربط الاكتشاف."); setConv(null); return; } const t = await act.saveTask({ title: d.title, project_id: pid, description: d.proposed_solution || d.description || "", discovery_ids: [d.id], assignee_id: d.owner_id || null }, true); if (t) { await act.put("discovery", { ...d, status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "task", id: t.id }] }); toast("✅ أُنشئت مهمة مرتبطة"); } }
-    if (kind === "prd") { if (!pid) return toast("اربط الاكتشاف بمشروع أولاً"); const existing = data.prds.find((p) => (p.discovery_ids || []).includes(d.id)); if (existing) { await act.put("discovery", { ...d, status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "prd", id: existing.id }] }); toast("تم العثور على المواصفة المرتبطة مسبقاً واستكمال الربط."); setConv(null); return; } const id = uid(); await act.put("prds", { id, title: d.title, project_id: pid, status: "Not Started", version: 1, lead_id: me, tldr: d.description || "", sections: [{ key: "problem_overview", title: "نظرة عامة", group: "المشكلة", content: d.description || "" }, { key: "evidence", title: "الأدلة", group: "المشكلة", content: d.insights || "" }, { key: "proposed_solution", title: "الحل المقترح (ملخص)", group: "المشكلة", content: d.proposed_solution || "" }], approvals: [], reviewer_ids: [], discovery_ids: [d.id] }, projectsById[pid]); await act.put("discovery", { ...d, status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "prd", id }] }); toast("✅ أُنشئت مواصفة"); }
-    if (kind === "project") { const existing = data.projects.find((p) => p.source_discovery_id === d.id); if (existing) { await act.put("discovery", { ...d, project_ids: [...new Set([...(d.project_ids || []), existing.id])], status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "project", id: existing.id }] }); toast("تم العثور على المشروع المرتبط مسبقاً واستكمال الربط."); setConv(null); return; } const pid = uid(); await act.saveProject({ id: pid, name: d.title, type: "أخرى", status: "Idea", priority: d.impact_level === "Critical" ? "High" : "Medium", description: d.description || "", visibility: "workspace", source_discovery_id: d.id }, true); await act.put("discovery", { ...d, project_ids: [...(d.project_ids || []), pid], status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "project", id: pid }] }); toast("✅ أُنشئ مشروع كفكرة"); }
-    if (kind === "issue") { if (!pid) return toast("اربط الاكتشاف بمشروع أولاً"); const existing = data.issues.find((i) => i.from_discovery_id === d.id); if (existing) { await act.put("discovery", { ...d, status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "issue", id: existing.id }] }); toast("تم العثور على المشكلة المرتبطة مسبقاً واستكمال الربط."); setConv(null); return; } const id = uid(); await act.put("issues", { id, title: d.title, project_id: pid, severity: d.impact_level || "Medium", status: "Open", discovered_at: today, owner_id: d.owner_id, description: d.description || "", from_discovery_id: d.id }, projectsById[pid]); await act.put("discovery", { ...d, status: "Completed", resolution_links: [...(d.resolution_links || []), { kind: "issue", id }] }); toast("✅ أُنشئت مشكلة"); }
+    if (["task", "prd", "issue"].includes(kind) && d.project_ids?.length && pid && !projectIds.includes(pid)) { toast("المشروع المختار يجب أن يكون من المشاريع المرتبطة النشطة بالاكتشاف."); return; }
+    if (kind === "task") {
+      if (!pid) return toast("اربط الاكتشاف بمشروع أولاً");
+      try {
+        const task = await runDiscoveryConversionOnce(d.id, () => act.convertDiscoveryToTask(d.id, pid));
+        if (!task) return;
+        toast(task ? "✅ تم إنشاء المهمة أو استكمال ربطها ذريًا" : "تعذّر تحويل الاكتشاف");
+      } catch (error) {
+        toast("⛔ لم يتم تحويل الاكتشاف: " + (error?.message || "فشل الحفظ"));
+        return;
+      }
+    }
+    if (kind === "prd") {
+      if (!pid) return toast("اربط الاكتشاف بمشروع أولاً");
+      try {
+        const prd = await runDiscoveryConversionOnce(d.id, () => act.convertDiscoveryToPrd(d.id, pid));
+        if (!prd) return;
+        toast(prd ? "✅ تم إنشاء المواصفة أو استكمال ربطها ذريًا" : "تعذّر تحويل الاكتشاف");
+      } catch (error) {
+        toast("⛔ لم يتم إنشاء المواصفة: " + (error?.message || "فشل الحفظ"));
+        return;
+      }
+    }
+    if (kind === "project") {
+      try {
+        const project = await runDiscoveryConversionOnce(d.id, () => act.convertDiscoveryToProject(d.id));
+        if (!project) return;
+        toast("✅ تم إنشاء المشروع أو استكمال ربطه ذريًا");
+      } catch (error) {
+        toast("⛔ لم يتم تحويل الاكتشاف إلى مشروع: " + (error?.message || "فشل الحفظ"));
+        return;
+      }
+    }
+    if (kind === "issue") { if (!pid) return toast("اربط الاكتشاف بمشروع أولاً"); try { const issue = await runDiscoveryConversionOnce(d.id, () => act.convertDiscoveryToIssue(d.id, pid, today));
+      if (!issue) return; toast(issue ? "✅ تم إنشاء المشكلة أو استكمال ربطها ذريًا" : "تعذّر تحويل الاكتشاف"); } catch (error) { toast("⛔ لم يتم تحويل الاكتشاف: " + (error?.message || "فشل الحفظ")); return; } }
     setConv(null);
   }
   const card = (d) => (
