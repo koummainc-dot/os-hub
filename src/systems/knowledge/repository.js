@@ -170,4 +170,26 @@ export async function validateKnowledgeExternalLink(workspaceId, targetSystem, t
   return { valid: found, reason: found ? null : "target-not-found" };
 }
 
+
+export async function listKnowledgeNotifications(workspaceId) {
+  if (!workspaceId || !supabase) return { ok: false, error: new Error("Knowledge workspace is required") };
+  const { data, error } = await supabase
+    .from("knowledge_notifications")
+    .select("id,workspace_id,reminder_id,title,body,read_at,created_at")
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  return error ? { ok: false, error } : { ok: true, notifications: data || [] };
+}
+
+export async function markKnowledgeNotificationRead(workspaceId, notificationId) {
+  if (!workspaceId || !notificationId || !supabase) return { ok: false, error: new Error("Workspace and notification are required") };
+  const { error } = await supabase
+    .from("knowledge_notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("workspace_id", workspaceId)
+    .eq("id", notificationId);
+  return error ? { ok: false, error } : { ok: true };
+}
+
 export { hasKnowledgeContent };
