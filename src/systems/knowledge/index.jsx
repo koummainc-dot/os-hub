@@ -52,6 +52,8 @@ const normalize = raw => {
   };
 };
 const esc = s => String(s||"").trim();
+const validISODate = value => !value || (/^\\d{4}-\\d{2}-\\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && new Date(value+"T00:00:00Z").toISOString().slice(0,10)===value);
+const validTime = value => !value || /^([01]\\d|2[0-3]):[0-5]\\d$/.test(value);
 const card = {background:C.white,border:"1px solid "+C.line,borderRadius:16,padding:16};
 const input = {width:"100%",boxSizing:"border-box",border:"1px solid "+C.line,borderRadius:10,padding:"10px 12px",font:"inherit",fontSize:13,color:C.ink,background:C.white};
 function Btn({children,onClick,secondary=false,disabled=false,type="button"}) {
@@ -179,6 +181,12 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   const saveItem=async e=>{
     e.preventDefault();
     if(!canEdit||!esc(form.title)){setError("العنوان مطلوب.");return;}
+    for(const [label,value] of [["تاريخ العنصر",form.date],["تاريخ النشر",form.publishedAt],["تاريخ القراءة",form.readAt],["موعد المراجعة",form.reviewAt]]) {
+      if(!validISODate(value)){setError(label+" غير صالح.");return;}
+    }
+    if(!validTime(form.startTime)||!validTime(form.endTime)||(form.startTime&&form.endTime&&form.endTime<form.startTime)){setError("وقت البداية أو النهاية غير صالح، ويجب أن يكون وقت النهاية بعد البداية.");return;}
+    if(form.rating!==undefined&&form.rating!==""&&(!Number.isInteger(Number(form.rating))||Number(form.rating)<1||Number(form.rating)>5)){setError("التقييم يجب أن يكون رقمًا صحيحًا من 1 إلى 5.");return;}
+    if(esc(form.url)){try{const parsed=new URL(esc(form.url));if(!["http:","https:"].includes(parsed.protocol))throw new Error("protocol");}catch{setError("الرابط يجب أن يبدأ بـ http:// أو https://");return;}}
     const kind=editor.kind==="inbox"?"inbox":editor.kind;
     const row={...form,id:editor.id||uid(),title:esc(form.title),url:esc(form.url),summary:esc(form.summary),notes:esc(form.notes),nextAction:esc(form.nextAction),author:esc(form.author),location:esc(form.location),relatedSystem:esc(form.relatedSystem),relatedId:esc(form.relatedId),relatedItemIds:[...new Set((Array.isArray(form.relatedItemIds)?form.relatedItemIds:[]).filter(id=>id&&id!==(editor.id||"")))],rating:form.rating===""?null:Number(form.rating)||null,reviewAt:(kind==="resource"&&!form.reviewAt&&Number(data.preferences.reviewReminderDays)>0)?new Date(Date.now()+Number(data.preferences.reviewReminderDays)*86400000).toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}):(form.reviewAt||""),categoryId:form.categoryId||null,tags:[...new Set(esc(form.tags).split(",").map(x=>x.trim()).filter(Boolean))],attendees:esc(form.attendees).split(",").map(x=>x.trim()).filter(Boolean),followups:esc(form.followups).split("\n").map(x=>x.trim()).filter(Boolean),updatedAt:isoNow(),createdAt:form.createdAt||isoNow()};
     delete row.kind;
