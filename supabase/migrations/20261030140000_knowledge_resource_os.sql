@@ -444,40 +444,54 @@ create policy knowledge_attachments_object_select on storage.objects
 for select to authenticated
 using (
   bucket_id='knowledge-attachments'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
-
-  and public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main') in ('view','edit')
+  and case
+    when length((storage.foldername(name))[1])=36
+      and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+    then public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main') in ('view','edit')
+    else false
+  end
 );
 create policy knowledge_attachments_object_insert on storage.objects
 for insert to authenticated
 with check (
   bucket_id='knowledge-attachments'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
-
-  and public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main')='edit'
+  and case
+    when length((storage.foldername(name))[1])=36
+      and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+    then public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main')='edit'
+    else false
+  end
 );
 create policy knowledge_attachments_object_update on storage.objects
 for update to authenticated
 using (
   bucket_id='knowledge-attachments'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
-
-  and public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main')='edit'
+  and case
+    when length((storage.foldername(name))[1])=36
+      and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+    then public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main')='edit'
+    else false
+  end
 )
 with check (
   bucket_id='knowledge-attachments'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
-
-  and public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main')='edit'
+  and case
+    when length((storage.foldername(name))[1])=36
+      and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+    then public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main')='edit'
+    else false
+  end
 );
 create policy knowledge_attachments_object_delete on storage.objects
 for delete to authenticated
 using (
   bucket_id='knowledge-attachments'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
-
-  and public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main')='edit'
+  and case
+    when length((storage.foldername(name))[1])=36
+      and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+    then public.ws_access_level(((storage.foldername(name))[1])::uuid,'knowledge','main')='edit'
+    else false
+  end
 );
-
 
 commit;
