@@ -180,7 +180,7 @@ export function IssuesView({ projectId }) {
 
 // ═════ Decisions ═════
 export function DecisionsView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject } = useP();
+  const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, setPage } = useP();
   const [form, setForm] = useState(null);
   const list = data.decisions.filter((d) => !projectId || d.project_id === projectId).sort((a, b) => (b.decided_at || "").localeCompare(a.decided_at || ""));
   const canNew = projectId ? can("decision.write", projectsById[projectId]) : data.projects.some((p) => can("decision.write", p));
@@ -193,10 +193,11 @@ export function DecisionsView({ projectId }) {
           {d.rationale && <div style={{ fontSize: 12, color: C.dim }}><b>لماذا؟</b> {d.rationale}</div>}{d.rejected_alternatives && <div style={{ fontSize: 12, color: C.dim }}><b>بدائل مرفوضة:</b> {d.rejected_alternatives}</div>}
           {d.superseded_by_id && <div style={{ fontSize: 11.5, color: C.warn }}>حلّ محله: {(data.decisions.find((x) => x.id === d.superseded_by_id) || {}).title}</div>}
           <div style={{ fontSize: 11, color: C.muted, display: "flex", gap: 10 }}>{!projectId && <ProjectName id={d.project_id} />}<span>{fmt(d.decided_at)}</span>{d.decision_maker_id && <Who id={d.decision_maker_id} size={15} />}</div>
-          {(() => { const tasks = (d.related_task_ids || []).map((id) => idx.byId[id]).filter(Boolean); const issues = (d.related_issue_ids || []).map((id) => data.issues.find((x) => x.id === id)).filter(Boolean); const risks = (d.related_risk_ids || []).map((id) => data.risks.find((x) => x.id === id)).filter(Boolean); if (!tasks.length && !issues.length && !risks.length) return null; return <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}>
+          {(() => { const tasks = (d.related_task_ids || []).map((id) => idx.byId[id]).filter(Boolean); const issues = (d.related_issue_ids || []).map((id) => data.issues.find((x) => x.id === id)).filter(Boolean); const risks = (d.related_risk_ids || []).map((id) => data.risks.find((x) => x.id === id)).filter(Boolean); const discoveries = (d.related_discovery_ids || []).map((id) => data.discovery.find((x) => x.id === id)).filter(Boolean); if (!tasks.length && !issues.length && !risks.length && !discoveries.length) return null; return <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}>
             {tasks.map((t) => <Btn key={t.id} small onClick={() => openTask(t.id)}>↗ مهمة: {t.title}</Btn>}
             {issues.map((i) => <Btn key={i.id} small onClick={() => openProject(i.project_id, "issues")}>↗ مشكلة: {i.title}</Btn>)}
             {risks.map((r) => <Btn key={r.id} small onClick={() => openProject(r.project_id, "risks")}>↗ خطر: {r.title}</Btn>)}
+            {discoveries.map((discovery) => <Btn key={discovery.id} small onClick={() => { setPage("discovery"); }}>↗ اكتشاف: {discovery.title}</Btn>)}
           </div>; })()}
         </div>))}</div>}
       {form && <FormModal title={form.id ? "تعديل القرار" : "قرار جديد"} wide initial={{ status: "Proposed", decided_at: new Date().toISOString().slice(0, 10), ...form }} onClose={() => setForm(null)}
@@ -209,6 +210,7 @@ export function DecisionsView({ projectId }) {
            { key: "related_task_ids", label: "المهام المتأثرة", type: "multi", options: (v) => idx.list.filter((t) => t.project_id === v.project_id).map((t) => ({ v: t.id, l: t.title })) },
            { key: "related_issue_ids", label: "المشاكل المتأثرة", type: "multi", options: (v) => data.issues.filter((i) => i.project_id === v.project_id).map((i) => ({ v: i.id, l: i.title })) },
            { key: "related_risk_ids", label: "المخاطر المتأثرة", type: "multi", options: (v) => data.risks.filter((r) => r.project_id === v.project_id).map((r) => ({ v: r.id, l: r.title })) },
+           { key: "related_discovery_ids", label: "الاكتشافات التي أثرت في القرار", type: "multi", options: () => data.discovery.map((d) => ({ v: d.id, l: d.title })) },
           { key: "rationale", label: "لماذا؟", type: "textarea" }, { key: "rejected_alternatives", label: "البدائل المرفوضة", type: "textarea", rows: 2 }, { key: "expected_impact", label: "الأثر المتوقع", type: "textarea", rows: 2 }]} />}
     </div>
   );
@@ -374,7 +376,7 @@ export function DiscoveryView() {
     <div style={{ ...S.card, padding: "9px 11px" }} onClick={() => setForm(d)}>
       <div style={{ fontSize: 12.5, fontWeight: 700 }}>{typeIcon[d.type]} {d.title}</div>
       <div style={{ fontSize: 11, color: C.dim, margin: "3px 0" }}>{d.proposed_solution ? "💬 " + d.proposed_solution.slice(0, 60) : d.description ? d.description.slice(0, 60) : ""}</div>
-      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>{d.impact_level && <Chip color={SEV_COLOR[d.impact_level]}>{L.severity[d.impact_level]}</Chip>}{stale(d) && <Chip color={C.warn}>⏳ يحتاج فرزاً</Chip>}{d.owner_id && <Who id={d.owner_id} size={15} />}{(d.resolution_links || []).length > 0 && <Chip color={C.ok}>↪ {(d.resolution_links || []).length}</Chip>}</div>
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>{d.impact_level && <Chip color={SEV_COLOR[d.impact_level]}>{L.severity[d.impact_level]}</Chip>}{stale(d) && <Chip color={C.warn}>⏳ يحتاج فرزاً</Chip>}{d.owner_id && <Who id={d.owner_id} size={15} />}{(d.resolution_links || []).length > 0 && <Chip color={C.ok}>↪ {(d.resolution_links || []).length}</Chip>}{data.decisions.filter((decision) => (decision.related_discovery_ids || []).includes(d.id)).map((decision) => <Chip key={decision.id} color={C.violet}>⚖ {decision.title}</Chip>)}</div>
     </div>);
   return (
     <div>
