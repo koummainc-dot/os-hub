@@ -51,5 +51,6 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031140000_home_os_phase1_foundation.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031160000_home_os_phase2_operations.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031170000_home_os_operations_snapshot.sql
-      - name: Verify Home snapshot, RLS and movement idempotency
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031180000_home_os_atomic_purchase_receipts.sql
+      - name: Verify Home snapshot, RLS, movement and receipt idempotency
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/home_os_smoke.sql
