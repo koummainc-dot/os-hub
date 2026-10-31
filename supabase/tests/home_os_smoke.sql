@@ -73,7 +73,15 @@ begin
   exception when check_violation then
     null;
   end;
-end $$;
+  begin
+    update public.home_inventory_items set quantity=99
+      where workspace_id='10000000-0000-4000-8000-000000000001'
+        and id='50000000-0000-4000-8000-000000000001';
+    raise exception 'HOME_DIRECT_BALANCE_WRITE_NOT_REJECTED';
+  exception when check_violation then
+    null;
+  end;
+end $;
 
 select public.home_operations_save(
   '10000000-0000-4000-8000-000000000001',
