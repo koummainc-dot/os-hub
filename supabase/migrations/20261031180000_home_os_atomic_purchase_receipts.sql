@@ -322,10 +322,13 @@ begin
       '{purchaseRequests}',
       coalesce((
         select jsonb_agg(
-          case when p->>'id' = p_request_id::text
-            then jsonb_set(jsonb_set(jsonb_set(p,'{status}',to_jsonb(v_status),true),
-              '{updatedAt}',to_jsonb(v_now),true),
-              '{receivedAt}',to_jsonb(case when v_status = 'received' then v_now else nullif(p->>'receivedAt','') end),true)
+          case when p->>'id' = p_request_id::text then
+            case when v_status = 'received'
+              then jsonb_set(jsonb_set(jsonb_set(p,'{status}',to_jsonb(v_status),true),
+                '{updatedAt}',to_jsonb(v_now),true), '{receivedAt}',to_jsonb(v_now),true)
+              else jsonb_set(jsonb_set(p,'{status}',to_jsonb(v_status),true),
+                '{updatedAt}',to_jsonb(v_now),true)
+            end
             else p
           end
         )
