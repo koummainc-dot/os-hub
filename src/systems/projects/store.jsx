@@ -493,6 +493,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       const taskId = stableTaskId;
       const prdId = decision.prd_id || (decision.affected_prd_ids || []).find((id) => data.prds.some((p) => p.id === id && p.project_id === decision.project_id)) || null;
       const task = { id: taskId, title: "تنفيذ القرار: " + decision.title, project_id: decision.project_id, description: [decision.rationale, decision.expected_impact && ("الأثر المتوقع: " + decision.expected_impact)].filter(Boolean).join("\\n\\n"), priority: "Medium", status: "Not Started", planning_bucket: "Inbox", prd_id: prdId, discovery_ids: [...new Set(decision.affected_discovery_ids || [])], created_by: me, sort_order: Date.now() };
+      for (const discoveryId of task.discovery_ids) { const discovery = (data.discovery || []).find((x) => x.id === discoveryId); if (!discovery || (discovery.project_ids || []).length && !discovery.project_ids.includes(task.project_id)) throw new Error("الاكتشاف المرتبط بمهمة القرار غير موجود أو من مشروع آخر."); }
       const errs = D.validateTaskRefs(task, { projectsById, tasksById: idx.byId, prdsById });
       if (errs.length) throw new Error(errs[0]);
       if (D.traceabilityBlocked(settings, project.type, project.is_system, task)) throw new Error("سياسة التتبع تتطلب ربط القرار بمواصفة أو اكتشاف قبل إنشاء المهمة.");
