@@ -80,7 +80,7 @@
 - Earlier CI failures exposed two incorrect test expectations; both were corrected (template fixture count and linked task-list count).
 - Domain test suite, production build, and existing regression suite passed on commit `ae89010`; an expanded suite including navigation, permission, retry, and project-scope assertions is now running on the latest branch head.
 - The first two Projects OS SQL migrations passed disposable PostgreSQL 16 smoke tests on commit `ae89010`: valid relationships were accepted, and cross-project/missing/non-final references were rejected.
-- The third PRD verified-evidence migration and expanded SQL cases are committed; latest disposable PostgreSQL result is pending.
-- Latest CI and SQL smoke results for the additional acceptance fixes and third migration are pending.
+- All three Projects OS migrations and expanded SQL cases passed on disposable PostgreSQL 16 on commit `9c08664` (bootstrap, migration apply, valid/invalid relationship checks, verified-evidence checks, and cleanup all succeeded).
+- Domain test suite, production build, regression suite, and Projects SQL smoke tests passed on the tested code/SQL commits `22d1caf` and `9c08664`. Browser acceptance remains blocked by the preview deployment quota.
 - Manual browser acceptance tests for the complete relationship flows have not yet been performed.
 - The draft PR is intentionally not merged.
