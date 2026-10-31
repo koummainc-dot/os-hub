@@ -40,6 +40,41 @@ begin
   end if;
 end $$;
 
+-- Inventory commands update balance and ledger in one transaction; retry is idempotent.
+select public.home_record_inventory_movement(
+  '10000000-0000-4000-8000-000000000001',
+  '50000000-0000-4000-8000-000000000001',
+  'consume', 1, 'smoke-inventory-consume-0001', 'consume smoke', null, '2026-10-31T01:00:00Z'
+);
+select public.home_record_inventory_movement(
+  '10000000-0000-4000-8000-000000000001',
+  '50000000-0000-4000-8000-000000000001',
+  'consume', 1, 'smoke-inventory-consume-0001', 'consume smoke', null, '2026-10-31T01:00:00Z'
+);
+do $$
+begin
+  if (select quantity from public.home_inventory_items
+      where workspace_id='10000000-0000-4000-8000-000000000001'
+        and id='50000000-0000-4000-8000-000000000001') <> 1 then
+    raise exception 'HOME_ATOMIC_MOVEMENT_BALANCE_FAILED';
+  end if;
+  if (select count(*) from public.home_inventory_movements
+      where workspace_id='10000000-0000-4000-8000-000000000001'
+        and idempotency_key='smoke-inventory-consume-0001') <> 1 then
+    raise exception 'HOME_ATOMIC_MOVEMENT_IDEMPOTENCY_FAILED';
+  end if;
+  begin
+    perform public.home_record_inventory_movement(
+      '10000000-0000-4000-8000-000000000001',
+      '50000000-0000-4000-8000-000000000001',
+      'consume', 5, 'smoke-inventory-overdraw-0001', 'must fail', null, '2026-10-31T01:01:00Z'
+    );
+    raise exception 'HOME_STOCK_OVERDRAW_NOT_REJECTED';
+  exception when check_violation then
+    null;
+  end;
+end $$;
+
 select public.home_operations_save(
   '10000000-0000-4000-8000-000000000001',
   '{"tasks":[],"completions":[],"providers":[],"maintenance":[],"purchaseRequests":[],"purchaseItems":[],"bills":[],"events":[]}'::jsonb
