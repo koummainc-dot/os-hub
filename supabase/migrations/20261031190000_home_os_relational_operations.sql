@@ -263,8 +263,11 @@ begin
       nullif(v_row->>'orderedAt','')::timestamptz,nullif(v_row->>'receivedAt','')::timestamptz,
       coalesce(nullif(v_row->>'createdAt','')::timestamptz,v_now),v_now
     ) on conflict(id) do update set property_id=excluded.property_id,title=excluded.title,
-      status=case when public.home_purchase_requests.status in ('partially_received','received')
-        then public.home_purchase_requests.status else excluded.status end,
+      status=case
+        when public.home_purchase_requests.status='received' then 'received'
+        when public.home_purchase_requests.status='partially_received' and excluded.status<>'cancelled' then 'partially_received'
+        else excluded.status
+      end,
       priority=excluded.priority,needed_by=excluded.needed_by,budget_amount=excluded.budget_amount,
       currency=excluded.currency,notes=excluded.notes,approved_by=excluded.approved_by,approved_at=excluded.approved_at,
       ordered_at=excluded.ordered_at,received_at=coalesce(public.home_purchase_requests.received_at,excluded.received_at),
