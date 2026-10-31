@@ -15,13 +15,13 @@ export function nextReviewSchedule(item, rating, date = day()) {
   return { nextReviewDate: shift(date, interval), reviewIntervalDays: interval, reviewEase: Math.min(3, ease + 0.1), status: interval >= 30 ? "Mastered" : "Review" };
 }
 
-export default function ReviewQueue({ data, canEdit, onSave, onOpenSource }) {
+export default function ReviewQueue({ data, canEdit, onSave, onOpenSource, workspaceId = "demo" }) {
   const [revealed, setRevealed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [index, setIndex] = useState(0);
   const [sharedLogs, setSharedLogs] = useState([]);
-  const workspaceKey = String(data.preferences?.workspaceId || "demo");
+  const workspaceKey = String(workspaceId || data.preferences?.workspaceId || "demo");
   const refreshSharedLogs = () => { try { setSharedLogs(JSON.parse(localStorage.getItem("os-hub:shared-review-history:" + workspaceKey) || "[]")); } catch { setSharedLogs([]); } };
   useEffect(() => { refreshSharedLogs(); const handler = () => refreshSharedLogs(); window.addEventListener("os-hub:review-recorded", handler); window.addEventListener("storage", handler); return () => { window.removeEventListener("os-hub:review-recorded", handler); window.removeEventListener("storage", handler); }; }, [workspaceKey]);
   const today = day(new Date(), data.preferences?.timezone || "Africa/Cairo");
