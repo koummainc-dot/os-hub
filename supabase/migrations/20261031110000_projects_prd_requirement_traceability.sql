@@ -57,10 +57,12 @@ begin
     end if;
 
     if requirement_id is not null then
-      if jsonb_typeof(coalesce(prd_data->'requirements', '[]'::jsonb)) <> 'array'
-         or not exists (
+      if not exists (
            select 1
-             from jsonb_array_elements(coalesce(prd_data->'requirements', '[]'::jsonb)) as requirement
+             from jsonb_array_elements(
+               case when jsonb_typeof(prd_data->'requirements') = 'array'
+                    then prd_data->'requirements' else '[]'::jsonb end
+             ) as requirement
             where requirement->>'id' = requirement_id
          ) then
         raise exception 'The linked requirement does not belong to the selected PRD' using errcode = '22023';
