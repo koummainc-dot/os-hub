@@ -6,7 +6,7 @@ const screens = await readFile(new URL("../src/systems/projects/screens_c.jsx", 
 
 assert.ok(entities.includes('onClick={() => openProject(o.project_id, "prds")}') && entities.includes(">متطلب:"),
   "output requirement reference must navigate to the owning PRD section");
-assert.ok(entities.includes('reqOutputs.map((o) => <button key={o.id} type="button" onClick={() => openProject(d.project_id, "outputs")}>'),
+assert.ok(entities.includes('reqOutputs.map((o) => <button key={o.id} type="button" onClick={() => openProject(d.project_id, "outputs")}'),
   "PRD requirement output evidence must navigate to the outputs section");
 assert.ok(screens.includes('related.wins.map((x) => <Btn key={x.id} small onClick={() => setPage("wins")}>'),
   "stakeholder update achievement references must be actionable");
