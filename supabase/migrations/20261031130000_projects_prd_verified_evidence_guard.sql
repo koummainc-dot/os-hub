@@ -22,7 +22,8 @@ declare
   lost_output_id text;
 begin
   if tg_table_name <> 'workspace_records' then
-    return coalesce(new, old);
+    if tg_op = 'DELETE' then return old; end if;
+    return new;
   end if;
 
   if tg_op = 'DELETE' then
@@ -43,6 +44,54 @@ begin
     if new.system_id <> 'projects' or new.collection <> 'outputs' or old.system_id <> 'projects' or old.collection <> 'outputs' then
       -- PRD updates are handled below; unrelated collections do not need evidence checks.
       if new.system_id = 'projects' and new.collection = 'prds' then
+        if new.deleted or new.data->>'deleted_at' is not null or new.data->>'archived_at' is not null then
+          if exists (
+            select 1 from public.workspace_records linked
+             where linked.workspace_id = new.workspace_id
+               and linked.system_id = 'projects'
+               and linked.collection in ('tasks','outputs')
+               and linked.deleted = false
+               and linked.data->>'deleted_at' is null
+               and linked.data->>'archived_at' is null
+               and linked.data->>'prd_id' = new.id
+          ) then
+            raise exception 'Cannot archive or delete a PRD while active tasks or outputs still reference it'
+              using errcode = '22023';
+          end if;
+        end if;
+
+        if tg_op = 'UPDATE' then
+          for req in
+            select value
+              from jsonb_array_elements(
+                case when jsonb_typeof(old.data->'requirements') = 'array'
+                     then old.data->'requirements' else '[]'::jsonb end
+              )
+          loop
+            if not exists (
+              select 1
+                from jsonb_array_elements(
+                  case when jsonb_typeof(new.data->'requirements') = 'array'
+                       then new.data->'requirements' else '[]'::jsonb end
+                ) next_req(value)
+               where next_req.value->>'id' = req->>'id'
+            ) and exists (
+              select 1 from public.workspace_records linked
+               where linked.workspace_id = new.workspace_id
+                 and linked.system_id = 'projects'
+                 and linked.collection in ('tasks','outputs')
+                 and linked.deleted = false
+                 and linked.data->>'deleted_at' is null
+                 and linked.data->>'archived_at' is null
+                 and linked.data->>'prd_id' = new.id
+                 and linked.data->>'prd_requirement_id' = req->>'id'
+            ) then
+              raise exception 'Cannot remove a PRD requirement while active tasks or outputs still reference it: %', req->>'id'
+                using errcode = '22023';
+            end if;
+          end loop;
+        end if;
+
         for req in
           select value
             from jsonb_array_elements(
