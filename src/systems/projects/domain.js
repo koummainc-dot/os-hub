@@ -186,7 +186,7 @@ export function planTreeMove(taskId, targetProjectId, idx, prdsById, allTasks, d
   const patches = ids.map((id) => {
     const t = byId[id]; const p = { ...t, project_id: targetProjectId };
     if (id === taskId) p.parent_task_id = null;
-    if (t.prd_id && (!prdsById[t.prd_id] || prdsById[t.prd_id].project_id !== targetProjectId)) p.prd_id = null;
+    if (t.prd_id && (!prdsById[t.prd_id] || prdsById[t.prd_id].project_id !== targetProjectId)) { p.prd_id = null; p.prd_requirement_id = null; }
     if (t.discovery_ids && t.discovery_ids.length) {
       p.discovery_ids = t.discovery_ids.filter((discoveryId) => {
         const discovery = discoveriesById[discoveryId];
