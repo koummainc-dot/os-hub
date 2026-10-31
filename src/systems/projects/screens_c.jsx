@@ -129,15 +129,15 @@ export function Reviews() {
   );
 }
 function ReviewEditor({ r, onClose }) {
-  const { data, A: act, me, idx, metrics, settings, toast, confirm, today, projectsById, nameOf, openTask } = useP(); const own = r.member_id === me; const closed = r.status === "Closed"; const canW = own && !closed;
-  const [d, setD] = useState(r); const live = D.reviewLive(r.member_id, r.week_start, { idx, wins: data.wins, sessions: data.sessions, issues: data.issues, risks: data.risks, checkins: data.checkins, projects: data.projects, metrics, settings, today });
+  const { data, A: act, me, idx, metrics, settings, toast, confirm, today, projectsById, nameOf, openTask, openProject, setPage } = useP(); const own = r.member_id === me; const closed = r.status === "Closed"; const canW = own && !closed;
+  const [d, setD] = useState(r); const live = D.reviewLive(r.member_id, r.week_start, { idx, wins: data.wins, sessions: data.sessions, issues: data.issues, risks: data.risks, decisions: data.decisions, checkins: data.checkins, projects: data.projects, metrics, settings, today });
   const view = closed && r.snapshot ? r.snapshot : live;
   const leftovers = idx.list.filter((t) => idx.isLeaf(t.id) && t.assignee_id === r.member_id && t.planning_bucket === "This Week" && ["todo", "active"].includes(D.cat(t.status)));
   const save = async (patch) => { const rec = { ...d, ...(patch || {}) }; rec._vis = rec.visibility === "private" ? [r.member_id] : null; const s = await act.put("reviews", rec); if (s) setD(s); return s; };
   async function close() {
     if (!d.rating) return toast("⛔ اختر تقييماً للأسبوع (★)");
     if (leftovers.length && !(await confirm(`عندك ${leftovers.length} مهمة في «هذا الأسبوع» لم تكتمل. ستبقى في هذا الأسبوع الجديد. متابعة؟`))) return;
-    const snapshot = { ...live, wins: live.wins.map((w) => w.title), doneTasks: live.doneTasks.map((t) => t.title), at: nowIso() };
+    const snapshot = { ...live, wins: live.wins.map((w) => ({ id: w.id, title: w.title, project_id: w.project_id })), doneTasks: live.doneTasks.map((t) => ({ id: t.id, title: t.title, project_id: t.project_id })), weekTasks: live.weekTasks.map((t) => ({ id: t.id, title: t.title, project_id: t.project_id })), overdueTasks: live.overdueTasks.map((t) => ({ id: t.id, title: t.title, project_id: t.project_id })), issues: live.issues.map((x) => ({ id: x.id, title: x.title, project_id: x.project_id })), risks: live.risks.map((x) => ({ id: x.id, title: x.title, project_id: x.project_id })), decisions: live.decisions.map((x) => ({ id: x.id, title: x.title, project_id: x.project_id })), relatedProjects: live.relatedProjects.map((x) => ({ id: x.id, name: x.name })), at: nowIso() };
     await save({ status: "Closed", closed_at: nowIso(), snapshot }); toast("✅ أُغلقت المراجعة"); onClose();
   }
   return <Modal title={`مراجعة ${nameOf(r.member_id)} — أسبوع ${fmtShort(r.week_start)}`} wide onClose={onClose} footer={<>{canW && <Btn kind="primary" onClick={async () => { await save(); toast("✅ تم الحفظ"); }}>💾 حفظ</Btn>}{canW && <Btn onClick={close}>🔒 إغلاق المراجعة</Btn>}{own && <Btn danger onClick={async () => { await act.del("reviews", r.id, "review"); onClose(); }}>🗑</Btn>}</>}>
