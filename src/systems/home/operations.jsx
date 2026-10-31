@@ -97,16 +97,23 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
     if (!canEdit) { setError("ليس لديك صلاحية تعديل قسم المنزل."); return false; }
     setSaving(true); setError("");
     try {
+      let committed = next;
       if (isDemo) {
         localStorage.setItem("home_operations_demo", JSON.stringify(next));
       } else {
         const result = await api.saveHomeOperations(next);
         if (result?.error) throw result.error;
-        if (!result?.available) throw new Error("Migration تشغيل المهام المنزلية غير مطبقة؛ لم يتم حفظ البيانات.");
+        if (!result?.available) throw new Error("Migration تخزين العمليات المنزلية غير مطبقة؛ لم يتم حفظ البيانات.");
         if (!result.ok) throw result.error || new Error("تعذر حفظ عمليات المنزل.");
+        if (Number.isInteger(result.version)) committed = { ...next, _version: result.version };
       }
-      setData(next); setNotice("تم الحفظ."); setTimeout(() => setNotice(""), 2500); return true;
-    } catch (e) { setError(e?.message || "تعذر حفظ البيانات."); return false; }
+      setData(committed); setNotice("تم الحفظ."); setTimeout(() => setNotice(""), 2500); return true;
+    } catch (e) {
+      const message = e?.code === "40001" || /HOME_OPERATIONS_CONFLICT/.test(e?.message || "")
+        ? "تغيرت بيانات المنزل في جلسة أخرى. أعد تحميل قسم العمليات ثم أعد تطبيق تعديلك لتجنب الكتابة فوق تحديث أحدث."
+        : (e?.message || "تعذر حفظ البيانات.");
+      setError(message); return false;
+    }
     finally { setSaving(false); }
   }, [api, canEdit, isDemo]);
 
