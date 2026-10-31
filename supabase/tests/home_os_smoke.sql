@@ -248,7 +248,7 @@ select public.home_operations_save(
       "dueDate":"2026-10-01","status":"due","category":"Utilities","notes":"",
       "createdAt":"2026-09-01T00:00:00Z"
     }],
-    "events":[]
+    "events":[{"type":"home.task.completed","ownerSystem":"home","entityType":"home_task","entityId":"73000000-0000-4000-8000-000000000001","occurredAt":"2026-10-31T08:00:00Z","payload":{"taskTitle":"Relational task","outcome":"done","assignedTo":null,"propertyId":"30000000-0000-4000-8000-000000000001","roomId":"40000000-0000-4000-8000-000000000001","nextDueAt":null}}]
   }'::jsonb
 );
 select public.home_operations_save(
