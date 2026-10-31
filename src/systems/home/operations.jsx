@@ -123,7 +123,11 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
 
   const receivePurchase = async request => {
     const lines = data.purchaseItems.filter(x => x.requestId === request.id);
-    const updated = lines.map(line => ({ ...line, receivedQuantity: Number(line.quantity) }));
+    if (!lines.length) return setError("لا يمكن استلام طلب بلا بنود.");
+    if (typeof onReceivePurchase !== "function") return setError("ربط الاستلام بالمخزون غير متاح؛ لم يتم تغيير حالة الطلب.");
+    const inventoryResult = await onReceivePurchase(request, lines);
+    if (!inventoryResult) return;
+    const updated = lines.map(line => ({ ...line, inventoryItemId: inventoryResult.linkedItems?.[line.id] || line.inventoryItemId || null, receivedQuantity: Number(line.quantity) }));
     const next = { ...data, purchaseItems: [...data.purchaseItems.filter(x => x.requestId !== request.id), ...updated], purchaseRequests: data.purchaseRequests.map(x => x.id === request.id ? { ...x, status: "received", receivedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : x) };
     await persist(next);
   };
