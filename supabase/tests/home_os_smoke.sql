@@ -210,7 +210,7 @@ select public.home_operations_save(
     }]
   }'::jsonb
 );
-do $
+do $$
 begin
   if (select count(*) from public.home_bill_payments
       where workspace_id='10000000-0000-4000-8000-000000000001'
@@ -227,16 +227,16 @@ begin
         and id='72000000-0000-4000-8000-000000000001') <> '2026-11-01'::date then
     raise exception 'HOME_BILL_NEXT_DUE_NOT_PERSISTED';
   end if;
-end $;
+end $$;
 reset role;
-do $
+do $$
 begin
   if (select count(*) from public.home_outbox_events
       where workspace_id='10000000-0000-4000-8000-000000000001'
         and idempotency_key='home-bill:72000000-0000-4000-8000-000000000001:2026-10-01') <> 1 then
     raise exception 'HOME_BILL_OUTBOX_IDEMPOTENCY_FAILED';
   end if;
-end $;
+end $$;
 set role authenticated;
 
 select set_config('test.access_level','view',false);
