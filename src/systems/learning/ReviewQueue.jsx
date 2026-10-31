@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 const palette = { ink: "#172033", muted: "#64748B", line: "#E2E8F0", accent: "#7C3AED", soft: "#F3E8FF", green: "#047857", red: "#B91C1C", white: "#FFFFFF" };
 const ratingNames = { again: "لم أتذكر", hard: "صعب", good: "جيد", easy: "سهل" };
@@ -20,11 +20,15 @@ export default function ReviewQueue({ data, canEdit, onSave, onOpenSource }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [index, setIndex] = useState(0);
+  const [sharedLogs, setSharedLogs] = useState([]);
+  const workspaceKey = String(data.preferences?.workspaceId || "demo");
+  const refreshSharedLogs = () => { try { setSharedLogs(JSON.parse(localStorage.getItem("os-hub:shared-review-history:" + workspaceKey) || "[]")); } catch { setSharedLogs([]); } };
+  useEffect(() => { refreshSharedLogs(); const handler = () => refreshSharedLogs(); window.addEventListener("os-hub:review-recorded", handler); window.addEventListener("storage", handler); return () => { window.removeEventListener("os-hub:review-recorded", handler); window.removeEventListener("storage", handler); }; }, [workspaceKey]);
   const today = day(new Date(), data.preferences?.timezone || "Africa/Cairo");
   const due = useMemo(() => (data.vocabulary || [])
     .filter(item => item.status !== "Archived" && item.status !== "Mastered" && (!(item.nextReviewDate || item.dueDate) || (item.nextReviewDate || item.dueDate) <= today))
     .sort((a, b) => String(a.nextReviewDate || a.dueDate || "").localeCompare(String(b.nextReviewDate || b.dueDate || ""))), [data, today]);
-  const logs = data.reviewLogs || [];
+  const logs = [...(data.reviewLogs || []), ...sharedLogs].filter((log, index, rows) => rows.findIndex(x => x.id === log.id) === index).sort((a,b) => String(b.reviewedAt || b.date || "").localeCompare(String(a.reviewedAt || a.date || "")));
   const todayLogs = logs.filter(log => String(log.reviewedAt || log.date || "").slice(0, 10) === today);
   const item = due[Math.min(index, Math.max(0, due.length - 1))];
   const recentLogs = useMemo(() => logs.slice().sort((a, b) => String(b.reviewedAt || b.date || "").localeCompare(String(a.reviewedAt || a.date || ""))).slice(0, 12), [logs]);
@@ -53,7 +57,11 @@ export default function ReviewQueue({ data, canEdit, onSave, onOpenSource }) {
       reviewLogs: [...logs, log]
     };
     const ok = await onSave(next);
-    if (ok !== false) { setMessage("تم تسجيل المراجعة. الموعد التالي: " + schedule.nextReviewDate); setRevealed(false); setIndex(0); }
+    if (ok !== false) {
+      const sharedLog = { ...log, workspaceId: workspaceKey, itemType: "learning_vocabulary", title: item.term || "", sourceUrl: item.sourceUrl || null };
+      try { const key = "os-hub:shared-review-history:" + workspaceKey; const current = JSON.parse(localStorage.getItem(key) || "[]"); localStorage.setItem(key, JSON.stringify([...current, sharedLog].slice(-1000))); window.dispatchEvent(new CustomEvent("os-hub:review-recorded", { detail: sharedLog })); } catch {}
+      refreshSharedLogs(); setMessage("تم تسجيل المراجعة. الموعد التالي: " + schedule.nextReviewDate); setRevealed(false); setIndex(0);
+    }
     else setMessage("لم يتم الحفظ؛ لم نغيّر ترتيب المراجعات.");
     setBusy(false);
   };
