@@ -183,7 +183,6 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
   const receivePurchase = async request => {
     const lines = data.purchaseItems.filter(x => x.requestId === request.id);
     if (!lines.length) return setError("لا يمكن استلام طلب بلا بنود.");
-    if (typeof onReceivePurchase !== "function") return setError("ربط الاستلام بالمخزون غير متاح؛ لم يتم تغيير حالة الطلب.");
     const receiptLines = [];
     for (const line of lines) {
       const remaining = Math.max(0, Number(line.quantity) - Number(line.receivedQuantity || 0));
