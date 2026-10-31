@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { validateHomeTask, completeHomeTask, validateHomeMaintenance, validateHomePurchaseRequest, deriveHomePurchaseTotal } from "./operations-domain.js";
+import { validateHomeTask, completeHomeTask, validateHomeMaintenance, validateHomePurchaseRequest, deriveHomePurchaseTotal, homeTaskEvent } from "./operations-domain.js";
 
-const EMPTY = () => ({ tasks: [], completions: [], providers: [], maintenance: [], purchaseRequests: [], purchaseItems: [], bills: [] });
+const EMPTY = () => ({ tasks: [], completions: [], providers: [], maintenance: [], purchaseRequests: [], purchaseItems: [], bills: [], events: [] });
 const uid = () => globalThis.crypto?.randomUUID?.() || "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 3 | 8)).toString(16); });
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const currency = (value, code = "EGP") => new Intl.NumberFormat("ar-EG", { style: "currency", currency: code, maximumFractionDigits: 2 }).format(Number(value || 0));
@@ -92,7 +92,7 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
     try {
       const completion = { id: uid(), taskId: task.id, outcome, completedAt: new Date().toISOString(), note: "", idempotencyKey: uid() };
       const result = completeHomeTask(task, completion);
-      const next = { ...data, tasks: data.tasks.map(t => t.id === task.id ? result.task : t), completions: [result.completion, ...data.completions] };
+      const next = { ...data, tasks: data.tasks.map(t => t.id === task.id ? result.task : t), completions: [result.completion, ...data.completions], events: [homeTaskEvent(result.task, result.completion), ...(data.events || [])] };
       await persist(next);
     } catch (e) { setError(e?.message || "تعذر تسجيل الإنجاز."); }
   };
