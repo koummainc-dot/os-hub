@@ -210,7 +210,8 @@ select public.home_operations_save(
     }]
   }'::jsonb
 );
-do $$
+do $
+declare v_loaded jsonb;
 begin
   if (select count(*) from public.home_bill_payments
       where workspace_id='10000000-0000-4000-8000-000000000001'
@@ -227,7 +228,25 @@ begin
         and id='72000000-0000-4000-8000-000000000001') <> '2026-11-01'::date then
     raise exception 'HOME_BILL_NEXT_DUE_NOT_PERSISTED';
   end if;
-end $$;
+  v_loaded := public.home_operations_load('10000000-0000-4000-8000-000000000001');
+  if jsonb_array_length(v_loaded->'tasks') <> 1
+    or v_loaded->'tasks'->0->>'id' <> '73000000-0000-4000-8000-000000000001' then
+    raise exception 'HOME_RELATIONAL_TASK_LOAD_FAILED';
+  end if;
+  if jsonb_array_length(v_loaded->'completions') <> 1 then
+    raise exception 'HOME_RELATIONAL_COMPLETION_LOAD_FAILED';
+  end if;
+  if jsonb_array_length(v_loaded->'providers') <> 1 then
+    raise exception 'HOME_RELATIONAL_PROVIDER_LOAD_FAILED';
+  end if;
+  if jsonb_array_length(v_loaded->'maintenance') <> 1 then
+    raise exception 'HOME_RELATIONAL_MAINTENANCE_LOAD_FAILED';
+  end if;
+  if jsonb_array_length(v_loaded->'bills') <> 1
+    or v_loaded->'bills'->0->>'dueDate' <> '2026-11-01' then
+    raise exception 'HOME_RELATIONAL_BILL_LOAD_FAILED';
+  end if;
+end $;
 reset role;
 do $$
 begin
