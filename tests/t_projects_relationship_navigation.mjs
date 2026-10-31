@@ -4,12 +4,12 @@ import { readFile } from "node:fs/promises";
 const entities = await readFile(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
 const screens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
 
-assert.match(entities, /onClick=\{\(\) => openProject\(o\.project_id, "prds"\)\}[^>]*>متطلب:/,
+assert.ok(entities.includes('onClick={() => openProject(o.project_id, "prds")}') && entities.includes(">متطلب:"),
   "output requirement reference must navigate to the owning PRD section");
-assert.match(screens, /related\.wins\.map\(\(x\) => <Btn[^>]*onClick=\{\(\) => setPage\("wins"\)\}/,
+assert.ok(screens.includes('related.wins.map((x) => <Btn key={x.id} small onClick={() => setPage("wins")}>'),
   "stakeholder update achievement references must be actionable");
-assert.match(screens, /w\.output_ids\?\.length > 0 && <Btn[^>]*openProject\(w\.project_id, "outputs"\)/,
+assert.ok(screens.includes('{w.output_ids?.length > 0 && <Btn small onClick={() => w.project_id && openProject(w.project_id, "outputs")}>'),
   "achievement output evidence must navigate to the project's outputs");
-assert.match(screens, /related\.outputs\.map\(\(x\) => <Btn[^>]*openProject\(u\.project_id, "outputs"\)/,
+assert.ok(screens.includes('related.outputs.map((x) => <Btn key={x.id} small onClick={() => openProject(u.project_id, "outputs")}>'),
   "stakeholder update output references must navigate to the outputs section");
 console.log("✓ Projects relationship navigation contracts passed");
