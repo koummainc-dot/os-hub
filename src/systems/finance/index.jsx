@@ -240,6 +240,14 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       if (tx.homeBillPaymentId) {
         const key = "os-finance-home-bills-linked:" + ws.id;
         try { const ids = new Set(JSON.parse(localStorage.getItem(key) || "[]")); ids.add(tx.homeBillPaymentId); localStorage.setItem(key, JSON.stringify([...ids])); } catch {}
+        // The transaction has been posted or deduplicated by Finance; acknowledge
+        // the durable Home proposal so it no longer appears in the pending feed.
+        try {
+          await supabase.rpc("home_finance_outbox_ack", {
+            p_workspace_id: ws.id,
+            p_source_payment_id: tx.homeBillPaymentId
+          });
+        } catch { /* Finance transaction idempotency still protects against duplicate posting */ }
         setHomeBillPayments(rows => rows.filter(event => event.payload?.sourcePaymentId !== tx.homeBillPaymentId));
       }
       setShowTx(false); setTx(initialTx()); setSplitMode(false); setSplitRows([{ category_id: "", amount: "" }, { category_id: "", amount: "" }]); await load();
