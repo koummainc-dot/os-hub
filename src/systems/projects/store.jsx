@@ -459,6 +459,23 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       act("issues", currentIssue.id, "repair_task_created", task.title);
       return task;
     },
+    async createRiskMitigationTask(riskId) {
+      const risk = (data.risks || []).find((x) => x.id === riskId);
+      const project = risk && projectsById[risk.project_id];
+      if (!risk || !project || project.is_system || project.archived_at || !D.isOpenRisk(risk)) throw new Error("الخطر أو المشروع غير صالح أو أن الخطر مغلق.");
+      if (!can("risk.write", project) || !can("task.write", project)) throw new Error("لا تملك صلاحية إنشاء مهام تخفيف لهذا الخطر.");
+      const linkedIds = [...new Set(risk.task_ids || [])];
+      const stableTaskId = "risk_mitigation_task_" + risk.id;
+      const existing = linkedIds.map((id) => idx.byId[id]).find(Boolean) || idx.byId[stableTaskId];
+      if (existing) { if (!linkedIds.includes(existing.id)) await R.put("risks", { ...risk, task_ids: [...linkedIds, existing.id] }); return existing; }
+      if (linkedIds.some((id) => (data.tasks || []).some((t) => t.id === id)) || (data.tasks || []).some((t) => t.id === stableTaskId)) throw new Error("توجد مهمة تخفيف مؤرشفة أو في السلة؛ استعدها بدل إنشاء نسخة مكررة.");
+      const taskId = stableTaskId;
+      const task = { id: taskId, title: "تخفيف الخطر: " + risk.title, project_id: risk.project_id, description: risk.mitigation || risk.notes || "", priority: D.riskScore(risk) >= settings.riskHigh ? "High" : "Medium", status: "Not Started", planning_bucket: "Inbox", prd_id: risk.prd_id || null, created_by: me, sort_order: Date.now() };
+      const errs = D.validateTaskRefs(task, { projectsById, tasksById: idx.byId, prdsById }); if (errs.length) throw new Error(errs[0]);
+      if (D.traceabilityBlocked(settings, project.type, project.is_system, task)) throw new Error("سياسة التتبع تتطلب ربط الخطر بمواصفة أو اكتشاف قبل إنشاء المهمة.");
+      await R.putAtomic([{ coll: "tasks", rec: task }, { coll: "risks", rec: { ...risk, task_ids: [...linkedIds, taskId] } }]);
+      act("risks", risk.id, "mitigation_task_created", task.title); return task;
+    },
     async createDecisionTask(decisionId) {
       const decision = (data.decisions || []).find((x) => x.id === decisionId);
       const project = decision && projectsById[decision.project_id];
