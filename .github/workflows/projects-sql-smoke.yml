@@ -47,5 +47,7 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031110000_projects_prd_requirement_traceability.sql
       - name: Apply entity relationship integrity migration
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031120000_projects_entity_relationship_integrity.sql
+      - name: Apply PRD verified evidence guard migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031130000_projects_prd_verified_evidence_guard.sql
       - name: Verify project, task, PRD and output boundaries
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_prd_requirement_traceability_smoke.sql
