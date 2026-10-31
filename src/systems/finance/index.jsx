@@ -145,15 +145,35 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     const types = ["home.bill.payment.recorded", "home.purchase.receipt.recorded", "home.maintenance.cost.recorded"];
     const key = "os-finance-home-bills-linked:" + ws.id;
     const handled = () => { try { return new Set(JSON.parse(localStorage.getItem(key) || "[]")); } catch { return new Set(); } };
+    let serverEvents = [];
     const sync = events => {
       const done = handled();
-      setHomeBillPayments([...new Map(events.filter(e => types.includes(e.type) && e.payload?.sourcePaymentId && !done.has(e.payload.sourcePaymentId)).map(e => [e.payload.sourcePaymentId, e])).values()]);
+      // The persisted Finance transaction is the cross-device source for already-recorded proposals.
+      for (const transaction of transactions) {
+        for (const field of [transaction.idempotency_key, transaction.idempotencyKey, transaction.client_generated_id, transaction.clientGeneratedId]) {
+          const prefix = "home-bill-payment-";
+          if (typeof field === "string" && field.startsWith(prefix)) done.add(field.slice(prefix.length));
+        }
+      }
+      const merged = [...events, ...serverEvents];
+      setHomeBillPayments([...new Map(merged.filter(e => types.includes(e.type) && e.payload?.sourcePaymentId && !done.has(e.payload.sourcePaymentId)).map(e => [e.payload.sourcePaymentId, e])).values()]);
     };
-    sync(readOSEvents({ workspaceId: ws.id, types, limit: 100 }));
-    const offEvent = subscribeOSEvents(event => sync([...readOSEvents({ workspaceId: ws.id, types, limit: 100 }), event]), { workspaceId: ws.id, types });
+    const localEvents = () => readOSEvents({ workspaceId: ws.id, types, limit: 100 });
+    sync(localEvents());
+    const loadServerOutbox = async () => {
+      try {
+        const { data, error } = await supabase.rpc("home_finance_outbox_load", { p_workspace_id: ws.id });
+        if (!error && Array.isArray(data)) {
+          serverEvents = data;
+          sync(localEvents());
+        }
+      } catch { /* the browser event path remains a best-effort compatibility fallback */ }
+    };
+    loadServerOutbox();
+    const offEvent = subscribeOSEvents(event => sync([...localEvents(), event]), { workspaceId: ws.id, types });
     const offStorage = subscribeToStoredOSEvents(sync, { workspaceId: ws.id, types, limit: 100 });
     return () => { offEvent(); offStorage(); };
-  }, [ws?.id, isDemo]);
+  }, [ws?.id, isDemo, transactions]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(""), 5000); return () => clearTimeout(t); }, [notice]);
 
