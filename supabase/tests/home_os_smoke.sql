@@ -149,6 +149,96 @@ begin
 end $$;
 set role authenticated;
 
+-- Bills are relational; payments create durable history, mark the old occurrence paid,
+-- retain the next due occurrence, and enqueue a Finance review event idempotently.
+select public.home_operations_save(
+  '10000000-0000-4000-8000-000000000001',
+  '{
+    "tasks":[],"completions":[],"providers":[],"maintenance":[],
+    "purchaseRequests":[],"purchaseItems":[],
+    "bills":[{
+      "id":"72000000-0000-4000-8000-000000000001",
+      "title":"Electricity","amount":100,"currency":"EGP","frequency":"monthly",
+      "dueDate":"2026-10-01","status":"due","category":"Utilities","notes":"",
+      "createdAt":"2026-09-01T00:00:00Z"
+    }],
+    "events":[]
+  }'::jsonb
+);
+select public.home_operations_save(
+  '10000000-0000-4000-8000-000000000001',
+  '{
+    "tasks":[],"completions":[],"providers":[],"maintenance":[],
+    "purchaseRequests":[],"purchaseItems":[],
+    "bills":[{
+      "id":"72000000-0000-4000-8000-000000000001",
+      "title":"Electricity","amount":100,"currency":"EGP","frequency":"monthly",
+      "dueDate":"2026-11-01","status":"due","category":"Utilities","notes":"",
+      "lastPaidAt":"2026-10-01T12:00:00Z","createdAt":"2026-09-01T00:00:00Z"
+    }],
+    "events":[{
+      "type":"home.bill.payment.recorded","ownerSystem":"home","entityType":"home_bill",
+      "entityId":"72000000-0000-4000-8000-000000000001","occurredAt":"2026-10-01T12:00:00Z",
+      "payload":{
+        "sourcePaymentId":"home-bill:72000000-0000-4000-8000-000000000001:2026-10-01",
+        "billId":"72000000-0000-4000-8000-000000000001","billTitle":"Electricity",
+        "amount":100,"currency":"EGP","category":"Utilities","paymentDate":"2026-10-01","frequency":"monthly"
+      }
+    }]
+  }'::jsonb
+);
+-- Re-saving the same event must not create a duplicate payment or outbox row.
+select public.home_operations_save(
+  '10000000-0000-4000-8000-000000000001',
+  '{
+    "tasks":[],"completions":[],"providers":[],"maintenance":[],
+    "purchaseRequests":[],"purchaseItems":[],
+    "bills":[{
+      "id":"72000000-0000-4000-8000-000000000001",
+      "title":"Electricity","amount":100,"currency":"EGP","frequency":"monthly",
+      "dueDate":"2026-11-01","status":"due","category":"Utilities","notes":"",
+      "lastPaidAt":"2026-10-01T12:00:00Z","createdAt":"2026-09-01T00:00:00Z"
+    }],
+    "events":[{
+      "type":"home.bill.payment.recorded","ownerSystem":"home","entityType":"home_bill",
+      "entityId":"72000000-0000-4000-8000-000000000001","occurredAt":"2026-10-01T12:00:00Z",
+      "payload":{
+        "sourcePaymentId":"home-bill:72000000-0000-4000-8000-000000000001:2026-10-01",
+        "billId":"72000000-0000-4000-8000-000000000001","billTitle":"Electricity",
+        "amount":100,"currency":"EGP","category":"Utilities","paymentDate":"2026-10-01","frequency":"monthly"
+      }
+    }]
+  }'::jsonb
+);
+do $
+begin
+  if (select count(*) from public.home_bill_payments
+      where workspace_id='10000000-0000-4000-8000-000000000001'
+        and idempotency_key='home-bill:72000000-0000-4000-8000-000000000001:2026-10-01') <> 1 then
+    raise exception 'HOME_BILL_PAYMENT_IDEMPOTENCY_FAILED';
+  end if;
+  if (select status from public.home_bill_occurrences
+      where workspace_id='10000000-0000-4000-8000-000000000001'
+        and bill_id='72000000-0000-4000-8000-000000000001' and due_date='2026-10-01') <> 'paid' then
+    raise exception 'HOME_BILL_OCCURRENCE_NOT_PAID';
+  end if;
+  if (select due_date from public.home_bills
+      where workspace_id='10000000-0000-4000-8000-000000000001'
+        and id='72000000-0000-4000-8000-000000000001') <> '2026-11-01'::date then
+    raise exception 'HOME_BILL_NEXT_DUE_NOT_PERSISTED';
+  end if;
+end $;
+reset role;
+do $
+begin
+  if (select count(*) from public.home_outbox_events
+      where workspace_id='10000000-0000-4000-8000-000000000001'
+        and idempotency_key='home-bill:72000000-0000-4000-8000-000000000001:2026-10-01') <> 1 then
+    raise exception 'HOME_BILL_OUTBOX_IDEMPOTENCY_FAILED';
+  end if;
+end $;
+set role authenticated;
+
 select set_config('test.access_level','view',false);
 do $$
 begin
