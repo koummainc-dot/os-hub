@@ -53,6 +53,74 @@ begin
   end if;
 end $$;
 
+-- Atomic purchase receipt: request status, inventory quantity/movement, receipt and outbox commit together.
+insert into public.home_purchase_requests(
+  id, workspace_id, property_id, title, status, priority, currency
+) values (
+  '70000000-0000-4000-8000-000000000001',
+  '10000000-0000-4000-8000-000000000001',
+  '30000000-0000-4000-8000-000000000001',
+  'Atomic receipt smoke test', 'ordered', 'normal', 'EGP'
+);
+insert into public.home_purchase_request_items(
+  id, workspace_id, request_id, name, quantity, estimated_unit_price, received_quantity
+) values (
+  '71000000-0000-4000-8000-000000000001',
+  '10000000-0000-4000-8000-000000000001',
+  '70000000-0000-4000-8000-000000000001',
+  'Receipt smoke item', 5, 12, 0
+);
+select public.home_record_purchase_receipt(
+  '10000000-0000-4000-8000-000000000001',
+  '70000000-0000-4000-8000-000000000001',
+  '[{"itemId":"71000000-0000-4000-8000-000000000001","quantity":2,"unitPrice":12}]'::jsonb,
+  'smoke-receipt-request-line-0001'
+);
+-- Replaying the same idempotency key must return the prior receipt without another movement.
+select public.home_record_purchase_receipt(
+  '10000000-0000-4000-8000-000000000001',
+  '70000000-0000-4000-8000-000000000001',
+  '[{"itemId":"71000000-0000-4000-8000-000000000001","quantity":2,"unitPrice":12}]'::jsonb,
+  'smoke-receipt-request-line-0001'
+);
+do $
+begin
+  if (select count(*) from public.home_purchase_receipts
+      where workspace_id='10000000-0000-4000-8000-000000000001'
+        and idempotency_key='smoke-receipt-request-line-0001') <> 1 then
+    raise exception 'HOME_RECEIPT_IDEMPOTENCY_FAILED';
+  end if;
+  if (select received_quantity from public.home_purchase_request_items
+      where workspace_id='10000000-0000-4000-8000-000000000001'
+        and id='71000000-0000-4000-8000-000000000001') <> 2 then
+    raise exception 'HOME_RECEIPT_QUANTITY_NOT_PERSISTED';
+  end if;
+  if (select count(*) from public.home_purchase_receipt_items
+      where workspace_id='10000000-0000-4000-8000-000000000001') <> 1 then
+    raise exception 'HOME_RECEIPT_ITEMS_DUPLICATED';
+  end if;
+  if (select count(*) from public.home_inventory_movements
+      where workspace_id='10000000-0000-4000-8000-000000000001'
+        and idempotency_key like 'purchase-receipt:%') <> 1 then
+    raise exception 'HOME_RECEIPT_MOVEMENT_DUPLICATED';
+  end if;
+  if (select status from public.home_purchase_requests
+      where workspace_id='10000000-0000-4000-8000-000000000001'
+        and id='70000000-0000-4000-8000-000000000001') <> 'partially_received' then
+    raise exception 'HOME_RECEIPT_STATUS_INVALID';
+  end if;
+end $;
+reset role;
+do $
+begin
+  if (select count(*) from public.home_outbox_events
+      where workspace_id='10000000-0000-4000-8000-000000000001'
+        and event_type='home.purchase.receipt.recorded') <> 1 then
+    raise exception 'HOME_RECEIPT_OUTBOX_MISSING_OR_DUPLICATED';
+  end if;
+end $;
+set role authenticated;
+
 select set_config('test.access_level','view',false);
 do $$
 begin
