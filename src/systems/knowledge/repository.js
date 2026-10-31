@@ -209,7 +209,7 @@ export async function listKnowledgeProjects(workspaceId) {
   const raw = snapshot?.projects ?? snapshot;
   const rows = Array.isArray(raw) ? raw : raw && typeof raw === "object" ? Object.values(raw) : [];
   const projects = rows
-    .filter((item) => item && typeof item === "object" && item.id && item.name && !item.deleted_at)
+    .filter((item) => item && typeof item === "object" && item.id && item.name && !item.deleted_at && !item.archived_at && item.status !== "Archived")
     .map((item) => ({ id: String(item.id), name: String(item.name), status: item.status || "" }))
     .sort((a, b) => a.name.localeCompare(b.name, "ar"));
   return { ok: true, projects };
