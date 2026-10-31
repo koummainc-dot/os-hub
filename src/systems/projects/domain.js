@@ -223,7 +223,7 @@ export function validateKR(k, ctx = {}) {
   if (k.task_ids != null && !Array.isArray(k.task_ids)) e.push("قائمة المهام المرتبطة غير صالحة");
   const taskIds = Array.isArray(k.task_ids) ? k.task_ids : [];
   if (new Set(taskIds).size !== taskIds.length) e.push("لا يمكن ربط المهمة نفسها أكثر من مرة بالنتيجة");
-  if (ctx.tasksById) taskIds.forEach((id) => { if (!ctx.tasksById[id]) e.push("توجد مهمة مرتبطة غير موجودة أو غير نشطة: " + id); });
+  if (ctx.tasksById) taskIds.forEach((id) => { const task = ctx.tasksById[id]; if (!task) e.push("توجد مهمة مرتبطة غير موجودة أو غير نشطة: " + id); else if (Array.isArray(k.project_ids) && k.project_ids.length && !k.project_ids.includes(task.project_id)) e.push("المهمة المرتبطة يجب أن تتبع أحد المشاريع المحددة للنتيجة الرئيسية: " + id); });
   return e;
 }
 export function validateDates(a, b, msg) { return a && b && a > b ? [msg || "V-14: تاريخ البداية بعد النهاية"] : []; }
