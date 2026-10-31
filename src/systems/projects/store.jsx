@@ -464,6 +464,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       const project = projectsById[v.project_id];
       const errs = D.validateTaskRefs({ ...v, id: v.id || "new" }, { projectsById, tasksById: idx.byId, prdsById }); if (errs.length) throw new Error(errs[0]);
       if (v.objective_id && !(data.objectives || []).some((objective) => objective.id === v.objective_id && !objective.deleted_at)) throw new Error("الهدف المرتبط غير موجود أو تم حذفه.");
+      if (v.prd_requirement_id) { const prd = data.prds.find((item) => item.id === v.prd_id); if (!prd || !(prd.requirements || []).some((requirement) => requirement.id === v.prd_requirement_id && requirement.status !== "Deprecated")) throw new Error("المتطلب المحدد يجب أن يكون ضمن المواصفة المرتبطة بالمهمة."); }
       for (const discoveryId of (v.discovery_ids || [])) { const discovery = data.discovery.find((d) => d.id === discoveryId); if (!discovery) throw new Error("عنصر اكتشاف مرتبط غير موجود"); if ((discovery.project_ids || []).length && !discovery.project_ids.includes(v.project_id)) throw new Error("عنصر الاكتشاف يجب أن يكون مرتبطاً بالمشروع نفسه"); }
       if (D.traceabilityBlocked(settings, project && project.type, project && project.is_system, v)) throw new Error("سياسة التتبع: هذا النوع من المشاريع يتطلب ربط المهمة بمواصفة أو اكتشاف");
       const rec = { ...v, id: v.id || uid(), planning_bucket: v.planning_bucket || "Inbox", status: v.status || "Not Started" };
