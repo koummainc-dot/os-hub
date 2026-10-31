@@ -23,6 +23,8 @@ assert.ok(screens.includes('{w.output_ids?.length > 0 && <Btn small onClick={() 
   "achievement output evidence must navigate to the project's outputs");
 assert.ok(screens.includes('related.outputs.map((x) => <Btn key={x.id} small onClick={() => openProject(u.project_id, "outputs")}>'),
   "stakeholder update output references must navigate to the outputs section");
+assert.ok(screens.includes('!data.wins.some((w) => w.task_id === t.id || (w.task_ids || []).includes(t.id))'),
+  "achievement suggestions must deduplicate both legacy and multi-task relationships");
 assert.ok(parts.includes('linkedDecisions.map((x) => <button key={x.id} type="button" onClick={() => { closeTask(); openProject(x.project_id, "decisions"); }}'),
   "task decision backlinks must be actionable");
 assert.ok(parts.includes('linkedWins.map((x) => <button key={x.id} type="button" onClick={() => { closeTask(); setPage("wins"); }}'),
