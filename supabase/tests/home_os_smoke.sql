@@ -41,6 +41,7 @@ begin
 end $$;
 
 -- Inventory commands update balance and ledger in one transaction; retry is idempotent.
+select set_config('test.home_version_before_movement',(public.home_load_snapshot_v2('10000000-0000-4000-8000-000000000001')->>'_version'),false);
 select public.home_record_inventory_movement(
   '10000000-0000-4000-8000-000000000001',
   '50000000-0000-4000-8000-000000000001',
@@ -79,6 +80,16 @@ begin
         and id='50000000-0000-4000-8000-000000000001';
     raise exception 'HOME_DIRECT_BALANCE_WRITE_NOT_REJECTED';
   exception when check_violation then
+    null;
+  end;
+  begin
+    perform public.home_save_snapshot_v2(
+      '10000000-0000-4000-8000-000000000001',
+      public.home_load_snapshot_v2('10000000-0000-4000-8000-000000000001'),
+      current_setting('test.home_version_before_movement')::integer
+    );
+    raise exception 'HOME_STOCK_CHANGE_DID_NOT_INVALIDATE_SNAPSHOT';
+  exception when serialization_failure then
     null;
   end;
 end $$;
