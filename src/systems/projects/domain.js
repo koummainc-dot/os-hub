@@ -216,9 +216,13 @@ export function validateRisk(r) {
   if (!ok(r.probability) || !ok(r.impact)) e.push("V-12: الاحتمال والتأثير بين 1 و5");
   return e;
 }
-export function validateKR(k) {
+export function validateKR(k, ctx = {}) {
   const e = [];
   if (k.type === "Numeric" && k.target_value === k.initial_value) e.push("V-13: القيمة المستهدفة يجب أن تختلف عن القيمة الابتدائية");
+  if (k.task_ids != null && !Array.isArray(k.task_ids)) e.push("قائمة المهام المرتبطة غير صالحة");
+  const taskIds = Array.isArray(k.task_ids) ? k.task_ids : [];
+  if (new Set(taskIds).size !== taskIds.length) e.push("لا يمكن ربط المهمة نفسها أكثر من مرة بالنتيجة");
+  if (ctx.tasksById) taskIds.forEach((id) => { if (!ctx.tasksById[id]) e.push("توجد مهمة مرتبطة غير موجودة أو غير نشطة: " + id); });
   return e;
 }
 export function validateDates(a, b, msg) { return a && b && a > b ? [msg || "V-14: تاريخ البداية بعد النهاية"] : []; }
@@ -267,6 +271,30 @@ export function krProgress(kr, projectProgress) {
   return { raw, clamped: clamp(raw, 0, 1) };
 }
 export function krProgressValue(kr, pp) { const r = krProgress(kr, pp); if (r == null) return null; return typeof r === "number" ? r : r.clamped; }
+
+// Task execution is deliberately separate from KR outcome progress. A linked task group
+// contributes its active leaf tasks; overlapping groups are counted once.
+export function krTaskExecution(kr, idx) {
+  const roots = [...new Set(Array.isArray(kr?.task_ids) ? kr.task_ids.filter(Boolean) : [])];
+  if (!idx) return { roots: [], tasks: [], leafTotal: 0, leafDone: 0, progress: null };
+  const ids = new Set();
+  roots.forEach((id) => { if (idx.byId[id]) { ids.add(id); idx.descendants(id).forEach((childId) => ids.add(childId)); } });
+  const tasks = [...ids].map((id) => idx.byId[id]).filter(Boolean);
+  const leaves = tasks.filter((task) => idx.isLeaf(task.id) && cat(task.status) !== "cancelled");
+  const leafDone = leaves.filter((task) => cat(task.status) === "done").length;
+  return { roots: roots.filter((id) => !!idx.byId[id]), tasks, leafTotal: leaves.length, leafDone, progress: leaves.length ? leafDone / leaves.length : null };
+}
+export function objectiveTaskExecution(obj, krs, idx) {
+  const linkedKrs = (krs || []).filter((kr) => kr.objective_id === obj?.id && isActiveRec(kr));
+  const ids = new Set();
+  linkedKrs.forEach((kr) => (kr.task_ids || []).forEach((id) => {
+    if (idx?.byId[id]) { ids.add(id); idx.descendants(id).forEach((childId) => ids.add(childId)); }
+  }));
+  const tasks = [...ids].map((id) => idx.byId[id]).filter(Boolean);
+  const leaves = tasks.filter((task) => idx.isLeaf(task.id) && cat(task.status) !== "cancelled");
+  const leafDone = leaves.filter((task) => cat(task.status) === "done").length;
+  return { tasks, leafTotal: leaves.length, leafDone, progress: leaves.length ? leafDone / leaves.length : null };
+}
 export function objectiveProgress(obj, krs, pp) {
   const vals = krs.filter((k) => k.objective_id === obj.id && isActiveRec(k)).map((k) => krProgressValue(k, pp)).filter((v) => v != null);
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
