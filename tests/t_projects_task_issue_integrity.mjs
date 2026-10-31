@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 const migration = await readFile(new URL("../supabase/migrations/20261030110000_projects_task_issue_traceability.sql", import.meta.url), "utf8");
 const transactionMigration = await readFile(new URL("../supabase/migrations/20261030120000_projects_task_issue_deferred_validation.sql", import.meta.url), "utf8");
 const store = await readFile(new URL("../src/systems/projects/store.jsx", import.meta.url), "utf8");
+const entities = await readFile(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
 
 assert.match(transactionMigration, /create constraint trigger projects_guard_task_issue_references_trg/i);
 assert.match(transactionMigration, /deferrable initially deferred/i);
