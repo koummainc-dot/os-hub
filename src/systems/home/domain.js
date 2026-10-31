@@ -71,7 +71,7 @@ export function validateHomeMovement(movement, item) {
   if (!HOME_MOVEMENT_TYPES.includes(movement?.type)) errors.push("نوع حركة المخزون غير صالح.");
   const quantity = Number(movement?.quantity);
   if (!Number.isFinite(quantity) || quantity <= 0) errors.push("كمية الحركة يجب أن تكون أكبر من صفر.");
-  if (movement?.type === "consume" && item && quantity > Number(item.quantity)) errors.push("لا يمكن صرف كمية أكبر من المتاح.");
+  if (["consume", "dispose"].includes(movement?.type) && item && quantity > Number(item.quantity)) errors.push("لا يمكن صرف كمية أكبر من المتاح.");
   return errors;
 }
 
