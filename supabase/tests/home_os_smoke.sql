@@ -311,7 +311,10 @@ begin
     or v_loaded->'bills'->0->>'dueDate' <> '2026-11-01' then
     raise exception 'HOME_RELATIONAL_BILL_LOAD_FAILED';
   end if;
-end $$;
+  if jsonb_array_length(v_loaded->'billPayments') <> 1 then
+    raise exception 'HOME_RELATIONAL_BILL_PAYMENT_HISTORY_LOAD_FAILED';
+  end if;
+end $;
 reset role;
 do $$
 begin
