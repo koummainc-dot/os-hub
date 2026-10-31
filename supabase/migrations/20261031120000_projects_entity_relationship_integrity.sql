@@ -90,7 +90,7 @@ declare
   refs_changed boolean := true;
 begin
   if new.system_id <> 'projects'
-     or new.collection not in ('decisions','risks','wins','updates','objectives','krs','discovery','issues') then
+     or new.collection not in ('tasks','decisions','risks','wins','updates','objectives','krs','discovery','issues') then
     return new;
   end if;
 
@@ -118,7 +118,10 @@ begin
       or (new.data->'related_decision_ids') is distinct from (old.data->'related_decision_ids')
       or (new.data->'related_prd_ids') is distinct from (old.data->'related_prd_ids')
       or (new.data->'related_output_ids') is distinct from (old.data->'related_output_ids')
-      or (new.data->'related_win_ids') is distinct from (old.data->'related_win_ids');
+      or (new.data->'related_win_ids') is distinct from (old.data->'related_win_ids')
+      or (new.data->'discovery_ids') is distinct from (old.data->'discovery_ids')
+      or (new.data->'issue_ids') is distinct from (old.data->'issue_ids')
+      or (new.data->>'parent_task_id') is distinct from (old.data->>'parent_task_id');
   end if;
   if not refs_changed then
     return new;
@@ -126,7 +129,16 @@ begin
 
   project_id := nullif(new.data->>'project_id','');
 
-  if new.collection = 'decisions' then
+  if new.collection = 'tasks' then
+    if project_id is null then raise exception 'Task must belong to a project' using errcode = '22023'; end if;
+    if nullif(new.data->>'parent_task_id','') is not null then
+      if new.data->>'parent_task_id' = new.id then raise exception 'A task cannot be its own parent' using errcode = '22023'; end if;
+      perform public.projects_assert_linked_records(new.workspace_id, project_id, 'tasks', jsonb_build_array(new.data->>'parent_task_id'), 'task.parent_task_id');
+    end if;
+    perform public.projects_assert_linked_records(new.workspace_id, project_id, 'issues', new.data->'issue_ids', 'task.issue_ids');
+    perform public.projects_assert_linked_records(new.workspace_id, project_id, 'discovery', new.data->'discovery_ids', 'task.discovery_ids', true);
+
+  elsif new.collection = 'decisions' then
     if project_id is null then raise exception 'Decision must belong to a project' using errcode = '22023'; end if;
     perform public.projects_assert_linked_records(new.workspace_id, project_id, 'tasks', new.data->'affected_task_ids', 'affected_task_ids');
     perform public.projects_assert_linked_records(new.workspace_id, project_id, 'tasks', new.data->'implementation_task_ids', 'implementation_task_ids');
