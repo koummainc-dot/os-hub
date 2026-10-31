@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AccessDenied } from "../../core/ui.jsx";
 import { osSectionLevel } from "../../core/core.js";
 import { createHomeRepository } from "./repository.js";
@@ -37,6 +37,7 @@ function HomeSystem({ api, access, ws, members = [], isDemo = false, page = "das
   const [roomForm, setRoomForm] = useState(null);
   const [itemForm, setItemForm] = useState(null);
   const [movementForm, setMovementForm] = useState(null);
+  const movementRequestInFlight = useRef(false);
   const [filter, setFilter] = useState("");
   const level = osSectionLevel(access, page);
   const canEdit = level === "edit";
@@ -126,14 +127,24 @@ function HomeSystem({ api, access, ws, members = [], isDemo = false, page = "das
       return setError("اختر غرفة نشطة داخل العقار نفسه لنقل العنصر.");
     }
     if (!isDemo) {
-      if (typeof api?.recordHomeInventoryMovement !== "function") return setError("مسار حركات المخزون الذري غير متاح؛ لم يتم تغيير الرصيد.");
-      const result = await api.recordHomeInventoryMovement(item.id, record);
-      if (result?.error) return setError(result.error.message || "تعذر تسجيل حركة المخزون.");
-      if (!result?.available) return setError("Migration حركات المخزون الذرية غير مطبقة؛ لم يتم تغيير الرصيد.");
-      if (!result?.ok) return setError(result?.error?.message || "لم يؤكد الخادم تسجيل حركة المخزون.");
-      try { await refreshHomeData(); } catch { /* committed movement remains durable; parent refresh can retry */ }
-      setMovementForm(null);
-      tell("تم تسجيل حركة المخزون وتحديث الرصيد ذريًا.");
+      if (movementRequestInFlight.current) return;
+      movementRequestInFlight.current = true;
+      setSaving(true);
+      try {
+        if (typeof api?.recordHomeInventoryMovement !== "function") return setError("مسار حركات المخزون الذري غير متاح؛ لم يتم تغيير الرصيد.");
+        const result = await api.recordHomeInventoryMovement(item.id, record);
+        if (result?.error) return setError(result.error.message || "تعذر تسجيل حركة المخزون.");
+        if (!result?.available) return setError("Migration حركات المخزون الذرية غير مطبقة؛ لم يتم تغيير الرصيد.");
+        if (!result?.ok) return setError(result?.error?.message || "لم يؤكد الخادم تسجيل حركة المخزون.");
+        try { await refreshHomeData(); } catch { /* committed movement remains durable; parent refresh can retry */ }
+        setMovementForm(null);
+        tell("تم تسجيل حركة المخزون وتحديث الرصيد ذريًا.");
+      } catch (error) {
+        setError(error?.message || "تعذر تسجيل حركة المخزون.");
+      } finally {
+        movementRequestInFlight.current = false;
+        setSaving(false);
+      }
       return;
     }
     const nextItem = applyHomeMovement(item, record);
