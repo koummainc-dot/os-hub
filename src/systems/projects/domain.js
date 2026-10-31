@@ -385,16 +385,22 @@ export function instantiateProjectTemplate(tpl, opts, newId) {
 
 // ── weekly review live metrics ──────────────────────────────────────
 export function reviewLive(memberId, weekStartDate, ctx) {
-  const { idx, wins, sessions, issues, risks, checkins, projects, metrics, settings } = ctx; const end = addDays(weekStartDate, 6); const tz = settings && settings.timezone;
+  const { idx, wins, sessions, issues, risks, decisions, checkins, projects, metrics, settings } = ctx; const end = addDays(weekStartDate, 6); const tz = settings && settings.timezone;
   const inWeek = (d) => d && d >= weekStartDate && d <= end;
   const doneTasks = idx.list.filter((t) => idx.isLeaf(t.id) && cat(t.status) === "done" && t.assignee_id === memberId && t.completed_at && inWeek(dateOf(t.completed_at, tz)));
-  const minutes = (sessions || []).filter((s) => isLive(s) && !s.voided_at && s.member_id === memberId && inWeek(s.date)).reduce((a, s) => a + (s.minutes || 0), 0);
   const overdue = idx.list.filter((t) => idx.isLeaf(t.id) && t.assignee_id === memberId && isOverdueLeaf(t, idx, addDays(end, 0) < ctx.today ? end : ctx.today));
+  const weekTasks = idx.list.filter((t) => idx.isLeaf(t.id) && t.assignee_id === memberId && ["todo", "active"].includes(cat(t.status)) && (t.planning_bucket === "This Week" || inWeek(t.due_date)));
+  const weekIssues = (issues || []).filter((i) => isActiveRec(i) && inWeek(i.discovered_at));
+  const weekRisks = (risks || []).filter((r) => isActiveRec(r) && inWeek(dateOf(r.created_at || end, tz)));
+  const weekDecisions = (decisions || []).filter((d) => isActiveRec(d) && inWeek(dateOf(d.decided_at || d.created_at, tz)));
+  const projectIds = new Set([...doneTasks, ...overdue, ...weekTasks, ...weekIssues, ...weekRisks, ...weekDecisions].map((x) => x.project_id).filter(Boolean));
+  const relatedProjects = (projects || []).filter((p) => isActiveRec(p) && (projectIds.has(p.id) || (metrics && metrics[p.id] && metrics[p.id].health === "Red")));
+  const minutes = (sessions || []).filter((s) => isLive(s) && !s.voided_at && s.member_id === memberId && inWeek(s.date)).reduce((a, s) => a + (s.minutes || 0), 0);
   return {
     wins: (wins || []).filter((w) => isActiveRec(w) && w.member_id === memberId && inWeek(w.achieved_on)),
-    doneTasks, minutes, overdueCount: overdue.length,
-    newIssues: (issues || []).filter((i) => isActiveRec(i) && inWeek(i.discovered_at)).length,
-    newRisks: (risks || []).filter((r) => isActiveRec(r) && inWeek(dateOf(r.created_at || end, tz))).length,
+    doneTasks, weekTasks, overdueTasks: overdue, minutes, overdueCount: overdue.length,
+    issues: weekIssues, risks: weekRisks, decisions: weekDecisions, relatedProjects,
+    newIssues: weekIssues.length, newRisks: weekRisks.length, decisionsCount: weekDecisions.length,
     checkins: (checkins || []).filter((c) => c.member_id === memberId && inWeek(dateOf(c.checked_at, tz))).length,
     redProjects: (projects || []).filter((p) => isActiveRec(p) && metrics && metrics[p.id] && metrics[p.id].health === "Red").length,
   };
