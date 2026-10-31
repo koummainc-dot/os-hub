@@ -64,6 +64,7 @@ export function completeHomeTask(task, completion) {
       lastCompletedAt: isDone ? completedAt : (task.lastCompletedAt || null),
       nextDueAt: isDone ? nextHomeTaskDue(task, completedAt) : (task.nextDueAt || null),
       dueDate: isDone ? (nextHomeTaskDue(task, completedAt)?.slice(0, 10) || null) : (task.dueDate || null),
+      reminderAt: isDone ? null : (task.reminderAt || null),
       updatedAt: completedAt
     },
     completion: { ...completion, outcome, completedAt }
