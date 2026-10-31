@@ -99,7 +99,7 @@ function UpdateEditor({ u, onClose }) {
 export function Wins() {
   const { data, A: act, me, today, idx, can, people, projectsById, toast, weekStartStr, openTask, openProject, setPage } = useP(); const [form, setForm] = useState(null); const [who, setWho] = useState("all");
   const list = data.wins.filter((w) => who === "all" || w.member_id === who).sort((a, b) => b.achieved_on.localeCompare(a.achieved_on));
-  const sugg = idx.list.filter((t) => idx.isLeaf(t.id) && D.cat(t.status) === "done" && t.assignee_id === me && t.completed_at && t.completed_at.slice(0, 10) >= weekStartStr && !data.wins.some((w) => w.task_id === t.id)).slice(0, 6);
+  const sugg = idx.list.filter((t) => idx.isLeaf(t.id) && D.cat(t.status) === "done" && t.assignee_id === me && t.completed_at && t.completed_at.slice(0, 10) >= weekStartStr && !data.wins.some((w) => w.task_id === t.id || (w.task_ids || []).includes(t.id))).slice(0, 6);
   return (
     <div>
       <Head title="الإنجازات" sub={`${list.length} إنجاز`} right={<><select style={{ ...S.sel, width: 150 }} value={who} onChange={(e) => setWho(e.target.value)}><option value="all">الكل</option>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select><Btn kind="primary" onClick={() => setForm({})}>➕ إنجاز</Btn></>} />
