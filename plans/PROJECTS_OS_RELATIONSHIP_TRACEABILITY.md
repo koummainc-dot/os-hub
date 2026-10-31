@@ -75,6 +75,8 @@
 
 - Domain tests were added for OKR task-group execution, deduplication, outcome/execution separation, PRD requirement ownership, and weekly-review relationship coverage.
 - Earlier CI failures exposed two incorrect test expectations; both were corrected (template fixture count and linked task-list count).
-- CI, production build, and Supabase smoke checks for the latest branch head are pending.
+- CI test suite and production build passed on commit `9db3bf7`.
+- The Projects OS SQL smoke workflow passed on disposable PostgreSQL 16: bootstrap, migration apply, and positive/negative boundary checks all succeeded on commit `b67171c`.
+- The newest branch update after those successful runs changes workflow triggering/documentation only; its workflow run is still being checked.
 - Manual browser acceptance tests for the complete relationship flows have not yet been performed.
 - The draft PR is intentionally not merged.
