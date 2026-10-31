@@ -107,7 +107,7 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   useEffect(() => {
     if (isDemo || !ws?.id) return;
     const type = "shopping.purchase.completed";
-    const sync = events => setShoppingPurchases(events.filter(e => e.type === type && e.payload?.sourcePurchaseId && !data.items.some(item => item.sourcePurchaseId === e.payload.sourcePurchaseId)));
+    const sync = events => setShoppingPurchases([...new Map(events.filter(e => e.type === type && e.payload?.sourcePurchaseId && !data.items.some(item => item.sourcePurchaseId === e.payload.sourcePurchaseId)).map(e => [e.payload.sourcePurchaseId, e])).values()]);
     sync(readOSEvents({ workspaceId: ws.id, types: [type], limit: 100 }));
     const offEvent = subscribeOSEvents(event => sync([...readOSEvents({ workspaceId: ws.id, types: [type], limit: 100 }), event]), { workspaceId: ws.id, types: [type] });
     const offStorage = subscribeToStoredOSEvents(sync, { workspaceId: ws.id, types: [type], limit: 100 });
