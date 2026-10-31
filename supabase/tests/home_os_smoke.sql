@@ -244,7 +244,7 @@ do $$
 begin
   perform public.home_operations_save(
     '10000000-0000-4000-8000-000000000001',
-    '{"tasks":[],"completions":[],"providers":[],"maintenance":[],"purchaseRequests":[],"purchaseItems":[],"bills":[],"events":[]}'::jsonb
+    '{"tasks":[{"id":"73000000-0000-4000-8000-000000000001","title":"Relational task","description":"","taskType":"routine","status":"active","priority":"normal","propertyId":"30000000-0000-4000-8000-000000000001","roomId":"40000000-0000-4000-8000-000000000001","dueDate":"2026-10-31","recurrenceRule":{"frequency":"daily"},"estimatedMinutes":15,"reminderAt":"2026-10-31T08:00:00Z","createdAt":"2026-10-31T00:00:00Z"}],"completions":[{"id":"74000000-0000-4000-8000-000000000001","taskId":"73000000-0000-4000-8000-000000000001","outcome":"done","completedAt":"2026-10-31T08:00:00Z","durationMinutes":15,"note":"","idempotencyKey":"smoke-task-completion-0001"}],"providers":[{"id":"75000000-0000-4000-8000-000000000001","name":"Plumber","serviceCategory":"plumbing","phone":"","email":"","notes":"","createdAt":"2026-10-31T00:00:00Z"}],"maintenance":[{"id":"76000000-0000-4000-8000-000000000001","propertyId":"30000000-0000-4000-8000-000000000001","roomId":"40000000-0000-4000-8000-000000000001","title":"Leak check","description":"","status":"reported","priority":"normal","reportedAt":"2026-10-31T00:00:00Z","costAmount":null,"currency":"EGP","notes":"","completionCount":0,"createdAt":"2026-10-31T00:00:00Z"}],"purchaseRequests":[],"purchaseItems":[],"bills":[],"events":[]}'::jsonb
   );
   raise exception 'HOME_VIEW_ROLE_WRITE_SHOULD_FAIL';
 exception when insufficient_privilege then
