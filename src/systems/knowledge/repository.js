@@ -193,3 +193,23 @@ export async function markKnowledgeNotificationRead(workspaceId, notificationId)
 }
 
 export { hasKnowledgeContent };
+
+
+export async function listKnowledgeProjects(workspaceId) {
+  if (!workspaceId || !supabase) return { ok: false, projects: [], reason: "workspace-or-client-unavailable" };
+  const { data, error } = await supabase
+    .from("workspace_data")
+    .select("data")
+    .eq("workspace_id", workspaceId)
+    .eq("system_id", "projects")
+    .eq("part", "projects")
+    .limit(1);
+  if (error) return { ok: false, projects: [], error };
+  const raw = data?.[0]?.data;
+  const rows = Array.isArray(raw) ? raw : raw && typeof raw === "object" ? Object.values(raw) : [];
+  const projects = rows
+    .filter((item) => item && typeof item === "object" && item.id && item.name && !item.deleted_at)
+    .map((item) => ({ id: String(item.id), name: String(item.name), status: item.status || "" }))
+    .sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  return { ok: true, projects };
+}
