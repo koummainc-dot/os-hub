@@ -120,6 +120,26 @@ function osMakeApi(wsId,systemId,part){
         return {available:true,ok:true,updatedAt:data||null};
       } catch(error) { return {available:true,ok:false,error}; }
     },
+    async loadNormalizedHome(){
+      try{
+        const {data,error}=await supabase.rpc("home_load_snapshot",{p_workspace_id:wsId});
+        if(error){
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_load_snapshot.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,error};
+        }
+        return {available:true,data,source:"normalized"};
+      }catch(error){return {available:true,error};}
+    },
+    async saveNormalizedHome(snapshot){
+      try{
+        const {data,error}=await supabase.rpc("home_save_snapshot",{p_workspace_id:wsId,p_snapshot:snapshot});
+        if(error){
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_save_snapshot.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,ok:false,error};
+        }
+        return {available:true,ok:true,updatedAt:data||null};
+      }catch(error){return {available:true,ok:false,error};}
+    },
     async load(){
       try{
         const timeout=new Promise(r=>setTimeout(()=>r({ok:false,error:{message:"Supabase request timed out"}}),12000));
