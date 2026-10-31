@@ -11,6 +11,8 @@ assert.ok(entities.includes('reqOutputs.map((o) => <button key={o.id} type="butt
   "PRD requirement output evidence must navigate to the outputs section");
 assert.ok(entities.includes('req.status === "Verified" && !linkedOutputs.some((o) => o.prd_requirement_id === req.id && o.approval === "Final")'),
   "PRD requirement cannot be verified without a linked Final output");
+assert.ok(entities.includes('data.outputs.filter((o) => o.prd_id === d.id && D.isActiveRec(o))'),
+  "archived or deleted outputs must not count as verification evidence");
 assert.ok(screens.includes('related.wins.map((x) => <Btn key={x.id} small onClick={() => setPage("wins")}>'),
   "stakeholder update achievement references must be actionable");
 assert.ok(screens.includes('{w.output_ids?.length > 0 && <Btn small onClick={() => w.project_id && openProject(w.project_id, "outputs")}>'),
