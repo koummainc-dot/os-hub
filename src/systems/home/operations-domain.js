@@ -5,7 +5,7 @@ export const HOME_TASK_OUTCOMES = Object.freeze(["done", "skipped", "partial", "
 export const HOME_MAINTENANCE_STATUSES = Object.freeze(["reported", "scheduled", "in_progress", "waiting_parts", "completed", "cancelled"]);
 export const HOME_PURCHASE_STATUSES = Object.freeze(["draft", "needed", "approved", "ordered", "partially_received", "received", "cancelled"]);
 
-const validDate = value => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value + "T00:00:00Z"));
+const validDate = value => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value + "T00:00:00Z")) && new Date(value + "T00:00:00Z").toISOString().slice(0, 10) === value;
 const nonNegative = value => value == null || value === "" || (Number.isFinite(Number(value)) && Number(value) >= 0);
 
 export function validateHomeTask(task, data = {}) {
