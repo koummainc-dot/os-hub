@@ -88,7 +88,7 @@ create table if not exists public.home_inventory_movements (
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   item_id uuid not null,
   movement_type text not null check (movement_type in ('receive','consume','adjust','move','dispose')),
-  quantity numeric(14,3) not null check (quantity > 0),
+  quantity numeric(14,3) not null check ((movement_type = 'adjust' and quantity >= 0) or (movement_type <> 'adjust' and quantity > 0)),
   occurred_at timestamptz not null default now(),
   note text not null default '',
   idempotency_key text not null check (length(idempotency_key) between 8 and 200),
