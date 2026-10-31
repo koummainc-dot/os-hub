@@ -96,7 +96,7 @@ select public.home_record_purchase_receipt(
   '[{"itemId":"71000000-0000-4000-8000-000000000001","quantity":3,"unitPrice":12}]'::jsonb,
   'smoke-receipt-request-line-0002'
 );
-do $
+do $$
 begin
   if (select count(*) from public.home_purchase_receipts
       where workspace_id='10000000-0000-4000-8000-000000000001'
@@ -122,16 +122,16 @@ begin
         and id='70000000-0000-4000-8000-000000000001') <> 'received' then
     raise exception 'HOME_RECEIPT_STATUS_INVALID';
   end if;
-end $;
+end $$;
 reset role;
-do $
+do $$
 begin
   if (select count(*) from public.home_outbox_events
       where workspace_id='10000000-0000-4000-8000-000000000001'
         and event_type='home.purchase.receipt.recorded') <> 2 then
     raise exception 'HOME_RECEIPT_OUTBOX_MISSING_OR_DUPLICATED';
   end if;
-end $;
+end $$;
 set role authenticated;
 
 select set_config('test.access_level','view',false);
