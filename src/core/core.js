@@ -160,6 +160,21 @@ function osMakeApi(wsId,systemId,part){
         return {available:true,ok:true,updatedAt:data||null};
       }catch(error){return {available:true,ok:false,error};}
     },
+    async recordHomePurchaseReceipt(requestId, lines, idempotencyKey){
+      try{
+        const {data,error}=await supabase.rpc("home_record_purchase_receipt",{
+          p_workspace_id:wsId,
+          p_request_id:requestId,
+          p_lines:lines,
+          p_idempotency_key:idempotencyKey
+        });
+        if(error){
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_record_purchase_receipt.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,ok:false,error};
+        }
+        return {available:true,ok:true,data};
+      }catch(error){return {available:true,ok:false,error};}
+    },
     async load(){
       try{
         const timeout=new Promise(r=>setTimeout(()=>r({ok:false,error:{message:"Supabase request timed out"}}),12000));
