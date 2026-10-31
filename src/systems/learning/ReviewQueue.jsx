@@ -91,12 +91,13 @@ export default function ReviewQueue({ data, canEdit, onSave, onOpenSource, works
         </div>
       </>}
       {item.lessonId && onOpenSource && button("فتح الدرس المرتبط", () => onOpenSource(item.lessonId), false, false)}
+      {item.sourceUrl && <a href={item.sourceUrl} target="_blank" rel="noreferrer" style={{fontSize:12,color:palette.accent}}>فتح المصدر المرتبط ↗</a>}
       {message && <div role="status" style={{ fontSize: 12, color: message.startsWith("لم") ? palette.red : palette.green }}>{message}</div>}
     </article> : <div style={{ ...box, textAlign: "center", padding: 28 }}><div style={{ fontSize: 28 }}>✓</div><b>لا توجد مراجعات مستحقة الآن</b><p style={{ color: palette.muted, fontSize: 13 }}>أضف مفردات وحدد موعد مراجعتها؛ ستظهر هنا عند استحقاقها.</p></div>}
     <section style={{ ...box, display: "grid", gap: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}><h3 style={{ margin: 0, fontSize: 16 }}>سجل المراجعات الأخير</h3><span style={{ fontSize: 12, color: palette.muted }}>كل محاولة محفوظة كسجل مستقل</span></div>
       {recentLogs.length ? <div style={{ display: "grid", gap: 8 }}>{recentLogs.map(log => <div key={log.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, alignItems: "center", borderTop: "1px solid " + palette.line, paddingTop: 9 }}>
-        <div><b style={{ fontSize: 13 }}>{log.term || log.itemName || "عنصر مراجعة"}</b><div style={{ fontSize: 11, color: palette.muted, marginTop: 3 }}>{String(log.reviewedAt || log.date || "").replace("T", " ").slice(0, 16)} · الموعد التالي: {log.nextReviewDate || "غير محدد"}{Number.isFinite(Number(log.intervalDays)) ? " · الفاصل " + log.intervalDays + " يوم" : ""}</div></div>
+        <div><b style={{ fontSize: 13 }}>{log.term || log.title || log.itemName || "عنصر مراجعة"}</b><div style={{ fontSize: 11, color: palette.muted, marginTop: 3 }}>{String(log.reviewedAt || log.date || "").replace("T", " ").slice(0, 16)} · الموعد التالي: {log.nextReviewDate || "غير محدد"}{Number.isFinite(Number(log.intervalDays)) ? " · الفاصل " + log.intervalDays + " يوم" : ""}</div></div>
         <span style={{ fontSize: 11, padding: "4px 8px", borderRadius: 99, background: log.rating === "again" ? "#FEE2E2" : log.rating === "hard" ? "#FEF3C7" : palette.soft, color: log.rating === "again" ? palette.red : log.rating === "hard" ? "#92400E" : palette.accent }}>{ratingNames[log.rating] || log.rating || "مراجعة"}</span>
       </div>)}</div> : <div style={{ fontSize: 13, color: palette.muted }}>لا يوجد سجل بعد. ستظهر هنا محاولات المراجعة التي تسجلها.</div>}
     </section>
