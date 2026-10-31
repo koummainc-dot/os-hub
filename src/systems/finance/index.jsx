@@ -11,7 +11,7 @@ import FinanceAssets from "./Assets.jsx";
 import FinanceNetWorthHistory from "./NetWorthHistory.jsx";
 import FinanceFXRates from "./FXRates.jsx";
 import TransactionImport from "./TransactionImport.jsx";
-import { subscribeOSEvents } from "../integrationEvents.js";
+import { readOSEvents, subscribeOSEvents, subscribeToStoredOSEvents } from "../integrationEvents.js";
 
 const GREEN = "#059669";
 const INK = "#17211D";
@@ -70,6 +70,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [learningActivity, setLearningActivity] = useState([]);
+  const [shoppingPurchases, setShoppingPurchases] = useState([]);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [showTx, setShowTx] = useState(false);
@@ -127,6 +128,17 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   }, [ws?.id, isDemo, budgetPeriod]);
 
   useEffect(() => subscribeOSEvents((event) => setLearningActivity((items) => [event, ...items.filter((x) => x.id !== event.id)].slice(0, 3)), { workspaceId: ws?.id || "default", source: "learning", types: ["learning.study_session.completed", "learning.lesson.completed", "learning.course.completed"] }), [ws?.id]);
+  useEffect(() => {
+    if (isDemo || !ws?.id) return;
+    const type = "shopping.purchase.completed";
+    const key = "os-finance-shopping-linked:" + ws.id;
+    const handled = () => { try { return new Set(JSON.parse(localStorage.getItem(key) || "[]")); } catch { return new Set(); } };
+    const sync = events => { const done = handled(); setShoppingPurchases(events.filter(e => e.type === type && e.payload?.sourcePurchaseId && !done.has(e.payload.sourcePurchaseId))); };
+    sync(readOSEvents({ workspaceId: ws.id, types: [type], limit: 100 }));
+    const offEvent = subscribeOSEvents(event => sync([...readOSEvents({ workspaceId: ws.id, types: [type], limit: 100 }), event]), { workspaceId: ws.id, types: [type] });
+    const offStorage = subscribeToStoredOSEvents(sync, { workspaceId: ws.id, types: [type], limit: 100 });
+    return () => { offEvent(); offStorage(); };
+  }, [ws?.id, isDemo]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(""), 5000); return () => clearTimeout(t); }, [notice]);
 
@@ -178,13 +190,18 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         from_account_id: tx.from_account_id, to_account_id: tx.type === "Transfer" ? tx.to_account_id : null,
         category_id: tx.type === "Transfer" || splitMode ? null : (tx.category_id || null), goal_id: tx.goal_id || null, merchant: tx.merchant || null, notes: tx.notes || null,
         splits: splitMode ? validSplits.map(s => ({ category_id: s.category_id, amount: String(s.amount) })) : [],
-        client_generated_id: "web-" + (globalThis.crypto?.randomUUID?.() || (Date.now() + "-" + Math.random().toString(36).slice(2))),
-        idempotency_key: "finance-ui-" + (globalThis.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2))
+        client_generated_id: tx.shoppingPurchaseId ? "shopping-purchase-" + tx.shoppingPurchaseId : "web-" + (globalThis.crypto?.randomUUID?.() || (Date.now() + "-" + Math.random().toString(36).slice(2))),
+        idempotency_key: tx.shoppingPurchaseId ? "shopping-purchase-" + tx.shoppingPurchaseId : "finance-ui-" + (globalThis.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2))
       };
       const { data, error: rpcError } = await supabase.rpc("fin_post_transaction_with_splits", { p: payload });
       if (rpcError) throw rpcError;
       if (data?.duplicate) setNotice("تم اكتشاف حركة موجودة مسبقًا؛ لم يتم إنشاء نسخة أخرى.");
       else setNotice(data?.warnings?.length ? "تم حفظ الحركة مع تنبيه: " + data.warnings.join(", ") : "تم تسجيل الحركة بنجاح.");
+      if (tx.shoppingPurchaseId) {
+        const key = "os-finance-shopping-linked:" + ws.id;
+        try { const ids = new Set(JSON.parse(localStorage.getItem(key) || "[]")); ids.add(tx.shoppingPurchaseId); localStorage.setItem(key, JSON.stringify([...ids])); } catch {}
+        setShoppingPurchases(rows => rows.filter(event => event.payload?.sourcePurchaseId !== tx.shoppingPurchaseId));
+      }
       setShowTx(false); setTx(initialTx()); setSplitMode(false); setSplitRows([{ category_id: "", amount: "" }, { category_id: "", amount: "" }]); await load();
     } catch (e) { setError(e?.message || "تعذّر تسجيل الحركة"); }
     finally { setSaving(false); }
