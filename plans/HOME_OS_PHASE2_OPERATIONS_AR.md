@@ -80,7 +80,7 @@
 ### حالة البوابة بعد القرار
 
 - [x] اختيار مصدر الحقيقة وتوثيق القرار.
-- [ ] جرد فعلي كامل لمسارات snapshot والجداول وملفات migrations على الفرع.
+- [x] جرد فعلي لمسارات snapshot والجداول وملفات migrations وواجهات API على الفرع — التفاصيل في [HOME_OS_PHASE1_CODE_AUDIT_AR.md](HOME_OS_PHASE1_CODE_AUDIT_AR.md).
 - [ ] تنفيذ repository العلائقي وربطه بالواجهات بدل snapshot.
 - [ ] إضافة outbox دائم وعمليات RPC ذرية.
 - [ ] إعداد واختبار migration توافقية على مشروع معزول.
