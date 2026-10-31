@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { validateHomeTask, completeHomeTask, validateHomeMaintenance, validateHomePurchaseRequest, deriveHomePurchaseTotal, homeTaskEvent } from "./operations-domain.js";
 
 const EMPTY = () => ({ tasks: [], completions: [], providers: [], maintenance: [], purchaseRequests: [], purchaseItems: [], bills: [], events: [] });
@@ -35,6 +35,7 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
   const [billForm, setBillForm] = useState(null);
   const [providerForm, setProviderForm] = useState(null);
   const [filter, setFilter] = useState("");
+  const remindedTasks = useRef(new Set());
 
   const activeProperties = useMemo(() => properties.filter(p => !p.deletedAt), [properties]);
   const activeRooms = useMemo(() => rooms.filter(r => !r.deletedAt), [rooms]);
@@ -60,6 +61,25 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
     return () => { alive = false; };
   }, [api, isDemo]);
 
+  useEffect(() => {
+    const checkReminders = () => {
+      const now = Date.now();
+      for (const task of data.tasks) {
+        if (task.status !== "active" || !task.reminderAt || new Date(task.reminderAt).getTime() > now || remindedTasks.current.has(task.id)) continue;
+        remindedTasks.current.add(task.id);
+        const message = "حان موعد المهمة المنزلية: " + task.title;
+        if (typeof window !== "undefined" && "Notification" in window && window.Notification.permission === "granted") {
+          try { new window.Notification("تذكير منزلي", { body: task.title }); } catch { setNotice(message); }
+        } else {
+          setNotice(message + " (التذكير يعمل أثناء فتح التطبيق فقط)");
+        }
+      }
+    };
+    checkReminders();
+    const timer = setInterval(checkReminders, 60000);
+    return () => clearInterval(timer);
+  }, [data.tasks]);
+
   const persist = useCallback(async next => {
     if (!canEdit) { setError("ليس لديك صلاحية تعديل قسم المنزل."); return false; }
     setSaving(true); setError("");
@@ -80,7 +100,7 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
   const saveTask = async e => {
     e.preventDefault();
     const form = taskForm;
-    const record = { ...form, id: form.id || uid(), title: text(form.title), description: text(form.description), taskType: form.taskType || "routine", status: form.status || "active", priority: form.priority || "normal", recurrenceRule: form.recurrenceRule || { frequency: "none" }, dueDate: form.dueDate || null, estimatedMinutes: form.estimatedMinutes === "" ? null : Number(form.estimatedMinutes), updatedAt: new Date().toISOString(), createdAt: form.createdAt || new Date().toISOString() };
+    const record = { ...form, id: form.id || uid(), title: text(form.title), description: text(form.description), taskType: form.taskType || "routine", status: form.status || "active", priority: form.priority || "normal", recurrenceRule: form.recurrenceRule || { frequency: "none" }, dueDate: form.dueDate || null, estimatedMinutes: form.estimatedMinutes === "" ? null : Number(form.estimatedMinutes), reminderAt: form.reminderAt || null, updatedAt: new Date().toISOString(), createdAt: form.createdAt || new Date().toISOString() };
     const errors = validateHomeTask(record, { properties: activeProperties, rooms: activeRooms });
     if (errors.length) return setError(errors.join(" "));
     const exists = data.tasks.some(t => t.id === record.id);
@@ -173,7 +193,7 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
   const pendingPurchases = data.purchaseRequests.filter(p => !["received", "cancelled"].includes(p.status));
   const overdueBills = data.bills.filter(b => b.status !== "paid" && b.dueDate < today());
   const linesFor = id => data.purchaseItems.filter(line => line.requestId === id);
-  const addTask = () => setTaskForm({ title: "", description: "", taskType: "routine", status: "active", priority: "normal", propertyId: activeProperties[0]?.id || "", roomId: "", dueDate: today(), estimatedMinutes: "", recurrenceRule: { frequency: "none", intervalDays: 1 } });
+  const addTask = () => setTaskForm({ title: "", description: "", taskType: "routine", status: "active", priority: "normal", propertyId: activeProperties[0]?.id || "", roomId: "", dueDate: today(), estimatedMinutes: "", reminderAt: "", recurrenceRule: { frequency: "none", intervalDays: 1 } });
   const addMaintenance = () => setMaintenanceForm({ title: "", description: "", propertyId: activeProperties[0]?.id || "", roomId: "", inventoryItemId: "", status: "reported", priority: "normal", costAmount: "", currency: "EGP", nextMaintenanceDate: "", notes: "" });
   const addPurchase = () => setPurchaseForm({ title: "", propertyId: activeProperties[0]?.id || "", status: "needed", priority: "normal", budgetAmount: "", currency: "EGP", neededBy: "", notes: "", lines: [{ name: "", quantity: 1, estimatedUnitPrice: "", receivedQuantity: 0, inventoryItemId: "" }] });
   const addBill = () => setBillForm({ title: "", amount: "", currency: "EGP", frequency: "monthly", dueDate: today(), status: "due", category: "", notes: "" });
@@ -199,7 +219,7 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
         <Field label="الموعد">{input(taskForm.dueDate, v => setTaskForm({ ...taskForm, dueDate: v }), "date")}</Field>
         <Field label="التكرار"><Select value={taskForm.recurrenceRule?.frequency || "none"} onChange={e => setTaskForm({ ...taskForm, recurrenceRule: { ...taskForm.recurrenceRule, frequency: e.target.value } })}><option value="none">بدون تكرار</option><option value="daily">يومي</option><option value="weekly">أسبوعي</option><option value="monthly">شهري</option><option value="yearly">سنوي</option><option value="interval">كل عدد أيام</option></Select></Field>
         {taskForm.recurrenceRule?.frequency === "interval" && <Field label="كل كام يوم؟">{input(taskForm.recurrenceRule.intervalDays, v => setTaskForm({ ...taskForm, recurrenceRule: { ...taskForm.recurrenceRule, intervalDays: v } }), "number", { min: 1, max: 365 })}</Field>}
-        <Field label="المدة المتوقعة بالدقائق">{input(taskForm.estimatedMinutes, v => setTaskForm({ ...taskForm, estimatedMinutes: v }), "number", { min: 0 })}</Field>
+        <Field label="المدة المتوقعة بالدقائق">{input(taskForm.estimatedMinutes, v => setTaskForm({ ...taskForm, estimatedMinutes: v }), "number", { min: 0 })}</Field><Field label="تذكير داخل التطبيق">{input(taskForm.reminderAt, v => setTaskForm({ ...taskForm, reminderAt: v }), "datetime-local")}</Field>
         <Field label="الوصف / ملاحظات">{input(taskForm.description, v => setTaskForm({ ...taskForm, description: v }))}</Field>
         <div style={{ display: "flex", gap: 8, alignItems: "end" }}><Button type="submit" disabled={saving}>حفظ المهمة</Button><Button type="button" secondary onClick={() => setTaskForm(null)}>إلغاء</Button></div>
       </form>}
