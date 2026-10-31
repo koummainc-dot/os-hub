@@ -45,6 +45,11 @@ function HomeSystem({ api, access, ws, isDemo = false, page = "dashboard", setPa
     repository.load().then(result => {
       if (!alive) return;
       const loaded = result?.data ? normalizeHomeData(result.data) : (isDemo ? normalizeHomeData(demoSeed()) : blank());
+      if (!loaded.properties.some(p => !p.deletedAt)) {
+        const property = { id: uid(), name: "المنزل", isDefault: true, createdAt: today(), updatedAt: today() };
+        loaded.properties.push(property);
+        loaded.rooms.push({ id: uid(), propertyId: property.id, name: "عام / البيت كله", type: "general", floor: "", notes: "", createdAt: today() });
+      }
       // Ensure the general room exists for every active property.
       for (const property of loaded.properties.filter(p => !p.deletedAt)) {
         if (!loaded.rooms.some(r => r.propertyId === property.id && r.type === "general" && !r.deletedAt)) {
@@ -76,7 +81,8 @@ function HomeSystem({ api, access, ws, isDemo = false, page = "dashboard", setPa
     if (errors.length) return setError(errors.join(" "));
     const exists = data.properties.some(p => p.id === record.id);
     const next = { ...data, properties: exists ? data.properties.map(p => p.id === record.id ? { ...p, ...record } : p) : [...data.properties, record] };
-    if (await persist(next)) { setPropertyForm(null); if (!exists) next.rooms.push({ id: uid(), propertyId: record.id, name: "عام / البيت كله", type: "general", floor: "", notes: "", createdAt: today() }); }
+    if (!exists) next.rooms = [...next.rooms, { id: uid(), propertyId: record.id, name: "عام / البيت كله", type: "general", floor: "", notes: "", createdAt: today() }];
+    if (await persist(next)) setPropertyForm(null);
   };
   const createRoom = async e => {
     e.preventDefault();
@@ -89,7 +95,7 @@ function HomeSystem({ api, access, ws, isDemo = false, page = "dashboard", setPa
   };
   const createItem = async e => {
     e.preventDefault();
-    const record = { id: itemForm?.id || uid(), propertyId: itemForm.propertyId || currentProperty?.id, roomId: itemForm.roomId || "", name: itemForm.name.trim(), type: itemForm.type, category: itemForm.category || "", condition: itemForm.condition, unit: itemForm.unit, quantity: Number(itemForm.quantity), minimumQuantity: Number(itemForm.minimumQuantity || 0), unitPrice: itemForm.unitPrice === "" ? "" : Number(itemForm.unitPrice), currency: itemForm.currency || data.settings.currency || "EGP", purchaseDate: itemForm.purchaseDate || "", warrantyUntil: itemForm.warrantyUntil || "", expiryDate: itemForm.expiryDate || "", model: itemForm.model || "", serialNumber: itemForm.serialNumber || "", notes: itemForm.notes || "", createdAt: itemForm.createdAt || today(), updatedAt: today() };
+    const record = { id: itemForm?.id || uid(), propertyId: itemForm.propertyId || currentProperty?.id, roomId: itemForm.roomId || null, name: itemForm.name.trim(), type: itemForm.type, category: itemForm.category || "", condition: itemForm.condition, unit: itemForm.unit, quantity: Number(itemForm.quantity), minimumQuantity: Number(itemForm.minimumQuantity || 0), unitPrice: itemForm.unitPrice === "" || itemForm.unitPrice == null ? null : Number(itemForm.unitPrice), currency: itemForm.currency || data.settings.currency || "EGP", purchaseDate: itemForm.purchaseDate || null, warrantyUntil: itemForm.warrantyUntil || null, expiryDate: itemForm.expiryDate || null, model: itemForm.model || "", serialNumber: itemForm.serialNumber || "", notes: itemForm.notes || "", createdAt: itemForm.createdAt || today(), updatedAt: today() };
     const errors = validateHomeItem(record, data);
     if (errors.length) return setError(errors.join(" "));
     const exists = data.items.some(i => i.id === record.id);
