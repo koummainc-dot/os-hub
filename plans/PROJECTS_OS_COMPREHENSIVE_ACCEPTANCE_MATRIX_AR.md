@@ -17,7 +17,7 @@
 | ID | Area | Acceptance scenario | Evidence/status |
 |---|---|---|---|
 | P-01 | OKR | Link an objective to one or more active projects and show it in each project's OKR view | PENDING — browser |
-| P-02 | OKR | Link a KR to an existing task or task group without duplicating tasks | PASS — automated domain validation for duplicate/missing task references |
+| P-02 | OKR | Link a KR to an existing task or task group without duplicating tasks or crossing the selected project scope | PASS — automated domain validation for duplicate/missing/cross-project task references |
 | P-03 | OKR | Expand a linked task group to active leaf tasks and deduplicate overlapping groups | PASS — automated domain test T-65a/T-65b |
 | P-04 | OKR | Exclude cancelled and archived leaves from execution denominator | PASS — automated domain test T-65a |
 | P-05 | OKR | Keep KR outcome progress independent from task execution progress | PASS — automated domain test T-65b |
@@ -28,7 +28,7 @@
 | P-10 | PRD | Reject a task requirement that does not belong to its selected PRD | PASS — domain validation + SQL smoke |
 | P-11 | PRD | Reject an output requirement without a PRD or from another PRD/project | PASS — source validation + SQL smoke |
 | P-12 | PRD | Prevent marking a requirement Verified without linked Final output evidence | PASS — domain/SQL guard path; browser evidence pending |
-| P-13 | PRD | Show requirement's linked tasks and outputs and navigate to them | PASS — navigation controls added; browser confirmation pending |
+| P-13 | PRD | Show requirement's linked tasks and outputs, show linked risks, and navigate to them | PASS — PRD risks tab and requirement navigation controls added; browser confirmation pending |
 | P-14 | PRD | Create a new PRD version atomically and preserve/supersede the predecessor | PASS — contract test for atomic PRD versioning |
 | P-15 | PRD | Require complete PRD content and current-version reviewer approvals before final approval | PASS — PRD review-gate test |
 | P-16 | PRD | Reject edits to approved/superseded PRDs while allowing safe trash/restore metadata changes | PASS — PRD review-gate contract tests |
@@ -45,8 +45,8 @@
 | P-27 | Discovery | For discoveries linked to multiple projects, require an explicit eligible target project | PASS — conversion contract tests |
 | P-28 | Discovery | Navigate from each generated entity back to its discovery source | PENDING — browser |
 | P-29 | Issues | Create a repair task and persist issue/task links atomically; prevent duplicate repair tasks | PASS — atomic repair-task contract plus both issue/task permissions; runtime confirmation pending |
-| P-30 | Updates | Edit draft entity links, publish an immutable snapshot, and add an addendum without rewriting the snapshot | PENDING — browser/runtime |
-| P-31 | Achievements | Link achievement to objective/KR/tasks/Final outputs and ensure it does not mutate task/goal status | PENDING — browser/runtime |
+| P-30 | Updates | Edit draft entity links, publish an immutable snapshot, and add an addendum without rewriting the snapshot | PENDING — browser/runtime; create controls now limited to projects where the user can publish updates |
+| P-31 | Achievements | Link achievement to objective/KR/tasks/Final outputs and ensure it does not mutate task/goal status | PENDING — browser/runtime; write controls now respect win permissions and multi-task suggestion deduplication is fixed |
 | P-32 | Weekly review | Snapshot completed/current/overdue tasks, achievements, issues, risks, decisions, and projects; navigate to source entities | PASS — live domain aggregation test; browser snapshot/navigation pending |
 
 ## Findings fixed during acceptance
@@ -57,6 +57,14 @@
 4. Output cards now expose a navigable PRD requirement link.
 5. Repair-task and risk-conversion actions now check both source-entity and task/issue write permissions. Their UI controls are aligned with those permission requirements.
 6. Decision implementation-task controls now require both decision-write and task-write permissions, matching the store guard.
+7. Task details had non-clickable decision and achievement references; both now navigate to their owning sections.
+8. PRD details did not show risks linked through `risk.prd_id`; an active-risks tab with navigation was added.
+9. KR task links now reject tasks outside the KR's selected project scope, and the task picker filters to the selected projects.
+10. Discovery conversion actions now enforce source and target write permissions; conversion controls and discovery editing/moving are hidden or filtered for users without the required access.
+11. Risk, decision, discovery, and issue conversion retries now reject archived/deleted source or linked records and cross-project reused tasks.
+12. PRD save failures now release the busy state, and the requirement editor stays open unless the save is confirmed.
+13. Achievement suggestions now deduplicate legacy `task_id` and multi-link `task_ids` records.
+14. Achievement and stakeholder-update create/edit controls now respect their respective write permissions.
 
 New source-contract tests cover the relationship navigation and permission/idempotency guards. They are included in the repository's main test command; their final CI result is pending.
 
