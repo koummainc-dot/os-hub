@@ -13,7 +13,7 @@ const projectFilterOpts = (projects) => [{ v: "", l: "كل المشاريع" }, 
 
 // ═════ Outputs ═════
 export function OutputsView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, me, confirm, lookups, idx, openTask } = useP();
+  const { data, A: act, can, projectsById, people, toast, me, confirm, lookups, idx, openTask, setPage } = useP();
   const [form, setForm] = useState(null); const [type, setType] = useState(""); const [ap, setAp] = useState(""); const [q, setQ] = useState("");
   const list = data.outputs.filter((o) => (!projectId || o.project_id === projectId) && (!type || o.type === type) && (!ap || o.approval === ap) && (!q || o.name.toLowerCase().includes(q.toLowerCase())));
   const canNew = projectId ? can("output.write", projectsById[projectId]) : data.projects.some((p) => can("output.write", p));
@@ -47,7 +47,7 @@ export function OutputsView({ projectId }) {
           {list.map((o) => (
             <div key={o.id} style={{ ...S.card, padding: "10px 12px" }}>
               <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}><span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>📦 {o.name}</span><Chip color={o.approval === "Final" ? C.ok : o.approval === "Review" ? C.warn : C.muted}>{L.approval[o.approval]}</Chip></div>
-              <div style={{ fontSize: 11.5, color: C.dim, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><Chip>{o.type}</Chip>{!projectId && <ProjectName id={o.project_id} />}{o.task_id && idx.byId[o.task_id] && <button onClick={() => openTask(o.task_id)} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", padding: 0 }}>🔗 {idx.byId[o.task_id].title}</button>}</div>
+              <div style={{ fontSize: 11.5, color: C.dim, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><Chip>{o.type}</Chip>{!projectId && <ProjectName id={o.project_id} />}{o.task_id && idx.byId[o.task_id] && <button onClick={() => openTask(o.task_id)} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", padding: 0 }}>🔗 {idx.byId[o.task_id].title}</button>}{o.prd_requirement_id && <span style={{ color: C.dim }}>متطلب: {(data.prds.find((p) => p.id === o.prd_id)?.requirements || []).find((r) => r.id === o.prd_requirement_id)?.title || "متطلب غير متاح"}</span>}{data.wins.some((w) => (w.output_ids || []).includes(o.id)) && <button type="button" onClick={() => setPage("wins")} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>🏆 إنجاز مرتبط</button>}</div>
               {o.url && <a href={o.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.info, display: "block", margin: "4px 0", wordBreak: "break-all" }}>🔗 {o.url}</a>}
               {o.notes && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{o.notes}</div>}
               {o.approved_by && <div style={{ fontSize: 10.5, color: C.muted }}>اعتمده {<Who id={o.approved_by} size={14} />} · {fmt((o.approved_at || "").slice(0, 10))}</div>}
@@ -98,7 +98,7 @@ export function RisksView({ projectId }) {
     }
     await act.put("risks", { ...r, status: to }, p);
   }
-  const submit = async (v) => { const errs = D.validateRisk(v); if (errs.length) throw new Error(errs[0]); await act.put("risks", { ...v, id: v.id || uid(), status: v.status || "Open" }, projectsById[v.project_id]); toast("✅ تم الحفظ"); setForm(null); };
+  const submit = async (v) => { const errs = D.validateRisk(v); if (errs.length) throw new Error(errs[0]); const taskIds = [...new Set(v.task_ids || [])]; for (const id of taskIds) { const task = idx.byId[id]; if (!task || task.project_id !== v.project_id) throw new Error("كل مهام الوقاية والتخفيف يجب أن تكون نشطة ومن المشروع نفسه."); } await act.put("risks", { ...v, task_ids: taskIds, id: v.id || uid(), status: v.status || "Open" }, projectsById[v.project_id]); toast("✅ تم الحفظ"); setForm(null); };
   return (
     <div>
       {!projectId && <Head title="المخاطر والمشاكل والقرارات" sub="" />}
