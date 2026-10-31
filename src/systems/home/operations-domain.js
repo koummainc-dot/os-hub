@@ -143,6 +143,6 @@ export function homeTaskEvent(task, completion) {
     entityType: "home_task",
     entityId: task.id,
     occurredAt: completion.completedAt,
-    payload: { outcome: completion.outcome, propertyId: task.propertyId || null, roomId: task.roomId || null, nextDueAt: task.nextDueAt || null }
+    payload: { taskTitle: task.title || "مهمة منزلية", outcome: completion.outcome, propertyId: task.propertyId || null, roomId: task.roomId || null, nextDueAt: task.nextDueAt || null }
   };
 }
