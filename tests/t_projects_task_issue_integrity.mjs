@@ -12,4 +12,7 @@ assert.match(migration, /An issue may reference only active visible tasks in the
 assert.match(migration, /Task issue_ids must be an array/);
 assert.match(migration, /Issue task_ids must be an array/);
 assert.match(store, /await R\.putAtomic\(\[\{ coll: "tasks", rec: task \}, \{ coll: "issues", rec: issuePatch \}\]\)/);
+assert.match(store, /async saveIssue\(v\)/, "issue form saves must use the coordinated writer");
+assert.match(store, /const saved = await R\.putAtomic\(ops\)/, "issue/task backlink changes must be atomic");
+assert.match(entities, /await act\.saveIssue\(v\)/, "issue UI must not write task_ids one-sided");
 console.log("Projects task/issue integrity contract tests passed.");
