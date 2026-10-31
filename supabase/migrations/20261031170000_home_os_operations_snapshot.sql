@@ -42,10 +42,14 @@ begin
     raise exception 'HOME_ACCESS_DENIED' using errcode = '42501';
   end if;
   if jsonb_typeof(p_data) <> 'object' then raise exception 'HOME_INVALID_OPERATIONS_SNAPSHOT'; end if;
-  if exists (
-    select 1 from unnest(array['tasks','completions','providers','maintenance','purchaseRequests','purchaseItems','bills']) k
-    where jsonb_typeof(p_data->k) is distinct from 'array'
-  ) then raise exception 'HOME_INVALID_OPERATIONS_COLLECTIONS'; end if;
+  if jsonb_typeof(p_data->'tasks') is distinct from 'array'
+    or jsonb_typeof(p_data->'completions') is distinct from 'array'
+    or jsonb_typeof(p_data->'providers') is distinct from 'array'
+    or jsonb_typeof(p_data->'maintenance') is distinct from 'array'
+    or jsonb_typeof(p_data->'purchaseRequests') is distinct from 'array'
+    or jsonb_typeof(p_data->'purchaseItems') is distinct from 'array'
+    or jsonb_typeof(p_data->'bills') is distinct from 'array'
+  then raise exception 'HOME_INVALID_OPERATIONS_COLLECTIONS'; end if;
   insert into public.home_operations_snapshot(workspace_id,data,version,updated_at,updated_by)
   values(p_workspace_id,p_data,1,now(),auth.uid())
   on conflict (workspace_id) do update set data=excluded.data,version=home_operations_snapshot.version+1,updated_at=now(),updated_by=auth.uid();
