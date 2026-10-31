@@ -244,7 +244,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
   const [d, setD] = useState({ ...prd, sections: prd.sections || [], requirements: prd.requirements || [] }); const [tab, setTab] = useState("doc"); const [busy, setBusy] = useState(false); const [rejectForm, setRejectForm] = useState(false); const [requirementForm, setRequirementForm] = useState(null); const versioning = useRef(false);
   const secOf = (k) => (d.sections.find((s) => s.key === k) || {}).content || "";
   const setSec = (k, v, tpl) => setD((x) => { const ex = x.sections.some((s) => s.key === k); return { ...x, sections: ex ? x.sections.map((s) => (s.key === k ? { ...s, content: v } : s)) : [...x.sections, { key: k, title: tpl ? tpl.title : k, group: tpl ? tpl.group : "", content: v }] }; });
-  const save = async (patch) => { setBusy(true); const rec = { ...d, ...(patch || {}) }; const s = await act.put("prds", rec, project); setBusy(false); if (s) { setD(s); toast("✅ تم الحفظ"); } return s; };
+  const save = async (patch) => { setBusy(true); try { const rec = { ...d, ...(patch || {}) }; const saved = await act.put("prds", rec, project); if (saved) { setD(saved); toast("✅ تم الحفظ"); } return saved; } finally { setBusy(false); } };
   const ready = D.prdApprovalReady(d, d.sections, d.approvals);
   const linkedTasks = idx.list.filter((t) => t.prd_id === d.id);
   const linkedOutputs = data.outputs.filter((o) => o.prd_id === d.id && D.isActiveRec(o));
@@ -256,7 +256,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
     if (!req.title) throw new Error("عنوان المتطلب مطلوب");
     const next = v.id ? requirements.map((x) => x.id === v.id ? req : x) : [...requirements, req];
     if (req.status === "Verified" && !linkedOutputs.some((o) => o.prd_requirement_id === req.id && o.approval === "Final")) throw new Error("لا يمكن توثيق المتطلب قبل ربط مخرج نهائي يثبت تحقيقه.");
-    await save({ requirements: next }); setRequirementForm(null);
+    const saved = await save({ requirements: next }); if (saved) setRequirementForm(null);
   };
   const krs = data.krs; const myApproval = (d.approvals || []).find((a) => a.reviewer_id === me && a.version === (d.version || 1));
   async function review(decision, comment = "") { const apps = [...(d.approvals || []).filter((a) => !(a.reviewer_id === me && a.version === (d.version || 1))), { reviewer_id: me, decision, version: d.version || 1, at: nowIso(), comment: comment || "" }]; await save({ approvals: apps }); setRejectForm(false); }
