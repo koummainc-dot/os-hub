@@ -112,6 +112,30 @@ export function deriveHomePurchaseStatus(items = []) {
   return "received";
 }
 
+export function nextHomeBillDue(dueDate, frequency) {
+  if (!validDate(dueDate)) throw new Error("HOME_BILL_DUE_DATE_INVALID");
+  if (!["daily", "weekly", "monthly", "quarterly", "yearly"].includes(frequency)) {
+    throw new Error("HOME_BILL_FREQUENCY_INVALID");
+  }
+  const [year, month, day] = dueDate.split("-").map(Number);
+  const base = new Date(Date.UTC(year, month - 1, day, 12));
+  if (frequency === "daily") base.setUTCDate(base.getUTCDate() + 1);
+  else if (frequency === "weekly") base.setUTCDate(base.getUTCDate() + 7);
+  else if (frequency === "monthly" || frequency === "quarterly") {
+    const increment = frequency === "monthly" ? 1 : 3;
+    const targetMonth = month - 1 + increment;
+    const targetYear = year + Math.floor(targetMonth / 12);
+    const normalizedMonth = targetMonth % 12;
+    const lastDay = new Date(Date.UTC(targetYear, normalizedMonth + 1, 0)).getUTCDate();
+    base.setUTCFullYear(targetYear, normalizedMonth, Math.min(day, lastDay));
+  } else {
+    const targetYear = year + 1;
+    const lastDay = new Date(Date.UTC(targetYear, month, 0)).getUTCDate();
+    base.setUTCFullYear(targetYear, month - 1, Math.min(day, lastDay));
+  }
+  return base.toISOString().slice(0, 10);
+}
+
 export function homeTaskEvent(task, completion) {
   return {
     type: "home.task.completed",
