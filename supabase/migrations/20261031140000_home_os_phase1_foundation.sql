@@ -131,27 +131,27 @@ begin
 end $$;
 
 drop policy if exists home_settings_insert on public.home_settings;
-create policy home_settings_insert on public.home_settings for insert to authenticated with check (public.ws_access_level(workspace_id, 'home', 'settings') = 'edit');
+create policy home_settings_insert on public.home_settings for insert to authenticated with check (public.ws_access_level(workspace_id, 'home', 'main') = 'edit');
 drop policy if exists home_settings_update on public.home_settings;
-create policy home_settings_update on public.home_settings for update to authenticated using (public.ws_access_level(workspace_id, 'home', 'settings') = 'edit') with check (public.ws_access_level(workspace_id, 'home', 'settings') = 'edit');
+create policy home_settings_update on public.home_settings for update to authenticated using (public.ws_access_level(workspace_id, 'home', 'main') = 'edit') with check (public.ws_access_level(workspace_id, 'home', 'main') = 'edit');
 
 drop policy if exists home_properties_insert on public.home_properties;
-create policy home_properties_insert on public.home_properties for insert to authenticated with check (public.ws_access_level(workspace_id, 'home', 'rooms') = 'edit');
+create policy home_properties_insert on public.home_properties for insert to authenticated with check (public.ws_access_level(workspace_id, 'home', 'main') = 'edit');
 drop policy if exists home_properties_update on public.home_properties;
-create policy home_properties_update on public.home_properties for update to authenticated using (public.ws_access_level(workspace_id, 'home', 'rooms') = 'edit') with check (public.ws_access_level(workspace_id, 'home', 'rooms') = 'edit');
+create policy home_properties_update on public.home_properties for update to authenticated using (public.ws_access_level(workspace_id, 'home', 'main') = 'edit') with check (public.ws_access_level(workspace_id, 'home', 'main') = 'edit');
 
 drop policy if exists home_rooms_insert on public.home_rooms;
-create policy home_rooms_insert on public.home_rooms for insert to authenticated with check (public.ws_access_level(workspace_id, 'home', 'rooms') = 'edit');
+create policy home_rooms_insert on public.home_rooms for insert to authenticated with check (public.ws_access_level(workspace_id, 'home', 'main') = 'edit');
 drop policy if exists home_rooms_update on public.home_rooms;
-create policy home_rooms_update on public.home_rooms for update to authenticated using (public.ws_access_level(workspace_id, 'home', 'rooms') = 'edit') with check (public.ws_access_level(workspace_id, 'home', 'rooms') = 'edit');
+create policy home_rooms_update on public.home_rooms for update to authenticated using (public.ws_access_level(workspace_id, 'home', 'main') = 'edit') with check (public.ws_access_level(workspace_id, 'home', 'main') = 'edit');
 
 drop policy if exists home_inventory_items_insert on public.home_inventory_items;
-create policy home_inventory_items_insert on public.home_inventory_items for insert to authenticated with check (public.ws_access_level(workspace_id, 'home', 'inventory') = 'edit');
+create policy home_inventory_items_insert on public.home_inventory_items for insert to authenticated with check (public.ws_access_level(workspace_id, 'home', 'main') = 'edit');
 drop policy if exists home_inventory_items_update on public.home_inventory_items;
-create policy home_inventory_items_update on public.home_inventory_items for update to authenticated using (public.ws_access_level(workspace_id, 'home', 'inventory') = 'edit') with check (public.ws_access_level(workspace_id, 'home', 'inventory') = 'edit');
+create policy home_inventory_items_update on public.home_inventory_items for update to authenticated using (public.ws_access_level(workspace_id, 'home', 'main') = 'edit') with check (public.ws_access_level(workspace_id, 'home', 'main') = 'edit');
 
 drop policy if exists home_inventory_movements_insert on public.home_inventory_movements;
-create policy home_inventory_movements_insert on public.home_inventory_movements for insert to authenticated with check (public.ws_access_level(workspace_id, 'home', 'inventory') = 'edit');
+create policy home_inventory_movements_insert on public.home_inventory_movements for insert to authenticated with check (public.ws_access_level(workspace_id, 'home', 'main') = 'edit');
 drop policy if exists home_audit_log_insert on public.home_audit_log;
 create policy home_audit_log_insert on public.home_audit_log for insert to authenticated with check (public.ws_access_level(workspace_id, 'home', 'main') = 'edit');
 
