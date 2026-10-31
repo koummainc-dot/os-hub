@@ -140,6 +140,26 @@ function osMakeApi(wsId,systemId,part){
         return {available:true,ok:true,updatedAt:data||null};
       }catch(error){return {available:true,ok:false,error};}
     },
+    async loadHomeOperations(){
+      try{
+        const {data,error}=await supabase.rpc("home_operations_load",{p_workspace_id:wsId});
+        if(error){
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_operations_load.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,error};
+        }
+        return {available:true,data,source:"normalized"};
+      }catch(error){return {available:true,error};}
+    },
+    async saveHomeOperations(snapshot){
+      try{
+        const {data,error}=await supabase.rpc("home_operations_save",{p_workspace_id:wsId,p_data:snapshot});
+        if(error){
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_operations_save.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,ok:false,error};
+        }
+        return {available:true,ok:true,updatedAt:data||null};
+      }catch(error){return {available:true,ok:false,error};}
+    },
     async load(){
       try{
         const timeout=new Promise(r=>setTimeout(()=>r({ok:false,error:{message:"Supabase request timed out"}}),12000));
