@@ -41,6 +41,10 @@ assert.match(store, /async createPrdVersion\(prd\)[\s\S]*?R\.putAtomic\(\[[\s\S]
   "new PRD version and superseded predecessor must be written atomically");
 assert.match(entities, /act\.createPrdVersion\(d\)/,
   "PRD editor must use the atomic versioning action");
+assert.match(entities, /const save = async \(patch\) => \{ setBusy\(true\); try \{[\s\S]*?finally \{ setBusy\(false\); \} \};/,
+  "PRD editor must release its busy state even when a save fails");
+assert.match(entities, /const saved = await save\(\{ requirements: next \}\); if \(saved\) setRequirementForm\(null\);/,
+  "PRD requirement editor must remain open when the save is not confirmed");
 assert.match(entities, /d\.status === "Approved" && can\("prd\.approve", project\)/,
   "version creation UI must require approval-level permission");
 assert.match(migration, /current-version reviewer approvals are complete/,
