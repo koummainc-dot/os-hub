@@ -115,13 +115,20 @@ begin
     where workspace_id = p_workspace_id and id = p_request_id
     for update;
   if not found then raise exception 'HOME_PURCHASE_REQUEST_NOT_FOUND'; end if;
-  if v_request.status not in ('ordered','partially_received') then
-    raise exception 'HOME_PURCHASE_NOT_RECEIVABLE';
-  end if;
 
+  -- Check idempotency before the current status so a retry of the final receipt
+  -- succeeds even when the purchase is now fully received.
   select * into v_existing from public.home_purchase_receipts
     where workspace_id = p_workspace_id and idempotency_key = p_idempotency_key;
   if found then return v_existing.response; end if;
+
+  if v_request.status not in ('ordered','partially_received') then
+    raise exception 'HOME_PURCHASE_NOT_RECEIVABLE';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(p_lines) x
+    group by x->>'itemId' having count(*) > 1
+  ) then raise exception 'HOME_RECEIPT_DUPLICATE_LINE'; end if;
 
   insert into public.home_purchase_receipts(workspace_id, request_id, idempotency_key, received_by)
   values(p_workspace_id, p_request_id, p_idempotency_key, auth.uid())
