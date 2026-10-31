@@ -70,7 +70,7 @@ New source-contract tests cover the relationship navigation and permission/idemp
 
 ## Cross-cutting database integrity checks
 
-The Projects SQL smoke workflow runs on disposable PostgreSQL 16 and passed on the previous tested application commit. It applies both new migrations and checks valid relationships plus rejection of invalid/missing/cross-project/non-final references.
+The Projects SQL smoke workflow runs on disposable PostgreSQL 16. It now applies three new migrations and checks valid relationships plus rejection of invalid/missing/cross-project/non-final references, missing Final evidence, and destructive changes that would orphan verified PRD requirements.
 
 The guards cover:
 - Task and output PRD/requirement references.
@@ -82,9 +82,9 @@ The guards cover:
 
 ## Current acceptance result
 
-- CI test suite and production build: passed on the last verified branch head before the latest navigation-only acceptance additions.
-- Projects SQL smoke: passed on the last verified SQL/application commit; the latest navigation additions do not change SQL.
-- New relationship-navigation contract test: added to the main test script; awaiting CI execution.
+- CI test suite and production build: passed on commit `124b8ab`; later navigation, permission, retry, PRD evidence, and KR project-scope tests are awaiting the latest CI run.
+- Projects SQL smoke: the two-migration version passed previously; the third verified-evidence migration and expanded SQL cases are now included and awaiting a fresh result.
+- New relationship-navigation and permission/retry contract tests are included in the main test command; latest result pending.
 - Browser acceptance: **not yet passed**. The available Vercel Preview is 14 commits behind the current PR head, and a browser automation tool is not available in this execution context. The Preview must be redeployed from the exact tested head before browser sign-off.
 - Supabase production migration: **not applied**. Existing migration history must be reconciled in order before rollout.
 - Merge/deploy to production: **not performed**.
