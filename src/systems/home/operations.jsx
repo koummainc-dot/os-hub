@@ -126,9 +126,34 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
     const record = { ...f, id: f.id || uid(), title: text(f.title), propertyId: f.propertyId || activeProperties[0]?.id, roomId: f.roomId || null, inventoryItemId: f.inventoryItemId || null, status: f.status || "reported", priority: f.priority || "normal", costAmount: f.costAmount === "" ? null : Number(f.costAmount), currency: f.currency || "EGP", nextMaintenanceDate: f.nextMaintenanceDate || null, updatedAt: new Date().toISOString(), reportedAt: f.reportedAt || new Date().toISOString() };
     const errors = validateHomeMaintenance(record, { properties: activeProperties, rooms: activeRooms, items: activeItems });
     if (errors.length) return setError(errors.join(" "));
-    const exists = data.maintenance.some(x => x.id === record.id);
-    const next = { ...data, maintenance: exists ? data.maintenance.map(x => x.id === record.id ? record : x) : [record, ...data.maintenance] };
-    if (await persist(next)) setMaintenanceForm(null);
+    const previousRecord = data.maintenance.find(x => x.id === record.id);
+    const exists = Boolean(previousRecord);
+    const completedNow = record.status === "completed" && previousRecord?.status !== "completed" && Number(record.costAmount) > 0;
+    const completionCount = Number(previousRecord?.completionCount || 0) + (completedNow ? 1 : 0);
+    const savedRecord = { ...record, completionCount };
+    const next = { ...data, maintenance: exists ? data.maintenance.map(x => x.id === record.id ? savedRecord : x) : [savedRecord, ...data.maintenance] };
+    if (await persist(next)) {
+      setMaintenanceForm(null);
+      if (completedNow && !isDemo) {
+        const occurredAt = new Date().toISOString();
+        publishOSEvent({
+          type: "home.maintenance.cost.recorded",
+          entityType: "home_maintenance",
+          entityId: record.id + ":" + completionCount,
+          occurredAt,
+          payload: {
+            sourcePaymentId: "home-maintenance:" + record.id + ":" + completionCount,
+            maintenanceId: record.id,
+            maintenanceTitle: record.title || "صيانة منزلية",
+            amount: Number(record.costAmount),
+            currency: record.currency || "EGP",
+            category: "صيانة منزلية",
+            paymentDate: occurredAt.slice(0, 10),
+            providerId: record.providerId || null
+          }
+        }, workspaceId, "home");
+      }
+    }
   };
 
   const savePurchase = async e => {
