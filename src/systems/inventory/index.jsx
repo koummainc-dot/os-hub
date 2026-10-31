@@ -171,7 +171,10 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
       sourcePurchaseId: p.sourcePurchaseId
     }, data, today(), uid);
     if (prepared.errors.length) return tell(prepared.errors[0]);
-    const saved = await persist(prepared.data, "تم تحويل الشراء إلى ممتلك");
+    if (p.warrantyEndDate || p.warrantyStartDate || p.warrantyProvider) {
+      prepared.data.warranties = [{ id: uid(), itemId: prepared.item.id, provider: p.warrantyProvider || "", warrantyType: "Manufacturer", startDate: p.warrantyStartDate || p.purchaseDate || "", endDate: p.warrantyEndDate || "", notes: [p.warrantyNotes || "", p.receiptUrl ? "الفاتورة: " + p.receiptUrl : ""].filter(Boolean).join("\\n"), createdAt: new Date().toISOString() }, ...prepared.data.warranties];
+    }
+    const saved = await persist(prepared.data, "تم تحويل الشراء إلى ممتلك مع بيانات الضمان");
     if (saved) { setShoppingPurchases(rows => rows.filter(x => x.id !== event.id)); setSelectedId(prepared.item.id); setPage("items"); }
   };
 
