@@ -76,7 +76,13 @@ values
  ('11111111-1111-4111-8111-111111111111','projects','risks','risk1','{"project_id":"p1","title":"Risk One","task_ids":["task1"],"prd_id":"prd1"}'),
  ('11111111-1111-4111-8111-111111111111','projects','risks','risk2','{"project_id":"p2","title":"Risk Two","task_ids":["task2"]}'),
  ('11111111-1111-4111-8111-111111111111','projects','issues','issue1','{"project_id":"p1","title":"Issue One","task_ids":["task1"]}'),
- ('11111111-1111-4111-8111-111111111111','projects','discovery','discovery1','{"title":"Discovery One","project_ids":["p1"]}');
+ ('11111111-1111-4111-8111-111111111111','projects','issues','issue2','{"project_id":"p2","title":"Issue Two","task_ids":["task2"]}'),
+ ('11111111-1111-4111-8111-111111111111','projects','discovery','discovery1','{"title":"Discovery One","project_ids":["p1"]}'),
+ ('11111111-1111-4111-8111-111111111111','projects','discovery','discovery2','{"title":"Discovery Two","project_ids":["p2"]}');
+
+insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+values ('11111111-1111-4111-8111-111111111111','projects','tasks','task3',
+        '{"project_id":"p1","parent_task_id":"task1","issue_ids":["issue1"],"discovery_ids":["discovery1"],"title":"Linked child task"}');
 
 insert into public.workspace_records (workspace_id, system_id, collection, id, data)
 values ('11111111-1111-4111-8111-111111111111','projects','decisions','decision1',
@@ -157,6 +163,36 @@ do $$ begin
     values ('11111111-1111-4111-8111-111111111111','projects','issues','bad-issue',
             '{"project_id":"p1","title":"Bad issue","task_ids":["task2"]}');
     raise exception 'expected issue task/project mismatch rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
+
+do $$ begin
+  begin
+    insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+    values ('11111111-1111-4111-8111-111111111111','projects','tasks','bad-parent',
+            '{"project_id":"p1","parent_task_id":"task2"}');
+    raise exception 'expected cross-project parent rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
+
+do $$ begin
+  begin
+    insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+    values ('11111111-1111-4111-8111-111111111111','projects','tasks','bad-issue-link',
+            '{"project_id":"p1","issue_ids":["issue2"]}');
+    raise exception 'expected cross-project task issue rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
+
+do $$ begin
+  begin
+    insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+    values ('11111111-1111-4111-8111-111111111111','projects','tasks','bad-discovery-link',
+            '{"project_id":"p1","discovery_ids":["discovery2"]}');
+    raise exception 'expected cross-project task discovery rejection';
   exception when sqlstate '22023' then null;
   end;
 end $$;
