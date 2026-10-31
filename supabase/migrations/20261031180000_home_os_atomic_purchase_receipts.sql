@@ -97,6 +97,9 @@ declare
   v_received numeric;
   v_room_id uuid;
   v_existing public.home_purchase_receipts%rowtype;
+  v_snapshot jsonb;
+  v_request_json jsonb;
+  v_item_json jsonb;
   v_now timestamptz := now();
 begin
   if auth.uid() is null or public.ws_access_level(p_workspace_id, 'home', 'main') <> 'edit' then
@@ -110,6 +113,85 @@ begin
   end if;
 
   -- Serialize receipts for this purchase, so concurrent requests cannot over-receive.
+  select * into v_request
+    from public.home_purchase_requests
+    where workspace_id = p_workspace_id and id = p_request_id
+    for update;
+
+  -- During the transition from the legacy UI snapshot, hydrate a purchase only
+  -- when its relational row is missing. This is transactional and keeps older
+  -- saved requests receivable without a separate client-side write.
+  if not found then
+    select data into v_snapshot from public.home_operations_snapshot
+      where workspace_id = p_workspace_id;
+    select value into v_request_json
+      from jsonb_array_elements(coalesce(v_snapshot->'purchaseRequests','[]'::jsonb)) value
+      where value->>'id' = p_request_id::text
+      limit 1;
+    if v_request_json is null then raise exception 'HOME_PURCHASE_REQUEST_NOT_FOUND'; end if;
+    insert into public.home_purchase_requests(
+      id, workspace_id, property_id, requested_by, title, status, priority, needed_by,
+      budget_amount, currency, notes, approved_by, approved_at, ordered_at, received_at, created_at, updated_at
+    ) values (
+      p_request_id, p_workspace_id, (v_request_json->>'propertyId')::uuid, auth.uid(),
+      coalesce(v_request_json->>'title','طلب شراء'), coalesce(v_request_json->>'status','needed'),
+      coalesce(v_request_json->>'priority','normal'), nullif(v_request_json->>'neededBy','')::date,
+      nullif(v_request_json->>'budgetAmount','')::numeric, coalesce(v_request_json->>'currency','EGP'),
+      coalesce(v_request_json->>'notes',''), nullif(v_request_json->>'approvedBy','')::uuid,
+      nullif(v_request_json->>'approvedAt','')::timestamptz, nullif(v_request_json->>'orderedAt','')::timestamptz,
+      nullif(v_request_json->>'receivedAt','')::timestamptz,
+      coalesce(nullif(v_request_json->>'createdAt','')::timestamptz, v_now),
+      coalesce(nullif(v_request_json->>'updatedAt','')::timestamptz, v_now)
+    );
+  else
+    select data into v_snapshot from public.home_operations_snapshot
+      where workspace_id = p_workspace_id;
+    select value into v_request_json
+      from jsonb_array_elements(coalesce(v_snapshot->'purchaseRequests','[]'::jsonb)) value
+      where value->>'id' = p_request_id::text
+      limit 1;
+    if v_request_json is not null then
+      update public.home_purchase_requests set
+        title = coalesce(v_request_json->>'title', title),
+        priority = coalesce(v_request_json->>'priority', priority),
+        needed_by = coalesce(nullif(v_request_json->>'neededBy','')::date, needed_by),
+        budget_amount = coalesce(nullif(v_request_json->>'budgetAmount','')::numeric, budget_amount),
+        currency = coalesce(v_request_json->>'currency', currency),
+        notes = coalesce(v_request_json->>'notes', notes),
+        status = case when status in ('partially_received','received') then status
+                      else coalesce(v_request_json->>'status', status) end,
+        updated_at = v_now
+      where workspace_id = p_workspace_id and id = p_request_id;
+    end if;
+  end if;
+
+  select data into v_snapshot from public.home_operations_snapshot
+    where workspace_id = p_workspace_id;
+  for v_item_json in
+    select value from jsonb_array_elements(coalesce(v_snapshot->'purchaseItems','[]'::jsonb)) value
+    where value->>'requestId' = p_request_id::text
+  loop
+    insert into public.home_purchase_request_items(
+      id, workspace_id, request_id, inventory_item_id, name, quantity,
+      estimated_unit_price, actual_unit_price, received_quantity, notes, created_at, updated_at
+    ) values (
+      (v_item_json->>'id')::uuid, p_workspace_id, p_request_id,
+      nullif(v_item_json->>'inventoryItemId','')::uuid, coalesce(v_item_json->>'name','صنف'),
+      (v_item_json->>'quantity')::numeric, nullif(v_item_json->>'estimatedUnitPrice','')::numeric,
+      nullif(v_item_json->>'actualUnitPrice','')::numeric, coalesce(nullif(v_item_json->>'receivedQuantity','')::numeric,0),
+      coalesce(v_item_json->>'notes',''), coalesce(nullif(v_item_json->>'createdAt','')::timestamptz,v_now), v_now
+    )
+    on conflict (id) do update set
+      name = excluded.name,
+      quantity = greatest(excluded.quantity, public.home_purchase_request_items.received_quantity),
+      estimated_unit_price = excluded.estimated_unit_price,
+      actual_unit_price = coalesce(public.home_purchase_request_items.actual_unit_price, excluded.actual_unit_price),
+      inventory_item_id = coalesce(public.home_purchase_request_items.inventory_item_id, excluded.inventory_item_id),
+      notes = excluded.notes,
+      updated_at = v_now
+    where public.home_purchase_request_items.workspace_id = excluded.workspace_id;
+  end loop;
+
   select * into v_request
     from public.home_purchase_requests
     where workspace_id = p_workspace_id and id = p_request_id
