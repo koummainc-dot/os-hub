@@ -59,6 +59,10 @@ begin
   return jsonb_build_object('updatedAt',v_updated_at,'version',v_current);
 end $$;
 
+-- Legacy write entry points stay internal; authenticated clients must use version-checked wrappers.
+revoke all on function public.home_save_snapshot(uuid,jsonb) from public, anon, authenticated;
+revoke all on function public.home_operations_save(uuid,jsonb) from public, anon, authenticated;
+
 revoke all on function public.home_load_snapshot_v2(uuid) from public, anon;
 grant execute on function public.home_load_snapshot_v2(uuid) to authenticated;
 revoke all on function public.home_save_snapshot_v2(uuid,jsonb,integer) from public, anon;
