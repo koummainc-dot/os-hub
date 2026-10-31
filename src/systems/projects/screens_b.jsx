@@ -8,6 +8,7 @@ import * as D from "./domain.js";
 import { L, opts, STATUS_COLOR } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, ProjectName, ProjectForm, TaskTree, mOpts } from "./parts.jsx";
 import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView } from "./entities.jsx";
+import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
 
 export function Projects() {
   const { data, metrics, view, setView, can, A: act, templates, toast, people, openProject, today, settings, trash } = useP();
@@ -169,7 +170,10 @@ function RelatedTab({ p, canE }) {
   const { A: act, toast } = useP(); const links = p.links || []; const [f, setF] = useState(false);
   return <div style={S.card}>
     <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>روابط ومراجع خارجية. ستظهر هنا اجتماعات وفعاليات Knowledge OS تلقائياً عند بنائه (قراءة فقط).</div>
-    {links.map((l, i) => <div key={i} style={{ display: "flex", gap: 8, padding: "5px 0", fontSize: 13 }}>🔗 <a href={l.url} target="_blank" rel="noreferrer" style={{ color: C.info }}>{l.title || l.url}</a><span style={{ flex: 1 }} />{canE && <Btn small danger onClick={() => act.saveProject({ ...p, links: links.filter((_, j) => j !== i) }, false)}>×</Btn>}</div>)}
+    {links.map((l, i) => <div key={i} style={{ marginBottom: 10 }}>
+      <div style={{ display: "flex", gap: 8, padding: "5px 0", fontSize: 13, alignItems: "center" }}>🔗 <a href={l.url} target="_blank" rel="noreferrer" style={{ color: C.info }}>{l.title || l.url}</a><span style={{ flex: 1 }} />{canE && <Btn small danger onClick={() => act.saveProject({ ...p, links: links.filter((_, j) => j !== i) }, false)}>×</Btn>}</div>
+      {["youtube","vimeo","loom","file"].includes(getMediaEmbed(l.url)?.provider) && <MediaEmbed url={l.url} title={l.title || "فيديو مرتبط بالمشروع"} workspaceId="projects" itemId={p.id + ":" + i} />}
+    </div>)}
     {!links.length && <span style={{ fontSize: 12, color: C.muted }}>لا مراجع</span>}
     {canE && <div style={{ marginTop: 10 }}><Btn small onClick={() => setF(true)}>➕ رابط</Btn></div>}
     {f && <FormModal title="رابط مرجعي" initial={{}} onClose={() => setF(false)} fields={[{ key: "title", label: "العنوان" }, { key: "url", label: "الرابط", type: "url", required: true }]} onSubmit={async (v) => { await act.saveProject({ ...p, links: [...links, v] }, false); setF(false); }} />}
