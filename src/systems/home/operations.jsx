@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { validateHomeTask, completeHomeTask, validateHomeMaintenance, validateHomePurchaseRequest, deriveHomePurchaseTotal, deriveHomePurchaseStatus, nextHomeBillDue, homeTaskEvent } from "./operations-domain.js";
 import { publishOSEvent } from "../integrationEvents.js";
 
-const EMPTY = () => ({ tasks: [], completions: [], providers: [], maintenance: [], purchaseRequests: [], purchaseItems: [], bills: [], events: [] });
+const EMPTY = () => ({ tasks: [], completions: [], providers: [], maintenance: [], purchaseRequests: [], purchaseItems: [], bills: [], billPayments: [], events: [] });
 const uid = () => globalThis.crypto?.randomUUID?.() || "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 3 | 8)).toString(16); });
 const stableReceiptKey = (requestId, lines) => {
   const value = lines.map(line => [line.id, line.receiptBaseQuantity, line.receiptAmount].join(":")).sort().join("|");
@@ -106,6 +106,10 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
         if (!result?.available) throw new Error("Migration تخزين العمليات المنزلية غير مطبقة؛ لم يتم حفظ البيانات.");
         if (!result.ok) throw result.error || new Error("تعذر حفظ عمليات المنزل.");
         if (Number.isInteger(result.version)) committed = { ...next, _version: result.version };
+        try {
+          const refreshed = await api.loadHomeOperations();
+          if (refreshed?.available && !refreshed.error && refreshed.data) committed = { ...EMPTY(), ...refreshed.data };
+        } catch { /* keep the confirmed write result if the follow-up read is temporarily unavailable */ }
       }
       setData(committed); setNotice("تم الحفظ."); setTimeout(() => setNotice(""), 2500); return true;
     } catch (e) {
@@ -423,6 +427,13 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}><h3>الفواتير والمصروفات المتكررة</h3>{canEdit&&<Button onClick={addBill}>＋ فاتورة</Button>}</div>
       <Row title={"متأخرة: "+overdueBills.length} meta={"الفواتير المتكررة: "+data.bills.length}/>
       {data.bills.map(b=><Row key={b.id} title={b.title} meta={[currency(b.amount,b.currency),b.category,b.frequency,"الاستحقاق "+b.dueDate,b.dueDate<today()?"متأخرة":"قادمة"].filter(Boolean).join(" · ")}>{canEdit&&<><Button secondary onClick={()=>setBillForm({...b})}>تعديل</Button>{!(b.frequency === "once" && b.status === "paid") && <Button onClick={()=>completeBill(b)}>تسجيل الدفع وترحيل الاستحقاق</Button>}</>}</Row>)}
+      {(data.billPayments || []).length > 0 && <div style={{ marginTop: 16, borderTop: "1px solid #E8E1D7", paddingTop: 12 }}>
+        <h4 style={{ margin: "0 0 8px" }}>سجل المدفوعات السابقة</h4>
+        {(data.billPayments || []).slice(0, 25).map(payment => {
+          const bill = data.bills.find(item => item.id === payment.billId);
+          return <Row key={payment.id} title={bill?.title || "فاتورة منزلية"} meta={["استحقاق "+payment.dueDate, "تاريخ الدفع "+String(payment.paidAt || "").slice(0,10), currency(payment.amount,payment.currency)].filter(Boolean).join(" · ")} />;
+        })}
+      </div>}
       {billForm&&<form onSubmit={saveBill} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,marginTop:12}}>
         <Field label="اسم الفاتورة *">{input(billForm.title,v=>setBillForm({...billForm,title:v}))}</Field>
         <Field label="المبلغ *">{input(billForm.amount,v=>setBillForm({...billForm,amount:v}),"number",{min:0,step:"0.01"})}</Field>
