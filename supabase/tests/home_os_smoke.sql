@@ -379,6 +379,14 @@ declare
   v_version integer;
   v_report jsonb;
 begin
+  v_report := public.home_operations_reconciliation_report('10000000-0000-4000-8000-000000000001');
+  if coalesce((v_report->>'readyToRemoveLegacyFallback')::boolean,true) then
+    raise exception 'HOME_RECONCILIATION_FALSE_POSITIVE';
+  end if;
+  if v_report->'collections'->'tasks'->>'relationalCount' <> '1' then
+    raise exception 'HOME_RECONCILIATION_TASK_COUNT_FAILED';
+  end if;
+
   v_data := public.home_operations_load_v2('10000000-0000-4000-8000-000000000001');
   v_version := coalesce((v_data->>'_version')::integer,0);
   perform public.home_operations_save_v2(
@@ -392,14 +400,13 @@ begin
   exception when serialization_failure then
     null;
   end;
+
   v_report := public.home_operations_reconciliation_report('10000000-0000-4000-8000-000000000001');
-  if coalesce((v_report->>'readyToRemoveLegacyFallback')::boolean,true) then
-    raise exception 'HOME_RECONCILIATION_FALSE_POSITIVE';
-  end if;
-  if v_report->'collections'->'tasks'->>'relationalCount' <> '1' then
-    raise exception 'HOME_RECONCILIATION_TASK_COUNT_FAILED';
+  if not coalesce((v_report->>'readyToRemoveLegacyFallback')::boolean,false) then
+    raise exception 'HOME_RECONCILIATION_MATCH_NOT_DETECTED';
   end if;
 end $$;
+
 
 select set_config('test.access_level','view',false);
 do $$
