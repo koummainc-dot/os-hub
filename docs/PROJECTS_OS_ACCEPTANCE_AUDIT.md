@@ -79,3 +79,28 @@
 ## 5. الخطوة التنفيذية التالية
 
 ابدأ بـ G1: استخراج قائمة المتطلبات الكاملة من الخطة الموحدة، وإضافة معرّف الاختبار/مسار التنفيذ لكل متطلب، وتحديد البنود التي لا يوجد لها اختبار أو دليل. بعدها تُنفّذ الفجوات حسب الأولوية، بدءًا من سلامة العلاقات والصلاحيات والبيانات، مع إبقاء Supabase migrations والنشر الإنتاجي دون تغيير حتى انتهاء المطابقة.
+
+
+## 6. خريطة اختبارات القبول T-01…T-85 إلى أدلة الاختبار الموجودة
+
+**مهم:** الربط التالي هو خريطة أولية من أسماء ملفات الاختبار الموجودة في الفرع، وليس ادعاءً بأن كل اختبار T اجتاز بالفعل. يجب مطابقة كل assertion داخل الملف مع نص اختبار القبول قبل تحويل حالته إلى «مغطّى».
+
+| متطلبات المرجع | ملفات اختبار مرشحة موجودة | الفجوة التي ما زالت تحتاج حسمًا |
+|---|---|---|
+| T-01…T-25 — شجرة المهام والتقدم والنقل | `tests/t_projects_domain.mjs`, `tests/t_projects_tree_move_writes.mjs`, `tests/t_projects_atomic_move_contract.mjs`, `tests/t_projects_atomic_bulk_operations.mjs`, `tests/t_projects_quick_task_project_choice.mjs` | مطابقة كل T على assertion محدد؛ الأداء عند 5,000 عقدة، اختبار الخاصية العشوائي، والإشعار عند تغيير المسؤول تحتاج إثباتًا منفصلًا. |
+| T-26…T-48 — الصحة والمخاطر والمشاكل والوقت والمخرجات | `tests/t_projects_domain.mjs`, `tests/t_projects_risk_issue_links.mjs`, `tests/t_projects_atomic_issue_repair.mjs`, `tests/t_projects_session_write_guard.mjs`, `tests/t_projects_final_output_guard.mjs`, `tests/t_projects_output_link_validation.mjs` | لا تُفترض تغطية الجدولة اليومية، التايمر المتزامن/الأوفلاين، كل حدود الصحة، أو واجهة اعتماد المخرج من أسماء الملفات وحدها. |
+| T-49…T-60 — التتبع والاكتشاف وPRD والقوالب | `tests/t_projects_task_issue_traceability.mjs`, `tests/t_projects_task_issue_integrity.mjs`, `tests/t_projects_decision_traceability.mjs`, `tests/t_projects_atomic_discovery_issue.mjs`, `tests/t_projects_prd_review_gates.mjs`, `tests/t_projects_template_writes.mjs` | يجب اختبار سلسلة «لماذا وُجدت؟» كاملة، كل أنواع التحويل، وسياسة التغطية warn/require، والتنبيه الدوري مع dedupe. |
+| T-61…T-75 — الأهداف وKR والمراجعات وجهات الاتصال والتحديثات والاجتماعات | لا يظهر من أسماء الاختبارات الحالية ملف Projects متخصص يغطي هذا النطاق كاملًا؛ توجد اختبارات أنظمة أخرى لا تثبت قبول Projects OS | فجوة عالية الأولوية: إثبات KR/check-ins/pace، snapshot والخصوصية، حالة جهة الاتصال، update المقفل، والتحويل idempotent من اجتماعات Knowledge. |
+| T-76…T-85 — Today/This Week/Timeline والصلاحيات والتكاملات وRTL | `tests/t_projects_filter_empty_state.mjs`, `tests/t_projects_session_write_guard.mjs` وبعض اختبارات النواة/التكامل، لكن لا يوجد ملف واحد يغطي النطاق كله بالاسم | فجوة عالية الأولوية: مصفوفة الصلاحيات الكاملة، عزل Workspace، تكامل Finance/Knowledge، استيراد Notion dry-run/apply، وRTL/تبديل اللغة تحتاج أدلة مخصصة. |
+
+### قاعدة تسجيل النتيجة لكل T
+
+لكل بند من T-01 إلى T-85 يجب إضافة: **الحالة** (Pass / Fail / Not covered / Deferred)، و**اسم الاختبار ورقم assertion** أو خطوات القبول اليدوي، و**آخر commit تم التحقق عليه**. إذا لم يمكن ربط T بدليل مباشر، تسجّل `Not covered` ولا يُستنتج النجاح من مرور `npm test` وحده.
+
+### أولويات التنفيذ بعد جرد G1
+
+1. **P0 — صلاحيات وعزل البيانات:** T-79…T-81، مع فحص API/RLS وليس الواجهة فقط.
+2. **P0 — سلامة العلاقات والتتبع:** T-49…T-58، مع روابط الهدف/المهام وPRD/المتطلبات/المخرجات والخطر/المشكلة.
+3. **P1 — KR والمراجعات والتحديثات:** T-61…T-75؛ لا توجد حاليًا أدلة مخصصة كافية يمكن إثباتها من أسماء الاختبارات وحدها.
+4. **P1 — الجلسات والأتمتة والتكاملات:** T-36، T-41…T-44، T-60، T-75، T-82…T-84.
+5. **P2 — قبول الواجهة والأداء:** T-24، T-78، T-85.
