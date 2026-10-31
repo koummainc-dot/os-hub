@@ -353,26 +353,30 @@ begin
     where workspace_id = p_workspace_id and id = v_receipt_id;
 
   insert into public.home_outbox_events(
-    workspace_id, aggregate_type, aggregate_id, event_type, payload, idempotency_key
-  ) values (
+    workspace_id, aggregate_type, aggregate_id, event_type, payload, idempotency_key, created_at
+  )
+  select
     p_workspace_id, 'home_purchase_receipt', v_receipt_id, 'home.purchase.receipt.recorded',
     jsonb_build_object(
-      'receiptId', v_receipt_id, 'purchaseRequestId', p_request_id, 'purchaseTitle', v_request.title,
-      'currency', v_request.currency, 'items', (
-        select coalesce(jsonb_agg(jsonb_build_object(
-          'requestItemId', pri.request_item_id, 'inventoryItemId', pri.inventory_item_id,
-          'itemName', hpi.name, 'quantity', pri.quantity, 'unitPrice', pri.unit_price,
-          'amount', round(pri.quantity * coalesce(pri.unit_price,0),2)
-        )), '[]'::jsonb)
-        from public.home_purchase_receipt_items pri
-        join public.home_purchase_request_items hpi
-          on hpi.workspace_id = pri.workspace_id and hpi.id = pri.request_item_id
-        where pri.workspace_id = p_workspace_id and pri.receipt_id = v_receipt_id
-      ),
+      'sourcePaymentId', 'home-purchase-receipt:' || v_receipt_id::text || ':' || pri.request_item_id::text,
+      'receiptId', v_receipt_id,
+      'purchaseRequestId', p_request_id,
+      'purchaseTitle', v_request.title,
+      'itemName', hpi.name,
+      'quantity', pri.quantity,
+      'unitPrice', coalesce(pri.unit_price, hpi.actual_unit_price, hpi.estimated_unit_price, 0),
+      'amount', round(pri.quantity * coalesce(pri.unit_price, hpi.actual_unit_price, hpi.estimated_unit_price, 0),2),
+      'currency', v_request.currency,
+      'paymentDate', v_now::date,
+      'category', 'مشتريات منزلية',
       'requiresHumanReview', true
     ),
-    'home-purchase-receipt:' || v_receipt_id::text
-  );
+    'home-purchase-receipt:' || v_receipt_id::text || ':' || pri.request_item_id::text,
+    v_now
+  from public.home_purchase_receipt_items pri
+  join public.home_purchase_request_items hpi
+    on hpi.workspace_id = pri.workspace_id and hpi.id = pri.request_item_id
+  where pri.workspace_id = p_workspace_id and pri.receipt_id = v_receipt_id;
 
   insert into public.home_audit_log(workspace_id, actor_id, action, entity_type, entity_id, metadata)
   values(p_workspace_id, auth.uid(), 'purchase_receipt_recorded', 'home_purchase_receipt', v_receipt_id,
