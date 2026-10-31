@@ -447,7 +447,6 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
         priority: currentIssue.severity === "Critical" ? "Urgent" : currentIssue.severity === "High" ? "High" : "Medium",
         status: "Not Started",
         planning_bucket: "Inbox",
-        issue_ids: [currentIssue.id],
         created_by: me,
         sort_order: Date.now(),
       };
