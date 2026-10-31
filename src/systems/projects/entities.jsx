@@ -248,7 +248,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
   const ready = D.prdApprovalReady(d, d.sections, d.approvals);
   const linkedTasks = idx.list.filter((t) => t.prd_id === d.id);
   const linkedOutputs = data.outputs.filter((o) => o.prd_id === d.id && D.isActiveRec(o));
-  const relatedDecisions = data.decisions.filter((decision) => decision.prd_id === d.id || (decision.affected_prd_ids || []).includes(d.id));
+  const relatedDecisions = data.decisions.filter((decision) => D.isActiveRec(decision) && (decision.prd_id === d.id || (decision.affected_prd_ids || []).includes(d.id)));
   const linkedRisks = data.risks.filter((risk) => risk.prd_id === d.id && D.isActiveRec(risk));
   const requirements = d.requirements || [];
   const saveRequirement = async (v) => {
