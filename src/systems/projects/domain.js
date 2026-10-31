@@ -154,7 +154,8 @@ export function validateTaskRefs(task, ctx) {
     if (!par) errors.push("الأب غير موجود");
     else if (par.project_id !== task.project_id) errors.push("V-05: الأب والابن يجب أن يكونا في نفس المشروع");
   }
-  if (task.prd_id) { const prd = prdsById && prdsById[task.prd_id]; if (!prd) errors.push("V-22: المواصفة غير موجودة"); else if (prd.project_id !== task.project_id) errors.push("V-06: المواصفة يجب أن تتبع نفس مشروع المهمة"); }
+  if (task.prd_id) { const prd = prdsById && prdsById[task.prd_id]; if (!prd) errors.push("V-22: المواصفة غير موجودة"); else if (prd.project_id !== task.project_id) errors.push("V-06: المواصفة يجب أن تتبع نفس مشروع المهمة"); else if (task.prd_requirement_id && !(prd.requirements || []).some((x) => x.id === task.prd_requirement_id)) errors.push("V-23: متطلب المواصفة لا ينتمي إلى المواصفة المرتبطة"); }
+  else if (task.prd_requirement_id) errors.push("V-23: لا يمكن ربط متطلب دون ربط المواصفة");
   if (cat(task.status) === "cancelled" && !task.cancelled_reason) errors.push("V-19: سبب الإلغاء مطلوب");
   return errors;
 }
