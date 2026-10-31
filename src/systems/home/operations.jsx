@@ -4,6 +4,17 @@ import { publishOSEvent } from "../integrationEvents.js";
 
 const EMPTY = () => ({ tasks: [], completions: [], providers: [], maintenance: [], purchaseRequests: [], purchaseItems: [], bills: [], events: [] });
 const uid = () => globalThis.crypto?.randomUUID?.() || "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 3 | 8)).toString(16); });
+const stableReceiptKey = (requestId, lines) => {
+  const value = lines.map(line => [line.id, line.receiptBaseQuantity, line.receiptAmount].join(":")).sort().join("|");
+  const source = requestId + "|" + value;
+  let first = 2166136261, second = 2246822519;
+  for (let i = 0; i < source.length; i++) {
+    const code = source.charCodeAt(i);
+    first = Math.imul(first ^ code, 16777619);
+    second = Math.imul(second ^ code, 3266489917);
+  }
+  return "home-purchase:" + requestId + ":" + (first >>> 0).toString(16) + (second >>> 0).toString(16);
+};
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const currency = (value, code = "EGP") => new Intl.NumberFormat("ar-EG", { style: "currency", currency: code, maximumFractionDigits: 2 }).format(Number(value || 0));
 const text = (value) => String(value || "").trim();
@@ -187,42 +198,50 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
       if (amount > 0) receiptLines.push({ ...line, receiptBaseQuantity: Number(line.receivedQuantity || 0), receivedQuantity: Number(line.quantity) - amount, receiptAmount: amount });
     }
     if (!receiptLines.length) return setError("أدخل كمية مستلمة واحدة على الأقل.");
-    const inventoryResult = await onReceivePurchase(request, receiptLines);
-    if (!inventoryResult) return;
+    let linkedItems = {};
+    if (isDemo) {
+      if (typeof onReceivePurchase !== "function") return setError("ربط الاستلام بالمخزون غير متاح؛ لم يتم تغيير حالة الطلب.");
+      const inventoryResult = await onReceivePurchase(request, receiptLines);
+      if (!inventoryResult) return;
+      linkedItems = inventoryResult.linkedItems || {};
+    } else {
+      if (typeof api?.recordHomePurchaseReceipt !== "function") {
+        return setError("مسار الاستلام الذري غير متاح؛ لم يتم تغيير الطلب أو المخزون.");
+      }
+      const result = await api.recordHomePurchaseReceipt(
+        request.id,
+        receiptLines.map(line => ({
+          itemId: line.id,
+          quantity: Number(line.receiptAmount),
+          unitPrice: Number(line.actualUnitPrice ?? line.estimatedUnitPrice ?? 0)
+        })),
+        stableReceiptKey(request.id, receiptLines)
+      );
+      if (result?.error) return setError(result.error.message || "تعذر تسجيل الاستلام الذري.");
+      if (!result?.available) return setError("Migration الاستلام الذري غير مطبقة؛ لم يتم تغيير الطلب أو المخزون.");
+      if (!result?.ok || !result.data) return setError(result?.error?.message || "لم يؤكد الخادم تسجيل الاستلام.");
+      linkedItems = result.data.linkedItems || {};
+    }
+
     const receiptById = new Map(receiptLines.map(line => [line.id, line]));
     const updated = lines.map(line => {
       const receipt = receiptById.get(line.id);
-      return receipt ? { ...line, inventoryItemId: inventoryResult.linkedItems?.[line.id] || line.inventoryItemId || null, receivedQuantity: Number(line.receivedQuantity || 0) + Number(receipt.receiptAmount || 0) } : line;
+      return receipt ? { ...line, inventoryItemId: linkedItems[line.id] || line.inventoryItemId || null, receivedQuantity: Number(line.receivedQuantity || 0) + Number(receipt.receiptAmount || 0) } : line;
     });
     const status = deriveHomePurchaseStatus(updated);
     const now = new Date().toISOString();
     const next = { ...data, purchaseItems: [...data.purchaseItems.filter(x => x.requestId !== request.id), ...updated], purchaseRequests: data.purchaseRequests.map(x => x.id === request.id ? { ...x, status, receivedAt: status === "received" ? now : (x.receivedAt || null), updatedAt: now } : x) };
-    const saved = await persist(next);
-    if (saved && !isDemo) {
-      for (const line of receiptLines) {
-        const unitCost = Number(line.actualUnitPrice ?? line.estimatedUnitPrice ?? 0);
-        if (!Number.isFinite(unitCost) || unitCost <= 0) continue;
-        const receiptBaseQuantity = Number(line.receiptBaseQuantity || 0);
-        publishOSEvent({
-          type: "home.purchase.receipt.recorded",
-          entityType: "home_purchase_receipt",
-          entityId: request.id + ":" + line.id + ":" + receiptBaseQuantity,
-          occurredAt: now,
-          payload: {
-            sourcePaymentId: "home-purchase:" + request.id + ":" + line.id + ":" + receiptBaseQuantity,
-            purchaseRequestId: request.id,
-            purchaseTitle: request.title || "مشتريات منزلية",
-            itemName: line.name || "صنف منزلي",
-            amount: Number((Number(line.receiptAmount) * unitCost).toFixed(2)),
-            currency: request.currency || "EGP",
-            category: "مشتريات منزلية",
-            paymentDate: now.slice(0, 10),
-            quantity: Number(line.receiptAmount),
-            unitCost
-          }
-        }, workspaceId, "home");
-      }
+    if (isDemo) {
+      await persist(next);
+    } else {
+      // The RPC commits receipt, stock movements, audit and outbox together, and
+      // updates the legacy snapshot mirror in the same database transaction.
+      setData(next);
+      setError("");
+      setNotice("تم تسجيل الاستلام وتحديث المخزون ذريًا.");
+      setTimeout(() => setNotice(""), 3000);
     }
+
   };
 
   const changePurchaseStatus = async (request, status) => {
