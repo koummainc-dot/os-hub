@@ -122,13 +122,15 @@ function HomeSystem({ api, access, ws, isDemo = false, page = "dashboard", setPa
       const key = "purchase:" + request.id + ":" + line.id;
       const previous = next.movements.find(m => m.idempotencyKey === key);
       if (previous) { linkedItems[line.id] = previous.itemId; continue; }
+      const receiptQuantity = Number(line.quantity) - Number(line.receivedQuantity || 0);
+      if (!Number.isFinite(receiptQuantity) || receiptQuantity <= 0) { linkedItems[line.id] = line.inventoryItemId || null; continue; }
       let item = next.items.find(i => i.id === line.inventoryItemId && !i.deletedAt);
       if (!item) {
         const room = next.rooms.find(r => r.propertyId === request.propertyId && r.type === "general" && !r.deletedAt);
         item = { id: uid(), propertyId: request.propertyId, roomId: room?.id || null, name: String(line.name || "مشتريات منزلية").trim(), type: "misc", category: "مشتريات", condition: "good", unit: "piece", quantity: 0, minimumQuantity: 0, unitPrice: line.actualUnitPrice ?? line.estimatedUnitPrice ?? null, currency: request.currency || data.settings.currency || "EGP", purchaseDate: today(), warrantyUntil: null, expiryDate: null, model: "", serialNumber: "", notes: "تم إنشاؤه تلقائيًا من طلب شراء " + request.title, createdAt: today(), updatedAt: today() };
         next.items.push(item);
       }
-      const movement = { id: uid(), itemId: item.id, type: "receive", quantity: Number(line.quantity), occurredAt: new Date().toISOString(), note: "استلام طلب شراء: " + request.title, idempotencyKey: key };
+      const movement = { id: uid(), itemId: item.id, type: "receive", quantity: receiptQuantity, occurredAt: new Date().toISOString(), note: "استلام طلب شراء: " + request.title, idempotencyKey: key };
       const errors = validateHomeMovement(movement, item);
       if (errors.length) { setError(errors.join(" ")); return null; }
       const updatedItem = applyHomeMovement(item, movement);
