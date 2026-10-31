@@ -28,26 +28,37 @@
 | P-10 | PRD | Reject a task requirement that does not belong to its selected PRD | PASS — domain validation + SQL smoke |
 | P-11 | PRD | Reject an output requirement without a PRD or from another PRD/project | PASS — source validation + SQL smoke |
 | P-12 | PRD | Prevent marking a requirement Verified without linked Final output evidence | PASS — domain/SQL guard path; browser evidence pending |
-| P-13 | PRD | Show requirement's linked tasks and outputs and navigate to them | PENDING — browser |
+| P-13 | PRD | Show requirement's linked tasks and outputs and navigate to them | PASS — navigation controls added; browser confirmation pending |
 | P-14 | PRD | Create a new PRD version atomically and preserve/supersede the predecessor | PASS — contract test for atomic PRD versioning |
 | P-15 | PRD | Require complete PRD content and current-version reviewer approvals before final approval | PASS — PRD review-gate test |
 | P-16 | PRD | Reject edits to approved/superseded PRDs while allowing safe trash/restore metadata changes | PASS — PRD review-gate contract tests |
 | P-17 | Decisions | Link a decision to affected tasks, PRDs, risks, issues, and discoveries | PENDING — browser/runtime |
-| P-18 | Decisions | Create an implementation task only from an Approved decision | PENDING — browser/runtime |
-| P-19 | Decisions | Retry implementation-task creation without duplicate task IDs; reject archived/deleted orphan tasks | PENDING — browser/runtime |
+| P-18 | Decisions | Create an implementation task only from an Approved decision | PASS — source contract enforces Approved state; browser/runtime confirmation pending |
+| P-19 | Decisions | Retry implementation-task creation without duplicate task IDs; reject archived/deleted orphan tasks | PASS — stable task ID and atomic write contract; runtime retry confirmation pending |
 | P-20 | Decisions | Navigate from decision to affected entities and back | PENDING — browser |
-| P-21 | Risks | Create a mitigation task and link it atomically to the risk | PENDING — runtime |
-| P-22 | Risks | Retry mitigation-task creation without duplicates and reject closed risks | PENDING — runtime |
+| P-21 | Risks | Create a mitigation task and link it atomically to the risk | PASS — stable task ID, atomic write, and permission contract; runtime confirmation pending |
+| P-22 | Risks | Retry mitigation-task creation without duplicates and reject closed risks | PASS — existing-task lookup and open-risk guard; runtime retry confirmation pending |
 | P-23 | Risks | Convert a risk to an issue atomically; prevent duplicate issue ownership and broken backlinks | PASS — risk/issue integrity and conversion contract tests |
 | P-24 | Risks | Navigate between risk, mitigation task, related decision, and resulting issue | PENDING — browser |
 | P-25 | Discovery | Convert discovery to task/issue/project/PRD with source link in one atomic operation | PASS — conversion contract tests |
 | P-26 | Discovery | Retry conversion idempotently and reject cross-project reuse | PASS — conversion contract tests |
 | P-27 | Discovery | For discoveries linked to multiple projects, require an explicit eligible target project | PASS — conversion contract tests |
 | P-28 | Discovery | Navigate from each generated entity back to its discovery source | PENDING — browser |
-| P-29 | Issues | Create a repair task and persist issue/task links atomically; prevent duplicate repair tasks | PASS — repair-task contract test |
+| P-29 | Issues | Create a repair task and persist issue/task links atomically; prevent duplicate repair tasks | PASS — atomic repair-task contract plus both issue/task permissions; runtime confirmation pending |
 | P-30 | Updates | Edit draft entity links, publish an immutable snapshot, and add an addendum without rewriting the snapshot | PENDING — browser/runtime |
 | P-31 | Achievements | Link achievement to objective/KR/tasks/Final outputs and ensure it does not mutate task/goal status | PENDING — browser/runtime |
 | P-32 | Weekly review | Snapshot completed/current/overdue tasks, achievements, issues, risks, decisions, and projects; navigate to source entities | PASS — live domain aggregation test; browser snapshot/navigation pending |
+
+## Findings fixed during acceptance
+
+1. Requirement evidence inside a PRD was displayed as plain text. It now navigates to the project's Outputs section.
+2. Achievement links in stakeholder updates were non-interactive; they now navigate to Achievements.
+3. Achievement output evidence was only a count; it now navigates to Outputs.
+4. Output cards now expose a navigable PRD requirement link.
+5. Repair-task and risk-conversion actions now check both source-entity and task/issue write permissions. Their UI controls are aligned with those permission requirements.
+6. Decision implementation-task controls now require both decision-write and task-write permissions, matching the store guard.
+
+New source-contract tests cover the relationship navigation and permission/idempotency guards. They are included in the repository's main test command; their final CI result is pending.
 
 ## Cross-cutting database integrity checks
 
