@@ -314,7 +314,7 @@ begin
   if jsonb_array_length(v_loaded->'billPayments') <> 1 then
     raise exception 'HOME_RELATIONAL_BILL_PAYMENT_HISTORY_LOAD_FAILED';
   end if;
-end $;
+end $$;
 reset role;
 do $$
 begin
