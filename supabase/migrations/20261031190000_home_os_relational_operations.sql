@@ -145,6 +145,12 @@ begin
         'status',status,'category',category,'notes',notes,'lastPaidAt',last_paid_at,'createdAt',created_at,'updatedAt',updated_at
       ) order by due_date) from public.home_bills where workspace_id=p_workspace_id),'[]'::jsonb)
       else coalesce(v_snapshot->'bills','[]'::jsonb) end,
+    'billPayments', case when exists(select 1 from public.home_bill_payments where workspace_id=p_workspace_id)
+      then coalesce((select jsonb_agg(jsonb_build_object(
+        'id',id,'billId',bill_id,'occurrenceId',occurrence_id,'paidAt',paid_at,'dueDate',due_date,
+        'amount',amount,'currency',currency,'idempotencyKey',idempotency_key,'note',note,'createdAt',created_at
+      ) order by paid_at desc) from public.home_bill_payments where workspace_id=p_workspace_id),'[]'::jsonb)
+      else coalesce(v_snapshot->'billPayments','[]'::jsonb) end,
     'events',coalesce(v_snapshot->'events','[]'::jsonb),
     'schemaVersion',2
   ) into v_result;
