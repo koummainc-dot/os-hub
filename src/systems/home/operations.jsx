@@ -66,8 +66,9 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
     const checkReminders = () => {
       const now = Date.now();
       for (const task of data.tasks) {
-        if (task.status !== "active" || !task.reminderAt || new Date(task.reminderAt).getTime() > now || remindedTasks.current.has(task.id)) continue;
-        remindedTasks.current.add(task.id);
+        const reminderKey = task.id + ":" + task.reminderAt;
+        if (task.status !== "active" || !task.reminderAt || new Date(task.reminderAt).getTime() > now || remindedTasks.current.has(reminderKey)) continue;
+        remindedTasks.current.add(reminderKey);
         const message = "حان موعد المهمة المنزلية: " + task.title;
         if (typeof window !== "undefined" && "Notification" in window && window.Notification.permission === "granted") {
           try { new window.Notification("تذكير منزلي", { body: task.title }); } catch { setNotice(message); }
