@@ -67,7 +67,8 @@
 
 - New migrations:
   - `20261031110000_projects_prd_requirement_traceability.sql` — validates task/output links to PRDs, requirements, and same-project tasks.
-  - `20261031120000_projects_entity_relationship_integrity.sql` — validates decision, risk, win, update, objective, KR, discovery, and issue relationships against active records in the same workspace/project.
+  - `20261031120000_projects_entity_relationship_integrity.sql` — validates decision, risk, win, update, objective, KR, discovery, issue, and task relationship fields against active records in the same workspace/project.
+  - `20261031130000_projects_prd_verified_evidence_guard.sql` — requires active Final output evidence for Verified requirements and prevents removal/archival/deletion of the last evidence or a PRD/requirement still referenced by active tasks/outputs.
 - It is committed to this branch only and has **not** been applied to production.
 - The connected Supabase project's migration history does not show these existing repository migrations as applied: `20261030100000`, `20261030110000`, and `20261030120000`.
 - Therefore, migration rollout must first reconcile the pending migrations in timestamp order, review their effects against the live schema, and test them in a disposable/preview database. Do not apply only the newest migration out of order.
@@ -78,7 +79,8 @@
 - Domain tests were added for OKR task-group execution, deduplication, outcome/execution separation, PRD requirement ownership, and weekly-review relationship coverage.
 - Earlier CI failures exposed two incorrect test expectations; both were corrected (template fixture count and linked task-list count).
 - Domain test suite, production build, and existing regression suite passed on commit `ae89010`.
-- Both Projects OS SQL migrations passed disposable PostgreSQL 16 smoke tests on commit `ae89010`: both migrations applied, valid relationships were accepted, and cross-project/missing/non-final references were rejected.
+- The first two Projects OS SQL migrations passed disposable PostgreSQL 16 smoke tests on commit `ae89010`: valid relationships were accepted, and cross-project/missing/non-final references were rejected.
+- The third PRD verified-evidence migration and expanded SQL cases are committed; latest disposable PostgreSQL result is pending.
 - The latest commit after those checks updates documentation only; no application code or SQL changed after the successful run.
 - Manual browser acceptance tests for the complete relationship flows have not yet been performed.
 - The draft PR is intentionally not merged.
