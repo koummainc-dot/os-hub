@@ -283,7 +283,7 @@ export function Templates() {
 
 // ═════ Meetings (owned by Knowledge OS) ═════
 export function Meetings() {
-  const { data, setPage, ws, projectsById, A: act, toast, me, today } = useP();
+  const { data, setPage, ws, projectsById, A: act, toast, me, today, can } = useP();
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -319,6 +319,10 @@ export function Meetings() {
     const project = meeting.relatedSystem === "projects" ? projectsById[meeting.relatedId] : null;
     if (!project || project.archived_at || project.status === "Archived") {
       toast("اربط الاجتماع بمشروع نشط قبل إنشاء مهام المتابعة.");
+      return;
+    }
+    if (!can("task.write", project)) {
+      toast("ليس لديك صلاحية إنشاء مهام في هذا المشروع.");
       return;
     }
     if (!act || typeof act.saveTask !== "function") {
@@ -375,7 +379,7 @@ export function Meetings() {
         {followups.length>0&&<div style={{fontSize:12,lineHeight:1.8,marginTop:7}}><b>المتابعات والمهام:</b><ul style={{margin:"4px 0",paddingInlineStart:20}}>{followups.map((x,i)=>{
           const existing=data.tasks.find(task=>task.source_meeting_id===m.id&&Number(task.source_followup_index)===i);
           const key=String(m.id)+":"+i;
-          return <li key={i} style={{marginBottom:7}}><div>{String(x)}</div>{existing?<div style={{fontSize:11,color:C.ok,marginTop:3}}>✓ مهمة موجودة: {existing.title}</div>:project&&!archived?<Btn small disabled={creatingFollowup===key} onClick={()=>createFollowupTask(m,x,i)}>{creatingFollowup===key?"جارٍ الإنشاء…":"تحويل إلى مهمة"}</Btn>:<div style={{fontSize:11,color:C.muted,marginTop:3}}>{archived?"استعد المشروع قبل إنشاء مهام جديدة.":orphan?"أعد ربط الاجتماع بمشروع نشط.":"اربط الاجتماع بمشروع نشط لإنشاء مهمة متابعة."}</div>}</li>;
+          return <li key={i} style={{marginBottom:7}}><div>{String(x)}</div>{existing?<div style={{fontSize:11,color:C.ok,marginTop:3}}>✓ مهمة موجودة: {existing.title}</div>:project&&!archived&&can("task.write",project)?<Btn small disabled={creatingFollowup===key} onClick={()=>createFollowupTask(m,x,i)}>{creatingFollowup===key?"جارٍ الإنشاء…":"تحويل إلى مهمة"}</Btn>:<div style={{fontSize:11,color:C.muted,marginTop:3}}>{archived?"استعد المشروع قبل إنشاء مهام جديدة.":orphan?"أعد ربط الاجتماع بمشروع نشط.":"اربط الاجتماع بمشروع نشط لإنشاء مهمة متابعة."}</div>}</li>;
         })}</ul></div>}
       </article>;
     })}</div>}
