@@ -115,7 +115,7 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
     const request = { id: f.id || uid(), title: text(f.title), propertyId: f.propertyId || activeProperties[0]?.id, status: f.status || "needed", priority: f.priority || "normal", budgetAmount: f.budgetAmount === "" ? null : Number(f.budgetAmount), currency: f.currency || "EGP", neededBy: f.neededBy || null, notes: text(f.notes), createdAt: f.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
     const errors = validateHomePurchaseRequest(request, lines, { properties: activeProperties });
     if (errors.length) return setError(errors.join(" "));
-    const savedLines = lines.map(line => ({ ...line, id: line.id || uid(), requestId: request.id, quantity: Number(line.quantity), estimatedUnitPrice: line.estimatedUnitPrice === "" ? null : Number(line.estimatedUnitPrice), receivedQuantity: Number(line.receivedQuantity || 0) }));
+    const savedLines = lines.map(line => ({ ...line, id: line.id || uid(), requestId: request.id, inventoryItemId: line.inventoryItemId || null, quantity: Number(line.quantity), estimatedUnitPrice: line.estimatedUnitPrice === "" ? null : Number(line.estimatedUnitPrice), receivedQuantity: Number(line.receivedQuantity || 0) }));
     const exists = data.purchaseRequests.some(x => x.id === request.id);
     const next = { ...data, purchaseRequests: exists ? data.purchaseRequests.map(x => x.id === request.id ? request : x) : [request, ...data.purchaseRequests], purchaseItems: [...data.purchaseItems.filter(x => x.requestId !== request.id), ...savedLines] };
     if (await persist(next)) setPurchaseForm(null);
