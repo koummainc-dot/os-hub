@@ -247,7 +247,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
   const save = async (patch) => { setBusy(true); const rec = { ...d, ...(patch || {}) }; const s = await act.put("prds", rec, project); setBusy(false); if (s) { setD(s); toast("✅ تم الحفظ"); } return s; };
   const ready = D.prdApprovalReady(d, d.sections, d.approvals);
   const linkedTasks = idx.list.filter((t) => t.prd_id === d.id);
-  const linkedOutputs = data.outputs.filter((o) => o.prd_id === d.id && !o.deleted_at);
+  const linkedOutputs = data.outputs.filter((o) => o.prd_id === d.id && D.isActiveRec(o));
   const relatedDecisions = data.decisions.filter((decision) => decision.prd_id === d.id || (decision.affected_prd_ids || []).includes(d.id));
   const requirements = d.requirements || [];
   const saveRequirement = async (v) => {
