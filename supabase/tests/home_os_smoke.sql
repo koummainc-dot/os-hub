@@ -83,6 +83,27 @@ begin
   end;
 end $$;
 
+-- Home inventory/property/room snapshot writes also reject stale versions.
+do $$
+declare
+  v_snapshot jsonb;
+  v_version integer;
+begin
+  v_snapshot := public.home_load_snapshot_v2('10000000-0000-4000-8000-000000000001');
+  v_version := coalesce((v_snapshot->>'_version')::integer,0);
+  perform public.home_save_snapshot_v2(
+    '10000000-0000-4000-8000-000000000001', v_snapshot, v_version
+  );
+  begin
+    perform public.home_save_snapshot_v2(
+      '10000000-0000-4000-8000-000000000001', v_snapshot, v_version
+    );
+    raise exception 'HOME_SNAPSHOT_CONFLICT_NOT_RAISED';
+  exception when serialization_failure then
+    null;
+  end;
+end $$;
+
 select public.home_operations_save(
   '10000000-0000-4000-8000-000000000001',
   '{"tasks":[],"completions":[],"providers":[],"maintenance":[],"purchaseRequests":[],"purchaseItems":[],"bills":[],"events":[]}'::jsonb
