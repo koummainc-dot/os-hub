@@ -70,7 +70,7 @@ export function OutputsView({ projectId }) {
 // ═════ Risks (+ 5×5 matrix) ═════
 export function RisksView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, settings, confirm, openProject, idx, openTask } = useP();
-  const [form, setForm] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState("open"); const [closing, setClosing] = useState(null); const convertingRiskIds = useRef(new Set());
+  const [form, setForm] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState("open"); const [closing, setClosing] = useState(null); const [reopening, setReopening] = useState(null); const convertingRiskIds = useRef(new Set());
   const base = data.risks.filter((r) => !projectId || r.project_id === projectId);
   const list = base.filter((r) => (st === "all" ? true : st === "open" ? D.isOpenRisk(r) : r.status === st)).sort((a, b) => D.riskScore(b) - D.riskScore(a));
   const canNew = projectId ? can("risk.write", projectsById[projectId]) : data.projects.some((p) => can("risk.write", p));
@@ -78,6 +78,7 @@ export function RisksView({ projectId }) {
   async function changeStatus(r, to) {
     const p = projectsById[r.project_id];
     if (to === "Closed") return setClosing(r);
+     if (to === "Open" && r.status === "Closed") return setReopening(r);
     if (to === "Materialized") {
       if (convertingRiskIds.current.has(r.id)) return;
       convertingRiskIds.current.add(r.id);
@@ -115,7 +116,7 @@ export function RisksView({ projectId }) {
         <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((r) => (
           <div key={r.id} style={{ display: "grid", gridTemplateColumns: "44px 1fr auto", gap: 10, padding: "9px 0", borderBottom: `1px solid ${C.line}`, alignItems: "center" }}>
             <div style={{ textAlign: "center" }}><div style={{ fontSize: 17, fontWeight: 800, color: lvlColor(r) }}>{D.riskScore(r)}</div><div style={{ fontSize: 9, color: C.muted }}>{r.probability}×{r.impact}</div></div>
-            <div><div style={{ fontSize: 13, fontWeight: 700 }}>{r.title} <Chip color={STATUS_COLOR[r.status]}>{L.riskStatus[r.status]}</Chip></div><div style={{ fontSize: 11.5, color: C.dim }}>{r.mitigation || "—"}</div>
+            <div><div style={{ fontSize: 13, fontWeight: 700 }}>{r.title} <Chip color={STATUS_COLOR[r.status]}>{L.riskStatus[r.status]}</Chip></div><div style={{ fontSize: 11.5, color: C.dim }}>{r.mitigation || "—"}</div>{r.reopen_reason && <div style={{ fontSize: 11, color: C.warn, marginTop: 3 }}>سبب آخر إعادة فتح: {r.reopen_reason}</div>}
             {(r.mitigation_task_ids || []).length > 0 && <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 5 }}>{(r.mitigation_task_ids || []).map((id) => idx.byId[id]).filter(Boolean).map((t) => <Btn key={t.id} small onClick={() => openTask(t.id)}>🛠 {t.title}</Btn>)}</div><div style={{ fontSize: 11, color: C.muted, display: "flex", gap: 10, alignItems: "center" }}>{!projectId && <ProjectName id={r.project_id} />}<Who id={r.owner_id} size={15} />{r.review_date && <span>مراجعة {fmtShort(r.review_date)}</span>}{r.converted_issue_id && <button type="button" onClick={() => openProject(r.project_id, "issues")} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>↗ فتح المشكلة المرتبطة</button>}{data.decisions.filter((decision) => (decision.related_risk_ids || []).includes(r.id)).map((decision) => <button key={decision.id} type="button" onClick={() => openProject(decision.project_id, "decisions")} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>⚖ {decision.title}</button>)}</div></div>
             <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
               {can("risk.write", projectsById[r.project_id]) && (D.RISK_NEXT[r.status] || []).length > 0 && <select style={{ ...S.sel, width: 110, padding: "3px 6px", fontSize: 11 }} value="" onChange={(e) => e.target.value && changeStatus(r, e.target.value)}><option value="">انقل إلى…</option>{D.RISK_NEXT[r.status].map((s) => <option key={s} value={s}>{L.riskStatus[s]}</option>)}</select>}
@@ -129,7 +130,8 @@ export function RisksView({ projectId }) {
         { key: "review_date", label: "تاريخ المراجعة", type: "date" }, { key: "prd_id", label: "نشأ من مواصفة", type: "select", emptyLabel: "— بلا —", options: (v) => data.prds.filter((p) => p.project_id === v.project_id).map((p) => ({ v: p.id, l: p.title })) },
         { key: "mitigation", label: "خطة التخفيف", type: "textarea", rows: 2 },
          { key: "mitigation_task_ids", label: "مهام تخفيف الخطر", type: "multi", options: (v) => idx.list.filter((t) => t.project_id === v.project_id).map((t) => ({ v: t.id, l: t.title })) }, { key: "notes", label: "ملاحظات", type: "textarea", rows: 2 }]} />}
-      {closing && <FormModal title="إغلاق الخطر" initial={{ reason: "" }} fields={[{ key: "reason", label: "سبب الإغلاق", required: true, type: "textarea" }]} onClose={() => setClosing(null)} onSubmit={async (v) => { await act.put("risks", { ...closing, status: "Closed", closed_at: nowIso(), closed_reason: v.reason }, projectsById[closing.project_id]); setClosing(null); }} />}
+      {reopening && <FormModal title="إعادة فتح الخطر" initial={{ reason: "" }} fields={[{ key: "reason", label: "سبب إعادة الفتح", required: true, type: "textarea" }]} onClose={() => setReopening(null)} onSubmit={async (v) => { await act.put("risks", { ...reopening, status: "Open", reopen_reason: v.reason.trim(), reopened_at: nowIso(), closed_at: null, closed_reason: null }, projectsById[reopening.project_id]); setReopening(null); toast("↻ أُعيد فتح الخطر مع تسجيل السبب"); }} />}
+       {closing && <FormModal title="إغلاق الخطر" initial={{ reason: "" }} fields={[{ key: "reason", label: "سبب الإغلاق", required: true, type: "textarea" }]} onClose={() => setClosing(null)} onSubmit={async (v) => { await act.put("risks", { ...closing, status: "Closed", closed_at: nowIso(), closed_reason: v.reason }, projectsById[closing.project_id]); setClosing(null); }} />}
     </div>
   );
 }
