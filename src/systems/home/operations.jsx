@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { validateHomeTask, completeHomeTask, validateHomeMaintenance, validateHomePurchaseRequest, deriveHomePurchaseTotal, homeTaskEvent } from "./operations-domain.js";
+import { validateHomeTask, completeHomeTask, validateHomeMaintenance, validateHomePurchaseRequest, deriveHomePurchaseTotal, deriveHomePurchaseStatus, nextHomeBillDue, homeTaskEvent } from "./operations-domain.js";
 
 const EMPTY = () => ({ tasks: [], completions: [], providers: [], maintenance: [], purchaseRequests: [], purchaseItems: [], bills: [], events: [] });
 const uid = () => globalThis.crypto?.randomUUID?.() || "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 3 | 8)).toString(16); });
@@ -145,10 +145,30 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
     const lines = data.purchaseItems.filter(x => x.requestId === request.id);
     if (!lines.length) return setError("لا يمكن استلام طلب بلا بنود.");
     if (typeof onReceivePurchase !== "function") return setError("ربط الاستلام بالمخزون غير متاح؛ لم يتم تغيير حالة الطلب.");
-    const inventoryResult = await onReceivePurchase(request, lines);
+    const receiptLines = [];
+    for (const line of lines) {
+      const remaining = Math.max(0, Number(line.quantity) - Number(line.receivedQuantity || 0));
+      if (!remaining) continue;
+      const raw = window.prompt("الكمية المستلمة الآن من «" + line.name + "» (المتبقي " + remaining + "):", String(remaining));
+      if (raw === null) return;
+      const amount = Number(raw);
+      if (!Number.isFinite(amount) || amount < 0 || amount > remaining) {
+        setError("كمية الاستلام يجب أن تكون من صفر إلى " + remaining + " للصنف «" + line.name + "».");
+        return;
+      }
+      if (amount > 0) receiptLines.push({ ...line, receiptBaseQuantity: Number(line.receivedQuantity || 0), receivedQuantity: Number(line.quantity) - amount, receiptAmount: amount });
+    }
+    if (!receiptLines.length) return setError("أدخل كمية مستلمة واحدة على الأقل.");
+    const inventoryResult = await onReceivePurchase(request, receiptLines);
     if (!inventoryResult) return;
-    const updated = lines.map(line => ({ ...line, inventoryItemId: inventoryResult.linkedItems?.[line.id] || line.inventoryItemId || null, receivedQuantity: Number(line.quantity) }));
-    const next = { ...data, purchaseItems: [...data.purchaseItems.filter(x => x.requestId !== request.id), ...updated], purchaseRequests: data.purchaseRequests.map(x => x.id === request.id ? { ...x, status: "received", receivedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : x) };
+    const receiptById = new Map(receiptLines.map(line => [line.id, line]));
+    const updated = lines.map(line => {
+      const receipt = receiptById.get(line.id);
+      return receipt ? { ...line, inventoryItemId: inventoryResult.linkedItems?.[line.id] || line.inventoryItemId || null, receivedQuantity: Number(line.receivedQuantity || 0) + Number(receipt.receiptAmount || 0) } : line;
+    });
+    const status = deriveHomePurchaseStatus(updated);
+    const now = new Date().toISOString();
+    const next = { ...data, purchaseItems: [...data.purchaseItems.filter(x => x.requestId !== request.id), ...updated], purchaseRequests: data.purchaseRequests.map(x => x.id === request.id ? { ...x, status, receivedAt: status === "received" ? now : (x.receivedAt || null), updatedAt: now } : x) };
     await persist(next);
   };
 
@@ -176,13 +196,11 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
       await persist({ ...data, bills: data.bills.map(x => x.id === bill.id ? { ...x, status: "paid", lastPaidAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : x) });
       return;
     }
-    const date = new Date((bill.dueDate || today()) + "T12:00:00Z");
-    if (bill.frequency === "weekly") date.setUTCDate(date.getUTCDate() + 7);
-    else if (bill.frequency === "monthly") date.setUTCMonth(date.getUTCMonth() + 1);
-    else if (bill.frequency === "quarterly") date.setUTCMonth(date.getUTCMonth() + 3);
-    else if (bill.frequency === "yearly") date.setUTCFullYear(date.getUTCFullYear() + 1);
-    else date.setUTCDate(date.getUTCDate() + 1);
-    const next = { ...data, bills: data.bills.map(x => x.id === bill.id ? { ...x, lastPaidAt: new Date().toISOString(), dueDate: date.toISOString().slice(0, 10), status: "due", updatedAt: new Date().toISOString() } : x) };
+    let nextDueDate;
+    try { nextDueDate = nextHomeBillDue(bill.dueDate || today(), bill.frequency || "monthly"); }
+    catch (e) { setError(e?.message || "تعذر حساب موعد الفاتورة التالية."); return; }
+    const now = new Date().toISOString();
+    const next = { ...data, bills: data.bills.map(x => x.id === bill.id ? { ...x, lastPaidAt: now, dueDate: nextDueDate, status: "due", updatedAt: now } : x) };
     await persist(next);
   };
 
