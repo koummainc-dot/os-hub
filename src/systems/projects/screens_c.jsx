@@ -157,6 +157,8 @@ function ReviewEditor({ r, onClose }) {
       <Field label="الطاقة"><Seg value={d.energy} onChange={(v) => canW && setD({ ...d, energy: v })} options={opts(L.energy)} small /></Field>
     </div>
     <Field label="تركيز الأسبوع القادم"><textarea disabled={!canW} style={{ ...S.ta, minHeight: 50 }} value={d.next_week_focus || ""} onChange={(e) => setD({ ...d, next_week_focus: e.target.value })} /></Field>
+     <Field label="المهام المختارة للأسبوع القادم" hint="اربط المهام الفعلية بدل الاكتفاء بكتابة قائمة نصية."><select multiple disabled={!canW} style={{ ...S.sel, minHeight: 90 }} value={d.next_week_task_ids || []} onChange={(e) => setD({ ...d, next_week_task_ids: [...e.target.selectedOptions].map((o) => o.value) })}>{idx.list.filter((t) => idx.isLeaf(t.id) && ["todo", "active"].includes(D.cat(t.status))).map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}</select></Field>
+     {(d.next_week_task_ids || []).map((id) => idx.byId[id]).filter(Boolean).length > 0 && <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>{(d.next_week_task_ids || []).map((id) => idx.byId[id]).filter(Boolean).map((t) => <Btn key={t.id} small onClick={() => openTask(t.id)}>↗ {t.title}</Btn>)}</div>}
     {canW && leftovers.length > 0 && <div style={{ fontSize: 12, color: C.dim, marginBottom: 8 }}>مهام الأسبوع الجارية ({leftovers.length}): {leftovers.slice(0, 5).map((t) => t.title).join("، ")}</div>}
     {own && <Field label="الرؤية" hint="الخاصة لا يقرؤها أحد غيرك — حتى المدير أو المالك (يُطبَّق في قاعدة البيانات)."><Seg value={d.visibility} onChange={(v) => setD({ ...d, visibility: v })} options={[{ v: "private", l: "🔒 خاصة" }, { v: "team", l: "👥 للفريق" }]} small /></Field>}
   </Modal>;
