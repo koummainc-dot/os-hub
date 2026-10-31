@@ -27,7 +27,8 @@ export function OutputsView({ projectId }) {
     if (rec.prd_id) {
       const prd = data.prds.find((x) => x.id === rec.prd_id);
       if (!prd || prd.project_id !== rec.project_id) throw new Error("المواصفة المرتبطة يجب أن تكون من المشروع نفسه.");
-    }
+      if (rec.prd_requirement_id && !(prd.requirements || []).some((x) => x.id === rec.prd_requirement_id)) throw new Error("المتطلب المختار لا ينتمي إلى المواصفة المرتبطة.");
+    } else if (rec.prd_requirement_id) throw new Error("لا يمكن ربط متطلب دون مواصفة.");
     if (prev?.approval === "Final") throw new Error("المخرج النهائي مقفل؛ أنشئ مخرجاً جديداً للنسخة المعدلة.");
     if (rec.approval === "Final" && (!prev || prev.approval !== "Final")) {
       if (!can("output.approve", project)) throw new Error("اعتماد المخرج النهائي للقائد أو المراجع فقط");
@@ -59,7 +60,8 @@ export function OutputsView({ projectId }) {
         { key: "type", label: "النوع", type: "select", allowEmpty: false, options: lookups.output_type.map((x) => ({ v: x, l: x })) },
         { key: "task_id", label: "المهمة المرتبطة", type: "select", emptyLabel: "— بلا —", options: (v) => idx.list.filter((t) => t.project_id === v.project_id).map((t) => ({ v: t.id, l: t.title })) },
         { key: "prd_id", label: "المواصفة التي يحقّقها", type: "select", emptyLabel: "— بلا —", options: (v) => data.prds.filter((p) => p.project_id === v.project_id).map((p) => ({ v: p.id, l: p.title })) },
-        { key: "approval", label: "الاعتماد", type: "select", allowEmpty: false, options: opts(L.approval) },
+        { key: "prd_requirement_id", label: "المتطلب الذي يثبته", type: "select", emptyLabel: "— بلا متطلب —", options: (v) => ((data.prds.find((p) => p.id === v.prd_id) || {}).requirements || []).map((x) => ({ v: x.id, l: x.title })) },
+         { key: "approval", label: "الاعتماد", type: "select", allowEmpty: false, options: opts(L.approval) },
         { key: "url", label: "الرابط", type: "url" }, { key: "notes", label: "ملاحظات", type: "textarea", rows: 2 }]} />}
     </div>
   );
@@ -232,12 +234,21 @@ export function PrdsView({ projectId }) {
 function PrdEditor({ prd, onClose, onOpen }) {
   const { data, A: act, can, projectsById, people, toast, me, PRD_TEMPLATE, idx, confirm, nameOf, openTask } = useP();
   const project = projectsById[prd.project_id]; const locked = ["Approved", "Superseded", "Ready for Review"].includes(prd.status); const canW = can("prd.write", project) && !locked;
-  const [d, setD] = useState({ ...prd, sections: prd.sections || [] }); const [tab, setTab] = useState("doc"); const [busy, setBusy] = useState(false); const [rejectForm, setRejectForm] = useState(false); const versioning = useRef(false);
+  const [d, setD] = useState({ ...prd, sections: prd.sections || [], requirements: prd.requirements || [] }); const [tab, setTab] = useState("doc"); const [busy, setBusy] = useState(false); const [rejectForm, setRejectForm] = useState(false); const [requirementForm, setRequirementForm] = useState(null); const versioning = useRef(false);
   const secOf = (k) => (d.sections.find((s) => s.key === k) || {}).content || "";
   const setSec = (k, v, tpl) => setD((x) => { const ex = x.sections.some((s) => s.key === k); return { ...x, sections: ex ? x.sections.map((s) => (s.key === k ? { ...s, content: v } : s)) : [...x.sections, { key: k, title: tpl ? tpl.title : k, group: tpl ? tpl.group : "", content: v }] }; });
   const save = async (patch) => { setBusy(true); const rec = { ...d, ...(patch || {}) }; const s = await act.put("prds", rec, project); setBusy(false); if (s) { setD(s); toast("✅ تم الحفظ"); } return s; };
   const ready = D.prdApprovalReady(d, d.sections, d.approvals);
   const linkedTasks = idx.list.filter((t) => t.prd_id === d.id);
+  const linkedOutputs = data.outputs.filter((o) => o.prd_id === d.id && !o.deleted_at);
+  const requirements = d.requirements || [];
+  const saveRequirement = async (v) => {
+    const req = { ...v, id: v.id || uid(), title: String(v.title || "").trim(), updated_at: nowIso() };
+    if (!req.title) throw new Error("عنوان المتطلب مطلوب");
+    const next = v.id ? requirements.map((x) => x.id === v.id ? req : x) : [...requirements, req];
+    if (req.status === "Verified" && !linkedOutputs.some((o) => o.prd_requirement_id === req.id && o.approval === "Final")) throw new Error("لا يمكن توثيق المتطلب قبل ربط مخرج نهائي يثبت تحقيقه.");
+    await save({ requirements: next }); setRequirementForm(null);
+  };
   const krs = data.krs; const myApproval = (d.approvals || []).find((a) => a.reviewer_id === me && a.version === (d.version || 1));
   async function review(decision, comment = "") { const apps = [...(d.approvals || []).filter((a) => !(a.reviewer_id === me && a.version === (d.version || 1))), { reviewer_id: me, decision, version: d.version || 1, at: nowIso(), comment: comment || "" }]; await save({ approvals: apps }); setRejectForm(false); }
   async function requestReview() { const r = D.prdApprovalReady(d, d.sections, d.approvals); if (r.missing.length) return toast("⛔ لا يمكن طلب المراجعة قبل استكمال: " + r.missing.join("، ")); await save({ status: "Ready for Review", submitted_for_review_at: nowIso() }); }
@@ -274,10 +285,19 @@ function PrdEditor({ prd, onClose, onOpen }) {
       {d.status === "Ready for Review" && can("prd.approve", project) && <Btn onClick={() => save({ status: "In Progress", submitted_for_review_at: null })}>↩ إرجاع للمسودة</Btn>}
       {!locked && can("prd.write", project) && <Btn danger onClick={async () => { await act.del("prds", d.id, d.title); onClose(); }}>🗑</Btn>}</>}>
       <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}><Chip color={d.status === "Approved" ? C.ok : C.info}>{L.prdStatus[d.status]}</Chip><ProjectName id={d.project_id} />{locked && <span style={{ fontSize: 11, color: C.muted }}>🔒 {d.status === "Ready for Review" ? "قيد المراجعة — أعدها للمسودة قبل التعديل" : "نسخة معتمدة/مستبدلة — أنشئ نسخة جديدة للتعديل"}</span>}</div>
-      <Tabs small value={tab} onChange={setTab} tabs={[{ id: "doc", label: "المواصفة" }, { id: "meta", label: "البيانات والمراجعة" }, { id: "tasks", label: "المهام", count: linkedTasks.length }]} />
+      <Tabs small value={tab} onChange={setTab} tabs={[{ id: "doc", label: "المواصفة" }, { id: "requirements", label: "المتطلبات", count: requirements.length }, { id: "meta", label: "البيانات والمراجعة" }, { id: "tasks", label: "المهام", count: linkedTasks.length }]} />
       {tab === "doc" && <div>
         <Field label="TLDR *"><textarea disabled={!canW} style={{ ...S.ta, minHeight: 60 }} value={d.tldr || ""} onChange={(e) => setD({ ...d, tldr: e.target.value })} /></Field>
         {groups.map((g) => <div key={g}><div style={{ fontSize: 12, fontWeight: 800, color: A, margin: "10px 0 6px" }}>{g}</div>{PRD_TEMPLATE.filter((s) => s.group === g).map((s) => <Field key={s.key} label={s.title + (s.required ? " *" : "")} hint={s.hint}><textarea disabled={!canW} style={{ ...S.ta, minHeight: 70 }} value={secOf(s.key)} onChange={(e) => setSec(s.key, e.target.value, s)} /></Field>)}</div>)}
+      </div>}
+      {tab === "requirements" && <div>
+        {canW && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setRequirementForm({ status: "Draft", priority: "Medium" })}>＋ إضافة متطلب</Btn></div>}
+        {!requirements.length ? <Empty icon="📋" title="لا توجد متطلبات منفصلة" sub="أضف متطلبًا لكل شيء يمكن تنفيذه واختباره وتسليمه بشكل مستقل." /> : requirements.map((req) => {
+          const reqTasks = linkedTasks.filter((t) => t.prd_requirement_id === req.id);
+          const reqOutputs = linkedOutputs.filter((o) => o.prd_requirement_id === req.id);
+          return <div key={req.id} style={{ ...S.card, marginBottom: 8, padding: "10px 12px" }}><div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><b style={{ flex: 1 }}>{req.title}</b><Chip color={req.status === "Verified" ? C.ok : req.status === "In Progress" ? C.info : C.muted}>{({ Draft: "مسودة", Accepted: "مقبول", "In Progress": "قيد التنفيذ", Verified: "متحقق", Deferred: "مؤجل" })[req.status] || "مسودة"}</Chip><Chip>{({ Low: "منخفض", Medium: "متوسط", High: "عالٍ", Critical: "حرج" })[req.priority] || "متوسط"}</Chip>{canW && <Btn small onClick={() => setRequirementForm(req)}>تعديل</Btn>}</div>{req.description && <div style={{ fontSize: 12, color: C.dim, marginTop: 4 }}>{req.description}</div>}{req.acceptance_criteria && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>معايير القبول: {req.acceptance_criteria}</div>}<div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 7, fontSize: 11.5 }}><span>المهام: {reqTasks.length}</span><span>المخرجات: {reqOutputs.length}</span>{reqOutputs.some((o) => o.approval === "Final") && <Chip color={C.ok}>يوجد دليل نهائي</Chip>}</div>{reqTasks.map((t) => <div key={t.id} onClick={() => openTask(t.id)} style={{ cursor: "pointer", color: C.info, fontSize: 12, marginTop: 3 }}>↳ {t.title} ↗</div>)}{reqOutputs.map((o) => <div key={o.id} style={{ color: C.dim, fontSize: 12, marginTop: 3 }}>📦 {o.name} · {L.approval[o.approval] || o.approval}</div>)}</div>;
+        })}
+        {requirementForm && <FormModal title={requirementForm.id ? "تعديل المتطلب" : "متطلب جديد"} wide initial={requirementForm} onClose={() => setRequirementForm(null)} onSubmit={saveRequirement} fields={[{ key: "title", label: "عنوان المتطلب", required: true, span: 2 }, { key: "description", label: "الوصف", type: "textarea", rows: 2 }, { key: "acceptance_criteria", label: "معايير القبول", type: "textarea", rows: 2 }, { key: "priority", label: "الأولوية", type: "select", options: opts(L.priority), allowEmpty: false }, { key: "status", label: "الحالة", type: "select", allowEmpty: false, options: [{ v: "Draft", l: "مسودة" }, { v: "Accepted", l: "مقبول" }, { v: "In Progress", l: "قيد التنفيذ" }, { v: "Verified", l: "متحقق" }, { v: "Deferred", l: "مؤجل" }] }]} />}
       </div>}
       {tab === "meta" && <div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
@@ -292,7 +312,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
         {(d.reviewer_ids || []).includes(me) && d.status === "Ready for Review" && <div style={{ display: "flex", gap: 6, marginTop: 8 }}><Btn small kind="primary" onClick={() => review("approve")}>✔ أوافق</Btn><Btn small danger onClick={() => setRejectForm(true)}>✖ أرفض</Btn>{myApproval && <span style={{ fontSize: 11, color: C.muted }}>ردّك الحالي: {myApproval.decision}</span>}</div>}
         {!ready.ok && <div style={{ fontSize: 11.5, color: C.warn, marginTop: 8 }}>متطلبات الاعتماد الناقصة: {[...ready.missing, ...ready.pendingReviewers.map((x) => "موافقة " + nameOf(x))].join("، ")}</div>}
       </div>}
-      {tab === "tasks" && (!linkedTasks.length ? <Empty icon="✅" title="لا مهام مرتبطة" sub="اربط المهام بهذه المواصفة من نموذج المهمة (حقل المواصفة)." /> : linkedTasks.map((t) => <div key={t.id} onClick={() => openTask(t.id)} style={{ padding: "6px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13, cursor: "pointer" }}>{D.cat(t.status) === "done" ? "✅" : "⬜"} {t.title}</div>))}
+      {tab === "tasks" && (!linkedTasks.length ? <Empty icon="✅" title="لا مهام مرتبطة" sub="اربط المهام بهذه المواصفة من نموذج المهمة (حقل المواصفة)." /> : linkedTasks.map((t) => { const req = requirements.find((x) => x.id === t.prd_requirement_id); return <div key={t.id} onClick={() => openTask(t.id)} style={{ padding: "6px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13, cursor: "pointer" }}>{D.cat(t.status) === "done" ? "✅" : "⬜"} {t.title}{req && <span style={{ color: C.muted }}> · {req.title}</span>}</div>; }))}
       {rejectForm && <FormModal title="رفض المواصفة" initial={{ comment: "" }} onClose={() => setRejectForm(false)} onSubmit={async (v) => { if (!String(v.comment || "").trim()) throw new Error("اكتب سبب الرفض أو ملاحظات المراجعة."); await review("reject", v.comment.trim()); }} fields={[{ key: "comment", label: "سبب الرفض / الملاحظات", type: "textarea", required: true, rows: 3 }]} />}
     </Modal>
   );
