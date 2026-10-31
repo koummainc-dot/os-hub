@@ -83,30 +83,43 @@ select public.home_record_purchase_receipt(
   '[{"itemId":"71000000-0000-4000-8000-000000000001","quantity":2,"unitPrice":12}]'::jsonb,
   'smoke-receipt-request-line-0001'
 );
+-- Complete the remaining quantity, then replay the final receipt after status becomes received.
+select public.home_record_purchase_receipt(
+  '10000000-0000-4000-8000-000000000001',
+  '70000000-0000-4000-8000-000000000001',
+  '[{"itemId":"71000000-0000-4000-8000-000000000001","quantity":3,"unitPrice":12}]'::jsonb,
+  'smoke-receipt-request-line-0002'
+);
+select public.home_record_purchase_receipt(
+  '10000000-0000-4000-8000-000000000001',
+  '70000000-0000-4000-8000-000000000001',
+  '[{"itemId":"71000000-0000-4000-8000-000000000001","quantity":3,"unitPrice":12}]'::jsonb,
+  'smoke-receipt-request-line-0002'
+);
 do $
 begin
   if (select count(*) from public.home_purchase_receipts
       where workspace_id='10000000-0000-4000-8000-000000000001'
-        and idempotency_key='smoke-receipt-request-line-0001') <> 1 then
+        and idempotency_key in ('smoke-receipt-request-line-0001','smoke-receipt-request-line-0002')) <> 2 then
     raise exception 'HOME_RECEIPT_IDEMPOTENCY_FAILED';
   end if;
   if (select received_quantity from public.home_purchase_request_items
       where workspace_id='10000000-0000-4000-8000-000000000001'
-        and id='71000000-0000-4000-8000-000000000001') <> 2 then
+        and id='71000000-0000-4000-8000-000000000001') <> 5 then
     raise exception 'HOME_RECEIPT_QUANTITY_NOT_PERSISTED';
   end if;
   if (select count(*) from public.home_purchase_receipt_items
-      where workspace_id='10000000-0000-4000-8000-000000000001') <> 1 then
+      where workspace_id='10000000-0000-4000-8000-000000000001') <> 2 then
     raise exception 'HOME_RECEIPT_ITEMS_DUPLICATED';
   end if;
   if (select count(*) from public.home_inventory_movements
       where workspace_id='10000000-0000-4000-8000-000000000001'
-        and idempotency_key like 'purchase-receipt:%') <> 1 then
+        and idempotency_key like 'purchase-receipt:%') <> 2 then
     raise exception 'HOME_RECEIPT_MOVEMENT_DUPLICATED';
   end if;
   if (select status from public.home_purchase_requests
       where workspace_id='10000000-0000-4000-8000-000000000001'
-        and id='70000000-0000-4000-8000-000000000001') <> 'partially_received' then
+        and id='70000000-0000-4000-8000-000000000001') <> 'received' then
     raise exception 'HOME_RECEIPT_STATUS_INVALID';
   end if;
 end $;
@@ -115,7 +128,7 @@ do $
 begin
   if (select count(*) from public.home_outbox_events
       where workspace_id='10000000-0000-4000-8000-000000000001'
-        and event_type='home.purchase.receipt.recorded') <> 1 then
+        and event_type='home.purchase.receipt.recorded') <> 2 then
     raise exception 'HOME_RECEIPT_OUTBOX_MISSING_OR_DUPLICATED';
   end if;
 end $;
