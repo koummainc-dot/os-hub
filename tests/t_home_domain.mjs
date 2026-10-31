@@ -13,6 +13,8 @@ assert.deepEqual(validateHomeRoom({ name: "مطبخ", type: "kitchen", propertyI
 assert.deepEqual(validateHomeItem({ ...base.items[0], quantity: -1 }, base), ["الكمية يجب أن تكون رقمًا غير سالب."]);
 assert.ok(validateHomeMovement({ type: "consume", quantity: 3 }, base.items[0]).some(x => x.includes("أكبر من المتاح")));
 assert.equal(applyHomeMovement(base.items[0], { type: "receive", quantity: 3, occurredAt: "2026-10-31T00:00:00.000Z" }).quantity, 5);
+assert.deepEqual(validateHomeMovement({ type: "adjust", quantity: 0 }, base.items[0]), []);
+assert.equal(applyHomeMovement(base.items[0], { type: "adjust", quantity: 0, occurredAt: "2026-10-31T00:00:00.000Z" }).quantity, 0);
 assert.throws(() => applyHomeMovement(base.items[0], { type: "consume", quantity: 4, occurredAt: "2026-10-31T00:00:00.000Z" }), /HOME_STOCK_NEGATIVE/);
 assert.equal(deriveRoomHealth("r1", base, "2026-10-31").state, "yellow");
 assert.equal(deriveRoomHealth("r1", base, "2027-01-02").state, "red");
