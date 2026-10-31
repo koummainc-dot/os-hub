@@ -2,6 +2,7 @@ import React,{useState,useEffect,useRef,useContext,useMemo,useCallback} from "re
 import { osAccess, osSectionLevel } from "../../core/core.js";
 import { SUPABASE_SDK_FAILED, supabase } from "../../core/supabase.js";
 import { A, AccessDenied, S, ToastContainer, ToastCtx, useToastNotify } from "../../core/ui.jsx";
+import MediaEmbed from "../media/MediaEmbed.jsx";
 
 
 const COSRuntime={saveTm:null};
@@ -1852,6 +1853,13 @@ function PostCard({post,idx,team,onUpdate,onDelete,readOnly,plan,defaultExpanded
       {showPrint&&<PostPrintModal plan={plan} post={local} onClose={()=>setShowPrint(false)}/>}
       {exp&&(
         <div style={{padding:14,borderTop:"1px solid rgba(0,0,0,0.05)",background:"#F1F3F5"}}>
+          <div style={{display:"grid",gap:8,marginBottom:12,padding:12,background:"#fff",border:"1px solid #E2E8F0",borderRadius:10}}>
+            <label style={{display:"grid",gap:5,fontSize:11,fontWeight:700,color:"#57606A"}}>رابط الفيديو / المادة المرئية
+              <input type="url" value={local.videoUrl||""} readOnly={readOnly} onChange={e=>updateBase("videoUrl",e.target.value)} placeholder="YouTube أو Vimeo أو Loom أو رابط ملف MP4" style={{width:"100%",boxSizing:"border-box",padding:"8px 10px",border:"1px solid #D0D7DE",borderRadius:8,font:"inherit",fontSize:12}}/>
+            </label>
+            {local.videoUrl&&<MediaEmbed url={local.videoUrl} title={local.content||local.type||"مرجع الفيديو"} workspaceId={String(user?.id||"demo")} itemId={String(local.id||idx)} />}
+            {!local.videoUrl&&<div style={{fontSize:11,color:"#6E7781"}}>أضف رابطًا لعرض المشغل هنا؛ سيُحفظ الرابط ضمن بيانات بطاقة المحتوى.</div>}
+          </div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
             {validSt.map(sid=>{const sm2=getStatusMeta(sid,plan,local);const doneStage=isStageCompleted(local,sid);const activeView=viewStageId===sid;return <button key={sid} type="button" onClick={()=>{setViewStageId(sid);setEditHistoricalStage(false);}} style={{padding:"5px 11px",borderRadius:20,border:`1px solid ${activeView?A+"70":doneStage?"rgba(16,185,129,0.35)":sm2.color+"30"}`,background:activeView?A+"12":doneStage?"rgba(16,185,129,0.06)":"transparent",color:activeView?A:doneStage?"#10B981":sm2.color,cursor:"pointer",fontSize:10,fontWeight:activeView?700:600,fontFamily:"inherit"}}>{doneStage?"✓":sm2.icon} {sm2.label}</button>;})}
             {!readOnly&&!wf&&<button onClick={()=>setShowStages(s=>!s)} title="اختر الحالات المرئية" style={{padding:"5px 9px",borderRadius:20,border:"1px dashed rgba(0,0,0,0.15)",background:"transparent",color:"#6E7781",cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>⚙ حالات</button>}
