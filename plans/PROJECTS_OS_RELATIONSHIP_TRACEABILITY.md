@@ -65,18 +65,21 @@
 
 ## Database rollout status and blockers
 
-- New migration: `20261031110000_projects_prd_requirement_traceability.sql`.
+- New migrations:
+  - `20261031110000_projects_prd_requirement_traceability.sql` — validates task/output links to PRDs, requirements, and same-project tasks.
+  - `20261031120000_projects_entity_relationship_integrity.sql` — validates decision, risk, win, update, objective, KR, discovery, and issue relationships against active records in the same workspace/project.
 - It is committed to this branch only and has **not** been applied to production.
 - The connected Supabase project's migration history does not show these existing repository migrations as applied: `20261030100000`, `20261030110000`, and `20261030120000`.
 - Therefore, migration rollout must first reconcile the pending migrations in timestamp order, review their effects against the live schema, and test them in a disposable/preview database. Do not apply only the newest migration out of order.
-- The new trigger protects task/output PRD and requirement references. Other new JSON relationship arrays currently receive application-level validation; equivalent server-side validation for every decision/risk/win/update relationship remains a hardening item before final production approval.
+- The two new triggers protect task/output PRD requirement references and the new decision/risk/win/update/objective/KR/discovery/issue relationship arrays. Task-to-discovery/issue and any future relationship fields must be added to the database guard before those fields are treated as production-enforced.
 
 ## Validation status
 
 - Domain tests were added for OKR task-group execution, deduplication, outcome/execution separation, PRD requirement ownership, and weekly-review relationship coverage.
 - Earlier CI failures exposed two incorrect test expectations; both were corrected (template fixture count and linked task-list count).
 - CI test suite and production build passed on commit `9db3bf7`.
-- The Projects OS SQL smoke workflow passed on disposable PostgreSQL 16: bootstrap, migration apply, and positive/negative boundary checks all succeeded on commit `b67171c`.
+- The first Projects OS SQL smoke workflow passed on disposable PostgreSQL 16: PRD/task/output migration apply and positive/negative boundary checks succeeded on commit `b67171c`.
+- The expanded entity-relationship migration and smoke suite are committed; their latest disposable-PostgreSQL workflow result is pending.
 - The newest branch update after those successful runs changes workflow triggering/documentation only; its workflow run is still being checked.
 - Manual browser acceptance tests for the complete relationship flows have not yet been performed.
 - The draft PR is intentionally not merged.
