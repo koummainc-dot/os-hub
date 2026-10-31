@@ -6,13 +6,13 @@ import { uid, nowIso } from "../../core/records.jsx";
 import { useP, GENERAL_ID } from "./store.jsx";
 import * as D from "./domain.js";
 import { L, opts, DEFAULT_LOOKUPS, LOOKUP_LABEL, UPDATE_SECTIONS, MEETING_TEMPLATES, REVIEW_PROMPTS, PRD_TEMPLATE } from "./lookups.js";
-import { Who, ProjectName, mOpts, projOpts, HealthBadge, StatusChip } from "./parts.jsx";
+import { Who, ProjectName, mOpts, projOpts, HealthBadge, StatusChip, TaskForm } from "./parts.jsx";
 import { TemplatePicker } from "./screens_b.jsx";
 
 // ═════ OKRs ═════
 export function Okrs() {
   const { data, A: act, projectProgress, today, settings, people, me, toast, role, nameOf, confirm } = useP();
-  const [oForm, setOForm] = useState(null); const [kForm, setKForm] = useState(null); const [ci, setCi] = useState(null); const [hist, setHist] = useState(null); const [filter, setFilter] = useState("Active");
+  const [oForm, setOForm] = useState(null); const [kForm, setKForm] = useState(null); const [ci, setCi] = useState(null); const [hist, setHist] = useState(null); const [taskForm, setTaskForm] = useState(null); const [filter, setFilter] = useState("Active");
   const objs = data.objectives.filter((o) => filter === "all" || o.status === filter);
   const canEditObj = (o) => role === "Owner" || role === "Admin" || !o || o.owner_id === me || o.created_by === me;
   const checkinsOf = (id) => data.checkins.filter((c) => c.kr_id === id).sort((a, b) => b.checked_at.localeCompare(a.checked_at));
@@ -27,6 +27,12 @@ export function Okrs() {
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 15, fontWeight: 800, flex: 1 }}>🎯 {o.name}</span><Chip color={C.violet}>{D.quarterOf(o.period_start)}</Chip><Chip color={pm.color}>{pm.label}</Chip><Chip color={C.info}>{L.objectiveStatus[o.status]}</Chip><Who id={o.owner_id} size={18} />
               {canEditObj(o) && <><Btn small onClick={() => setOForm(o)}>✎</Btn><Btn small onClick={() => setKForm({ objective_id: o.id, type: "Numeric", owner_id: o.owner_id })}>➕ نتيجة</Btn><Btn small danger onClick={() => act.del("objectives", o.id, o.name)}>🗑</Btn></>}</div>
             {o.why && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>لماذا؟ {o.why}</div>}
+            {(() => { const linkedTasks = idx.list.filter((t) => t.objective_id === o.id); const done = linkedTasks.filter((t) => idx.isLeaf(t.id) && D.cat(t.status) === "done").length; return <div style={{ marginTop: 10, padding: "9px 10px", border: "1px solid " + C.line, borderRadius: 9 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}><b style={{ fontSize: 12.5 }}>المهام المرتبطة بالهدف</b><Chip>{done}/{linkedTasks.filter((t) => idx.isLeaf(t.id)).length} مكتملة</Chip><span style={{ flex: 1 }} />{canEditObj(o) && <Btn small onClick={() => setTaskForm({ objective_id: o.id })}>＋ إضافة مهمة</Btn>}</div>
+              {linkedTasks.length ? linkedTasks.map((t) => <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 0", borderTop: "1px solid " + C.line, fontSize: 12 }}>
+                <span style={{ flex: 1, cursor: "pointer" }} onClick={() => openTask(t.id)}>{D.cat(t.status) === "done" ? "✅ " : "▫️ "}{t.title}</span><ProjectName id={t.project_id} /><Btn small onClick={() => openTask(t.id)}>فتح</Btn>
+              </div>) : <div style={{ fontSize: 11.5, color: C.muted }}>لا توجد مهام مرتبطة بعد. اربط مهامًا موجودة أو أنشئ مهمة من هنا.</div>}
+            </div>; })()}
             <div style={{ margin: "8px 0" }}><Progress value={pr} height={9} /></div><div style={{ fontSize: 11, color: C.muted }}>{fmt(o.period_start)} → {fmt(o.period_end)}</div>
             <div style={{ marginTop: 8 }}>{krs.map((k) => { const r = D.krProgress(k, projectProgress); const val = r == null ? null : typeof r === "number" ? r : r.clamped; const raw = r && typeof r === "object" ? r.raw : null; const kp = D.pace(val, o.period_start, o.period_end, o.status === "Achieved" ? "Achieved" : "Active", today, settings); return (
               <div key={k.id} style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.5fr) minmax(110px,1fr) 100px auto", gap: 8, padding: "7px 0", borderTop: `1px solid ${C.line}`, alignItems: "center", fontSize: 12.5 }}>
@@ -36,6 +42,7 @@ export function Okrs() {
               </div>); })}{!krs.length && <div style={{ fontSize: 12, color: C.muted }}>لا نتائج رئيسية بعد</div>}</div>
           </div>);
       })}
+      {taskForm && <TaskForm initial={taskForm} onClose={() => setTaskForm(null)} />}
       {oForm && <FormModal title={oForm.id ? "تعديل الهدف" : "هدف جديد"} wide initial={{ status: "Active", owner_id: me, period_start: today, period_end: addDays(today, 90), ...oForm }} onClose={() => setOForm(null)} validate={(v) => (D.validateDates(v.period_start, v.period_end).length ? { period_end: "النهاية قبل البداية" } : null)} onSubmit={async (v) => { await act.put("objectives", { ...v, id: v.id || uid() }); setOForm(null); }} fields={[{ key: "name", label: "الهدف", required: true, span: 2 }, { key: "why", label: "لماذا؟", type: "textarea", rows: 2 }, { key: "period_start", label: "بداية الفترة", type: "date", required: true }, { key: "period_end", label: "نهاية الفترة", type: "date", required: true }, { key: "status", label: "الحالة", type: "select", allowEmpty: false, options: opts(L.objectiveStatus) }, { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people) }]} />}
       {kForm && <FormModal title={kForm.id ? "تعديل النتيجة الرئيسية" : "نتيجة رئيسية جديدة"} wide initial={kForm} onClose={() => setKForm(null)} validate={(v) => { const e = D.validateKR(v); return e.length ? { target_value: e[0] } : null; }} onSubmit={async (v) => { const rec = { ...v, id: v.id || uid() }; if (rec.type === "Numeric" && rec.current_value == null) rec.current_value = rec.initial_value; await act.put("krs", rec); setKForm(null); }} fields={[
         { key: "name", label: "النتيجة الرئيسية", required: true, span: 2 }, { key: "type", label: "النوع", type: "select", allowEmpty: false, options: opts(L.krType) }, { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people) },
