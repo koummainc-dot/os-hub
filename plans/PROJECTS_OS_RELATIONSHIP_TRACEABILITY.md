@@ -77,9 +77,8 @@
 
 - Domain tests were added for OKR task-group execution, deduplication, outcome/execution separation, PRD requirement ownership, and weekly-review relationship coverage.
 - Earlier CI failures exposed two incorrect test expectations; both were corrected (template fixture count and linked task-list count).
-- CI test suite and production build passed on commit `9db3bf7`.
-- The first Projects OS SQL smoke workflow passed on disposable PostgreSQL 16: PRD/task/output migration apply and positive/negative boundary checks succeeded on commit `b67171c`.
-- The expanded entity-relationship migration and smoke suite passed on disposable PostgreSQL 16 on commit `ae89010`: both migrations applied, valid relationships were accepted, and cross-project/missing/non-final references were rejected.
-- The newest branch update after those successful runs changes workflow triggering/documentation only; its workflow run is still being checked.
+- Domain test suite, production build, and existing regression suite passed on commit `ae89010`.
+- Both Projects OS SQL migrations passed disposable PostgreSQL 16 smoke tests on commit `ae89010`: both migrations applied, valid relationships were accepted, and cross-project/missing/non-final references were rejected.
+- The latest commit after those checks updates documentation only; no application code or SQL changed after the successful run.
 - Manual browser acceptance tests for the complete relationship flows have not yet been performed.
 - The draft PR is intentionally not merged.
