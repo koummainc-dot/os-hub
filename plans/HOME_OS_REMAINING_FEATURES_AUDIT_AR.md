@@ -25,8 +25,8 @@ PR: #95 — Draft وغير مدمج
 15. **إغلاق مسارات الكتابة غير المحمية:** أُلغيت صلاحية استدعاء `home_save_snapshot` و`home_operations_save` مباشرة للمستخدمين؛ العملاء يجب أن يستخدموا RPCs ذات النسخة المتوقعة.
 
 ### التحقق الآلي
-- **Home OS SQL smoke:** نجح في GitHub Actions على commit `7b87ddca622d7f2db83bbd7cc68c7de9b59bb8f4` بعد تطبيق migrations حتى `20261031270000_home_finance_outbox_ack.sql`. يغطي الاستلام الجزئي والنهائي، idempotency، حركات المخزون، حظر تعديل الرصيد مباشرة، Outbox وقراءة Finance، الفواتير والمدفوعات، القراءة العلائقية، ورفض الكتابة بنسخة قديمة.
-- **CI / Verify app / Finance regression:** كانت قيد التشغيل على أحدث commit بعد إغلاق مسارات الكتابة القديمة؛ لا أعدّها ناجحة حتى تظهر النتيجة النهائية. كانت هذه الفحوصات ناجحة على commit سابق قريب. هذه النتائج لا تغني عن اختبار متصفح end-to-end أو تطبيقًا على الإنتاج.
+- **Home OS SQL smoke:** نجح في GitHub Actions على commit `3abe35390a0c239e4c707f88a50d568ea3814c3d` بعد تطبيق migrations حتى `20261031280000_home_os_stock_version_bump.sql`. يغطي الاستلام الجزئي والنهائي، idempotency، حركات المخزون، حظر تعديل الرصيد مباشرة، رفع نسخة Snapshot بعد الحركة، Outbox وقراءة/إقرار Finance، Today feed، الفواتير والمدفوعات، تقرير المصالحة، القراءة العلائقية، ورفض الكتابة بنسخة قديمة وإلغاء RPCs القديمة.
+- **CI / Verify app / Finance regression:** نجحت على commit `3abe35390a0c239e4c707f88a50d568ea3814c3d`؛ اجتازت lint، مجموعة الاختبارات، production build، وFinance regression. هذه النتائج لا تغني عن اختبار متصفح end-to-end أو تطبيقًا على الإنتاج.
 - لم تُطبّق أي Migration على Supabase الإنتاجية، ولم يُدمج PR #95.
 
 ### ما يزال ناقصًا ويمنع اعتبار Home OS مكتملًا نهائيًا
