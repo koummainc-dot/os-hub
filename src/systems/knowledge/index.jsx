@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { loadNormalizedKnowledge, saveNormalizedKnowledge, hasKnowledgeContent, listKnowledgeAttachments, uploadKnowledgeAttachment, deleteKnowledgeAttachment, validateKnowledgeExternalLink, listKnowledgeNotifications, markKnowledgeNotificationRead } from "./repository.js";
+import { subscribeOSEvents } from "../integrationEvents.js";
 
 const C = { ink:"#172033", muted:"#64748B", line:"#E2E8F0", bg:"#F8FAFC", accent:"#0284C7", soft:"#E0F2FE", green:"#047857", amber:"#B45309", red:"#B91C1C", white:"#FFFFFF" };
 const SECTIONS = [
@@ -82,6 +83,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   const [attachments,setAttachments]=useState([]);
   const [attachmentBusy,setAttachmentBusy]=useState(false);
   const [notifications,setNotifications]=useState([]);
+  const [learningActivity,setLearningActivity]=useState([]);
   const [showArchived,setShowArchived]=useState(false);
   const canEdit=!!isDemo || access?.level==="edit" || access?.manage || access?.owner;
   const section=SECTIONS.some(s=>s[0]===page)?page:"hub";
@@ -92,6 +94,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
     if(result.ok)setNotifications(result.notifications);
   },[isDemo,api?.workspaceId,storageMode]);
   useEffect(()=>{ refreshNotifications(); },[refreshNotifications]);
+  useEffect(()=>subscribeOSEvents(event=>setLearningActivity(items=>[event,...items.filter(x=>x.id!==event.id)].slice(0,3)),{workspaceId:api?.workspaceId||"default",source:"learning",types:["learning.study_session.completed","learning.lesson.completed","learning.course.completed"]}),[api?.workspaceId]);
   useEffect(()=>{
     let cancelled=false;
     if(!editor?.id || isDemo || !api?.workspaceId || storageMode!=="normalized") { setAttachments([]); return; }
@@ -274,7 +277,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   const newKind=section==="ideas"?"idea":section==="notes"?"note":section==="meetings"?"meeting":section==="events"?"event":section==="inbox"?"inbox":"resource";
   const addLabel=({resource:"＋ حفظ مصدر",idea:"＋ فكرة جديدة",note:"＋ ملاحظة",meeting:"＋ اجتماع",event:"＋ فعالية",inbox:"＋ إضافة للوارد"})[newKind];
   const setField=(key,value)=>setForm(f=>({...f,[key]:value}));
-  return <div dir="rtl" style={{color:C.ink,fontFamily:"inherit",display:"grid",gap:16,maxWidth:1400,margin:"0 auto"}}>
+  return <div dir="rtl" style={{color:C.ink,fontFamily:"inherit",display:"grid",gap:16,maxWidth:1400,margin:"0 auto"}}>{learningActivity.length>0&&<div role="status" style={{...card,borderColor:"#DDD6FE",background:"#F5F3FF",color:"#5B21B6"}}><div style={{fontWeight:800,marginBottom:6}}>🔗 نشاط جديد من Learning OS</div>{learningActivity.map(event=><div key={event.id} style={{fontSize:12,marginTop:4}}>{event.type==="learning.study_session.completed"?`تم تسجيل جلسة دراسة — ${Number(event.payload?.minutes)||0} دقيقة`:event.type==="learning.lesson.completed"?`تم إكمال درس: ${event.payload?.lessonName||"درس"}`:`تم إكمال دورة: ${event.payload?.courseName||"دورة"}`}</div>)}<div style={{marginTop:8}}><Btn secondary onClick={()=>setLearningActivity([])}>إخفاء</Btn></div></div>}
     <header style={{...card,background:"linear-gradient(135deg,#F0F9FF,#FFFFFF)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
       <div><div style={{fontSize:11,color:C.accent,fontWeight:850,letterSpacing:.5}}>KNOWLEDGE OS · CAPTURE → CLARIFY → ORGANIZE → USE</div><h1 style={{fontSize:25,margin:"7px 0"}}>المعرفة والموارد</h1><p style={{margin:0,fontSize:13,color:C.muted,lineHeight:1.8}}>مكان واحد للروابط والمصادر والأفكار ومحاضر الاجتماعات والفعاليات، مع بحث وربط وتصنيف وأرشفة.</p></div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{canEdit&&<Btn onClick={()=>openNew(newKind)}>{addLabel}</Btn>}<Btn secondary onClick={exportJson}>تصدير نسخة JSON</Btn></div>
