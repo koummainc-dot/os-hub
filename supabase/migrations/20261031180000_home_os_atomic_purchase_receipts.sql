@@ -263,6 +263,7 @@ begin
       'استلام طلب شراء: ' || v_request.title, v_key, auth.uid()
     ) returning id into v_movement_id;
 
+    perform set_config('app.home_inventory_movement','on',true);
     update public.home_inventory_items
       set quantity = quantity + v_qty, version = version + 1, updated_at = now(), updated_by = auth.uid(),
           unit_price = coalesce(v_price, unit_price)
