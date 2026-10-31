@@ -33,6 +33,7 @@ export function Okrs() {
                 <span style={{ flex: 1, cursor: "pointer" }} onClick={() => openTask(t.id)}>{D.cat(t.status) === "done" ? "✅ " : "▫️ "}{t.title}</span><ProjectName id={t.project_id} /><Btn small onClick={() => openTask(t.id)}>فتح</Btn>
               </div>) : <div style={{ fontSize: 11.5, color: C.muted }}>لا توجد مهام مرتبطة بعد. اربط مهامًا موجودة أو أنشئ مهمة من هنا.</div>}
             </div>; })()}
+            {(() => { const linkedWins = data.wins.filter((w) => w.objective_id === o.id); return linkedWins.length ? <div style={{ marginTop: 7, fontSize: 12, color: C.dim }}>🏆 الإنجازات المرتبطة: {linkedWins.map((w) => w.title).join(" · ")}</div> : null; })()}
             <div style={{ margin: "8px 0" }}><Progress value={pr} height={9} /></div><div style={{ fontSize: 11, color: C.muted }}>{fmt(o.period_start)} → {fmt(o.period_end)}</div>
             <div style={{ marginTop: 8 }}>{krs.map((k) => { const r = D.krProgress(k, projectProgress); const val = r == null ? null : typeof r === "number" ? r : r.clamped; const raw = r && typeof r === "object" ? r.raw : null; const kp = D.pace(val, o.period_start, o.period_end, o.status === "Achieved" ? "Achieved" : "Active", today, settings); return (
               <div key={k.id} style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.5fr) minmax(110px,1fr) 100px auto", gap: 8, padding: "7px 0", borderTop: `1px solid ${C.line}`, alignItems: "center", fontSize: 12.5 }}>
