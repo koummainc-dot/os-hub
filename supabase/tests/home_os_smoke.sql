@@ -390,7 +390,7 @@ declare
   v_report jsonb;
 begin
   v_report := public.home_operations_reconciliation_report('10000000-0000-4000-8000-000000000001');
-  if coalesce((v_report->>'readyToRemoveLegacyFallback')::boolean,true) then
+  if coalesce((v_report->>'idCountParity')::boolean,true) then
     raise exception 'HOME_RECONCILIATION_FALSE_POSITIVE';
   end if;
   if v_report->'collections'->'tasks'->>'relationalCount' <> '1' then
@@ -412,8 +412,11 @@ begin
   end;
 
   v_report := public.home_operations_reconciliation_report('10000000-0000-4000-8000-000000000001');
-  if not coalesce((v_report->>'readyToRemoveLegacyFallback')::boolean,false) then
+  if not coalesce((v_report->>'idCountParity')::boolean,false) then
     raise exception 'HOME_RECONCILIATION_MATCH_NOT_DETECTED';
+  end if;
+  if coalesce((v_report->>'readyToRemoveLegacyFallback')::boolean,true) then
+    raise exception 'HOME_RECONCILIATION_PREMATURELY_APPROVED';
   end if;
 end $$;
 
