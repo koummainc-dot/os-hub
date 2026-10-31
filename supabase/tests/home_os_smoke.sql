@@ -7,6 +7,22 @@ select set_config('test.allowed_workspace_id','10000000-0000-4000-8000-000000000
 select set_config('test.access_level','edit',false);
 set role authenticated;
 
+do $
+begin
+  if has_function_privilege(current_user, 'public.home_save_snapshot(uuid,jsonb)', 'EXECUTE') then
+    raise exception 'HOME_LEGACY_SNAPSHOT_WRITE_STILL_GRANTED';
+  end if;
+  if has_function_privilege(current_user, 'public.home_operations_save(uuid,jsonb)', 'EXECUTE') then
+    raise exception 'HOME_LEGACY_OPERATIONS_WRITE_STILL_GRANTED';
+  end if;
+  if not has_function_privilege(current_user, 'public.home_save_snapshot_v2(uuid,jsonb,integer)', 'EXECUTE') then
+    raise exception 'HOME_VERSIONED_SNAPSHOT_WRITE_NOT_GRANTED';
+  end if;
+  if not has_function_privilege(current_user, 'public.home_operations_save_v2(uuid,jsonb,integer)', 'EXECUTE') then
+    raise exception 'HOME_VERSIONED_OPERATIONS_WRITE_NOT_GRANTED';
+  end if;
+end $;
+
 select public.home_save_snapshot_v2(
   '10000000-0000-4000-8000-000000000001',
   '{
