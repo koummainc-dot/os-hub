@@ -349,6 +349,24 @@ set role authenticated;
 
 do $$
 declare
+  v_events jsonb;
+begin
+  v_events := public.home_finance_outbox_load('10000000-0000-4000-8000-000000000001');
+  if jsonb_array_length(v_events) < 3 then
+    raise exception 'HOME_FINANCE_OUTBOX_READER_MISSING_EVENTS';
+  end if;
+  if not exists (
+    select 1 from jsonb_array_elements(v_events) e
+    where e->>'type'='home.purchase.receipt.recorded'
+      and e->'payload'->>'sourcePaymentId' is not null
+      and e->'payload'->>'amount' is not null
+  ) then
+    raise exception 'HOME_FINANCE_OUTBOX_PURCHASE_PAYLOAD_INVALID';
+  end if;
+end $$;
+
+do $$
+declare
   v_data jsonb;
   v_version integer;
 begin
