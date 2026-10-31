@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 
 const store = await readFile(new URL("../src/systems/projects/store.jsx", import.meta.url), "utf8");
 const entities = await readFile(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
+const screens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
 
 const repairStart = store.indexOf("async createRepairTask(issue)");
 const repairEnd = store.indexOf("async createRiskMitigationTask", repairStart);
@@ -72,4 +73,12 @@ assert.ok(entities.includes('const canWriteDiscovery = can("discovery.write")') 
   entities.includes('onMove={canWriteDiscovery ? move : undefined}') &&
   entities.includes('footerExtra={form.id && canWriteDiscovery ?'),
   "discovery create/edit/move/convert UI must respect discovery-write permission");
+assert.ok(screens.includes('const canWriteWins = can("win.write")') &&
+  screens.includes('{canWriteWins && <Btn kind="primary" onClick={() => setForm({})}>➕ إنجاز</Btn>}') &&
+  screens.includes('{canWriteWins && (w.member_id === me || can("admin"))'),
+  "achievement create/edit/delete controls must respect win-write permission");
+assert.ok(screens.includes('const writableProjects = data.projects.filter((p) => !p.is_system && can("update.write", p))') &&
+  screens.includes('right={writableProjects.length > 0 && <Btn kind="primary" onClick={() => setForm({})}>➕ تحديث جديد</Btn>}') &&
+  screens.includes('options: projOpts(writableProjects)'),
+  "stakeholder update create and project choices must respect project lead permissions");
 console.log("✓ Projects relationship permission, retry, and action contracts passed");
