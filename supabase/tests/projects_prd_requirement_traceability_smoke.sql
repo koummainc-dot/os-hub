@@ -274,3 +274,23 @@ do $$ begin
   exception when sqlstate '22023' then null;
   end;
 end $$;
+
+do $$ begin
+  begin
+    delete from public.workspace_records
+     where workspace_id = '11111111-1111-4111-8111-111111111111'
+       and system_id = 'projects' and collection = 'outputs' and id = 'output1';
+    raise exception 'expected deletion of last Final evidence rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
+
+do $$ begin
+  begin
+    delete from public.workspace_records
+     where workspace_id = '11111111-1111-4111-8111-111111111111'
+       and system_id = 'projects' and collection = 'prds' and id = 'prd1';
+    raise exception 'expected PRD deletion with active references rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
