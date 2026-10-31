@@ -379,7 +379,7 @@ export function Meetings() {
         {followups.length>0&&<div style={{fontSize:12,lineHeight:1.8,marginTop:7}}><b>المتابعات والمهام:</b><ul style={{margin:"4px 0",paddingInlineStart:20}}>{followups.map((x,i)=>{
           const existing=data.tasks.find(task=>task.source_meeting_id===m.id&&Number(task.source_followup_index)===i);
           const key=String(m.id)+":"+i;
-          return <li key={i} style={{marginBottom:7}}><div>{String(x)}</div>{existing?<div style={{fontSize:11,color:C.ok,marginTop:3}}>✓ مهمة موجودة: {existing.title}</div>:project&&!archived&&can("task.write",project)?<Btn small disabled={creatingFollowup===key} onClick={()=>createFollowupTask(m,x,i)}>{creatingFollowup===key?"جارٍ الإنشاء…":"تحويل إلى مهمة"}</Btn>:<div style={{fontSize:11,color:C.muted,marginTop:3}}>{archived?"استعد المشروع قبل إنشاء مهام جديدة.":orphan?"أعد ربط الاجتماع بمشروع نشط.":"اربط الاجتماع بمشروع نشط لإنشاء مهمة متابعة."}</div>}</li>;
+          return <li key={i} style={{marginBottom:7}}><div>{String(x)}</div>{existing?<div style={{fontSize:11,color:C.ok,marginTop:3}}>✓ مهمة موجودة: {existing.title}</div>:project&&!archived&&can("task.write",project)?<Btn small disabled={creatingFollowup===key} onClick={()=>createFollowupTask(m,x,i)}>{creatingFollowup===key?"جارٍ الإنشاء…":"تحويل إلى مهمة"}</Btn>:<div style={{fontSize:11,color:C.muted,marginTop:3}}>{archived?"استعد المشروع قبل إنشاء مهام جديدة.":orphan?"أعد ربط الاجتماع بمشروع نشط.":project&&!can("task.write",project)?"لا تملك صلاحية إنشاء مهام في هذا المشروع.":"اربط الاجتماع بمشروع نشط لإنشاء مهمة متابعة."}</div>}</li>;
         })}</ul></div>}
       </article>;
     })}</div>}
