@@ -20,6 +20,7 @@ begin
     'workspaceId',p_workspace_id,
     'snapshotVersion',coalesce(v_version,0),
     'snapshotUpdatedAt',(select updated_at from public.home_operations_snapshot where workspace_id=p_workspace_id),
+    'reconciliationScope','row counts and sorted IDs only; compare critical fields/relationships before removing fallback',
     'collections',jsonb_build_object(
       'tasks',jsonb_build_object(
         'legacyCount',jsonb_array_length(coalesce(v_snapshot->'tasks','[]'::jsonb)),
@@ -71,7 +72,7 @@ begin
     )
   ) into v_report;
 
-  return jsonb_set(v_report,'{readyToRemoveLegacyFallback}',
+  return jsonb_set(jsonb_set(v_report,'{idCountParity}',
     to_jsonb((
       (v_report->'collections'->'tasks'->>'legacyCount')::integer=(v_report->'collections'->'tasks'->>'relationalCount')::integer
       and v_report->'collections'->'tasks'->>'legacyIdHash'=v_report->'collections'->'tasks'->>'relationalIdHash'
@@ -87,7 +88,8 @@ begin
       and v_report->'collections'->'purchaseItems'->>'legacyIdHash'=v_report->'collections'->'purchaseItems'->>'relationalIdHash'
       and (v_report->'collections'->'bills'->>'legacyCount')::integer=(v_report->'collections'->'bills'->>'relationalCount')::integer
       and v_report->'collections'->'bills'->>'legacyIdHash'=v_report->'collections'->'bills'->>'relationalIdHash'
-    )),true);
+    )),true),
+    '{readyToRemoveLegacyFallback}','false'::jsonb,true);
 end $$;
 
 revoke all on function public.home_operations_reconciliation_report(uuid) from public, anon;
