@@ -63,22 +63,20 @@ begin
   raise exception 'HOME_VIEW_ROLE_WRITE_SHOULD_FAIL';
 exception when insufficient_privilege then
   null;
-end $;
+end $$;
 -- A view-only member can load the authorized workspace, but cannot see another workspace's rows.
 select set_config('test.access_level','view',false);
-if(true) then
-  do $
-  begin
-    if jsonb_array_length(public.home_load_snapshot('10000000-0000-4000-8000-000000000001')->'properties') <> 1 then
-      raise exception 'HOME_VIEW_READ_FAILED';
-    end if;
-  end $;
-end if;
+do $$
+begin
+  if jsonb_array_length(public.home_load_snapshot('10000000-0000-4000-8000-000000000001')->'properties') <> 1 then
+    raise exception 'HOME_VIEW_READ_FAILED';
+  end if;
+end $$;
 select set_config('test.allowed_workspace_id','90000000-0000-4000-8000-000000000001',false);
-do $
+do $$
 begin
   if (select count(*) from public.home_properties) <> 0 then
     raise exception 'HOME_RLS_WORKSPACE_ISOLATION_FAILED';
   end if;
-end $;
+end $$;
 reset role;
