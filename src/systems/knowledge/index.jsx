@@ -10,6 +10,23 @@ const SECTIONS = [
   ["categories","التصنيفات","🗂️"],["linktypes","أنواع الروابط","🏷️"],["search","البحث","🔍"],["settings","الإعدادات","⚙️"]
 ];
 const KINDS = { resource:"مصدر", idea:"فكرة", note:"ملاحظة", meeting:"اجتماع", event:"فعالية", inbox:"وارد" };
+const KIND_THEME = {
+  resource:{accent:"#0369A1",soft:"#E0F2FE",icon:"🔖",action:"حفظ المصدر",hint:"احفظ الرابط وسياقه حتى يسهل الرجوع إليه ومراجعته."},
+  idea:{accent:"#7C3AED",soft:"#F3E8FF",icon:"💡",action:"تسجيل الفكرة",hint:"سجّل الفكرة ومرحلتها والخطوة التالية لتطويرها."},
+  note:{accent:"#0F766E",soft:"#CCFBF1",icon:"📝",action:"حفظ الملاحظة",hint:"دوّن المعرفة بصياغتك واربطها بالمصادر ذات الصلة."},
+  meeting:{accent:"#B45309",soft:"#FEF3C7",icon:"👥",action:"تسجيل الاجتماع",hint:"وثّق المشاركين والقرارات والمتابعات واربط الاجتماع بمشروع عند الحاجة."},
+  event:{accent:"#BE185D",soft:"#FCE7F3",icon:"🎟️",action:"إضافة الفعالية",hint:"سجّل الموعد والمكان والرابط وأي تفاصيل للاستعداد."},
+  inbox:{accent:"#475569",soft:"#F1F5F9",icon:"📥",action:"إضافة للوارد",hint:"التقط العنصر بسرعة ثم راجعه وصنّفه لاحقًا."}
+};
+const SECTION_THEME = {
+  hub:{accent:"#0284C7",soft:"#E0F2FE"},inbox:{accent:"#475569",soft:"#F1F5F9"},
+  bookmarks:{accent:"#0369A1",soft:"#E0F2FE"},ideas:{accent:"#7C3AED",soft:"#F3E8FF"},
+  notes:{accent:"#0F766E",soft:"#CCFBF1"},meetings:{accent:"#B45309",soft:"#FEF3C7"},
+  events:{accent:"#BE185D",soft:"#FCE7F3"},calendar:{accent:"#4338CA",soft:"#E0E7FF"},
+  reminders:{accent:"#C2410C",soft:"#FFEDD5"},categories:{accent:"#4D7C0F",soft:"#ECFCCB"},
+  linktypes:{accent:"#64748B",soft:"#F1F5F9"},search:{accent:"#0E7490",soft:"#CFFAFE"},
+  settings:{accent:"#52525B",soft:"#F4F4F5"}
+};
 const STATUSES = { inbox:"الوارد", unread:"لم يُراجع", reviewing:"قيد المراجعة", processed:"تمت المعالجة", active:"نشط", archived:"مؤرشف", done:"مكتمل" };
 const SOURCE_TYPES = ["مقال","كتاب","فيديو","بودكاست","دورة","بحث","موقع","أداة","ملف","ورقة علمية","نشرة بريدية","أخرى"];
 const PRIORITIES = {low:"منخفضة",normal:"عادية",high:"مرتفعة",urgent:"عاجلة"};
@@ -62,8 +79,9 @@ const validISODate = value => !value || (/^\d{4}-\d{2}-\d{2}$/.test(value) && !N
 const validTime = value => !value || /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 const card = {background:C.white,border:"1px solid "+C.line,borderRadius:16,padding:16};
 const input = {width:"100%",boxSizing:"border-box",border:"1px solid "+C.line,borderRadius:10,padding:"10px 12px",font:"inherit",fontSize:13,color:C.ink,background:C.white};
-function Btn({children,onClick,secondary=false,disabled=false,type="button"}) {
-  return <button type={type} disabled={disabled} onClick={onClick} style={{border:"1px solid "+(secondary?C.line:C.accent),background:secondary?C.white:C.accent,color:secondary?C.ink:C.white,borderRadius:10,padding:"9px 13px",fontWeight:750,fontFamily:"inherit",fontSize:12,cursor:disabled?"not-allowed":"pointer",opacity:disabled ? .55 : 1}}>{children}</button>;
+function Btn({children,onClick,secondary=false,disabled=false,type="button",tone="default"}) {
+  const accent=KIND_THEME[tone]?.accent || C.accent;
+  return <button type={type} disabled={disabled} onClick={onClick} style={{border:"1px solid "+(secondary?C.line:accent),background:secondary?C.white:accent,color:secondary?C.ink:C.white,borderRadius:10,padding:"9px 13px",fontWeight:800,fontFamily:"inherit",fontSize:12,cursor:disabled?"not-allowed":"pointer",opacity:disabled ? .55 : 1,transition:"background .15s ease,border-color .15s ease"}}>{children}</button>;
 }
 function Field({label,children}) { return <label style={{display:"grid",gap:6,fontSize:12,fontWeight:750,color:"#475569"}}>{label}{children}</label>; }
 function Tag({children}) { return <span style={{fontSize:11,padding:"4px 8px",borderRadius:999,background:C.soft,color:"#075985",whiteSpace:"nowrap"}}>{children}</span>; }
@@ -313,9 +331,9 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   return <div dir="rtl" style={{color:C.ink,fontFamily:"inherit",display:"grid",gap:16,maxWidth:1400,margin:"0 auto"}}>{learningActivity.length>0&&<div role="status" style={{...card,borderColor:"#DDD6FE",background:"#F5F3FF",color:"#5B21B6"}}><div style={{fontWeight:800,marginBottom:6}}>🔗 نشاط جديد من Learning OS</div>{learningActivity.map(event=><div key={event.id} style={{fontSize:12,marginTop:4}}>{event.type==="learning.study_session.completed"?`تم تسجيل جلسة دراسة — ${Number(event.payload?.minutes)||0} دقيقة`:event.type==="learning.lesson.completed"?`تم إكمال درس: ${event.payload?.lessonName||"درس"}`:`تم إكمال دورة: ${event.payload?.courseName||"دورة"}`}</div>)}<div style={{marginTop:8}}><Btn secondary onClick={()=>setLearningActivity([])}>إخفاء</Btn></div></div>}
     <header style={{...card,background:"linear-gradient(135deg,#F0F9FF,#FFFFFF)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
       <div><div style={{fontSize:11,color:C.accent,fontWeight:850,letterSpacing:.5}}>KNOWLEDGE OS · CAPTURE → CLARIFY → ORGANIZE → USE</div><h1 style={{fontSize:25,margin:"7px 0"}}>المعرفة والموارد</h1><p style={{margin:0,fontSize:13,color:C.muted,lineHeight:1.8}}>مكان واحد للروابط والمصادر والأفكار ومحاضر الاجتماعات والفعاليات، مع بحث وربط وتصنيف وأرشفة.</p></div>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{canEdit&&canAddItem&&<Btn onClick={()=>openNew(newKind)}>{section==="hub"?"＋ إضافة عنصر":addLabel}</Btn>}<Btn secondary onClick={exportJson}>تصدير نسخة JSON</Btn></div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{canEdit&&canAddItem&&<Btn tone={section==="hub"?"resource":newKind} onClick={()=>openNew(newKind)}>{section==="hub"?"＋ إضافة عنصر":addLabel}</Btn>}<Btn secondary onClick={exportJson}>تصدير نسخة JSON</Btn></div>
     </header>
-    <nav style={{display:"flex",gap:7,flexWrap:"wrap"}}>{SECTIONS.map(([id,label,icon])=><button key={id} onClick={()=>go(id)} style={{border:"1px solid "+(section===id?C.accent:C.line),background:section===id?C.soft:C.white,color:section===id?C.accent:C.ink,borderRadius:10,padding:"8px 10px",fontFamily:"inherit",fontSize:12,fontWeight:750,cursor:"pointer"}}>{icon} {label}</button>)}</nav>
+    <nav aria-label="أقسام المعرفة" style={{display:"flex",gap:7,flexWrap:"wrap"}}>{SECTIONS.map(([id,label,icon])=>{const theme=SECTION_THEME[id]||SECTION_THEME.hub;const active=section===id;return <button key={id} aria-current={active?"page":undefined} onClick={()=>{setFilter("all");go(id);}} style={{border:"1px solid "+(active?theme.accent:C.line),background:active?theme.soft:C.white,color:active?theme.accent:C.ink,borderRadius:active?12:9,padding:active?"9px 12px":"8px 10px",fontFamily:"inherit",fontSize:12,fontWeight:active?850:700,cursor:"pointer",boxShadow:active?"0 0 0 1px "+theme.accent+"22":"none",transition:"all .15s ease"}}><span aria-hidden="true">{icon}</span> {label}</button>})}</nav>
     {error&&<div role="alert" style={{...card,borderColor:"#FECACA",background:"#FEF2F2",color:C.red,fontSize:13}}>{error} <button onClick={load} style={{marginInlineStart:10}}>إعادة تحميل</button></div>}
     {notice&&<div role="status" style={{...card,borderColor:"#A7F3D0",background:"#ECFDF5",color:C.green,fontSize:13}}>{notice}</div>}
     {loading?<div style={{...card,textAlign:"center",padding:50,color:C.muted}}>جارٍ تحميل قاعدة المعرفة…</div>:<>
@@ -351,7 +369,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
         </article>)}
       </section>}
     </>}
-    {editor&&<div role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!saving)setEditor(null)}} style={{position:"fixed",inset:0,zIndex:1000,background:"#0F172A88",display:"grid",placeItems:"center",padding:16,overflowY:"auto"}}><div role="dialog" aria-modal="true" aria-label="تعديل عنصر معرفة" style={{background:C.white,borderRadius:18,padding:22,width:"min(720px,100%)",maxHeight:"calc(100vh - 32px)",overflowY:"auto",boxSizing:"border-box"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><h2 style={{fontSize:19,margin:0}}>{editor.id?"تعديل":"إضافة"} {KINDS[editor.kind]||"عنصر وارد"}</h2><button onClick={()=>setEditor(null)} disabled={saving} style={{border:0,background:"transparent",fontSize:24,cursor:"pointer"}}>×</button></div><form onSubmit={saveItem} style={{display:"grid",gap:12}}>
+    {editor&&<div role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!saving)setEditor(null)}} style={{position:"fixed",inset:0,zIndex:1000,background:"#0F172A88",display:"grid",placeItems:"center",padding:16,overflowY:"auto"}}><div role="dialog" aria-modal="true" aria-label={(editor.id?"تعديل ":"إضافة ")+(KINDS[editor.kind]||"عنصر وارد")} style={{background:C.white,borderRadius:18,padding:22,width:"min(720px,100%)",maxHeight:"calc(100vh - 32px)",overflowY:"auto",boxSizing:"border-box",borderTop:"6px solid "+(KIND_THEME[editor.kind]?.accent||C.accent)}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:16,paddingBottom:14,borderBottom:"1px solid "+C.line}}><div style={{display:"flex",alignItems:"center",gap:12}}><span aria-hidden="true" style={{display:"grid",placeItems:"center",width:46,height:46,flexShrink:0,borderRadius:14,background:KIND_THEME[editor.kind]?.soft||C.soft,fontSize:24}}>{KIND_THEME[editor.kind]?.icon||"＋"}</span><div><h2 style={{fontSize:19,margin:0,color:KIND_THEME[editor.kind]?.accent||C.ink}}>{editor.id?"تعديل":"إضافة"} {KINDS[editor.kind]||"عنصر وارد"}</h2><p style={{fontSize:12,lineHeight:1.7,color:C.muted,margin:"5px 0 0"}}>{KIND_THEME[editor.kind]?.hint||"أدخل التفاصيل ثم احفظ التغييرات."}</p></div></div><button aria-label="إغلاق النموذج" onClick={()=>setEditor(null)} disabled={saving} style={{border:"1px solid "+C.line,borderRadius:9,background:C.white,fontSize:22,cursor:"pointer",width:36,height:36}}>×</button></div><form onSubmit={saveItem} style={{display:"grid",gap:12}}> 
       <Field label="العنوان *"><input required style={input} value={form.title||""} onChange={e=>setField("title",e.target.value)} placeholder="عنوان واضح يسهل استرجاعه"/></Field>
       {!isDemo&&storageMode==="normalized"&&<section style={{...card,display:"grid",gap:10}}>
         <strong style={{fontSize:13}}>المرفقات (حد أقصى 10 ميجابايت لكل ملف)</strong>
@@ -380,7 +398,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
       {editor.kind==="meeting"&&<><Field label="المشاركون"><input style={input} value={form.attendees||""} onChange={e=>setField("attendees",e.target.value)} placeholder="الأسماء مفصولة بفواصل"/></Field><Field label="القرارات"><textarea style={input} value={form.decisions||""} onChange={e=>setField("decisions",e.target.value)}/></Field><Field label="المتابعات (كل متابعة في سطر)"><textarea style={input} value={form.followups||""} onChange={e=>setField("followups",e.target.value)}/></Field></>}
       {editor.kind==="event"&&<><Field label="المكان"><input style={input} value={form.location||""} onChange={e=>setField("location",e.target.value)}/></Field><Field label="رابط الحجز / الفعالية"><input type="url" style={input} value={form.url||""} onChange={e=>setField("url",e.target.value)}/></Field></>}
       {editor.kind!=="inbox"&&<label style={{display:"flex",gap:8,alignItems:"center",fontSize:12,fontWeight:750}}><input type="checkbox" checked={!!form.pinned} onChange={e=>setField("pinned",e.target.checked)}/> تثبيت العنصر في الرئيسية</label>}
-      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:5}}><Btn secondary onClick={()=>setEditor(null)} disabled={saving}>إلغاء</Btn><Btn type="submit" disabled={saving||!esc(form.title)}>{saving?"جارٍ الحفظ…":"حفظ"}</Btn></div>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:5}}><Btn secondary onClick={()=>setEditor(null)} disabled={saving}>إلغاء</Btn><Btn type="submit" tone={editor.kind} disabled={saving||!esc(form.title)}>{saving?"جارٍ الحفظ…":(KIND_THEME[editor.kind]?.action||"حفظ")}</Btn></div>
     </form></div></div>}
   </div>;
 }
