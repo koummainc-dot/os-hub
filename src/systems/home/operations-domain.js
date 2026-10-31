@@ -29,8 +29,21 @@ export function nextHomeTaskDue(task, completedAt) {
   const next = new Date(date);
   if (rule.frequency === "daily") next.setUTCDate(next.getUTCDate() + 1);
   else if (rule.frequency === "weekly") next.setUTCDate(next.getUTCDate() + 7);
-  else if (rule.frequency === "monthly") next.setUTCMonth(next.getUTCMonth() + 1);
-  else if (rule.frequency === "yearly") next.setUTCFullYear(next.getUTCFullYear() + 1);
+  else if (rule.frequency === "monthly") {
+    const originalDay = next.getUTCDate();
+    next.setUTCDate(1);
+    next.setUTCMonth(next.getUTCMonth() + 1);
+    const lastDay = new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate();
+    next.setUTCDate(Math.min(originalDay, lastDay));
+  } else if (rule.frequency === "yearly") {
+    const month = next.getUTCMonth();
+    const day = next.getUTCDate();
+    next.setUTCDate(1);
+    next.setUTCFullYear(next.getUTCFullYear() + 1);
+    next.setUTCMonth(month);
+    const lastDay = new Date(Date.UTC(next.getUTCFullYear(), month + 1, 0)).getUTCDate();
+    next.setUTCDate(Math.min(day, lastDay));
+  }
   else if (rule.frequency === "interval") {
     const days = Number(rule.intervalDays);
     if (!Number.isInteger(days) || days < 1 || days > 365) throw new Error("HOME_TASK_INTERVAL_INVALID");
@@ -50,6 +63,7 @@ export function completeHomeTask(task, completion) {
       ...task,
       lastCompletedAt: isDone ? completedAt : (task.lastCompletedAt || null),
       nextDueAt: isDone ? nextHomeTaskDue(task, completedAt) : (task.nextDueAt || null),
+      dueDate: isDone ? (nextHomeTaskDue(task, completedAt)?.slice(0, 10) || null) : (task.dueDate || null),
       updatedAt: completedAt
     },
     completion: { ...completion, outcome, completedAt }
