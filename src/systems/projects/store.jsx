@@ -450,6 +450,8 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
         status: "Not Started",
         planning_bucket: "Inbox",
         issue_ids: [currentIssue.id],
+        prd_id: currentIssue.prd_id || (currentIssue.from_risk_id ? (data.risks.find((r) => r.id === currentIssue.from_risk_id) || {}).prd_id : null) || null,
+        discovery_ids: currentIssue.from_discovery_id ? [currentIssue.from_discovery_id] : [],
         created_by: me,
         sort_order: Date.now(),
       };
