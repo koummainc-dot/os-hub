@@ -17,6 +17,8 @@ assert.ok(entities.includes('const linkedRisks = data.risks.filter((risk) => ris
   entities.includes('{ id: "risks", label: "المخاطر", count: linkedRisks.length }') &&
   entities.includes('onClick={() => openProject(risk.project_id, "risks")}'),
   "PRD must show active linked risks and provide navigation to them");
+assert.ok(entities.includes('data.decisions.filter((decision) => D.isActiveRec(decision) && (decision.prd_id === d.id'),
+  "archived or deleted decisions must not appear as active PRD relationships");
 assert.ok(screens.includes('related.wins.map((x) => <Btn key={x.id} small onClick={() => setPage("wins")}>'),
   "stakeholder update achievement references must be actionable");
 assert.ok(screens.includes('{w.output_ids?.length > 0 && <Btn small onClick={() => w.project_id && openProject(w.project_id, "outputs")}>'),
