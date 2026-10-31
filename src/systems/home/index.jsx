@@ -119,7 +119,7 @@ function HomeSystem({ api, access, ws, isDemo = false, page = "dashboard", setPa
     const next = { ...data, items: [...data.items], movements: [...data.movements] };
     const linkedItems = {};
     for (const line of lines) {
-      const key = "purchase:" + request.id + ":" + line.id;
+      const key = "purchase:" + request.id + ":" + line.id + ":" + Number(line.receiptBaseQuantity ?? line.receivedQuantity ?? 0);
       const previous = next.movements.find(m => m.idempotencyKey === key);
       if (previous) { linkedItems[line.id] = previous.itemId; continue; }
       const receiptQuantity = Number(line.quantity) - Number(line.receivedQuantity || 0);
