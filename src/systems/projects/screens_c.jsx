@@ -11,7 +11,7 @@ import { TemplatePicker } from "./screens_b.jsx";
 
 // ═════ OKRs ═════
 export function Okrs() {
-  const { data, A: act, projectProgress, today, settings, people, me, toast, role, nameOf, confirm } = useP();
+  const { data, A: act, projectProgress, today, settings, people, me, toast, role, nameOf, confirm, idx, openTask } = useP();
   const [oForm, setOForm] = useState(null); const [kForm, setKForm] = useState(null); const [ci, setCi] = useState(null); const [hist, setHist] = useState(null); const [taskForm, setTaskForm] = useState(null); const [filter, setFilter] = useState("Active");
   const objs = data.objectives.filter((o) => filter === "all" || o.status === filter);
   const canEditObj = (o) => role === "Owner" || role === "Admin" || !o || o.owner_id === me || o.created_by === me;
