@@ -21,7 +21,7 @@ update public.workspace_records
  where workspace_id = '11111111-1111-4111-8111-111111111111'
    and system_id = 'projects' and collection = 'prds' and id = 'prd1';
 
-do $ begin
+do $block$ begin
   begin
     update public.workspace_records
        set data = jsonb_set(data, '{requirements}', '[{"id":"req2","title":"Requirement Two","status":"Verified"}]'::jsonb)
@@ -30,9 +30,9 @@ do $ begin
     raise exception 'expected Verified requirement without Final evidence rejection';
   exception when sqlstate '22023' then null;
   end;
-end $;
+end $block$;
 
-do $ begin
+do $block$ begin
   begin
     update public.workspace_records
        set data = jsonb_set(data, '{approval}', '"Draft"'::jsonb)
@@ -41,9 +41,9 @@ do $ begin
     raise exception 'expected last Final evidence downgrade rejection';
   exception when sqlstate '22023' then null;
   end;
-end $;
+end $block$;
 
-do $ begin
+do $block$ begin
   begin
     update public.workspace_records
        set data = jsonb_set(data, '{archived_at}', '"2026-10-31T00:00:00Z"'::jsonb)
@@ -52,9 +52,9 @@ do $ begin
     raise exception 'expected last Final evidence archive rejection';
   exception when sqlstate '22023' then null;
   end;
-end $;
+end $block$;
 
-do $ begin
+do $block$ begin
   begin
     update public.workspace_records
        set data = jsonb_set(data, '{requirements}', '[]'::jsonb)
@@ -63,9 +63,9 @@ do $ begin
     raise exception 'expected referenced PRD requirement removal rejection';
   exception when sqlstate '22023' then null;
   end;
-end $;
+end $block$;
 
-do $ begin
+do $block$ begin
   begin
     update public.workspace_records
        set data = jsonb_set(data, '{archived_at}', '"2026-10-31T00:00:00Z"'::jsonb)
@@ -74,7 +74,7 @@ do $ begin
     raise exception 'expected PRD archive with active references rejection';
   exception when sqlstate '22023' then null;
   end;
-end $;
+end $block$;
 
 -- A requirement cannot be linked without its PRD.
 do $$ begin
@@ -139,7 +139,7 @@ update public.workspace_records
  where workspace_id = '11111111-1111-4111-8111-111111111111'
    and system_id = 'projects' and collection = 'prds' and id = 'prd2';
 
-do $ begin
+do $block$ begin
   begin
     update public.workspace_records
        set data = jsonb_set(data, '{approval}', '"Draft"'::jsonb)
@@ -148,7 +148,7 @@ do $ begin
     raise exception 'expected last Final evidence downgrade rejection for requirement two';
   exception when sqlstate '22023' then null;
   end;
-end $;
+end $block$;
  ('11111111-1111-4111-8111-111111111111','projects','objectives','obj1','{"name":"Objective One","project_ids":["p1"]}'),
  ('11111111-1111-4111-8111-111111111111','projects','krs','kr1','{"name":"KR One","objective_id":"obj1","project_ids":["p1"],"task_ids":["task1"]}'),
  ('11111111-1111-4111-8111-111111111111','projects','risks','risk1','{"project_id":"p1","title":"Risk One","task_ids":["task1"],"prd_id":"prd1"}'),
