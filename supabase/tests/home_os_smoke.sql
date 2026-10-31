@@ -350,6 +350,7 @@ set role authenticated;
 do $$
 declare
   v_events jsonb;
+  v_today_events jsonb;
 begin
   v_events := public.home_finance_outbox_load('10000000-0000-4000-8000-000000000001');
   if jsonb_array_length(v_events) < 3 then
@@ -362,6 +363,13 @@ begin
       and e->'payload'->>'amount' is not null
   ) then
     raise exception 'HOME_FINANCE_OUTBOX_PURCHASE_PAYLOAD_INVALID';
+  end if;
+  v_today_events := public.home_today_outbox_load('10000000-0000-4000-8000-000000000001');
+  if not exists (
+    select 1 from jsonb_array_elements(v_today_events) e
+    where e->>'type'='home.task.completed' and e->'payload'->>'taskTitle'='Relational task'
+  ) then
+    raise exception 'HOME_TODAY_OUTBOX_TASK_EVENT_MISSING';
   end if;
 end $$;
 
