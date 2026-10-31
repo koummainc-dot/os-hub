@@ -96,7 +96,7 @@ function osAccessEntries(access){
 // ── Data API (per workspace · system · part) ──────────────────────────
 function osLocalKey(wsId,sysId,part){return "os_cache_"+wsId+"_"+sysId+"_"+part;}
 function osMakeApi(wsId,systemId,part){
-  part=part||"main"; const lk=osLocalKey(wsId,systemId,part); let uidCache=null; let homeOpsVersion=null;
+  part=part||"main"; const lk=osLocalKey(wsId,systemId,part); let uidCache=null; let homeOpsVersion=null; let homeVersion=null;
   const readLocal=(err)=>{try{const ls=localStorage.getItem(lk);if(ls)return{data:JSON.parse(ls),source:"localStorage",updatedAt:null,error:err||null};}catch(e){}return{data:null,source:"unavailable",updatedAt:null,error:err||null};};
   return {
     workspaceId: wsId,
@@ -122,22 +122,29 @@ function osMakeApi(wsId,systemId,part){
     },
     async loadNormalizedHome(){
       try{
-        const {data,error}=await supabase.rpc("home_load_snapshot",{p_workspace_id:wsId});
+        const {data,error}=await supabase.rpc("home_load_snapshot_v2",{p_workspace_id:wsId});
         if(error){
-          if(["PGRST202","42883"].includes(error.code)||/function .*home_load_snapshot.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_load_snapshot_v2.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
           return {available:true,error};
         }
-        return {available:true,data,source:"normalized"};
+        homeVersion=Number.isInteger(Number(data?._version))?Number(data._version):0;
+        return {available:true,data,source:"normalized",version:homeVersion};
       }catch(error){return {available:true,error};}
     },
     async saveNormalizedHome(snapshot){
       try{
-        const {data,error}=await supabase.rpc("home_save_snapshot",{p_workspace_id:wsId,p_snapshot:snapshot});
+        const expectedVersion=Number.isInteger(homeVersion)?homeVersion:Number(snapshot?._version??0);
+        const {data,error}=await supabase.rpc("home_save_snapshot_v2",{
+          p_workspace_id:wsId,
+          p_snapshot:snapshot,
+          p_expected_version:expectedVersion
+        });
         if(error){
-          if(["PGRST202","42883"].includes(error.code)||/function .*home_save_snapshot.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
-          return {available:true,ok:false,error};
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_save_snapshot_v2.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,ok:false,conflict:error.code==="40001"||/HOME_SNAPSHOT_CONFLICT/.test(error.message||""),error};
         }
-        return {available:true,ok:true,updatedAt:data||null};
+        homeVersion=Number.isInteger(Number(data?.version))?Number(data.version):expectedVersion+1;
+        return {available:true,ok:true,updatedAt:data?.updatedAt||null,version:homeVersion};
       }catch(error){return {available:true,ok:false,error};}
     },
     async loadHomeOperations(){
