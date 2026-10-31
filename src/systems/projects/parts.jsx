@@ -149,7 +149,7 @@ export function TaskSheet() {
     if (!String(v.name || "").trim()) throw new Error("اسم المخرج مطلوب");
     const prd = v.prd_id ? data.prds.find((x) => x.id === v.prd_id) : null;
     if (prd && prd.project_id !== t.project_id) throw new Error("المواصفة يجب أن تتبع نفس مشروع المهمة");
-    if (v.prd_requirement_id && (!prd || !(prd.requirements || []).some((r) => r.id === v.prd_requirement_id && r.status !== "Deprecated"))) throw new Error("المتطلب المرتبط يجب أن يكون ضمن المواصفة المختارة.");
+    if (v.prd_requirement_id && (!prd || !(prd.requirements || []).some((r) => r.id === v.prd_requirement_id))) throw new Error("المتطلب المرتبط يجب أن يكون ضمن المواصفة المختارة.");
     const existing = v.id ? data.outputs.find((x) => x.id === v.id) : null;
     if (existing?.approval === "Final") throw new Error("المخرج النهائي مقفل؛ أنشئ مخرجاً جديداً بدل تعديل النسخة المعتمدة.");
     if (v.approval === "Final" && !can("output.approve", project)) throw new Error("لا تملك صلاحية اعتماد المخرج نهائياً");
