@@ -68,4 +68,8 @@ assert.ok(store.slice(discoveryIssueStart, discoveryIssueEnd).includes('!can("di
   "discovery-to-issue conversion requires issue write permission");
 assert.ok(entities.includes('filter(([kind]) => canConvertDiscovery(kind, conv))'),
   "discovery conversion choices must be filtered by target permissions");
+assert.ok(entities.includes('const canWriteDiscovery = can("discovery.write")') &&
+  entities.includes('onMove={canWriteDiscovery ? move : undefined}') &&
+  entities.includes('footerExtra={form.id && canWriteDiscovery ?'),
+  "discovery create/edit/move/convert UI must respect discovery-write permission");
 console.log("✓ Projects relationship permission, retry, and action contracts passed");
