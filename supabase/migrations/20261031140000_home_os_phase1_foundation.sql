@@ -188,23 +188,23 @@ begin
   if jsonb_typeof(p_snapshot) <> 'object' then raise exception 'HOME_INVALID_SNAPSHOT'; end if;
 
   insert into public.home_properties(id,workspace_id,name,address,notes,is_default,deleted_at,created_at,updated_at,created_by,updated_by)
-  select x.id,p_workspace_id,x.name,coalesce(x.address,''),coalesce(x.notes,''),coalesce(x.is_default,false),x.deleted_at,coalesce(x.created_at,now()),now(),auth.uid(),auth.uid()
-  from jsonb_to_recordset(coalesce(p_snapshot->'properties','[]'::jsonb)) as x(id uuid,name text,address text,notes text,is_default boolean,deleted_at timestamptz,created_at timestamptz)
+  select x.id,p_workspace_id,x.name,coalesce(x.address,''),coalesce(x.notes,''),coalesce(x."isDefault",false),x."deletedAt",coalesce(x."createdAt",now()),now(),auth.uid(),auth.uid()
+  from jsonb_to_recordset(coalesce(p_snapshot->'properties','[]'::jsonb)) as x(id uuid,name text,address text,notes text,"isDefault" boolean,"deletedAt" timestamptz,"createdAt" timestamptz)
   on conflict (workspace_id,id) do update set name=excluded.name,address=excluded.address,notes=excluded.notes,is_default=excluded.is_default,deleted_at=excluded.deleted_at,updated_at=now(),updated_by=auth.uid(),version=home_properties.version+1;
 
   insert into public.home_rooms(id,workspace_id,property_id,name,room_type,floor,notes,deleted_at,created_at,updated_at,created_by,updated_by)
-  select x.id,p_workspace_id,x.property_id,x.name,x.room_type,coalesce(x.floor,''),coalesce(x.notes,''),x.deleted_at,coalesce(x.created_at,now()),now(),auth.uid(),auth.uid()
-  from jsonb_to_recordset(coalesce(p_snapshot->'rooms','[]'::jsonb)) as x(id uuid,property_id uuid,name text,room_type text,floor text,notes text,deleted_at timestamptz,created_at timestamptz)
+  select x.id,p_workspace_id,x."propertyId",x.name,x.type,coalesce(x.floor,''),coalesce(x.notes,''),x."deletedAt",coalesce(x."createdAt",now()),now(),auth.uid(),auth.uid()
+  from jsonb_to_recordset(coalesce(p_snapshot->'rooms','[]'::jsonb)) as x(id uuid,"propertyId" uuid,name text,type text,floor text,notes text,"deletedAt" timestamptz,"createdAt" timestamptz)
   on conflict (workspace_id,id) do update set property_id=excluded.property_id,name=excluded.name,room_type=excluded.room_type,floor=excluded.floor,notes=excluded.notes,deleted_at=excluded.deleted_at,updated_at=now(),updated_by=auth.uid(),version=home_rooms.version+1;
 
   insert into public.home_inventory_items(id,workspace_id,property_id,room_id,name,item_type,category,condition,unit,quantity,minimum_quantity,unit_price,currency,purchase_date,warranty_until,expiry_date,model,serial_number,notes,deleted_at,created_at,updated_at,created_by,updated_by)
-  select x.id,p_workspace_id,x.property_id,nullif(x.room_id,'00000000-0000-0000-0000-000000000000'::uuid),x.name,x.item_type,coalesce(x.category,''),x.condition,x.unit,x.quantity,coalesce(x.minimum_quantity,0),x.unit_price,coalesce(x.currency,'EGP'),x.purchase_date,x.warranty_until,x.expiry_date,coalesce(x.model,''),coalesce(x.serial_number,''),coalesce(x.notes,''),x.deleted_at,coalesce(x.created_at,now()),now(),auth.uid(),auth.uid()
-  from jsonb_to_recordset(coalesce(p_snapshot->'items','[]'::jsonb)) as x(id uuid,property_id uuid,room_id uuid,name text,item_type text,category text,condition text,unit text,quantity numeric,minimum_quantity numeric,unit_price numeric,currency text,purchase_date date,warranty_until date,expiry_date date,model text,serial_number text,notes text,deleted_at timestamptz,created_at timestamptz)
+  select x.id,p_workspace_id,x."propertyId",x."roomId",x.name,x.type,coalesce(x.category,''),x.condition,x.unit,x.quantity,coalesce(x."minimumQuantity",0),x."unitPrice",coalesce(x.currency,'EGP'),x."purchaseDate",x."warrantyUntil",x."expiryDate",coalesce(x.model,''),coalesce(x."serialNumber",''),coalesce(x.notes,''),x."deletedAt",coalesce(x."createdAt",now()),now(),auth.uid(),auth.uid()
+  from jsonb_to_recordset(coalesce(p_snapshot->'items','[]'::jsonb)) as x(id uuid,"propertyId" uuid,"roomId" uuid,name text,type text,category text,condition text,unit text,quantity numeric,"minimumQuantity" numeric,"unitPrice" numeric,currency text,"purchaseDate" date,"warrantyUntil" date,"expiryDate" date,model text,"serialNumber" text,notes text,"deletedAt" timestamptz,"createdAt" timestamptz)
   on conflict (workspace_id,id) do update set property_id=excluded.property_id,room_id=excluded.room_id,name=excluded.name,item_type=excluded.item_type,category=excluded.category,condition=excluded.condition,unit=excluded.unit,quantity=excluded.quantity,minimum_quantity=excluded.minimum_quantity,unit_price=excluded.unit_price,currency=excluded.currency,purchase_date=excluded.purchase_date,warranty_until=excluded.warranty_until,expiry_date=excluded.expiry_date,model=excluded.model,serial_number=excluded.serial_number,notes=excluded.notes,deleted_at=excluded.deleted_at,updated_at=now(),updated_by=auth.uid(),version=home_inventory_items.version+1;
 
   insert into public.home_inventory_movements(id,workspace_id,item_id,movement_type,quantity,occurred_at,note,idempotency_key,to_room_id,created_by)
-  select x.id,p_workspace_id,x.item_id,x.movement_type,x.quantity,coalesce(x.occurred_at,now()),coalesce(x.note,''),x.idempotency_key,x.to_room_id,auth.uid()
-  from jsonb_to_recordset(coalesce(p_snapshot->'movements','[]'::jsonb)) as x(id uuid,item_id uuid,movement_type text,quantity numeric,occurred_at timestamptz,note text,idempotency_key text,to_room_id uuid)
+  select x.id,p_workspace_id,x."itemId",x.type,x.quantity,coalesce(x."occurredAt",now()),coalesce(x.note,''),x."idempotencyKey",x."toRoomId",auth.uid()
+  from jsonb_to_recordset(coalesce(p_snapshot->'movements','[]'::jsonb)) as x(id uuid,"itemId" uuid,type text,quantity numeric,"occurredAt" timestamptz,note text,"idempotencyKey" text,"toRoomId" uuid)
   on conflict (workspace_id,idempotency_key) do nothing;
 
   insert into public.home_settings(workspace_id,currency,timezone,preferences,updated_at,updated_by)
