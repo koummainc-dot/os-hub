@@ -21,11 +21,11 @@ export function createHomeRepository(api) {
         if (!Array.isArray(aggregate[key])) throw new Error(`Invalid Home data: ${key} must be an array.`);
       }
       if (!aggregate.settings || typeof aggregate.settings !== "object") throw new Error("Invalid Home data: settings must be an object.");
-      const propertyIds = new Set(aggregate.properties.filter(x => !x.deletedAt).map(x => x.id));
+      const propertyIds = new Set(aggregate.properties.map(x => x.id));
       for (const room of aggregate.rooms.filter(x => !x.deletedAt)) {
         if (!propertyIds.has(room.propertyId)) throw new Error("HOME_ROOM_PROPERTY_MISSING");
       }
-      const itemIds = new Set(aggregate.items.filter(x => !x.deletedAt).map(x => x.id));
+      const itemIds = new Set(aggregate.items.map(x => x.id));
       for (const movement of aggregate.movements) {
         if (!itemIds.has(movement.itemId)) throw new Error("HOME_MOVEMENT_ITEM_MISSING");
       }
