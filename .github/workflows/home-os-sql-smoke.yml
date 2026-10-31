@@ -60,5 +60,6 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031240000_home_finance_outbox_reader.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031250000_home_today_outbox_reader.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031260000_home_operations_reconciliation_report.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031270000_home_finance_outbox_ack.sql
       - name: Verify Home snapshot, RLS, movement and receipt idempotency
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/home_os_smoke.sql
