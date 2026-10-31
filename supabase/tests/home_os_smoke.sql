@@ -280,6 +280,26 @@ begin
 end $$;
 set role authenticated;
 
+do $$
+declare
+  v_data jsonb;
+  v_version integer;
+begin
+  v_data := public.home_operations_load_v2('10000000-0000-4000-8000-000000000001');
+  v_version := coalesce((v_data->>'_version')::integer,0);
+  perform public.home_operations_save_v2(
+    '10000000-0000-4000-8000-000000000001', v_data, v_version
+  );
+  begin
+    perform public.home_operations_save_v2(
+      '10000000-0000-4000-8000-000000000001', v_data, v_version
+    );
+    raise exception 'HOME_CONCURRENCY_CONFLICT_NOT_RAISED';
+  exception when serialization_failure then
+    null;
+  end;
+end $$;
+
 select set_config('test.access_level','view',false);
 do $$
 begin
