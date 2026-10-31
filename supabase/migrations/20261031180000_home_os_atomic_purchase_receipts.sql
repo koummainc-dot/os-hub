@@ -97,6 +97,7 @@ declare
   v_received numeric;
   v_room_id uuid;
   v_existing public.home_purchase_receipts%rowtype;
+  v_now timestamptz := now();
 begin
   if auth.uid() is null or public.ws_access_level(p_workspace_id, 'home', 'main') <> 'edit' then
     raise exception 'HOME_ACCESS_DENIED' using errcode = '42501';
@@ -194,9 +195,56 @@ begin
     where workspace_id = p_workspace_id and request_id = p_request_id;
   v_status := case when v_total > 0 and v_received >= v_total then 'received' else 'partially_received' end;
   update public.home_purchase_requests
-    set status = v_status, received_at = case when v_status = 'received' then coalesce(received_at, now()) else received_at end,
-        updated_at = now()
+    set status = v_status, received_at = case when v_status = 'received' then coalesce(received_at, v_now) else received_at end,
+        updated_at = v_now
     where workspace_id = p_workspace_id and id = p_request_id;
+
+  -- Keep the legacy UI snapshot mirror in the same transaction until the operations
+  -- screens are fully moved to relational reads/writes. A failure rolls back receipt,
+  -- stock movements, outbox, and mirror update together.
+  update public.home_operations_snapshot s
+    set data = jsonb_set(
+      jsonb_set(
+        s.data,
+        '{purchaseItems}',
+        coalesce((
+          select jsonb_agg(
+            case
+              when p->>'requestId' = p_request_id::text
+                and exists(select 1 from jsonb_array_elements(p_lines) x where x->>'itemId' = p->>'id')
+              then jsonb_set(
+                jsonb_set(p, '{receivedQuantity}',
+                  to_jsonb(coalesce(nullif(p->>'receivedQuantity','')::numeric,0) + (
+                    select coalesce(sum((x->>'quantity')::numeric),0)
+                    from jsonb_array_elements(p_lines) x where x->>'itemId' = p->>'id'
+                  )), true),
+                '{inventoryItemId}', to_jsonb(v_linked->>(p->>'id')), true
+              )
+              else p
+            end
+          )
+          from jsonb_array_elements(coalesce(s.data->'purchaseItems','[]'::jsonb)) p
+        ), '[]'::jsonb),
+        true
+      ),
+      '{purchaseRequests}',
+      coalesce((
+        select jsonb_agg(
+          case when p->>'id' = p_request_id::text
+            then jsonb_set(jsonb_set(jsonb_set(p,'{status}',to_jsonb(v_status),true),
+              '{updatedAt}',to_jsonb(v_now),true),
+              '{receivedAt}',to_jsonb(case when v_status = 'received' then v_now else nullif(p->>'receivedAt','') end),true)
+            else p
+          end
+        )
+        from jsonb_array_elements(coalesce(s.data->'purchaseRequests','[]'::jsonb)) p
+      ), '[]'::jsonb),
+      true
+    ),
+    version = version + 1,
+    updated_at = v_now,
+    updated_by = auth.uid()
+    where s.workspace_id = p_workspace_id;
 
   v_response := jsonb_build_object(
     'receiptId', v_receipt_id,
