@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { loadNormalizedKnowledge, saveNormalizedKnowledge, hasKnowledgeContent, listKnowledgeAttachments, uploadKnowledgeAttachment, deleteKnowledgeAttachment, validateKnowledgeExternalLink, listKnowledgeNotifications, markKnowledgeNotificationRead } from "./repository.js";
+import { subscribeOSEvents } from "../integrationEvents.js";
+import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
 
 const C = { ink:"#172033", muted:"#64748B", line:"#E2E8F0", bg:"#F8FAFC", accent:"#0284C7", soft:"#E0F2FE", green:"#047857", amber:"#B45309", red:"#B91C1C", white:"#FFFFFF" };
 const SECTIONS = [
@@ -82,6 +84,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   const [attachments,setAttachments]=useState([]);
   const [attachmentBusy,setAttachmentBusy]=useState(false);
   const [notifications,setNotifications]=useState([]);
+  const [learningActivity,setLearningActivity]=useState([]);
   const [showArchived,setShowArchived]=useState(false);
   const canEdit=!!isDemo || access?.level==="edit" || access?.manage || access?.owner;
   const section=SECTIONS.some(s=>s[0]===page)?page:"hub";
@@ -92,6 +95,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
     if(result.ok)setNotifications(result.notifications);
   },[isDemo,api?.workspaceId,storageMode]);
   useEffect(()=>{ refreshNotifications(); },[refreshNotifications]);
+  useEffect(()=>subscribeOSEvents(event=>setLearningActivity(items=>[event,...items.filter(x=>x.id!==event.id)].slice(0,3)),{workspaceId:api?.workspaceId||"default",source:"learning",types:["learning.study_session.completed","learning.lesson.completed","learning.course.completed"]}),[api?.workspaceId]);
   useEffect(()=>{
     let cancelled=false;
     if(!editor?.id || isDemo || !api?.workspaceId || storageMode!=="normalized") { setAttachments([]); return; }
@@ -151,6 +155,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
     ...data.events.map(x=>({...x,kind:"event"})),
     ...data.inbox.map(x=>({...x,kind:"inbox"}))
   ],[data]);
+  const reviewOverview=useMemo(()=>{const rows=allItems.filter(x=>x.status!=="archived"&&x.reviewAt).map(x=>({...x,reviewDate:String(x.reviewAt).slice(0,10)}));return {overdue:rows.filter(x=>x.reviewDate<today()).sort((a,b)=>a.reviewDate.localeCompare(b.reviewDate)),due:rows.filter(x=>x.reviewDate===today()),upcoming:rows.filter(x=>x.reviewDate>today()).sort((a,b)=>a.reviewDate.localeCompare(b.reviewDate)).slice(0,8)};},[allItems]);
   const categoryName=id=>data.categories.find(c=>c.id===id)?.name||"بدون تصنيف";
   const filtered=useMemo(()=>{
     let rows=allItems.filter(x=>showArchived||x.status!=="archived");
@@ -249,6 +254,20 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
     const next={...data,[key]:data[key].map(x=>x.id===item.id?{...x,...patch,updatedAt:isoNow()}:x)};
     await persist(next);
   };
+  const recordReview=async(item,rating)=>{
+    if(!canEdit)return;
+    const previous=Math.max(0,Number(item.reviewIntervalDays)||0);
+    const ease=Math.max(1.3,Math.min(3,Number(item.reviewEase)||2.3));
+    const interval=rating==="again"?1:rating==="hard"?Math.max(1,Math.round(previous?previous*1.2:2)):rating==="good"?Math.max(2,Math.round(previous?previous*ease:3)):Math.max(4,Math.round(previous?(previous*(ease+0.5)):7));
+    const nextDate=new Date(today()+"T12:00:00Z");nextDate.setUTCDate(nextDate.getUTCDate()+interval);
+    const reviewAt=nextDate.toISOString().slice(0,10);
+    const reviewedAt=isoNow();
+    const history=Array.isArray(item.reviewHistory)?item.reviewHistory:[];
+    const sharedLog={id:uid(),workspaceId:api?.workspaceId||"demo",itemType:"knowledge",itemId:item.id,title:item.title||"",rating,reviewedAt,reviewDate:today(),previousDueDate:item.reviewAt||null,nextReviewDate:reviewAt,intervalDays:interval,sourceUrl:item.url||null};
+    try{const key="os-hub:shared-review-history:"+(api?.workspaceId||"demo");const existing=JSON.parse(localStorage.getItem(key)||"[]");localStorage.setItem(key,JSON.stringify([...existing,sharedLog].slice(-1000)));window.dispatchEvent(new CustomEvent("os-hub:review-recorded",{detail:sharedLog}));}catch{}
+
+    await mutateItem(item,{reviewAt,reviewIntervalDays:interval,reviewEase:rating==="again"?Math.max(1.3,ease-0.2):rating==="hard"?Math.max(1.3,ease-0.15):rating==="easy"?Math.min(3,ease+0.1):ease,reviewCount:(Number(item.reviewCount)||0)+1,lastReviewRating:rating,lastReviewedAt:reviewedAt,reviewHistory:[...history,{id:uid(),rating,reviewedAt,reviewDate:today(),nextReviewDate:reviewAt,intervalDays:interval,titleSnapshot:item.title||"",kind:item.kind||"resource"}].slice(-200)});
+  };
   const removeItem=async item=>{
     if(!canEdit||!window.confirm("أرشفة هذا العنصر؟ سيظل محفوظًا ويمكن إظهاره من العناصر المؤرشفة."))return;
     await mutateItem(item,{status:"archived",archivedAt:isoNow()});
@@ -274,7 +293,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   const newKind=section==="ideas"?"idea":section==="notes"?"note":section==="meetings"?"meeting":section==="events"?"event":section==="inbox"?"inbox":"resource";
   const addLabel=({resource:"＋ حفظ مصدر",idea:"＋ فكرة جديدة",note:"＋ ملاحظة",meeting:"＋ اجتماع",event:"＋ فعالية",inbox:"＋ إضافة للوارد"})[newKind];
   const setField=(key,value)=>setForm(f=>({...f,[key]:value}));
-  return <div dir="rtl" style={{color:C.ink,fontFamily:"inherit",display:"grid",gap:16,maxWidth:1400,margin:"0 auto"}}>
+  return <div dir="rtl" style={{color:C.ink,fontFamily:"inherit",display:"grid",gap:16,maxWidth:1400,margin:"0 auto"}}>{learningActivity.length>0&&<div role="status" style={{...card,borderColor:"#DDD6FE",background:"#F5F3FF",color:"#5B21B6"}}><div style={{fontWeight:800,marginBottom:6}}>🔗 نشاط جديد من Learning OS</div>{learningActivity.map(event=><div key={event.id} style={{fontSize:12,marginTop:4}}>{event.type==="learning.study_session.completed"?`تم تسجيل جلسة دراسة — ${Number(event.payload?.minutes)||0} دقيقة`:event.type==="learning.lesson.completed"?`تم إكمال درس: ${event.payload?.lessonName||"درس"}`:`تم إكمال دورة: ${event.payload?.courseName||"دورة"}`}</div>)}<div style={{marginTop:8}}><Btn secondary onClick={()=>setLearningActivity([])}>إخفاء</Btn></div></div>}
     <header style={{...card,background:"linear-gradient(135deg,#F0F9FF,#FFFFFF)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
       <div><div style={{fontSize:11,color:C.accent,fontWeight:850,letterSpacing:.5}}>KNOWLEDGE OS · CAPTURE → CLARIFY → ORGANIZE → USE</div><h1 style={{fontSize:25,margin:"7px 0"}}>المعرفة والموارد</h1><p style={{margin:0,fontSize:13,color:C.muted,lineHeight:1.8}}>مكان واحد للروابط والمصادر والأفكار ومحاضر الاجتماعات والفعاليات، مع بحث وربط وتصنيف وأرشفة.</p></div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{canEdit&&<Btn onClick={()=>openNew(newKind)}>{addLabel}</Btn>}<Btn secondary onClick={exportJson}>تصدير نسخة JSON</Btn></div>
@@ -303,10 +322,11 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
           <Field label="تصفية"><select style={input} value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">الكل</option>{Object.entries(KINDS).map(([k,v])=><option key={k} value={k}>{v}</option>)}{Object.entries(STATUSES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></Field>
           <label style={{fontSize:11,color:C.muted,display:"flex",gap:6,alignItems:"center"}}><input type="checkbox" checked={showArchived} onChange={e=>setShowArchived(e.target.checked)}/> إظهار المؤرشف</label>
         </div>
+        {section==="hub"&&<section style={{...card,display:"grid",gap:10,marginBottom:12}}><div><h3 style={{margin:"0 0 4px",fontSize:16}}>مركز المراجعات</h3><div style={{fontSize:12,color:C.muted}}>مواعيد مراجعة المصادر والملاحظات.</div></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>{[["متأخرة",reviewOverview.overdue.length,C.red],["اليوم",reviewOverview.due.length,C.amber],["قادمة",reviewOverview.upcoming.length,C.green]].map(([label,count,color])=><div key={label} style={{border:"1px solid "+C.line,borderRadius:10,padding:10}}><div style={{fontSize:12,color:C.muted}}>{label}</div><b style={{fontSize:22,color}}>{count}</b></div>)}</div>{[["المتأخرة",reviewOverview.overdue],["مستحقة اليوم",reviewOverview.due],["القادمة",reviewOverview.upcoming]].map(([label,rows])=>rows.length>0&&<div key={label} style={{display:"grid",gap:6}}><b style={{fontSize:13}}>{label}</b>{rows.slice(0,4).map(row=><div key={row.kind+row.id} style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center",flexWrap:"wrap",borderTop:"1px solid "+C.line,paddingTop:6}}><span style={{fontSize:13}}>{row.title} <small style={{color:C.muted}}>({row.reviewDate})</small></span><div style={{display:"flex",gap:8}}>{row.url&&<a href={row.url} target="_blank" rel="noreferrer" style={{fontSize:12,color:C.accent}}>فتح المصدر ↗</a>}<Btn onClick={()=>go(row.kind==="resource"?"bookmarks":row.kind==="idea"?"ideas":row.kind==="note"?"notes":row.kind==="meeting"?"meetings":row.kind==="event"?"events":"inbox")}>عرض</Btn></div></div>)}</div>)}</section>}
         {filtered.length===0?<div style={{...card,textAlign:"center",padding:40,color:C.muted}}>لا توجد عناصر مطابقة. احفظ مصدرًا أو أضف فكرة جديدة، أو غيّر عوامل البحث.</div>:filtered.map(item=><article key={item.kind+":"+item.id} style={{...card,display:"grid",gap:10}}>
           <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"start",flexWrap:"wrap"}}>
-            <div style={{minWidth:0,flex:1}}><div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}><Tag>{KINDS[item.kind]||"وارد"}</Tag><Tag>{STATUSES[item.status]||item.status||"نشط"}</Tag>{item.sourceType&&<Tag>{item.sourceType}</Tag>}{item.pinned&&<Tag>مثبّت</Tag>}</div><h3 style={{fontSize:16,margin:"9px 0 5px",overflowWrap:"anywhere"}}>{item.title}</h3>{item.url&&<a href={item.url} target="_blank" rel="noreferrer" style={{fontSize:12,color:C.accent,overflowWrap:"anywhere"}}>{item.url}</a>}<p style={{fontSize:13,color:C.muted,lineHeight:1.8,margin:"6px 0"}}>{item.summary||"لا يوجد ملخص بعد."}</p></div>
-            {canEdit&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}><Btn secondary onClick={()=>openEdit(item)}>تعديل</Btn><Btn secondary onClick={()=>mutateItem(item,{pinned:!item.pinned})}>{item.pinned?"إلغاء التثبيت":"تثبيت"}</Btn>{item.status==="inbox"||item.status==="unread"?<Btn onClick={()=>mutateItem(item,{status:"processed",readAt:today()})}>تمت المراجعة</Btn>:null}{item.status==="archived"?<Btn onClick={()=>mutateItem(item,{status:"active",archivedAt:null})}>استعادة</Btn>:<Btn secondary onClick={()=>removeItem(item)}>أرشفة</Btn>}</div>}
+            <div style={{minWidth:0,flex:1}}><div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}><Tag>{KINDS[item.kind]||"وارد"}</Tag><Tag>{STATUSES[item.status]||item.status||"نشط"}</Tag>{item.sourceType&&<Tag>{item.sourceType}</Tag>}{item.pinned&&<Tag>مثبّت</Tag>}</div><h3 style={{fontSize:16,margin:"9px 0 5px",overflowWrap:"anywhere"}}>{item.title}</h3>{item.url&&<a href={item.url} target="_blank" rel="noreferrer" style={{fontSize:12,color:C.accent,overflowWrap:"anywhere"}}>{item.url}</a>}{item.url&&(item.sourceType==="فيديو"||["youtube","vimeo","loom","file"].includes(getMediaEmbed(item.url)?.provider))&&<MediaEmbed url={item.url} title={item.title} workspaceId={api?.workspaceId||"demo"} itemId={item.id}/>}<p style={{fontSize:13,color:C.muted,lineHeight:1.8,margin:"6px 0"}}>{item.summary||"لا يوجد ملخص بعد."}</p></div>
+            {canEdit&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}><Btn secondary onClick={()=>openEdit(item)}>تعديل</Btn><Btn secondary onClick={()=>mutateItem(item,{pinned:!item.pinned})}>{item.pinned?"إلغاء التثبيت":"تثبيت"}</Btn>{item.status==="inbox"||item.status==="unread"?<Btn onClick={()=>mutateItem(item,{status:"processed",readAt:today()})}>تمت المراجعة</Btn>:null}{canEdit&&item.status!=="archived"&&<><Btn secondary onClick={()=>recordReview(item,"again")}>مراجعة: لم أتذكر</Btn><Btn secondary onClick={()=>recordReview(item,"hard")}>صعب</Btn><Btn secondary onClick={()=>recordReview(item,"good")}>جيد</Btn><Btn secondary onClick={()=>recordReview(item,"easy")}>سهل</Btn></>}{item.status==="archived"?<Btn onClick={()=>mutateItem(item,{status:"active",archivedAt:null})}>استعادة</Btn>:<Btn secondary onClick={()=>removeItem(item)}>أرشفة</Btn>}</div>}
           </div>
           <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>{item.categoryId&&<Tag>{categoryName(item.categoryId)}</Tag>}{item.date&&<Tag>📅 {item.date}{item.startTime?` · ${item.startTime}`:""}{item.endTime?`–${item.endTime}`:""}</Tag>}{item.priority&&<Tag>الأولوية: {PRIORITIES[item.priority]||item.priority}</Tag>}{item.reviewAt&&<Tag>مراجعة: {item.reviewAt}</Tag>}{item.author&&<Tag>✍ {item.author}</Tag>}{item.rating&&<Tag>★ {item.rating}/5</Tag>}{(item.tags||[]).map(t=><Tag key={t}>#{t}</Tag>)}</div>
           {(item.body||item.notes||item.nextAction||item.relatedSystem||(item.relatedItemIds||[]).length>0)&&<div style={{background:C.bg,borderRadius:10,padding:12,fontSize:12,lineHeight:1.8}}>{item.body&&<div><b>نص الملاحظة:</b> {item.body}</div>}{item.notes&&<div><b>ملاحظات مستخرجة:</b> {item.notes}</div>}{item.nextAction&&<div><b>الخطوة التالية:</b> {item.nextAction}</div>}{item.relatedSystem&&<div><b>ارتباط خارجي:</b> {item.relatedSystem}{item.relatedId?(" · "+item.relatedId):""} (مرجع نصي؛ لا ينشئ علاقة قاعدة بيانات تلقائيًا)</div>}{(item.relatedItemIds||[]).length>0&&<div><b>عناصر مرتبطة:</b> {(item.relatedItemIds||[]).map(id=>allItems.find(x=>x.id===id)?.title||id).join("، ")}</div>}</div>}
