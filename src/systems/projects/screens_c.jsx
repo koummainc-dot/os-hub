@@ -317,7 +317,7 @@ export function Meetings() {
     : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>{visible.map(m=>{
       const project=m.relatedSystem==="projects"?projectsById[m.relatedId]:null;
       return <article key={m.id} style={{...S.card,padding:14}}>
-        <div style={{display:"flex",gap:8,alignItems:"flex-start"}}><div style={{fontSize:23}}>🗓️</div><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:14}}>{m.title}</div><div style={{fontSize:11,color:C.muted,marginTop:4}}>{m.date||"بدون تاريخ"}{m.startTime?" · "+m.startTime:""}{m.endTime?"–"+m.endTime:""}</div></div><Chip color={project?C.success:C.muted}>{project?"مرتبط بمشروع":"غير مرتبط"}</Chip></div>
+        <div style={{display:"flex",gap:8,alignItems:"flex-start"}}><div style={{fontSize:23}}>🗓️</div><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:14}}>{m.title}</div><div style={{fontSize:11,color:C.muted,marginTop:4}}>{m.date||"بدون تاريخ"}{m.startTime?" · "+m.startTime:""}{m.endTime?"–"+m.endTime:""}</div></div><Chip color={project?C.ok:C.muted}>{project?"مرتبط بمشروع":"غير مرتبط"}</Chip></div>
         <div style={{marginTop:9,fontSize:12,color:project?C.ink:C.muted}}>المشروع: <b>{project?.name||"اجتماع عام"}</b></div>
         {m.summary&&<p style={{fontSize:12,lineHeight:1.8,margin:"8px 0"}}>{m.summary}</p>}
         {Array.isArray(m.attendees)&&m.attendees.length>0&&<div style={{fontSize:11,color:C.dim,marginTop:5}}>المشاركون: {m.attendees.join("، ")}</div>}
