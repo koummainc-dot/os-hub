@@ -248,6 +248,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
   const ready = D.prdApprovalReady(d, d.sections, d.approvals);
   const linkedTasks = idx.list.filter((t) => t.prd_id === d.id);
   const linkedOutputs = data.outputs.filter((o) => o.prd_id === d.id && !o.deleted_at);
+  const relatedDecisions = data.decisions.filter((decision) => decision.prd_id === d.id || (decision.affected_prd_ids || []).includes(d.id));
   const requirements = d.requirements || [];
   const saveRequirement = async (v) => {
     const req = { ...v, id: v.id || uid(), title: String(v.title || "").trim(), updated_at: nowIso() };
@@ -292,7 +293,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
       {d.status === "Ready for Review" && can("prd.approve", project) && <Btn onClick={() => save({ status: "In Progress", submitted_for_review_at: null })}>↩ إرجاع للمسودة</Btn>}
       {!locked && can("prd.write", project) && <Btn danger onClick={async () => { await act.del("prds", d.id, d.title); onClose(); }}>🗑</Btn>}</>}>
       <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}><Chip color={d.status === "Approved" ? C.ok : C.info}>{L.prdStatus[d.status]}</Chip><ProjectName id={d.project_id} />{locked && <span style={{ fontSize: 11, color: C.muted }}>🔒 {d.status === "Ready for Review" ? "قيد المراجعة — أعدها للمسودة قبل التعديل" : "نسخة معتمدة/مستبدلة — أنشئ نسخة جديدة للتعديل"}</span>}</div>
-      <Tabs small value={tab} onChange={setTab} tabs={[{ id: "doc", label: "المواصفة" }, { id: "requirements", label: "المتطلبات", count: requirements.length }, { id: "meta", label: "البيانات والمراجعة" }, { id: "tasks", label: "المهام", count: linkedTasks.length }]} />
+      <Tabs small value={tab} onChange={setTab} tabs={[{ id: "doc", label: "المواصفة" }, { id: "requirements", label: "المتطلبات", count: requirements.length }, { id: "tasks", label: "المهام", count: linkedTasks.length }, { id: "decisions", label: "القرارات", count: relatedDecisions.length }, { id: "meta", label: "البيانات والمراجعة" }]} />
       {tab === "doc" && <div>
         <Field label="TLDR *"><textarea disabled={!canW} style={{ ...S.ta, minHeight: 60 }} value={d.tldr || ""} onChange={(e) => setD({ ...d, tldr: e.target.value })} /></Field>
         {groups.map((g) => <div key={g}><div style={{ fontSize: 12, fontWeight: 800, color: A, margin: "10px 0 6px" }}>{g}</div>{PRD_TEMPLATE.filter((s) => s.group === g).map((s) => <Field key={s.key} label={s.title + (s.required ? " *" : "")} hint={s.hint}><textarea disabled={!canW} style={{ ...S.ta, minHeight: 70 }} value={secOf(s.key)} onChange={(e) => setSec(s.key, e.target.value, s)} /></Field>)}</div>)}
@@ -306,6 +307,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
         })}
         {requirementForm && <FormModal title={requirementForm.id ? "تعديل المتطلب" : "متطلب جديد"} wide initial={requirementForm} onClose={() => setRequirementForm(null)} onSubmit={saveRequirement} fields={[{ key: "title", label: "عنوان المتطلب", required: true, span: 2 }, { key: "description", label: "الوصف", type: "textarea", rows: 2 }, { key: "acceptance_criteria", label: "معايير القبول", type: "textarea", rows: 2 }, { key: "priority", label: "الأولوية", type: "select", options: opts(L.priority), allowEmpty: false }, { key: "status", label: "الحالة", type: "select", allowEmpty: false, options: [{ v: "Draft", l: "مسودة" }, { v: "Accepted", l: "مقبول" }, { v: "In Progress", l: "قيد التنفيذ" }, { v: "Verified", l: "متحقق" }, { v: "Deferred", l: "مؤجل" }] }]} />}
       </div>}
+      {tab === "decisions" && <div>{!relatedDecisions.length ? <Empty icon="⚖️" title="لا قرارات مرتبطة" sub="اربط القرارات المؤثرة بهذه المواصفة من سجل القرارات." /> : relatedDecisions.map((decision) => <div key={decision.id} style={{ ...S.card, marginBottom: 7, padding: 10 }}><b>{decision.title}</b><div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>{L.decisionStatus[decision.status] || decision.status} · {fmt(decision.decided_at)}</div>{decision.rationale && <div style={{ fontSize: 12, color: C.dim, marginTop: 4 }}>{decision.rationale}</div>}</div>)}</div>}
       {tab === "meta" && <div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
           <Field label="المسؤول"><select disabled={!canW} style={S.sel} value={d.lead_id || ""} onChange={(e) => setD({ ...d, lead_id: e.target.value })}><option value="">—</option>{mOpts(people).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></Field>
