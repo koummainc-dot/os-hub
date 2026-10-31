@@ -71,6 +71,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [notice, setNotice] = useState("");
   const [learningActivity, setLearningActivity] = useState([]);
   const [shoppingPurchases, setShoppingPurchases] = useState([]);
+  const [homeBillPayments, setHomeBillPayments] = useState([]);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [showTx, setShowTx] = useState(false);
@@ -139,6 +140,20 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     const offStorage = subscribeToStoredOSEvents(sync, { workspaceId: ws.id, types: [type], limit: 100 });
     return () => { offEvent(); offStorage(); };
   }, [ws?.id, isDemo]);
+  useEffect(() => {
+    if (isDemo || !ws?.id) return;
+    const type = "home.bill.payment.recorded";
+    const key = "os-finance-home-bills-linked:" + ws.id;
+    const handled = () => { try { return new Set(JSON.parse(localStorage.getItem(key) || "[]")); } catch { return new Set(); } };
+    const sync = events => {
+      const done = handled();
+      setHomeBillPayments([...new Map(events.filter(e => e.type === type && e.payload?.sourcePaymentId && !done.has(e.payload.sourcePaymentId)).map(e => [e.payload.sourcePaymentId, e])).values()]);
+    };
+    sync(readOSEvents({ workspaceId: ws.id, types: [type], limit: 100 }));
+    const offEvent = subscribeOSEvents(event => sync([...readOSEvents({ workspaceId: ws.id, types: [type], limit: 100 }), event]), { workspaceId: ws.id, types: [type] });
+    const offStorage = subscribeToStoredOSEvents(sync, { workspaceId: ws.id, types: [type], limit: 100 });
+    return () => { offEvent(); offStorage(); };
+  }, [ws?.id, isDemo]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(""), 5000); return () => clearTimeout(t); }, [notice]);
 
@@ -190,8 +205,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         from_account_id: tx.from_account_id, to_account_id: tx.type === "Transfer" ? tx.to_account_id : null,
         category_id: tx.type === "Transfer" || splitMode ? null : (tx.category_id || null), goal_id: tx.goal_id || null, merchant: tx.merchant || null, notes: tx.notes || null,
         splits: splitMode ? validSplits.map(s => ({ category_id: s.category_id, amount: String(s.amount) })) : [],
-        client_generated_id: tx.shoppingPurchaseId ? "shopping-purchase-" + tx.shoppingPurchaseId : "web-" + (globalThis.crypto?.randomUUID?.() || (Date.now() + "-" + Math.random().toString(36).slice(2))),
-        idempotency_key: tx.shoppingPurchaseId ? "shopping-purchase-" + tx.shoppingPurchaseId : "finance-ui-" + (globalThis.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2))
+        client_generated_id: tx.shoppingPurchaseId ? "shopping-purchase-" + tx.shoppingPurchaseId : tx.homeBillPaymentId ? "home-bill-payment-" + tx.homeBillPaymentId : "web-" + (globalThis.crypto?.randomUUID?.() || (Date.now() + "-" + Math.random().toString(36).slice(2))),
+        idempotency_key: tx.shoppingPurchaseId ? "shopping-purchase-" + tx.shoppingPurchaseId : tx.homeBillPaymentId ? "home-bill-payment-" + tx.homeBillPaymentId : "finance-ui-" + (globalThis.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2))
       };
       const { data, error: rpcError } = await supabase.rpc("fin_post_transaction_with_splits", { p: payload });
       if (rpcError) throw rpcError;
@@ -201,6 +216,11 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         const key = "os-finance-shopping-linked:" + ws.id;
         try { const ids = new Set(JSON.parse(localStorage.getItem(key) || "[]")); ids.add(tx.shoppingPurchaseId); localStorage.setItem(key, JSON.stringify([...ids])); } catch {}
         setShoppingPurchases(rows => rows.filter(event => event.payload?.sourcePurchaseId !== tx.shoppingPurchaseId));
+      }
+      if (tx.homeBillPaymentId) {
+        const key = "os-finance-home-bills-linked:" + ws.id;
+        try { const ids = new Set(JSON.parse(localStorage.getItem(key) || "[]")); ids.add(tx.homeBillPaymentId); localStorage.setItem(key, JSON.stringify([...ids])); } catch {}
+        setHomeBillPayments(rows => rows.filter(event => event.payload?.sourcePaymentId !== tx.homeBillPaymentId));
       }
       setShowTx(false); setTx(initialTx()); setSplitMode(false); setSplitRows([{ category_id: "", amount: "" }, { category_id: "", amount: "" }]); await load();
     } catch (e) { setError(e?.message || "تعذّر تسجيل الحركة"); }
