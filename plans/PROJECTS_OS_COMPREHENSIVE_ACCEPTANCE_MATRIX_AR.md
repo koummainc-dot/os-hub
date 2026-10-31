@@ -82,10 +82,10 @@ The guards cover:
 
 ## Current acceptance result
 
-- CI test suite and production build: passed on commit `124b8ab`; later navigation, permission, retry, PRD evidence, and KR project-scope tests are awaiting the latest CI run.
-- Projects SQL smoke: the two-migration version passed previously; the third verified-evidence migration and expanded SQL cases are now included and awaiting a fresh result.
-- New relationship-navigation and permission/retry contract tests are included in the main test command; latest result pending.
-- Browser acceptance: **not yet passed**. The available Vercel Preview is 14 commits behind the current PR head, and a browser automation tool is not available in this execution context. The Preview must be redeployed from the exact tested head before browser sign-off.
+- CI test suite and production build: passed on commit `22d1caf`, including the expanded navigation, permission, retry, PRD evidence, and KR project-scope contract tests.
+- Projects SQL smoke: passed on commit `9c08664` after applying all three migrations and running the positive/negative evidence and relationship cases.
+- The current PR head after those code/test checks contains documentation updates only.
+- Browser acceptance: **not yet passed**. The available Vercel Preview is 14 commits behind the current PR head. A fresh deployment from the exact branch commit was blocked by Vercel's `402 payment_required` limit (more than 100 deployments/day; retry after 24 hours). No browser automation tool is available in this execution context.
 - Supabase production migration: **not applied**. Existing migration history must be reconciled in order before rollout.
 - Merge/deploy to production: **not performed**.
 
