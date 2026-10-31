@@ -98,7 +98,7 @@ export function RisksView({ projectId }) {
     }
     await act.put("risks", { ...r, status: to }, p);
   }
-  const submit = async (v) => { const errs = D.validateRisk(v); if (errs.length) throw new Error(errs[0]); await act.put("risks", { ...v, id: v.id || uid(), status: v.status || "Open" }, projectsById[v.project_id]); toast("✅ تم الحفظ"); setForm(null); };
+  const submit = async (v) => { const errs = D.validateRisk(v); if (errs.length) throw new Error(errs[0]); for (const taskId of (v.mitigation_task_ids || [])) { const task = idx.byId[taskId]; if (!task || task.project_id !== v.project_id) throw new Error("مهام تخفيف الخطر يجب أن تتبع المشروع نفسه."); } await act.put("risks", { ...v, id: v.id || uid(), status: v.status || "Open" }, projectsById[v.project_id]); toast("✅ تم الحفظ"); setForm(null); };
   return (
     <div>
       {!projectId && <Head title="المخاطر والمشاكل والقرارات" sub="" />}
