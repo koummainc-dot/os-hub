@@ -52,4 +52,20 @@ const discoveryTaskEnd = store.indexOf("async convertDiscoveryToProject", discov
 const discoveryTaskAction = store.slice(discoveryTaskStart, discoveryTaskEnd);
 assert.ok(discoveryTaskAction.includes("!D.isActiveRec(discovery)") && discoveryTaskAction.includes("!D.isActiveRec(existing)"),
   "discovery conversion must reject inactive source discoveries and archived linked tasks");
+assert.ok(discoveryTaskAction.includes('!can("discovery.write") || !can("task.write", project)'),
+  "discovery-to-task conversion requires discovery and target task permissions");
+const discoveryProjectStart = store.indexOf("async convertDiscoveryToProject(discoveryId)");
+const discoveryProjectEnd = store.indexOf("async convertDiscoveryToPrd", discoveryProjectStart);
+assert.ok(store.slice(discoveryProjectStart, discoveryProjectEnd).includes('!can("discovery.write") || !can("project.create")'),
+  "discovery-to-project conversion requires discovery and project-create permissions");
+const discoveryPrdStart = store.indexOf("async convertDiscoveryToPrd(discoveryId, projectId)");
+const discoveryPrdEnd = store.indexOf("async convertDiscoveryToIssue", discoveryPrdStart);
+assert.ok(store.slice(discoveryPrdStart, discoveryPrdEnd).includes('!can("discovery.write") || !can("prd.write", project)'),
+  "discovery-to-PRD conversion requires PRD write permission");
+const discoveryIssueStart = store.indexOf("async convertDiscoveryToIssue(discoveryId, projectId, discoveredAt)");
+const discoveryIssueEnd = store.indexOf("// Create a repair task", discoveryIssueStart);
+assert.ok(store.slice(discoveryIssueStart, discoveryIssueEnd).includes('!can("discovery.write") || !can("issue.write", project)'),
+  "discovery-to-issue conversion requires issue write permission");
+assert.ok(entities.includes('filter(([kind]) => canConvertDiscovery(kind, conv))'),
+  "discovery conversion choices must be filtered by target permissions");
 console.log("✓ Projects relationship permission, retry, and action contracts passed");
