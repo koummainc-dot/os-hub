@@ -336,6 +336,9 @@ export function DiscoveryView() {
   const runDiscoveryConversionOnce = async (id, work) => { if (convertingDiscoveryIds.current.has(id)) { toast("التحويل جارٍ بالفعل؛ انتظر اكتماله قبل إعادة المحاولة."); return null; } convertingDiscoveryIds.current.add(id); try { return await work(); } finally { convertingDiscoveryIds.current.delete(id); } };
   const list = data.discovery.filter((d) => (!type || d.type === type) && (!q || d.title.toLowerCase().includes(q.toLowerCase())));
   const statuses = Object.keys(L.discoveryStatus);
+  const conversionWriteAction = { task: "task.write", prd: "prd.write", issue: "issue.write" };
+  const eligibleConversionProjects = (kind, source) => (source.project_ids || []).map((id) => projectsById[id]).filter((project) => project && !project.is_system && !project.archived_at && can(conversionWriteAction[kind], project));
+  const canConvertDiscovery = (kind, source) => kind === "project" ? can("project.create") : !!eligibleConversionProjects(kind, source).length;
   const stale = (d) => d.status === "Inbox" && d.logged_at && diffDays(today, d.logged_at) > settings.inboxStaleDays;
   const typeIcon = { Problem: "🔴", Idea: "💡", Opportunity: "🌟" };
   async function move(id, to) {
@@ -413,7 +416,7 @@ export function DiscoveryView() {
           { key: "resolution_note", label: "ملاحظة الحل", type: "textarea", rows: 2, show: (v) => v.status === "Completed" },
           { key: "description", label: "الوصف", type: "textarea" }, { key: "insights", label: "الأدلة", type: "textarea", rows: 2 }, { key: "proposed_solution", label: "الحل المقترح", type: "textarea", rows: 2 }]} />}
       {conv && <Modal title={"تحويل: " + conv.title} onClose={() => setConv(null)}><div style={{ display: "grid", gap: 8 }}>
-        {conv._conversionKind ? <><Field label="اختر المشروع الذي سيُنشأ فيه العنصر"><select style={S.sel} value={conv._conversionProjectId || ""} onChange={(e) => setConv({ ...conv, _conversionProjectId: e.target.value })}><option value="">اختر مشروعاً…</option>{(conv._availableProjectIds || []).map((id) => <option key={id} value={id}>{projectsById[id].name}</option>)}</select></Field><Btn kind="primary" disabled={!conv._conversionProjectId} onClick={() => convert({ ...conv, _conversionProjectId: conv._conversionProjectId }, conv._conversionKind)}>متابعة التحويل</Btn></> : [["task", "✅ إلى مهمة"], ["prd", "📝 إلى مواصفة"], ["project", "📁 إلى مشروع (فكرة)"], ["issue", "🔥 إلى مشكلة"]].map(([k, l]) => <Btn key={k} onClick={() => convert(conv, k)}>{l}</Btn>)}
+        {conv._conversionKind ? <><Field label="اختر المشروع الذي سيُنشأ فيه العنصر"><select style={S.sel} value={conv._conversionProjectId || ""} onChange={(e) => setConv({ ...conv, _conversionProjectId: e.target.value })}><option value="">اختر مشروعاً…</option>{(conv._availableProjectIds || []).filter((id) => { const project = projectsById[id]; return project && can(conversionWriteAction[conv._conversionKind], project); }).map((id) => <option key={id} value={id}>{projectsById[id].name}</option>)}</select></Field><Btn kind="primary" disabled={!conv._conversionProjectId || !can(conversionWriteAction[conv._conversionKind], projectsById[conv._conversionProjectId])} onClick={() => convert({ ...conv, _conversionProjectId: conv._conversionProjectId }, conv._conversionKind)}>متابعة التحويل</Btn></> : [["task", "✅ إلى مهمة"], ["prd", "📝 إلى مواصفة"], ["project", "📁 إلى مشروع (فكرة)"], ["issue", "🔥 إلى مشكلة"]].filter(([kind]) => canConvertDiscovery(kind, conv)).map(([k, l]) => <Btn key={k} onClick={() => convert(conv, k)}>{l}</Btn>)}
         <div style={{ fontSize: 11, color: C.muted }}>مشكلة محتملة (اكتشاف) ليست عطلًا مؤكدًا. التحويل إلى مشكلة ينشئ مشكلة تنفيذية مرتبطة بمصدرها.</div></div></Modal>}
     </div>
   );
