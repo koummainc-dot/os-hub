@@ -399,6 +399,9 @@ begin
   end if;
 
   perform public.home_finance_outbox_ack('10000000-0000-4000-8000-000000000001',v_source_payment_id);
+  if (public.home_finance_outbox_ack('10000000-0000-4000-8000-000000000001',v_source_payment_id)->>'acknowledged')::integer <> 0 then
+    raise exception 'HOME_FINANCE_OUTBOX_ACK_NOT_IDEMPOTENT';
+  end if;
   v_events := public.home_finance_outbox_load('10000000-0000-4000-8000-000000000001');
   if exists (
     select 1 from jsonb_array_elements(v_events) e
