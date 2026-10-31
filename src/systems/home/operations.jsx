@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { validateHomeTask, nextHomeTaskDue, completeHomeTask, validateHomeMaintenance, validateHomePurchaseRequest, deriveHomePurchaseTotal } from "./operations-domain.js";
+import { validateHomeTask, completeHomeTask, validateHomeMaintenance, validateHomePurchaseRequest, deriveHomePurchaseTotal } from "./operations-domain.js";
 
 const EMPTY = () => ({ tasks: [], completions: [], providers: [], maintenance: [], purchaseRequests: [], purchaseItems: [], bills: [] });
 const uid = () => globalThis.crypto?.randomUUID?.() || "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 3 | 8)).toString(16); });
@@ -35,7 +35,6 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
   const [billForm, setBillForm] = useState(null);
   const [providerForm, setProviderForm] = useState(null);
   const [filter, setFilter] = useState("");
-  const [demoData, setDemoData] = useState(EMPTY);
 
   const activeProperties = useMemo(() => properties.filter(p => !p.deletedAt), [properties]);
   const activeRooms = useMemo(() => rooms.filter(r => !r.deletedAt), [rooms]);
@@ -67,7 +66,6 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
     try {
       if (isDemo) {
         localStorage.setItem("home_operations_demo", JSON.stringify(next));
-        setDemoData(next);
       } else {
         const result = await api.saveHomeOperations(next);
         if (result?.error) throw result.error;
@@ -150,6 +148,10 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
   };
 
   const completeBill = async bill => {
+    if (bill.frequency === "once") {
+      await persist({ ...data, bills: data.bills.map(x => x.id === bill.id ? { ...x, status: "paid", lastPaidAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : x) });
+      return;
+    }
     const date = new Date((bill.dueDate || today()) + "T12:00:00Z");
     if (bill.frequency === "weekly") date.setUTCDate(date.getUTCDate() + 7);
     else if (bill.frequency === "monthly") date.setUTCMonth(date.getUTCMonth() + 1);
@@ -182,7 +184,7 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
     {tab === "tasks" && <div style={styles.card}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}><div><h3 style={{ margin: 0 }}>المهام والجدول المنزلي</h3><p style={{ color: "#766F64", fontSize: 11 }}>المهام المتكررة تظل مملوكة لـ Home OS ويمكن عرضها لاحقًا داخل Today.</p></div>{canEdit && <Button onClick={addTask}>＋ مهمة منزلية</Button>}</div>
       {filterBox}
-      {activeTasks.filter(t => (t.title + " " + t.description).toLowerCase().includes(filter.toLowerCase())).sort((a,b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999")).map(task => <Row key={task.id} title={task.title} meta={[task.dueDate || "بلا موعد", task.priority, task.recurrenceRule?.frequency !== "none" ? "متكررة: " + task.recurrenceRule.frequency : "مرة واحدة", activeProperties.find(p => p.id === task.propertyId)?.name].filter(Boolean).join(" · ")}>{canEdit && <><Button secondary onClick={() => setTaskForm({ ...task, recurrenceRule: task.recurrenceRule || { frequency: "none", intervalDays: 1 } })}>تعديل</Button><Button onClick={() => markTask(task, "done")}>تمت</Button><Button secondary onClick={() => markTask(task, "skipped")}>تخطي</Button></>}</Row>)}
+      {activeTasks.filter(t => (t.title + " " + t.description).toLowerCase().includes(filter.toLowerCase())).sort((a,b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999")).map(task => <Row key={task.id} title={task.title} meta={[task.dueDate || "بلا موعد", task.priority, task.recurrenceRule?.frequency !== "none" ? "متكررة: " + task.recurrenceRule.frequency : "مرة واحدة", activeProperties.find(p => p.id === task.propertyId)?.name].filter(Boolean).join(" · ")}>{canEdit && <><Button secondary onClick={() => setTaskForm({ ...task, recurrenceRule: task.recurrenceRule || { frequency: "none", intervalDays: 1 } })}>تعديل</Button><Button onClick={() => markTask(task, "done")}>تمت</Button><Button secondary onClick={() => markTask(task, "skipped")}>تخطي</Button><Button secondary onClick={() => persist({ ...data, tasks: data.tasks.map(x => x.id === task.id ? { ...x, status: "paused", updatedAt: new Date().toISOString() } : x) })}>إيقاف مؤقت</Button></>}</Row>)}
       {!activeTasks.length && <p style={{ color: "#766F64", fontSize: 12 }}>لا توجد مهام بعد.</p>}
       {taskForm && <form onSubmit={saveTask} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10, marginTop: 14, borderTop: "1px solid #E8E1D7", paddingTop: 14 }}>
         <Field label="عنوان المهمة *">{input(taskForm.title, v => setTaskForm({ ...taskForm, title: v }))}</Field>
