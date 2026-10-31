@@ -54,21 +54,36 @@ begin
 end $$;
 
 -- Atomic purchase receipt: request status, inventory quantity/movement, receipt and outbox commit together.
-insert into public.home_purchase_requests(
-  id, workspace_id, property_id, title, status, priority, currency
-) values (
-  '70000000-0000-4000-8000-000000000001',
+-- Seed the purchase through the same legacy snapshot API used by the current UI.
+-- The receipt RPC must hydrate relational purchase rows transactionally before receiving.
+select public.home_operations_save(
   '10000000-0000-4000-8000-000000000001',
-  '30000000-0000-4000-8000-000000000001',
-  'Atomic receipt smoke test', 'ordered', 'normal', 'EGP'
-);
-insert into public.home_purchase_request_items(
-  id, workspace_id, request_id, name, quantity, estimated_unit_price, received_quantity
-) values (
-  '71000000-0000-4000-8000-000000000001',
-  '10000000-0000-4000-8000-000000000001',
-  '70000000-0000-4000-8000-000000000001',
-  'Receipt smoke item', 5, 12, 0
+  '{
+    "tasks":[],
+    "completions":[],
+    "providers":[],
+    "maintenance":[],
+    "purchaseRequests":[{
+      "id":"70000000-0000-4000-8000-000000000001",
+      "propertyId":"30000000-0000-4000-8000-000000000001",
+      "title":"Atomic receipt smoke test",
+      "status":"ordered",
+      "priority":"normal",
+      "currency":"EGP",
+      "createdAt":"2026-10-31T00:00:00Z"
+    }],
+    "purchaseItems":[{
+      "id":"71000000-0000-4000-8000-000000000001",
+      "requestId":"70000000-0000-4000-8000-000000000001",
+      "name":"Receipt smoke item",
+      "quantity":5,
+      "estimatedUnitPrice":12,
+      "receivedQuantity":0,
+      "notes":""
+    }],
+    "bills":[],
+    "events":[]
+  }'::jsonb
 );
 select public.home_record_purchase_receipt(
   '10000000-0000-4000-8000-000000000001',
