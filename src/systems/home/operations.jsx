@@ -175,7 +175,12 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
     e.preventDefault();
     const f = purchaseForm;
     const lines = (f.lines || []).filter(x => text(x.name));
-    const request = { id: f.id || uid(), title: text(f.title), propertyId: f.propertyId || activeProperties[0]?.id, status: f.status || "needed", priority: f.priority || "normal", budgetAmount: f.budgetAmount === "" ? null : Number(f.budgetAmount), currency: f.currency || "EGP", neededBy: f.neededBy || null, notes: text(f.notes), createdAt: f.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+    const requestId = f.id || uid();
+    const existingReceivedLines = data.purchaseItems.filter(line => line.requestId === requestId && Number(line.receivedQuantity || 0) > 0);
+    if (existingReceivedLines.some(previous => !lines.some(line => line.id === previous.id))) {
+      return setError("لا يمكن حذف بند سبق استلام جزء منه أو كله؛ احتفظ بالبند وسجّل أي تصحيح كحركة مخزون موثقة.");
+    }
+    const request = { id: requestId, title: text(f.title), propertyId: f.propertyId || activeProperties[0]?.id, status: f.status || "needed", priority: f.priority || "normal", budgetAmount: f.budgetAmount === "" ? null : Number(f.budgetAmount), currency: f.currency || "EGP", neededBy: f.neededBy || null, notes: text(f.notes), createdAt: f.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
     const errors = validateHomePurchaseRequest(request, lines, { properties: activeProperties });
     if (errors.length) return setError(errors.join(" "));
     const savedLines = lines.map(line => ({ ...line, id: line.id || uid(), requestId: request.id, inventoryItemId: line.inventoryItemId || null, quantity: Number(line.quantity), estimatedUnitPrice: line.estimatedUnitPrice === "" ? null : Number(line.estimatedUnitPrice), receivedQuantity: Number(line.receivedQuantity || 0) }));
