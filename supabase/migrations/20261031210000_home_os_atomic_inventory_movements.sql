@@ -18,6 +18,7 @@ declare
   v_existing public.home_inventory_movements%rowtype;
   v_movement_id uuid;
   v_next_quantity numeric(14,3);
+  v_previous_quantity numeric(14,3);
   v_next_room_id uuid;
   v_occurred_at timestamptz := coalesce(p_occurred_at,now());
 begin
@@ -57,6 +58,7 @@ begin
     );
   end if;
 
+  v_previous_quantity := v_item.quantity;
   v_next_quantity := v_item.quantity;
   v_next_room_id := v_item.room_id;
   if p_movement_type='receive' then v_next_quantity := v_item.quantity + p_quantity; end if;
@@ -91,7 +93,7 @@ begin
   insert into public.home_audit_log(workspace_id,actor_id,action,entity_type,entity_id,metadata)
   values(p_workspace_id,auth.uid(),'inventory_movement_recorded','home_inventory_item',p_item_id,
     jsonb_build_object('movementId',v_movement_id,'type',p_movement_type,'quantity',p_quantity,
-      'previousQuantity',v_item.quantity,'nextQuantity',v_next_quantity,'idempotencyKey',p_idempotency_key));
+      'previousQuantity',v_previous_quantity,'nextQuantity',v_next_quantity,'idempotencyKey',p_idempotency_key));
 
   return jsonb_build_object(
     'replayed',false,
