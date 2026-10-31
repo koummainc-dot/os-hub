@@ -142,28 +142,32 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
     const completedNow = record.status === "completed" && previousRecord?.status !== "completed" && Number(record.costAmount) > 0;
     const completionCount = Number(previousRecord?.completionCount || 0) + (completedNow ? 1 : 0);
     const savedRecord = { ...record, completionCount };
-    const next = { ...data, maintenance: exists ? data.maintenance.map(x => x.id === record.id ? savedRecord : x) : [savedRecord, ...data.maintenance] };
+    const occurredAt = new Date().toISOString();
+    const maintenanceEvent = completedNow ? {
+      type: "home.maintenance.cost.recorded",
+      ownerSystem: "home",
+      entityType: "home_maintenance",
+      entityId: record.id + ":" + completionCount,
+      occurredAt,
+      payload: {
+        sourcePaymentId: "home-maintenance:" + record.id + ":" + completionCount,
+        maintenanceId: record.id,
+        maintenanceTitle: record.title || "صيانة منزلية",
+        amount: Number(record.costAmount),
+        currency: record.currency || "EGP",
+        category: "صيانة منزلية",
+        paymentDate: occurredAt.slice(0, 10),
+        providerId: record.providerId || null
+      }
+    } : null;
+    const next = {
+      ...data,
+      maintenance: exists ? data.maintenance.map(x => x.id === record.id ? savedRecord : x) : [savedRecord, ...data.maintenance],
+      events: maintenanceEvent ? [maintenanceEvent, ...(data.events || [])] : (data.events || [])
+    };
     if (await persist(next)) {
       setMaintenanceForm(null);
-      if (completedNow && !isDemo) {
-        const occurredAt = new Date().toISOString();
-        publishOSEvent({
-          type: "home.maintenance.cost.recorded",
-          entityType: "home_maintenance",
-          entityId: record.id + ":" + completionCount,
-          occurredAt,
-          payload: {
-            sourcePaymentId: "home-maintenance:" + record.id + ":" + completionCount,
-            maintenanceId: record.id,
-            maintenanceTitle: record.title || "صيانة منزلية",
-            amount: Number(record.costAmount),
-            currency: record.currency || "EGP",
-            category: "صيانة منزلية",
-            paymentDate: occurredAt.slice(0, 10),
-            providerId: record.providerId || null
-          }
-        }, workspaceId, "home");
-      }
+      if (maintenanceEvent && !isDemo) publishOSEvent(maintenanceEvent, workspaceId, "home");
     }
   };
 
