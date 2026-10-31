@@ -4,6 +4,7 @@ import { deriveLoanState, deriveReplacementState, deriveWarrantyState } from "./
 import { inventoryToday, inventoryDateOffset, prepareInventoryItem, prepareInventoryCategory, prepareInventoryPlace, archiveInventoryItem, restoreInventoryItem, archiveInventoryReference, prepareRelatedInventoryRecord, returnInventoryLoan } from "./services.js";
 import { osSectionLevel } from "../../core/core.js";
 import { AccessDenied } from "../../core/ui.jsx";
+import { readOSEvents, subscribeOSEvents, subscribeToStoredOSEvents } from "../integrationEvents.js";
 
 const GOLD = "#A16207";
 const INK = "#211A10";
@@ -77,6 +78,7 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   const [placeEditor, setPlaceEditor] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [shoppingPurchases, setShoppingPurchases] = useState([]);
   const level = osSectionLevel(access, page);
   const canEdit = level === "edit";
   const canView = level === "view" || level === "edit";
@@ -101,6 +103,16 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
     })();
     return () => { alive = false; };
   }, [repository, isDemo]);
+
+  useEffect(() => {
+    if (isDemo || !ws?.id) return;
+    const type = "shopping.purchase.completed";
+    const sync = events => setShoppingPurchases([...new Map(events.filter(e => e.type === type && e.payload?.sourcePurchaseId && !data.items.some(item => item.sourcePurchaseId === e.payload.sourcePurchaseId)).map(e => [e.payload.sourcePurchaseId, e])).values()]);
+    sync(readOSEvents({ workspaceId: ws.id, types: [type], limit: 100 }));
+    const offEvent = subscribeOSEvents(event => sync([...readOSEvents({ workspaceId: ws.id, types: [type], limit: 100 }), event]), { workspaceId: ws.id, types: [type] });
+    const offStorage = subscribeToStoredOSEvents(sync, { workspaceId: ws.id, types: [type], limit: 100 });
+    return () => { offEvent(); offStorage(); };
+  }, [ws?.id, isDemo, data.items]);
 
   const persist = useCallback(async (next, success = "تم حفظ التغييرات") => {
     const previousData = data;
@@ -142,6 +154,29 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
     return matches && (!categoryFilter || item.categoryId === categoryFilter) && (!statusFilter || item.status === statusFilter);
     });
   }, [items, visibleItems, showSecretItems, query, categoryFilter, statusFilter]);
+
+  const importShoppingPurchase = async event => {
+    if (!canEdit || !event?.payload?.sourcePurchaseId) return;
+    const p = event.payload;
+    if (data.items.some(item => item.sourcePurchaseId === p.sourcePurchaseId)) {
+      setShoppingPurchases(rows => rows.filter(x => x.id !== event.id));
+      return tell("هذا الشراء مرتبط بممتلك بالفعل.");
+    }
+    const prepared = prepareInventoryItem({
+      name: p.productName || "ممتلك جديد", brand: p.brand || "", model: p.model || "",
+      quantity: Math.max(1, Number(p.quantity || 1)), status: "Owned", condition: "New",
+      purchaseDate: p.purchaseDate || today(), purchasePrice: p.actualPrice == null ? "" : String(p.actualPrice),
+      currency: p.currency || data.settings.currency || "EGP", sensitivity: "Normal",
+      notes: [p.merchant ? "المتجر: " + p.merchant : "", p.receiptUrl ? "الفاتورة: " + p.receiptUrl : ""].filter(Boolean).join("\n"),
+      sourcePurchaseId: p.sourcePurchaseId
+    }, data, today(), uid);
+    if (prepared.errors.length) return tell(prepared.errors[0]);
+    if (p.warrantyEndDate || p.warrantyStartDate || p.warrantyProvider) {
+      prepared.data.warranties = [{ id: uid(), itemId: prepared.item.id, provider: p.warrantyProvider || "", warrantyType: "Manufacturer", startDate: p.warrantyStartDate || p.purchaseDate || "", endDate: p.warrantyEndDate || "", notes: [p.warrantyNotes || "", p.receiptUrl ? "الفاتورة: " + p.receiptUrl : ""].filter(Boolean).join("\\n"), createdAt: new Date().toISOString() }, ...prepared.data.warranties];
+    }
+    const saved = await persist(prepared.data, "تم تحويل الشراء إلى ممتلك مع بيانات الضمان");
+    if (saved) { setShoppingPurchases(rows => rows.filter(x => x.id !== event.id)); setSelectedId(prepared.item.id); setPage("items"); }
+  };
 
   const saveItem = async (form) => {
     const prepared = prepareInventoryItem(form, data, today(), uid);
@@ -303,6 +338,7 @@ function InventorySystem({ api, access, ws, isDemo = false, page = "home", setPa
   else body = <>{header}<div style={card}>هذا القسم قيد الاستكمال.</div></>;
 
   return <div dir="rtl" style={{ color: INK, maxWidth: 1120, margin: "0 auto", animation: "fadeIn .25s ease-out" }}>
+    {page === "home" && canEdit && shoppingPurchases.length > 0 && <div style={{ ...card, marginBottom: 12, borderColor: "#D6C49B" }}><PanelTitle title="مشتريات من Shopping OS" sub="حوّل ما اشتريته إلى سجل ممتلكات دون إعادة إدخال البيانات." /><div style={{ display: "grid", gap: 8 }}>{shoppingPurchases.map(event => <div key={event.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", borderTop: "1px solid " + LINE, paddingTop: 9 }}><div><b>{event.payload.productName || "ممتلك جديد"}</b><div style={{ color: MUTED, fontSize: 11 }}>{money(event.payload.actualPrice, event.payload.currency)} · {event.payload.purchaseDate || "—"}</div></div><Btn onClick={() => importShoppingPurchase(event)}>إضافة إلى الممتلكات</Btn></div>)}</div></div>}
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "10px 0 16px" }}>{nav.filter(n => { const l = osSectionLevel(access, n.id); return l !== "none"; }).map(n => <button key={n.id} onClick={() => setPage(n.id)} style={{ border: "1px solid " + (page === n.id ? GOLD : LINE), background: page === n.id ? "#F6E8C8" : "#fff", color: page === n.id ? "#75420B" : MUTED, borderRadius: 9, padding: "7px 10px", font: "inherit", fontSize: 11, fontWeight: 750, cursor: "pointer" }}>{n.icon} {n.label}</button>)}</div>
     {body}
     {notice && page !== "home" && <div role="status" style={{ position: "fixed", bottom: 20, insetInlineEnd: 20, zIndex: 9000, background: "#211A10", color: "#fff", padding: "12px 16px", borderRadius: 10, fontSize: 12, boxShadow: "0 8px 25px #0002" }}>{notice}</div>}
