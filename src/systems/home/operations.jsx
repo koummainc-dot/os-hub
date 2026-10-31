@@ -172,7 +172,32 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
     const status = deriveHomePurchaseStatus(updated);
     const now = new Date().toISOString();
     const next = { ...data, purchaseItems: [...data.purchaseItems.filter(x => x.requestId !== request.id), ...updated], purchaseRequests: data.purchaseRequests.map(x => x.id === request.id ? { ...x, status, receivedAt: status === "received" ? now : (x.receivedAt || null), updatedAt: now } : x) };
-    await persist(next);
+    const saved = await persist(next);
+    if (saved && !isDemo) {
+      for (const line of receiptLines) {
+        const unitCost = Number(line.actualUnitPrice ?? line.estimatedUnitPrice ?? 0);
+        if (!Number.isFinite(unitCost) || unitCost <= 0) continue;
+        const receiptBaseQuantity = Number(line.receiptBaseQuantity || 0);
+        publishOSEvent({
+          type: "home.purchase.receipt.recorded",
+          entityType: "home_purchase_receipt",
+          entityId: request.id + ":" + line.id + ":" + receiptBaseQuantity,
+          occurredAt: now,
+          payload: {
+            sourcePaymentId: "home-purchase:" + request.id + ":" + line.id + ":" + receiptBaseQuantity,
+            purchaseRequestId: request.id,
+            purchaseTitle: request.title || "مشتريات منزلية",
+            itemName: line.name || "صنف منزلي",
+            amount: Number((Number(line.receiptAmount) * unitCost).toFixed(2)),
+            currency: request.currency || "EGP",
+            category: "مشتريات منزلية",
+            paymentDate: now.slice(0, 10),
+            quantity: Number(line.receiptAmount),
+            unitCost
+          }
+        }, workspaceId, "home");
+      }
+    }
   };
 
   const changePurchaseStatus = async (request, status) => {
