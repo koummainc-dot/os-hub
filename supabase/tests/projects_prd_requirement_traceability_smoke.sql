@@ -15,6 +15,67 @@ insert into public.workspace_records (workspace_id, system_id, collection, id, d
 values ('11111111-1111-4111-8111-111111111111','projects','outputs','output1',
         '{"project_id":"p1","task_id":"task1","prd_id":"prd1","prd_requirement_id":"req1","approval":"Final"}');
 
+-- Verified requirements require an active Final output linked to the exact requirement.
+update public.workspace_records
+   set data = jsonb_set(data, '{requirements}', '[{"id":"req1","title":"Requirement One","status":"Verified"}]'::jsonb)
+ where workspace_id = '11111111-1111-4111-8111-111111111111'
+   and system_id = 'projects' and collection = 'prds' and id = 'prd1';
+
+do $ begin
+  begin
+    update public.workspace_records
+       set data = jsonb_set(data, '{requirements}', '[{"id":"req2","title":"Requirement Two","status":"Verified"}]'::jsonb)
+     where workspace_id = '11111111-1111-4111-8111-111111111111'
+       and system_id = 'projects' and collection = 'prds' and id = 'prd2';
+    raise exception 'expected Verified requirement without Final evidence rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $;
+
+do $ begin
+  begin
+    update public.workspace_records
+       set data = jsonb_set(data, '{approval}', '"Draft"'::jsonb)
+     where workspace_id = '11111111-1111-4111-8111-111111111111'
+       and system_id = 'projects' and collection = 'outputs' and id = 'output1';
+    raise exception 'expected last Final evidence downgrade rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $;
+
+do $ begin
+  begin
+    update public.workspace_records
+       set data = jsonb_set(data, '{archived_at}', '"2026-10-31T00:00:00Z"'::jsonb)
+     where workspace_id = '11111111-1111-4111-8111-111111111111'
+       and system_id = 'projects' and collection = 'outputs' and id = 'output1';
+    raise exception 'expected last Final evidence archive rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $;
+
+do $ begin
+  begin
+    update public.workspace_records
+       set data = jsonb_set(data, '{requirements}', '[]'::jsonb)
+     where workspace_id = '11111111-1111-4111-8111-111111111111'
+       and system_id = 'projects' and collection = 'prds' and id = 'prd1';
+    raise exception 'expected referenced PRD requirement removal rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $;
+
+do $ begin
+  begin
+    update public.workspace_records
+       set data = jsonb_set(data, '{archived_at}', '"2026-10-31T00:00:00Z"'::jsonb)
+     where workspace_id = '11111111-1111-4111-8111-111111111111'
+       and system_id = 'projects' and collection = 'prds' and id = 'prd1';
+    raise exception 'expected PRD archive with active references rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $;
+
 -- A requirement cannot be linked without its PRD.
 do $$ begin
   begin
@@ -71,6 +132,23 @@ end $$;
 insert into public.workspace_records (workspace_id, system_id, collection, id, data)
 values
  ('11111111-1111-4111-8111-111111111111','projects','outputs','output2','{"project_id":"p1","approval":"Draft","name":"Draft output"}'),
+ ('11111111-1111-4111-8111-111111111111','projects','outputs','output3','{"project_id":"p2","prd_id":"prd2","prd_requirement_id":"req2","approval":"Final","name":"Final evidence for requirement two"}'),
+
+update public.workspace_records
+   set data = jsonb_set(data, '{requirements}', '[{"id":"req2","title":"Requirement Two","status":"Verified"}]'::jsonb)
+ where workspace_id = '11111111-1111-4111-8111-111111111111'
+   and system_id = 'projects' and collection = 'prds' and id = 'prd2';
+
+do $ begin
+  begin
+    update public.workspace_records
+       set data = jsonb_set(data, '{approval}', '"Draft"'::jsonb)
+     where workspace_id = '11111111-1111-4111-8111-111111111111'
+       and system_id = 'projects' and collection = 'outputs' and id = 'output3';
+    raise exception 'expected last Final evidence downgrade rejection for requirement two';
+  exception when sqlstate '22023' then null;
+  end;
+end $;
  ('11111111-1111-4111-8111-111111111111','projects','objectives','obj1','{"name":"Objective One","project_ids":["p1"]}'),
  ('11111111-1111-4111-8111-111111111111','projects','krs','kr1','{"name":"KR One","objective_id":"obj1","project_ids":["p1"],"task_ids":["task1"]}'),
  ('11111111-1111-4111-8111-111111111111','projects','risks','risk1','{"project_id":"p1","title":"Risk One","task_ids":["task1"],"prd_id":"prd1"}'),
