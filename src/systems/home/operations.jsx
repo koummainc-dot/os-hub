@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { validateHomeTask, completeHomeTask, validateHomeMaintenance, validateHomePurchaseRequest, deriveHomePurchaseTotal, deriveHomePurchaseStatus, nextHomeBillDue, homeTaskEvent } from "./operations-domain.js";
+import { publishOSEvent } from "../integrationEvents.js";
 
 const EMPTY = () => ({ tasks: [], completions: [], providers: [], maintenance: [], purchaseRequests: [], purchaseItems: [], bills: [], events: [] });
 const uid = () => globalThis.crypto?.randomUUID?.() || "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 3 | 8)).toString(16); });
@@ -21,7 +22,7 @@ function Select(props) { return <select {...props} style={styles.input} />; }
 function Button({ children, secondary = false, ...props }) { return <button {...props} style={styles.btn(secondary)}>{children}</button>; }
 function Row({ title, meta, children }) { return <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "11px 0", borderTop: "1px solid #E8E1D7" }}><div><div style={{ fontWeight: 800, fontSize: 13 }}>{title}</div>{meta && <div style={{ color: "#766F64", fontSize: 11, marginTop: 4 }}>{meta}</div>}</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{children}</div></div>; }
 
-export default function HomeOperations({ api, canEdit = false, isDemo = false, properties = [], rooms = [], items = [], initialTab = "tasks", onReceivePurchase }) {
+export default function HomeOperations({ api, canEdit = false, isDemo = false, workspaceId = "default", properties = [], rooms = [], items = [], initialTab = "tasks", onReceivePurchase }) {
   const [data, setData] = useState(EMPTY);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -192,16 +193,36 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, p
   };
 
   const completeBill = async bill => {
-    if (bill.frequency === "once") {
-      await persist({ ...data, bills: data.bills.map(x => x.id === bill.id ? { ...x, status: "paid", lastPaidAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : x) });
-      return;
-    }
-    let nextDueDate;
-    try { nextDueDate = nextHomeBillDue(bill.dueDate || today(), bill.frequency || "monthly"); }
-    catch (e) { setError(e?.message || "تعذر حساب موعد الفاتورة التالية."); return; }
+    if (bill.frequency === "once" && bill.status === "paid") return;
     const now = new Date().toISOString();
-    const next = { ...data, bills: data.bills.map(x => x.id === bill.id ? { ...x, lastPaidAt: now, dueDate: nextDueDate, status: "due", updatedAt: now } : x) };
-    await persist(next);
+    const paymentDate = (bill.dueDate || today());
+    let next;
+    if (bill.frequency === "once") {
+      next = { ...data, bills: data.bills.map(x => x.id === bill.id ? { ...x, status: "paid", lastPaidAt: now, updatedAt: now } : x) };
+    } else {
+      let nextDueDate;
+      try { nextDueDate = nextHomeBillDue(paymentDate, bill.frequency || "monthly"); }
+      catch (e) { setError(e?.message || "تعذر حساب موعد الفاتورة التالية."); return; }
+      next = { ...data, bills: data.bills.map(x => x.id === bill.id ? { ...x, lastPaidAt: now, dueDate: nextDueDate, status: "due", updatedAt: now } : x) };
+    }
+    const saved = await persist(next);
+    if (!saved || isDemo) return;
+    publishOSEvent({
+      type: "home.bill.payment.recorded",
+      entityType: "home_bill",
+      entityId: bill.id,
+      occurredAt: now,
+      payload: {
+        sourcePaymentId: "home-bill:" + bill.id + ":" + paymentDate,
+        billId: bill.id,
+        billTitle: bill.title,
+        amount: Number(bill.amount),
+        currency: bill.currency || "EGP",
+        category: bill.category || "منزل",
+        paymentDate,
+        frequency: bill.frequency || "monthly"
+      }
+    }, workspaceId, "home");
   };
 
   if (!loaded) return <div style={styles.card}>جاري تحميل المهام والعمليات المنزلية…</div>;
