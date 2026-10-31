@@ -314,8 +314,6 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
       const project = projectsById[projectId];
       if (!discovery || !D.isActiveRec(discovery) || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
-      if (!can("discovery.write") || !can("issue.write", project)) throw new Error("لا تملك صلاحية تحويل الاكتشاف إلى مشكلة في هذا المشروع.");
-      if (!can("discovery.write") || !can("prd.write", project)) throw new Error("لا تملك صلاحية تحويل الاكتشاف إلى مواصفة في هذا المشروع.");
       if (!can("discovery.write") || !can("task.write", project)) throw new Error("لا تملك صلاحية تحويل الاكتشاف إلى مهمة في هذا المشروع.");
       const linkedProjects = (discovery.project_ids || []).filter((id) => projectsById[id] && !projectsById[id].archived_at);
       if ((discovery.project_ids || []).length && !linkedProjects.includes(projectId)) throw new Error("المشروع الهدف يجب أن يكون من المشاريع المرتبطة النشطة بالاكتشاف.");
@@ -384,6 +382,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
       const project = projectsById[projectId];
       if (!discovery || !D.isActiveRec(discovery) || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      if (!can("discovery.write") || !can("prd.write", project)) throw new Error("لا تملك صلاحية تحويل الاكتشاف إلى مواصفة في هذا المشروع.");
       const linkedProjects = (discovery.project_ids || []).filter((id) => projectsById[id] && !projectsById[id].archived_at);
       if ((discovery.project_ids || []).length && !linkedProjects.includes(projectId)) throw new Error("المشروع الهدف يجب أن يكون من المشاريع المرتبطة النشطة بالاكتشاف.");
       const existing = (data.prds || []).find((item) => (item.discovery_ids || []).includes(discoveryId));
@@ -411,7 +410,8 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async convertDiscoveryToIssue(discoveryId, projectId, discoveredAt) {
       const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
       const project = projectsById[projectId];
-      if (!discovery || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      if (!discovery || !D.isActiveRec(discovery) || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      if (!can("discovery.write") || !can("issue.write", project)) throw new Error("لا تملك صلاحية تحويل الاكتشاف إلى مشكلة في هذا المشروع.");
       const linkedProjects = (discovery.project_ids || []).filter((id) => projectsById[id] && !projectsById[id].archived_at);
       if ((discovery.project_ids || []).length && !linkedProjects.includes(projectId)) throw new Error("المشروع الهدف يجب أن يكون من المشاريع المرتبطة النشطة بالاكتشاف.");
       const existing = (data.issues || []).find((item) => item.from_discovery_id === discoveryId);
