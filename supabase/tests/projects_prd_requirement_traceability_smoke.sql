@@ -133,7 +133,14 @@ insert into public.workspace_records (workspace_id, system_id, collection, id, d
 values
  ('11111111-1111-4111-8111-111111111111','projects','outputs','output2','{"project_id":"p1","approval":"Draft","name":"Draft output"}'),
  ('11111111-1111-4111-8111-111111111111','projects','outputs','output3','{"project_id":"p2","prd_id":"prd2","prd_requirement_id":"req2","approval":"Final","name":"Final evidence for requirement two"}'),
-
+ ('11111111-1111-4111-8111-111111111111','projects','objectives','obj1','{"name":"Objective One","project_ids":["p1"]}'),
+ ('11111111-1111-4111-8111-111111111111','projects','krs','kr1','{"name":"KR One","objective_id":"obj1","project_ids":["p1"],"task_ids":["task1"]}'),
+ ('11111111-1111-4111-8111-111111111111','projects','risks','risk1','{"project_id":"p1","title":"Risk One","task_ids":["task1"],"prd_id":"prd1"}'),
+ ('11111111-1111-4111-8111-111111111111','projects','risks','risk2','{"project_id":"p2","title":"Risk Two","task_ids":["task2"]}'),
+ ('11111111-1111-4111-8111-111111111111','projects','issues','issue1','{"project_id":"p1","title":"Issue One","task_ids":["task1"]}'),
+ ('11111111-1111-4111-8111-111111111111','projects','issues','issue2','{"project_id":"p2","title":"Issue Two","task_ids":["task2"]}'),
+ ('11111111-1111-4111-8111-111111111111','projects','discovery','discovery1','{"title":"Discovery One","project_ids":["p1"]}'),
+ ('11111111-1111-4111-8111-111111111111','projects','discovery','discovery2','{"title":"Discovery Two","project_ids":["p2"]}');
 update public.workspace_records
    set data = jsonb_set(data, '{requirements}', '[{"id":"req2","title":"Requirement Two","status":"Verified"}]'::jsonb)
  where workspace_id = '11111111-1111-4111-8111-111111111111'
@@ -149,14 +156,7 @@ do $block$ begin
   exception when sqlstate '22023' then null;
   end;
 end $block$;
- ('11111111-1111-4111-8111-111111111111','projects','objectives','obj1','{"name":"Objective One","project_ids":["p1"]}'),
- ('11111111-1111-4111-8111-111111111111','projects','krs','kr1','{"name":"KR One","objective_id":"obj1","project_ids":["p1"],"task_ids":["task1"]}'),
- ('11111111-1111-4111-8111-111111111111','projects','risks','risk1','{"project_id":"p1","title":"Risk One","task_ids":["task1"],"prd_id":"prd1"}'),
- ('11111111-1111-4111-8111-111111111111','projects','risks','risk2','{"project_id":"p2","title":"Risk Two","task_ids":["task2"]}'),
- ('11111111-1111-4111-8111-111111111111','projects','issues','issue1','{"project_id":"p1","title":"Issue One","task_ids":["task1"]}'),
- ('11111111-1111-4111-8111-111111111111','projects','issues','issue2','{"project_id":"p2","title":"Issue Two","task_ids":["task2"]}'),
- ('11111111-1111-4111-8111-111111111111','projects','discovery','discovery1','{"title":"Discovery One","project_ids":["p1"]}'),
- ('11111111-1111-4111-8111-111111111111','projects','discovery','discovery2','{"title":"Discovery Two","project_ids":["p2"]}');
+
 
 insert into public.workspace_records (workspace_id, system_id, collection, id, data)
 values ('11111111-1111-4111-8111-111111111111','projects','tasks','task3',
