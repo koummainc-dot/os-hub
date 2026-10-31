@@ -37,6 +37,19 @@ assert.ok(decisionAction.includes('decision.status !== "Approved"'), "decision i
 assert.ok(decisionAction.includes('!can("decision.write", project) || !can("task.write", project)'), "decision implementation requires decision and task permissions");
 assert.ok(decisionAction.includes('const stableTaskId = "decision_task_" + decision.id') && decisionAction.includes("await R.putAtomic("),
   "decision implementation creation must be idempotent and atomic");
+assert.ok(decisionAction.includes('existing.project_id !== decision.project_id'),
+  "decision retry must reject a linked task from another project");
 assert.ok(entities.includes('d.status === "Approved" && can("decision.write", projectsById[d.project_id]) && can("task.write", projectsById[d.project_id])'),
   "decision implementation action must only be offered when both permissions are available");
-console.log("✓ Projects relationship permission and action contracts passed");
+
+const riskTaskAction = store.slice(mitigationStart, mitigationEnd);
+assert.ok(riskTaskAction.includes('existing.project_id !== risk.project_id'),
+  "risk mitigation retry must reject a linked task from another project");
+assert.ok(repair.includes("!D.isActiveRec(currentIssue)"),
+  "repair task creation must reject archived or deleted issues");
+const discoveryTaskStart = store.indexOf("async convertDiscoveryToTask(discoveryId, projectId)");
+const discoveryTaskEnd = store.indexOf("async convertDiscoveryToProject", discoveryTaskStart);
+const discoveryTaskAction = store.slice(discoveryTaskStart, discoveryTaskEnd);
+assert.ok(discoveryTaskAction.includes("!D.isActiveRec(discovery)") && discoveryTaskAction.includes("!D.isActiveRec(existing)"),
+  "discovery conversion must reject inactive source discoveries and archived linked tasks");
+console.log("✓ Projects relationship permission, retry, and action contracts passed");
