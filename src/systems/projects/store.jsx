@@ -440,6 +440,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       const previous = v.id ? (data.issues || []).find((item) => item.id === v.id) : null;
       if (v.id && (!previous || previous.project_id !== v.project_id)) throw new Error("المشكلة غير موجودة في المشروع المحدد.");
       if (v.prd_id && !data.prds.some((prd) => prd.id === v.prd_id && prd.project_id === v.project_id)) throw new Error("المواصفة يجب أن تتبع المشروع نفسه.");
+      const issueId = v.id || uid();
       const oldIds = [...new Set(previous?.task_ids || [])];
       const nextIds = [...new Set(v.task_ids || [])];
       const changedIds = [...new Set([...oldIds, ...nextIds])];
@@ -450,15 +451,11 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
           if (nextIds.includes(taskId)) throw new Error("كل مهمة إصلاح يجب أن تكون نشطة وتتبع المشروع نفسه.");
           continue;
         }
-        const issueIds = [...new Set(task.issue_ids || [])].filter((id) => id !== (previous?.id || v.id));
-        if (nextIds.includes(taskId)) issueIds.push(v.id || "pending-issue-id");
+        const issueIds = [...new Set(task.issue_ids || [])].filter((id) => id !== issueId);
+        if (nextIds.includes(taskId)) issueIds.push(issueId);
         ops.push({ coll: "tasks", rec: { ...stamp({ ...task, issue_ids: issueIds }), _vis: visFor(project) } });
       }
-      const issue = { ...v, id: v.id || uid(), task_ids: nextIds };
-      // A newly created issue needs its final ID before task backlinks are constructed.
-      if (!v.id) {
-        for (const op of ops) op.rec.issue_ids = [...new Set((op.rec.issue_ids || []).filter((id) => id !== "pending-issue-id").concat(nextIds.includes(op.rec.id) ? [issue.id] : []))];
-      }
+      const issue = { ...v, id: issueId, task_ids: nextIds };
       ops.push({ coll: "issues", rec: { ...stamp(issue), _vis: visFor(project) } });
       const saved = await R.putAtomic(ops);
       if (!Array.isArray(saved) || saved.length !== ops.length || saved.some((item) => !item)) throw new Error("لم يتم حفظ المشكلة وروابط مهام الإصلاح معًا.");
