@@ -1,0 +1,55 @@
+name: Home OS SQL smoke tests
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/*home_os*"
+      - "supabase/tests/home_os_smoke.sql"
+      - "tests/home_os_sql_bootstrap.sql"
+      - ".github/workflows/home-os-sql-smoke.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/*home_os*"
+      - "supabase/tests/home_os_smoke.sql"
+      - "tests/home_os_sql_bootstrap.sql"
+      - ".github/workflows/home-os-sql-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  home-postgres-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: home_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d home_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: home_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Bootstrap disposable schema
+        run: psql -v ON_ERROR_STOP=1 -f tests/home_os_sql_bootstrap.sql
+      - name: Apply Home OS migrations
+        run: |
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031140000_home_os_phase1_foundation.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031160000_home_os_phase2_operations.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031170000_home_os_operations_snapshot.sql
+      - name: Verify Home snapshot, RLS and movement idempotency
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/home_os_smoke.sql
