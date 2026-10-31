@@ -85,6 +85,7 @@ begin
     p_idempotency_key,case when p_movement_type='move' then p_to_room_id else null end,auth.uid()
   ) returning id into v_movement_id;
 
+  perform set_config('app.home_inventory_movement','on',true);
   update public.home_inventory_items set quantity=v_next_quantity,room_id=v_next_room_id,
     version=version+1,updated_at=v_occurred_at,updated_by=auth.uid()
     where workspace_id=p_workspace_id and id=p_item_id
