@@ -2,7 +2,7 @@
 begin;
 create table if not exists public.home_operations_snapshot (
   workspace_id uuid primary key references public.workspaces(id) on delete cascade,
-  data jsonb not null default '{"tasks":[],"completions":[],"providers":[],"maintenance":[],"purchaseRequests":[],"purchaseItems":[],"bills":[]}'::jsonb
+  data jsonb not null default '{"tasks":[],"completions":[],"providers":[],"maintenance":[],"purchaseRequests":[],"purchaseItems":[],"bills":[],"events":[]}'::jsonb
     check (jsonb_typeof(data) = 'object'),
   version integer not null default 1 check (version > 0),
   updated_at timestamptz not null default now(),
@@ -31,7 +31,7 @@ begin
     raise exception 'HOME_ACCESS_DENIED' using errcode = '42501';
   end if;
   select data into result from public.home_operations_snapshot where workspace_id=p_workspace_id;
-  return coalesce(result, '{"tasks":[],"completions":[],"providers":[],"maintenance":[],"purchaseRequests":[],"purchaseItems":[],"bills":[]}'::jsonb);
+  return coalesce(result, '{"tasks":[],"completions":[],"providers":[],"maintenance":[],"purchaseRequests":[],"purchaseItems":[],"bills":[],"events":[]}'::jsonb);
 end $$;
 
 create or replace function public.home_operations_save(p_workspace_id uuid, p_data jsonb)
@@ -49,6 +49,7 @@ begin
     or jsonb_typeof(p_data->'purchaseRequests') is distinct from 'array'
     or jsonb_typeof(p_data->'purchaseItems') is distinct from 'array'
     or jsonb_typeof(p_data->'bills') is distinct from 'array'
+    or jsonb_typeof(p_data->'events') is distinct from 'array'
   then raise exception 'HOME_INVALID_OPERATIONS_COLLECTIONS'; end if;
   insert into public.home_operations_snapshot(workspace_id,data,version,updated_at,updated_by)
   values(p_workspace_id,p_data,1,now(),auth.uid())
