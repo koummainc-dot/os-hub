@@ -96,7 +96,7 @@ function osAccessEntries(access){
 // ── Data API (per workspace · system · part) ──────────────────────────
 function osLocalKey(wsId,sysId,part){return "os_cache_"+wsId+"_"+sysId+"_"+part;}
 function osMakeApi(wsId,systemId,part){
-  part=part||"main"; const lk=osLocalKey(wsId,systemId,part); let uidCache=null;
+  part=part||"main"; const lk=osLocalKey(wsId,systemId,part); let uidCache=null; let homeOpsVersion=null;
   const readLocal=(err)=>{try{const ls=localStorage.getItem(lk);if(ls)return{data:JSON.parse(ls),source:"localStorage",updatedAt:null,error:err||null};}catch(e){}return{data:null,source:"unavailable",updatedAt:null,error:err||null};};
   return {
     workspaceId: wsId,
@@ -142,22 +142,29 @@ function osMakeApi(wsId,systemId,part){
     },
     async loadHomeOperations(){
       try{
-        const {data,error}=await supabase.rpc("home_operations_load",{p_workspace_id:wsId});
+        const {data,error}=await supabase.rpc("home_operations_load_v2",{p_workspace_id:wsId});
         if(error){
-          if(["PGRST202","42883"].includes(error.code)||/function .*home_operations_load.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_operations_load_v2.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
           return {available:true,error};
         }
-        return {available:true,data,source:"normalized"};
+        homeOpsVersion=Number.isInteger(Number(data?._version))?Number(data._version):0;
+        return {available:true,data,source:"normalized",version:homeOpsVersion};
       }catch(error){return {available:true,error};}
     },
     async saveHomeOperations(snapshot){
       try{
-        const {data,error}=await supabase.rpc("home_operations_save",{p_workspace_id:wsId,p_data:snapshot});
+        const expectedVersion=Number.isInteger(homeOpsVersion)?homeOpsVersion:Number(snapshot?._version??0);
+        const {data,error}=await supabase.rpc("home_operations_save_v2",{
+          p_workspace_id:wsId,
+          p_data:snapshot,
+          p_expected_version:expectedVersion
+        });
         if(error){
-          if(["PGRST202","42883"].includes(error.code)||/function .*home_operations_save.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
-          return {available:true,ok:false,error};
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_operations_save_v2.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,ok:false,conflict:error.code==="40001"||/HOME_OPERATIONS_CONFLICT/.test(error.message||""),error};
         }
-        return {available:true,ok:true,updatedAt:data||null};
+        homeOpsVersion=Number.isInteger(Number(data?.version))?Number(data.version):expectedVersion+1;
+        return {available:true,ok:true,updatedAt:data?.updatedAt||null,version:homeOpsVersion};
       }catch(error){return {available:true,ok:false,error};}
     },
     async recordHomePurchaseReceipt(requestId, lines, idempotencyKey){
