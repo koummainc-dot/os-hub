@@ -306,13 +306,14 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   };
   const pageTitle=SECTIONS.find(s=>s[0]===section)?.[1]||"المعرفة والموارد";
   const count=(kind)=>allItems.filter(x=>x.kind===kind&&x.status!=="archived").length;
-  const newKind=section==="ideas"?"idea":section==="notes"?"note":section==="meetings"?"meeting":section==="events"?"event":section==="inbox"?"inbox":"resource";
+  const newKind=section==="ideas"?"idea":section==="notes"?"note":section==="meetings"?"meeting":section==="events"||section==="calendar"?"event":section==="inbox"?"inbox":"resource";
+  const canAddItem=["hub","inbox","bookmarks","ideas","notes","meetings","events","calendar"].includes(section);
   const addLabel=({resource:"＋ حفظ مصدر",idea:"＋ فكرة جديدة",note:"＋ ملاحظة",meeting:"＋ اجتماع",event:"＋ فعالية",inbox:"＋ إضافة للوارد"})[newKind];
   const setField=(key,value)=>setForm(f=>({...f,[key]:value}));
   return <div dir="rtl" style={{color:C.ink,fontFamily:"inherit",display:"grid",gap:16,maxWidth:1400,margin:"0 auto"}}>{learningActivity.length>0&&<div role="status" style={{...card,borderColor:"#DDD6FE",background:"#F5F3FF",color:"#5B21B6"}}><div style={{fontWeight:800,marginBottom:6}}>🔗 نشاط جديد من Learning OS</div>{learningActivity.map(event=><div key={event.id} style={{fontSize:12,marginTop:4}}>{event.type==="learning.study_session.completed"?`تم تسجيل جلسة دراسة — ${Number(event.payload?.minutes)||0} دقيقة`:event.type==="learning.lesson.completed"?`تم إكمال درس: ${event.payload?.lessonName||"درس"}`:`تم إكمال دورة: ${event.payload?.courseName||"دورة"}`}</div>)}<div style={{marginTop:8}}><Btn secondary onClick={()=>setLearningActivity([])}>إخفاء</Btn></div></div>}
     <header style={{...card,background:"linear-gradient(135deg,#F0F9FF,#FFFFFF)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
       <div><div style={{fontSize:11,color:C.accent,fontWeight:850,letterSpacing:.5}}>KNOWLEDGE OS · CAPTURE → CLARIFY → ORGANIZE → USE</div><h1 style={{fontSize:25,margin:"7px 0"}}>المعرفة والموارد</h1><p style={{margin:0,fontSize:13,color:C.muted,lineHeight:1.8}}>مكان واحد للروابط والمصادر والأفكار ومحاضر الاجتماعات والفعاليات، مع بحث وربط وتصنيف وأرشفة.</p></div>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{canEdit&&<Btn onClick={()=>openNew(newKind)}>{addLabel}</Btn>}<Btn secondary onClick={exportJson}>تصدير نسخة JSON</Btn></div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{canEdit&&canAddItem&&<Btn onClick={()=>openNew(newKind)}>{section==="hub"?"＋ إضافة عنصر":addLabel}</Btn>}<Btn secondary onClick={exportJson}>تصدير نسخة JSON</Btn></div>
     </header>
     <nav style={{display:"flex",gap:7,flexWrap:"wrap"}}>{SECTIONS.map(([id,label,icon])=><button key={id} onClick={()=>go(id)} style={{border:"1px solid "+(section===id?C.accent:C.line),background:section===id?C.soft:C.white,color:section===id?C.accent:C.ink,borderRadius:10,padding:"8px 10px",fontFamily:"inherit",fontSize:12,fontWeight:750,cursor:"pointer"}}>{icon} {label}</button>)}</nav>
     {error&&<div role="alert" style={{...card,borderColor:"#FECACA",background:"#FEF2F2",color:C.red,fontSize:13}}>{error} <button onClick={load} style={{marginInlineStart:10}}>إعادة تحميل</button></div>}
