@@ -466,10 +466,14 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (decision.status !== "Approved") throw new Error("اعتمد القرار قبل إنشاء مهمة تنفيذ له.");
       if (!can("decision.write", project) || !can("task.write", project)) throw new Error("لا تملك صلاحية اعتماد إجراءات القرار في هذا المشروع.");
       const linkedIds = [...new Set(decision.implementation_task_ids || [])];
-      const existing = linkedIds.map((id) => idx.byId[id]).find(Boolean);
-      if (existing) return existing;
-      if (linkedIds.some((id) => (data.tasks || []).some((t) => t.id === id))) throw new Error("توجد مهمة تنفيذ مؤرشفة أو في السلة؛ استعدها بدل إنشاء نسخة مكررة.");
-      const taskId = uid();
+      const stableTaskId = "decision_task_" + decision.id;
+      const existing = linkedIds.map((id) => idx.byId[id]).find(Boolean) || idx.byId[stableTaskId];
+      if (existing) {
+        if (!linkedIds.includes(existing.id)) await R.put("decisions", { ...decision, implementation_task_ids: [...linkedIds, existing.id] });
+        return existing;
+      }
+      if (linkedIds.some((id) => (data.tasks || []).some((t) => t.id === id)) || (data.tasks || []).some((t) => t.id === stableTaskId)) throw new Error("توجد مهمة تنفيذ مؤرشفة أو في السلة؛ استعدها بدل إنشاء نسخة مكررة.");
+      const taskId = stableTaskId;
       const prdId = decision.prd_id || (decision.affected_prd_ids || []).find((id) => data.prds.some((p) => p.id === id && p.project_id === decision.project_id)) || null;
       const task = { id: taskId, title: "تنفيذ القرار: " + decision.title, project_id: decision.project_id, description: [decision.rationale, decision.expected_impact && ("الأثر المتوقع: " + decision.expected_impact)].filter(Boolean).join("\\n\\n"), priority: "Medium", status: "Not Started", planning_bucket: "Inbox", prd_id: prdId, discovery_ids: [...new Set(decision.affected_discovery_ids || [])], created_by: me, sort_order: Date.now() };
       const errs = D.validateTaskRefs(task, { projectsById, tasksById: idx.byId, prdsById });
