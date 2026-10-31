@@ -282,7 +282,8 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (existing) {
         if (existing.project_id !== risk.project_id) throw new Error("المشكلة المرتبطة بالخطر موجودة في مشروع مختلف؛ لم يتم تغيير الارتباط.");
         if (existing.from_risk_id && existing.from_risk_id !== risk.id) throw new Error("المشكلة مرتبطة بالفعل بخطر آخر؛ لم يتم تغيير أي ارتباط.");
-        const issuePatch = existing.from_risk_id === risk.id ? null : { ...existing, from_risk_id: risk.id };
+        const mergedTaskIds = [...new Set([...(existing.task_ids || []), ...(risk.mitigation_task_ids || []).filter((id) => idx.byId[id] && idx.byId[id].project_id === risk.project_id)])];
+        const issuePatch = existing.from_risk_id === risk.id && mergedTaskIds.length === (existing.task_ids || []).length ? null : { ...existing, from_risk_id: risk.id, task_ids: mergedTaskIds };
         const riskPatch = { ...risk, status: "Materialized", converted_issue_id: existing.id };
         const ops = [
           ...(issuePatch ? [{ coll: "issues", rec: issuePatch }] : []),
@@ -302,6 +303,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
         discovered_at: todayStr(),
         owner_id: risk.owner_id || null,
         description: risk.notes || risk.mitigation || "",
+        task_ids: (risk.mitigation_task_ids || []).filter((id) => idx.byId[id] && idx.byId[id].project_id === risk.project_id),
         from_risk_id: risk.id,
       };
       const riskPatch = { ...risk, status: "Materialized", converted_issue_id: issueId };
