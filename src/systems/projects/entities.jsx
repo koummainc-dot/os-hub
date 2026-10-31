@@ -335,6 +335,7 @@ export function DiscoveryView() {
   const [form, setForm] = useState(null); const [mode, setMode] = useState("board"); const [q, setQ] = useState(""); const [type, setType] = useState(""); const [conv, setConv] = useState(null); const convertingDiscoveryIds = useRef(new Set());
   const runDiscoveryConversionOnce = async (id, work) => { if (convertingDiscoveryIds.current.has(id)) { toast("التحويل جارٍ بالفعل؛ انتظر اكتماله قبل إعادة المحاولة."); return null; } convertingDiscoveryIds.current.add(id); try { return await work(); } finally { convertingDiscoveryIds.current.delete(id); } };
   const list = data.discovery.filter((d) => (!type || d.type === type) && (!q || d.title.toLowerCase().includes(q.toLowerCase())));
+  const canWriteDiscovery = can("discovery.write");
   const statuses = Object.keys(L.discoveryStatus);
   const conversionWriteAction = { task: "task.write", prd: "prd.write", issue: "issue.write" };
   const eligibleConversionProjects = (kind, source) => (source.project_ids || []).map((id) => projectsById[id]).filter((project) => project && !project.is_system && !project.archived_at && can(conversionWriteAction[kind], project));
@@ -394,19 +395,19 @@ export function DiscoveryView() {
     setConv(null);
   }
   const card = (d) => (
-    <div style={{ ...S.card, padding: "9px 11px" }} onClick={() => setForm(d)}>
+    <div style={{ ...S.card, padding: "9px 11px", cursor: canWriteDiscovery ? "pointer" : "default" }} onClick={canWriteDiscovery ? () => setForm(d) : undefined}>
       <div style={{ fontSize: 12.5, fontWeight: 700 }}>{typeIcon[d.type]} {d.title}</div>
       <div style={{ fontSize: 11, color: C.dim, margin: "3px 0" }}>{d.proposed_solution ? "💬 " + d.proposed_solution.slice(0, 60) : d.description ? d.description.slice(0, 60) : ""}</div>
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>{d.impact_level && <Chip color={SEV_COLOR[d.impact_level]}>{L.severity[d.impact_level]}</Chip>}{stale(d) && <Chip color={C.warn}>⏳ يحتاج فرزاً</Chip>}{d.owner_id && <Who id={d.owner_id} size={15} />}{(d.resolution_links || []).length > 0 && <Chip color={C.ok}>↪ {(d.resolution_links || []).length}</Chip>}</div>
     </div>);
   return (
     <div>
-      <Head title="الاكتشاف" sub="مشاكل · أفكار · فرص — الوارد قبل أن تتحول إلى مشاريع ومهام" right={<><Seg value={mode} onChange={setMode} options={[{ v: "board", l: "لوحة" }, { v: "list", l: "قائمة" }]} /><Btn kind="primary" onClick={() => setForm({ status: "Inbox", type: "Idea", logged_at: today })}>➕ عنصر</Btn></>} />
+      <Head title="الاكتشاف" sub="مشاكل · أفكار · فرص — الوارد قبل أن تتحول إلى مشاريع ومهام" right={<><Seg value={mode} onChange={setMode} options={[{ v: "board", l: "لوحة" }, { v: "list", l: "قائمة" }]} />{canWriteDiscovery && <Btn kind="primary" onClick={() => setForm({ status: "Inbox", type: "Idea", logged_at: today })}>➕ عنصر</Btn>}</>} />
       <SearchBar value={q} onChange={setQ} placeholder="بحث…"><select style={{ ...S.sel, width: 130 }} value={type} onChange={(e) => setType(e.target.value)}><option value="">كل الأنواع</option>{opts(L.discoveryType).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></SearchBar>
-      {mode === "board" ? <Board columns={statuses.map((s) => ({ id: s, label: L.discoveryStatus[s], color: s === "Dropped" ? "#EF4444" : s === "Completed" ? "#10B981" : s === "Working On" ? "#3B82F6" : "#94A3B8", items: list.filter((d) => d.status === s) }))} onMove={move} renderCard={card} />
-        : !list.length ? <Empty icon="💡" title="لا عناصر" /> : <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((d) => <div key={d.id} onClick={() => setForm(d)} style={{ display: "flex", gap: 8, padding: "8px 0", borderBottom: `1px solid ${C.line}`, cursor: "pointer", alignItems: "center", fontSize: 13 }}><span>{typeIcon[d.type]}</span><span style={{ flex: 1 }}>{d.title}</span><Chip color={C.info}>{L.discoveryStatus[d.status]}</Chip></div>)}</div>}
+      {mode === "board" ? <Board columns={statuses.map((s) => ({ id: s, label: L.discoveryStatus[s], color: s === "Dropped" ? "#EF4444" : s === "Completed" ? "#10B981" : s === "Working On" ? "#3B82F6" : "#94A3B8", items: list.filter((d) => d.status === s) }))} onMove={canWriteDiscovery ? move : undefined} renderCard={card} />
+        : !list.length ? <Empty icon="💡" title="لا عناصر" /> : <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((d) => <div key={d.id} onClick={canWriteDiscovery ? () => setForm(d) : undefined} style={{ display: "flex", gap: 8, padding: "8px 0", borderBottom: `1px solid ${C.line}`, cursor: canWriteDiscovery ? "pointer" : "default", alignItems: "center", fontSize: 13 }}><span>{typeIcon[d.type]}</span><span style={{ flex: 1 }}>{d.title}</span><Chip color={C.info}>{L.discoveryStatus[d.status]}</Chip></div>)}</div>}
       {form && <FormModal title={form.id ? "عنصر اكتشاف" : "عنصر جديد"} wide initial={form} onClose={() => setForm(null)}
-        footerExtra={form.id ? <><Btn onClick={() => { setConv(form); setForm(null); }}>↪ تحويل…</Btn><Btn danger onClick={async () => { await act.del("discovery", form.id, form.title); setForm(null); }}>🗑</Btn></> : null}
+        footerExtra={form.id && canWriteDiscovery ? <><Btn onClick={() => { setConv(form); setForm(null); }}>↪ تحويل…</Btn><Btn danger onClick={async () => { await act.del("discovery", form.id, form.title); setForm(null); }}>🗑</Btn></> : null}
         validate={(v) => { const m = D.validateDiscoveryStatus(v, v.status, (v.resolution_links || []).length > 0); return m; }}
         onSubmit={async (v) => { const { _need, ...rec } = v; await act.put("discovery", { ...rec, id: rec.id || uid(), raised_by_member_id: rec.raised_by_member_id || me, source: rec.source || "manual", logged_at: rec.logged_at || today }); toast("✅ تم الحفظ"); setForm(null); }} fields={[
           { key: "title", label: "العنوان", required: true, span: 2 }, { key: "type", label: "النوع", type: "select", allowEmpty: false, options: opts(L.discoveryType) }, { key: "status", label: "الحالة", type: "select", allowEmpty: false, options: opts(L.discoveryStatus) },
