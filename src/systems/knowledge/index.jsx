@@ -379,7 +379,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
       </div>
       {editor.kind==="meeting"&&<><Field label="المشاركون"><input style={input} value={form.attendees||""} onChange={e=>setField("attendees",e.target.value)} placeholder="الأسماء مفصولة بفواصل"/></Field><Field label="القرارات"><textarea style={input} value={form.decisions||""} onChange={e=>setField("decisions",e.target.value)}/></Field><Field label="المتابعات (كل متابعة في سطر)"><textarea style={input} value={form.followups||""} onChange={e=>setField("followups",e.target.value)}/></Field></>}
       {editor.kind==="event"&&<><Field label="المكان"><input style={input} value={form.location||""} onChange={e=>setField("location",e.target.value)}/></Field><Field label="رابط الحجز / الفعالية"><input type="url" style={input} value={form.url||""} onChange={e=>setField("url",e.target.value)}/></Field></>}
-      {editor.kind!=="inbox"&&<label style={{display:"flex",gap:8,alignItems:"center",fontSize:12,fontWeight:750}}><input type="checkbox" checked={!!form.pinned} onChange={e=>setField("pinned",e.target.checked)}/> تثبيت العنصر في الرئيسية</label>
+      {editor.kind!=="inbox"&&<label style={{display:"flex",gap:8,alignItems:"center",fontSize:12,fontWeight:750}}><input type="checkbox" checked={!!form.pinned} onChange={e=>setField("pinned",e.target.checked)}/> تثبيت العنصر في الرئيسية</label>}
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:5}}><Btn secondary onClick={()=>setEditor(null)} disabled={saving}>إلغاء</Btn><Btn type="submit" disabled={saving||!esc(form.title)}>{saving?"جارٍ الحفظ…":"حفظ"}</Btn></div>
     </form></div></div>}
   </div>;
