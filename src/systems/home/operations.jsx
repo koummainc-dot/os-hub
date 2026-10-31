@@ -21,7 +21,7 @@ function Select(props) { return <select {...props} style={styles.input} />; }
 function Button({ children, secondary = false, ...props }) { return <button {...props} style={styles.btn(secondary)}>{children}</button>; }
 function Row({ title, meta, children }) { return <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "11px 0", borderTop: "1px solid #E8E1D7" }}><div><div style={{ fontWeight: 800, fontSize: 13 }}>{title}</div>{meta && <div style={{ color: "#766F64", fontSize: 11, marginTop: 4 }}>{meta}</div>}</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{children}</div></div>; }
 
-export default function HomeOperations({ api, canEdit = false, isDemo = false, properties = [], rooms = [], items = [], initialTab = "tasks" }) {
+export default function HomeOperations({ api, canEdit = false, isDemo = false, properties = [], rooms = [], items = [], initialTab = "tasks", onReceivePurchase }) {
   const [data, setData] = useState(EMPTY);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
