@@ -128,6 +128,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   const [showArchived,setShowArchived]=useState(false);
   const canEdit=!!isDemo || access?.level==="edit" || access?.manage || access?.owner;
   const section=SECTIONS.some(s=>s[0]===page)?page:"hub";
+  useEffect(()=>{setFilter("all");},[section]);
   const go=id=>setPage&&setPage(id);
   const refreshNotifications=useCallback(async()=>{
     if(isDemo||!api?.workspaceId||storageMode!=="normalized"){setNotifications([]);return;}
