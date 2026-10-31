@@ -12,8 +12,10 @@ assert.match(validateHomeTask({ ...daily, title: " " }, data).join(" "), /عنو
 assert.equal(nextHomeTaskDue(daily, "2026-10-31T08:00:00.000Z"), "2026-11-01T08:00:00.000Z");
 assert.equal(nextHomeTaskDue({ ...daily, recurrenceRule: { frequency: "interval", intervalDays: 3 } }, "2026-10-31T08:00:00.000Z"), "2026-11-03T08:00:00.000Z");
 assert.equal(nextHomeTaskDue({ ...daily, recurrenceRule: { frequency: "none" } }, "2026-10-31T08:00:00.000Z"), null);
+assert.equal(nextHomeTaskDue({ ...daily, recurrenceRule: { frequency: "monthly" } }, "2026-01-31T08:00:00.000Z"), "2026-02-28T08:00:00.000Z");
 const result = completeHomeTask(daily, { outcome: "done", completedAt: "2026-10-31T08:00:00.000Z" });
 assert.equal(result.task.nextDueAt, "2026-11-01T08:00:00.000Z");
+assert.equal(result.task.dueDate, "2026-11-01");
 assert.equal(result.completion.outcome, "done");
 assert.throws(() => completeHomeTask({ ...daily, status: "paused" }, { outcome: "done" }), /NOT_ACTIVE/);
 assert.equal(homeTaskEvent(result.task, result.completion).ownerSystem, "home");
