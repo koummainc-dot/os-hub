@@ -1,0 +1,53 @@
+name: Projects OS SQL smoke tests
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/projects_prd_requirement_traceability_smoke.sql"
+      - "tests/projects_sql_bootstrap.sql"
+      - ".github/workflows/projects-sql-smoke.yml"
+  push:
+    branches: [main, codex/projects-os-relationship-workflows]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/projects_prd_requirement_traceability_smoke.sql"
+      - "tests/projects_sql_bootstrap.sql"
+      - ".github/workflows/projects-sql-smoke.yml"
+
+jobs:
+  projects-postgres-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: projects_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d projects_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: projects_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Bootstrap disposable Projects schema
+        run: psql -v ON_ERROR_STOP=1 -f tests/projects_sql_bootstrap.sql
+      - name: Apply PRD requirement traceability migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031110000_projects_prd_requirement_traceability.sql
+      - name: Apply entity relationship integrity migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031120000_projects_entity_relationship_integrity.sql
+      - name: Apply PRD verified evidence guard migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031130000_projects_prd_verified_evidence_guard.sql
+      - name: Verify project, task, PRD and output boundaries
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_prd_requirement_traceability_smoke.sql

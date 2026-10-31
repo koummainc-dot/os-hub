@@ -154,7 +154,8 @@ export function validateTaskRefs(task, ctx) {
     if (!par) errors.push("الأب غير موجود");
     else if (par.project_id !== task.project_id) errors.push("V-05: الأب والابن يجب أن يكونا في نفس المشروع");
   }
-  if (task.prd_id) { const prd = prdsById && prdsById[task.prd_id]; if (!prd) errors.push("V-22: المواصفة غير موجودة"); else if (prd.project_id !== task.project_id) errors.push("V-06: المواصفة يجب أن تتبع نفس مشروع المهمة"); }
+  if (task.prd_id) { const prd = prdsById && prdsById[task.prd_id]; if (!prd) errors.push("V-22: المواصفة غير موجودة"); else if (prd.project_id !== task.project_id) errors.push("V-06: المواصفة يجب أن تتبع نفس مشروع المهمة"); else if (task.prd_requirement_id && !(prd.requirements || []).some((x) => x.id === task.prd_requirement_id)) errors.push("V-23: متطلب المواصفة لا ينتمي إلى المواصفة المرتبطة"); }
+  else if (task.prd_requirement_id) errors.push("V-23: لا يمكن ربط متطلب دون ربط المواصفة");
   if (cat(task.status) === "cancelled" && !task.cancelled_reason) errors.push("V-19: سبب الإلغاء مطلوب");
   return errors;
 }
@@ -185,7 +186,7 @@ export function planTreeMove(taskId, targetProjectId, idx, prdsById, allTasks, d
   const patches = ids.map((id) => {
     const t = byId[id]; const p = { ...t, project_id: targetProjectId };
     if (id === taskId) p.parent_task_id = null;
-    if (t.prd_id && (!prdsById[t.prd_id] || prdsById[t.prd_id].project_id !== targetProjectId)) p.prd_id = null;
+    if (t.prd_id && (!prdsById[t.prd_id] || prdsById[t.prd_id].project_id !== targetProjectId)) { p.prd_id = null; p.prd_requirement_id = null; }
     if (t.discovery_ids && t.discovery_ids.length) {
       p.discovery_ids = t.discovery_ids.filter((discoveryId) => {
         const discovery = discoveriesById[discoveryId];
@@ -216,9 +217,13 @@ export function validateRisk(r) {
   if (!ok(r.probability) || !ok(r.impact)) e.push("V-12: الاحتمال والتأثير بين 1 و5");
   return e;
 }
-export function validateKR(k) {
+export function validateKR(k, ctx = {}) {
   const e = [];
   if (k.type === "Numeric" && k.target_value === k.initial_value) e.push("V-13: القيمة المستهدفة يجب أن تختلف عن القيمة الابتدائية");
+  if (k.task_ids != null && !Array.isArray(k.task_ids)) e.push("قائمة المهام المرتبطة غير صالحة");
+  const taskIds = Array.isArray(k.task_ids) ? k.task_ids : [];
+  if (new Set(taskIds).size !== taskIds.length) e.push("لا يمكن ربط المهمة نفسها أكثر من مرة بالنتيجة");
+  if (ctx.tasksById) taskIds.forEach((id) => { const task = ctx.tasksById[id]; if (!task) e.push("توجد مهمة مرتبطة غير موجودة أو غير نشطة: " + id); else if (Array.isArray(k.project_ids) && k.project_ids.length && !k.project_ids.includes(task.project_id)) e.push("المهمة المرتبطة يجب أن تتبع أحد المشاريع المحددة للنتيجة الرئيسية: " + id); });
   return e;
 }
 export function validateDates(a, b, msg) { return a && b && a > b ? [msg || "V-14: تاريخ البداية بعد النهاية"] : []; }
@@ -267,6 +272,30 @@ export function krProgress(kr, projectProgress) {
   return { raw, clamped: clamp(raw, 0, 1) };
 }
 export function krProgressValue(kr, pp) { const r = krProgress(kr, pp); if (r == null) return null; return typeof r === "number" ? r : r.clamped; }
+
+// Task execution is deliberately separate from KR outcome progress. A linked task group
+// contributes its active leaf tasks; overlapping groups are counted once.
+export function krTaskExecution(kr, idx) {
+  const roots = [...new Set(Array.isArray(kr?.task_ids) ? kr.task_ids.filter(Boolean) : [])];
+  if (!idx) return { roots: [], tasks: [], leafTotal: 0, leafDone: 0, progress: null };
+  const ids = new Set();
+  roots.forEach((id) => { if (idx.byId[id]) { ids.add(id); idx.descendants(id).forEach((childId) => ids.add(childId)); } });
+  const tasks = [...ids].map((id) => idx.byId[id]).filter(Boolean);
+  const leaves = tasks.filter((task) => idx.isLeaf(task.id) && cat(task.status) !== "cancelled");
+  const leafDone = leaves.filter((task) => cat(task.status) === "done").length;
+  return { roots: roots.filter((id) => !!idx.byId[id]), tasks, leafTotal: leaves.length, leafDone, progress: leaves.length ? leafDone / leaves.length : null };
+}
+export function objectiveTaskExecution(obj, krs, idx) {
+  const linkedKrs = (krs || []).filter((kr) => kr.objective_id === obj?.id && isActiveRec(kr));
+  const ids = new Set();
+  linkedKrs.forEach((kr) => (kr.task_ids || []).forEach((id) => {
+    if (idx?.byId[id]) { ids.add(id); idx.descendants(id).forEach((childId) => ids.add(childId)); }
+  }));
+  const tasks = [...ids].map((id) => idx.byId[id]).filter(Boolean);
+  const leaves = tasks.filter((task) => idx.isLeaf(task.id) && cat(task.status) !== "cancelled");
+  const leafDone = leaves.filter((task) => cat(task.status) === "done").length;
+  return { tasks, leafTotal: leaves.length, leafDone, progress: leaves.length ? leafDone / leaves.length : null };
+}
 export function objectiveProgress(obj, krs, pp) {
   const vals = krs.filter((k) => k.objective_id === obj.id && isActiveRec(k)).map((k) => krProgressValue(k, pp)).filter((v) => v != null);
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
@@ -356,16 +385,22 @@ export function instantiateProjectTemplate(tpl, opts, newId) {
 
 // ── weekly review live metrics ──────────────────────────────────────
 export function reviewLive(memberId, weekStartDate, ctx) {
-  const { idx, wins, sessions, issues, risks, checkins, projects, metrics, settings } = ctx; const end = addDays(weekStartDate, 6); const tz = settings && settings.timezone;
+  const { idx, wins, sessions, issues, risks, decisions, checkins, projects, metrics, settings } = ctx; const end = addDays(weekStartDate, 6); const tz = settings && settings.timezone;
   const inWeek = (d) => d && d >= weekStartDate && d <= end;
   const doneTasks = idx.list.filter((t) => idx.isLeaf(t.id) && cat(t.status) === "done" && t.assignee_id === memberId && t.completed_at && inWeek(dateOf(t.completed_at, tz)));
-  const minutes = (sessions || []).filter((s) => isLive(s) && !s.voided_at && s.member_id === memberId && inWeek(s.date)).reduce((a, s) => a + (s.minutes || 0), 0);
   const overdue = idx.list.filter((t) => idx.isLeaf(t.id) && t.assignee_id === memberId && isOverdueLeaf(t, idx, addDays(end, 0) < ctx.today ? end : ctx.today));
+  const weekTasks = idx.list.filter((t) => idx.isLeaf(t.id) && t.assignee_id === memberId && ["todo", "active"].includes(cat(t.status)) && (t.planning_bucket === "This Week" || inWeek(t.due_date)));
+  const weekIssues = (issues || []).filter((i) => isActiveRec(i) && inWeek(i.discovered_at));
+  const weekRisks = (risks || []).filter((r) => isActiveRec(r) && inWeek(dateOf(r.created_at || end, tz)));
+  const weekDecisions = (decisions || []).filter((d) => isActiveRec(d) && inWeek(dateOf(d.decided_at || d.created_at, tz)));
+  const projectIds = new Set([...doneTasks, ...overdue, ...weekTasks, ...weekIssues, ...weekRisks, ...weekDecisions].map((x) => x.project_id).filter(Boolean));
+  const relatedProjects = (projects || []).filter((p) => isActiveRec(p) && (projectIds.has(p.id) || (metrics && metrics[p.id] && metrics[p.id].health === "Red")));
+  const minutes = (sessions || []).filter((s) => isLive(s) && !s.voided_at && s.member_id === memberId && inWeek(s.date)).reduce((a, s) => a + (s.minutes || 0), 0);
   return {
     wins: (wins || []).filter((w) => isActiveRec(w) && w.member_id === memberId && inWeek(w.achieved_on)),
-    doneTasks, minutes, overdueCount: overdue.length,
-    newIssues: (issues || []).filter((i) => isActiveRec(i) && inWeek(i.discovered_at)).length,
-    newRisks: (risks || []).filter((r) => isActiveRec(r) && inWeek(dateOf(r.created_at || end, tz))).length,
+    doneTasks, weekTasks, overdueTasks: overdue, minutes, overdueCount: overdue.length,
+    issues: weekIssues, risks: weekRisks, decisions: weekDecisions, relatedProjects,
+    newIssues: weekIssues.length, newRisks: weekRisks.length, decisionsCount: weekDecisions.length,
     checkins: (checkins || []).filter((c) => c.member_id === memberId && inWeek(dateOf(c.checked_at, tz))).length,
     redProjects: (projects || []).filter((p) => isActiveRec(p) && metrics && metrics[p.id] && metrics[p.id].health === "Red").length,
   };
