@@ -442,7 +442,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (v.prd_id && !data.prds.some((prd) => prd.id === v.prd_id && prd.project_id === v.project_id)) throw new Error("المواصفة يجب أن تتبع المشروع نفسه.");
       const oldIds = [...new Set(previous?.task_ids || [])];
       const nextIds = [...new Set(v.task_ids || [])];
-      const changedIds = [...new Set([...oldIds, ...nextIds])].filter((id) => oldIds.includes(id) !== nextIds.includes(id));
+      const changedIds = [...new Set([...oldIds, ...nextIds])];
       const ops = [];
       for (const taskId of changedIds) {
         const task = idx.byId[taskId];
