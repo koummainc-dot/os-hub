@@ -90,9 +90,11 @@ function HomeSystem({ api, access, ws, members = [], isDemo = false, page = "das
       setData(committed); tell("تم حفظ التغييرات.");
       return true;
     } catch (e) {
-      const message = /HOME_STOCK_CHANGE_REQUIRES_MOVEMENT/.test(e?.message || "")
-        ? "لم يتم تغيير الرصيد مباشرة. استخدم «حركة مخزون» لتسجيل الاستلام أو الصرف أو التسوية."
-        : (e?.message || "تعذر حفظ البيانات.");
+      const message = e?.code === "40001" || /HOME_SNAPSHOT_CONFLICT/.test(e?.message || "")
+        ? "تغيرت بيانات المنزل في جلسة أخرى. أعد تحميل القسم ثم أعد تطبيق تعديلك لتجنب الكتابة فوق تحديث أحدث."
+        : /HOME_STOCK_CHANGE_REQUIRES_MOVEMENT/.test(e?.message || "")
+          ? "لم يتم تغيير الرصيد مباشرة. استخدم «حركة مخزون» لتسجيل الاستلام أو الصرف أو التسوية."
+          : (e?.message || "تعذر حفظ البيانات.");
       setError(message); return false;
     }
     finally { setSaving(false); }
