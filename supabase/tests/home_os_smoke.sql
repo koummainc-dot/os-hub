@@ -120,6 +120,20 @@ select public.home_operations_save_v2(
   '{"tasks":[],"completions":[],"providers":[],"maintenance":[],"purchaseRequests":[],"purchaseItems":[],"bills":[],"events":[]}'::jsonb
 , (public.home_operations_load_v2('10000000-0000-4000-8000-000000000001'::uuid)->>'_version')::integer);
 do $$
+begin
+  begin
+    perform public.home_save_snapshot('10000000-0000-4000-8000-000000000001','{}'::jsonb);
+    raise exception 'HOME_UNVERSIONED_SNAPSHOT_WRITE_ALLOWED';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.home_operations_save('10000000-0000-4000-8000-000000000001','{"tasks":[],"completions":[],"providers":[],"maintenance":[],"purchaseRequests":[],"purchaseItems":[],"bills":[],"events":[]}'::jsonb);
+    raise exception 'HOME_UNVERSIONED_OPERATIONS_WRITE_ALLOWED';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
+do $$
 declare snapshot jsonb;
 begin
   snapshot := public.home_operations_load('10000000-0000-4000-8000-000000000001');
