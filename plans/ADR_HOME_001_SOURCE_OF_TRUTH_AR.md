@@ -43,6 +43,7 @@
 - أُضيفت `home_record_inventory_movement` لتحديث رصيد المخزون ودفتر الحركات ذريًا، مع idempotency ورفض الصرف فوق الرصيد. Trigger `home_inventory_balance_ledger_guard` يمنع تعديل رصيد عنصر موجود خارج RPC حركة مخزون أو استلام شراء مصرح به.
 - سجل مدفوعات الفواتير `home_bill_payments` أصبح متاحًا عبر `home_operations_load` ويظهر في واجهة الفواتير.
 - `home_load_snapshot_v2/save_v2` يضيفان optimistic concurrency إلى بيانات العقارات والغرف والمخزون؛ `home_inventory_balance_ledger_guard` يمنع تعديل الرصيد مباشرة.
+- أُلغيت صلاحية الكتابة المباشرة إلى `home_save_snapshot` و`home_operations_save` للمستخدمين؛ يجب أن تمر كل كتابة من واجهات التطبيق عبر RPC ذات نسخة متوقعة.
 - Finance يستطيع قراءة اقتراحات التكلفة من `home_finance_outbox_load` وتأكيد استهلاكها عبر `home_finance_outbox_ack` بعد نجاح حفظ المعاملة. Today يقرأ إنجازات المهام عبر `home_today_outbox_load`.
 - `home_operations_reconciliation_report` يقدم مقارنة read-only لأعداد السجلات وبصمات المعرّفات؛ لا يوافق تلقائيًا على حذف fallback، لأن مقارنة الحقول والعلاقات والبيانات الفعلية ما زالت مطلوبة.
 - ما زال يلزم worker عام للـ Outbox مع lease/retry/dead-letter وحالة تسليم مستقلة لكل consumer.
