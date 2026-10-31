@@ -174,6 +174,32 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
     await persist(next);
   };
 
+  const changePurchaseStatus = async (request, status) => {
+    const allowed = {
+      draft: ["needed", "cancelled"],
+      needed: ["approved", "cancelled"],
+      approved: ["ordered", "cancelled"],
+      ordered: ["cancelled"],
+      partially_received: ["cancelled"],
+      received: [],
+      cancelled: []
+    };
+    if (!(allowed[request.status || "needed"] || []).includes(status)) {
+      setError("لا يمكن الانتقال من حالة الطلب الحالية إلى الحالة المطلوبة.");
+      return;
+    }
+    const now = new Date().toISOString();
+    const updatedRequest = {
+      ...request,
+      status,
+      ...(status === "approved" ? { approvedAt: now } : {}),
+      ...(status === "ordered" ? { orderedAt: now } : {}),
+      ...(status === "cancelled" ? { cancelledAt: now } : {}),
+      updatedAt: now
+    };
+    await persist({ ...data, purchaseRequests: data.purchaseRequests.map(x => x.id === request.id ? updatedRequest : x) });
+  };
+
   const saveBill = async e => {
     e.preventDefault();
     const f = billForm;
@@ -284,7 +310,7 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
     {tab === "shopping" && <div style={styles.card}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}><h3>المشتريات والاحتياجات</h3>{canEdit&&<Button onClick={addPurchase}>＋ طلب شراء</Button>}</div>
       <Row title={"طلبات لم تُستلم بالكامل: "+pendingPurchases.length} meta={"طلبات الشراء الإجمالية: "+data.purchaseRequests.length}/>
-      {data.purchaseRequests.map(p=>{const lines=linesFor(p.id);return <Row key={p.id} title={p.title} meta={[p.status,activeProperties.find(x=>x.id===p.propertyId)?.name,"تقدير "+currency(deriveHomePurchaseTotal(lines),"EGP"),p.neededBy&&"مطلوب قبل "+p.neededBy].filter(Boolean).join(" · ")}>{canEdit&&<><Button secondary onClick={()=>setPurchaseForm({...p,lines:lines.map(({id,requestId,...rest})=>({...rest,id}))})}>تعديل</Button>{p.status!=="received"&&p.status!=="cancelled"&&<Button onClick={()=>receivePurchase(p)}>تسجيل الاستلام</Button>}</>}</Row>})}
+      {data.purchaseRequests.map(p=>{const lines=linesFor(p.id);return <Row key={p.id} title={p.title} meta={[p.status,activeProperties.find(x=>x.id===p.propertyId)?.name,"تقدير "+currency(deriveHomePurchaseTotal(lines),"EGP"),p.neededBy&&"مطلوب قبل "+p.neededBy].filter(Boolean).join(" · ")}>{canEdit&&<><Button secondary onClick={()=>setPurchaseForm({...p,lines:lines.map(({id,requestId,...rest})=>({...rest,id}))})}>تعديل</Button>{p.status==="needed"&&<Button onClick={()=>changePurchaseStatus(p,"approved")}>اعتماد الطلب</Button>}{p.status==="approved"&&<Button onClick={()=>changePurchaseStatus(p,"ordered")}>تسجيل الطلب لدى المورد</Button>}{["ordered","partially_received"].includes(p.status)&&<Button onClick={()=>receivePurchase(p)}>تسجيل الاستلام</Button>}{!["received","cancelled"].includes(p.status)&&<Button secondary onClick={()=>changePurchaseStatus(p,"cancelled")}>إلغاء الطلب</Button>}</>}</Row>})}
       {purchaseForm&&<form onSubmit={savePurchase} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,marginTop:12}}>
         <Field label="عنوان الطلب *">{input(purchaseForm.title,v=>setPurchaseForm({...purchaseForm,title:v}))}</Field>
         <Field label="العقار"><Select value={purchaseForm.propertyId||""} onChange={e=>setPurchaseForm({...purchaseForm,propertyId:e.target.value})}>{activeProperties.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
