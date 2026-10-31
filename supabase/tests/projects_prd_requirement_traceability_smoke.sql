@@ -66,3 +66,97 @@ do $$ begin
     raise exception 'valid output link was not persisted';
   end if;
 end $$;
+
+-- Additional entity-level relationships are validated in the same workspace/project.
+insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+values
+ ('11111111-1111-4111-8111-111111111111','projects','outputs','output2','{"project_id":"p1","approval":"Draft","name":"Draft output"}'),
+ ('11111111-1111-4111-8111-111111111111','projects','objectives','obj1','{"name":"Objective One","project_ids":["p1"]}'),
+ ('11111111-1111-4111-8111-111111111111','projects','krs','kr1','{"name":"KR One","objective_id":"obj1","project_ids":["p1"],"task_ids":["task1"]}'),
+ ('11111111-1111-4111-8111-111111111111','projects','risks','risk1','{"project_id":"p1","title":"Risk One","task_ids":["task1"],"prd_id":"prd1"}'),
+ ('11111111-1111-4111-8111-111111111111','projects','risks','risk2','{"project_id":"p2","title":"Risk Two","task_ids":["task2"]}'),
+ ('11111111-1111-4111-8111-111111111111','projects','issues','issue1','{"project_id":"p1","title":"Issue One","task_ids":["task1"]}'),
+ ('11111111-1111-4111-8111-111111111111','projects','discovery','discovery1','{"title":"Discovery One","project_ids":["p1"]}');
+
+insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+values ('11111111-1111-4111-8111-111111111111','projects','decisions','decision1',
+        '{"project_id":"p1","title":"Decision One","status":"Approved","affected_task_ids":["task1"],"implementation_task_ids":["task1"],"affected_prd_ids":["prd1"],"affected_risk_ids":["risk1"],"affected_issue_ids":["issue1"],"affected_discovery_ids":["discovery1"]}');
+
+insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+values ('11111111-1111-4111-8111-111111111111','projects','wins','win1',
+        '{"project_id":"p1","title":"Win One","objective_id":"obj1","kr_id":"kr1","task_ids":["task1"],"output_ids":["output1"]}');
+
+insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+values ('11111111-1111-4111-8111-111111111111','projects','updates','update1',
+        '{"project_id":"p1","title":"Update One","related_task_ids":["task1"],"related_risk_ids":["risk1"],"related_issue_ids":["issue1"],"related_decision_ids":["decision1"],"related_prd_ids":["prd1"],"related_output_ids":["output1"],"related_win_ids":["win1"]}');
+
+-- Decision, risk, issue, KR, objective, win and update links cannot cross project boundaries.
+do $$ begin
+  begin
+    insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+    values ('11111111-1111-4111-8111-111111111111','projects','decisions','bad-decision',
+            '{"project_id":"p1","title":"Bad decision","affected_task_ids":["task2"]}');
+    raise exception 'expected cross-project decision task rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
+
+do $$ begin
+  begin
+    insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+    values ('11111111-1111-4111-8111-111111111111','projects','risks','bad-risk',
+            '{"project_id":"p1","title":"Bad risk","task_ids":["task2"]}');
+    raise exception 'expected cross-project risk task rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
+
+do $$ begin
+  begin
+    insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+    values ('11111111-1111-4111-8111-111111111111','projects','wins','bad-win',
+            '{"project_id":"p1","title":"Bad win","output_ids":["output2"]}');
+    raise exception 'expected non-final win output rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
+
+do $$ begin
+  begin
+    insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+    values ('11111111-1111-4111-8111-111111111111','projects','updates','bad-update',
+            '{"project_id":"p1","title":"Bad update","related_risk_ids":["risk2"]}');
+    raise exception 'expected cross-project update risk rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
+
+do $$ begin
+  begin
+    insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+    values ('11111111-1111-4111-8111-111111111111','projects','objectives','bad-objective',
+            '{"name":"Bad objective","project_ids":["missing-project"]}');
+    raise exception 'expected missing objective project rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
+
+do $$ begin
+  begin
+    insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+    values ('11111111-1111-4111-8111-111111111111','projects','krs','bad-kr',
+            '{"name":"Bad KR","objective_id":"obj1","project_ids":["p1"],"task_ids":["task2"]}');
+    raise exception 'expected KR task/project mismatch rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
+
+do $$ begin
+  begin
+    insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+    values ('11111111-1111-4111-8111-111111111111','projects','issues','bad-issue',
+            '{"project_id":"p1","title":"Bad issue","task_ids":["task2"]}');
+    raise exception 'expected issue task/project mismatch rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
