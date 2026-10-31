@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { loadNormalizedKnowledge, saveNormalizedKnowledge, hasKnowledgeContent, listKnowledgeAttachments, uploadKnowledgeAttachment, deleteKnowledgeAttachment, validateKnowledgeExternalLink, listKnowledgeNotifications, markKnowledgeNotificationRead } from "./repository.js";
+import { loadNormalizedKnowledge, saveNormalizedKnowledge, hasKnowledgeContent, listKnowledgeAttachments, uploadKnowledgeAttachment, deleteKnowledgeAttachment, validateKnowledgeExternalLink, listKnowledgeProjects, listKnowledgeNotifications, markKnowledgeNotificationRead } from "./repository.js";
 import { subscribeOSEvents } from "../integrationEvents.js";
 import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
 
@@ -80,6 +80,20 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
   const [filter,setFilter]=useState("all");
   const [editor,setEditor]=useState(null);
   const [form,setForm]=useState({});
+  const [meetingProjects,setMeetingProjects]=useState([]);
+  const [meetingProjectsLoading,setMeetingProjectsLoading]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    if(editor?.kind!=="meeting"||isDemo||!api?.workspaceId){setMeetingProjects([]);setMeetingProjectsLoading(false);return ()=>{active=false;};}
+    setMeetingProjectsLoading(true);
+    listKnowledgeProjects(api.workspaceId).then(result=>{
+      if(!active)return;
+      setMeetingProjects(result.ok?result.projects:[]);
+      if(!result.ok&&result.error) setError("تعذر تحميل قائمة المشروعات لربط الاجتماع.");
+    }).catch(()=>{if(active){setMeetingProjects([]);setError("تعذر تحميل قائمة المشروعات لربط الاجتماع.");}}).finally(()=>{if(active)setMeetingProjectsLoading(false);});
+    return ()=>{active=false;};
+  },[editor?.kind,isDemo,api?.workspaceId]);
+
   const [attachmentFile,setAttachmentFile]=useState(null);
   const [attachments,setAttachments]=useState([]);
   const [attachmentBusy,setAttachmentBusy]=useState(false);
@@ -217,17 +231,19 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
     if(form.rating!==undefined&&form.rating!==""&&(!Number.isInteger(Number(form.rating))||Number(form.rating)<1||Number(form.rating)>5)){setError("التقييم يجب أن يكون رقمًا صحيحًا من 1 إلى 5.");return;}
     if(esc(form.url)){try{const parsed=new URL(esc(form.url));if(!["http:","https:"].includes(parsed.protocol))throw new Error("protocol");}catch{setError("الرابط يجب أن يبدأ بـ http:// أو https://");return;}}
     const kind=editor.kind==="inbox"?"inbox":editor.kind;
-    if(!isDemo && esc(form.relatedSystem) && esc(form.relatedId)) {
-      const reference=await validateKnowledgeExternalLink(api?.workspaceId,esc(form.relatedSystem),esc(form.relatedId));
+    const relatedSystem=editor.kind==="meeting"?(esc(form.relatedId)?"projects":""):esc(form.relatedSystem);
+    const relatedId=esc(form.relatedId);
+    if(!isDemo && relatedSystem && relatedId) {
+      const reference=await validateKnowledgeExternalLink(api?.workspaceId,relatedSystem,relatedId);
       if(!reference.valid) {
         setError(reference.reason==="lookup-failed"?"تعذر التحقق من العنصر المرتبط؛ أعد المحاولة.":"العنصر المرتبط غير موجود في النظام المحدد.");
         return;
       }
-    } else if(!!esc(form.relatedSystem)!==!!esc(form.relatedId)) {
+    } else if(!!relatedSystem!==!!relatedId) {
       setError("لربط عنصر بنظام آخر، اختر النظام وأدخل معرّف العنصر معًا.");
       return;
     }
-    const row={...form,id:editor.id||uid(),title:esc(form.title),url:esc(form.url),summary:esc(form.summary),notes:esc(form.notes),nextAction:esc(form.nextAction),author:esc(form.author),location:esc(form.location),relatedSystem:esc(form.relatedSystem),relatedId:esc(form.relatedId),relatedItemIds:[...new Set((Array.isArray(form.relatedItemIds)?form.relatedItemIds:[]).filter(id=>id&&id!==(editor.id||"")))],rating:form.rating===""?null:Number(form.rating)||null,reviewAt:(kind==="resource"&&!form.reviewAt&&Number(data.preferences.reviewReminderDays)>0)?new Date(Date.now()+Number(data.preferences.reviewReminderDays)*86400000).toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}):(form.reviewAt||""),categoryId:form.categoryId||null,tags:[...new Set(esc(form.tags).split(",").map(x=>x.trim()).filter(Boolean))],attendees:esc(form.attendees).split(",").map(x=>x.trim()).filter(Boolean),followups:esc(form.followups).split("\n").map(x=>x.trim()).filter(Boolean),updatedAt:isoNow(),createdAt:form.createdAt||isoNow()};
+    const row={...form,id:editor.id||uid(),title:esc(form.title),url:esc(form.url),summary:esc(form.summary),notes:esc(form.notes),nextAction:esc(form.nextAction),author:esc(form.author),location:esc(form.location),relatedSystem,relatedId,relatedItemIds:[...new Set((Array.isArray(form.relatedItemIds)?form.relatedItemIds:[]).filter(id=>id&&id!==(editor.id||"")))],rating:form.rating===""?null:Number(form.rating)||null,reviewAt:(kind==="resource"&&!form.reviewAt&&Number(data.preferences.reviewReminderDays)>0)?new Date(Date.now()+Number(data.preferences.reviewReminderDays)*86400000).toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}):(form.reviewAt||""),categoryId:form.categoryId||null,tags:[...new Set(esc(form.tags).split(",").map(x=>x.trim()).filter(Boolean))],attendees:esc(form.attendees).split(",").map(x=>x.trim()).filter(Boolean),followups:esc(form.followups).split("\n").map(x=>x.trim()).filter(Boolean),updatedAt:isoNow(),createdAt:form.createdAt||isoNow()};
     delete row.kind;
     const key=kind==="resource"?"resources":kind==="idea"?"ideas":kind==="note"?"notes":kind==="meeting"?"meetings":kind==="event"?"events":"inbox";
     const next={...data,[key]:editor.id?data[key].map(x=>x.id===editor.id?row:x):[row,...data[key]]};
@@ -352,7 +368,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
       {(editor.kind==="resource"||editor.kind==="inbox")&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}><Field label="المؤلف / الجهة"><input style={input} value={form.author||""} onChange={e=>setField("author",e.target.value)}/></Field><Field label="تاريخ النشر"><input type="date" style={input} value={form.publishedAt||""} onChange={e=>setField("publishedAt",e.target.value)}/></Field><Field label="تاريخ القراءة / المراجعة"><input type="date" style={input} value={form.readAt||""} onChange={e=>setField("readAt",e.target.value)}/></Field><Field label="موعد المراجعة القادمة"><input type="date" style={input} value={form.reviewAt||""} onChange={e=>setField("reviewAt",e.target.value)}/></Field><Field label="التقييم (1–5)"><input type="number" min="1" max="5" style={input} value={form.rating||""} onChange={e=>setField("rating",e.target.value)}/></Field></div>}
       {editor.kind==="idea"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}><Field label="مرحلة الفكرة"><select style={input} value={form.stage||"captured"} onChange={e=>setField("stage",e.target.value)}>{Object.entries(IDEA_STAGES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></Field><Field label="الخطوة التالية"><input style={input} value={form.nextAction||""} onChange={e=>setField("nextAction",e.target.value)}/></Field></div>}
       <Field label="ملاحظات / اقتباسات / ما تعلمته"><textarea style={{...input,minHeight:75,resize:"vertical"}} value={form.notes||""} onChange={e=>setField("notes",e.target.value)} placeholder="ملاحظاتك الخاصة أو اقتباسات مختصرة مع مراعاة حقوق النشر…"/></Field>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}><Field label="الأولوية"><select style={input} value={form.priority||"normal"} onChange={e=>setField("priority",e.target.value)}>{Object.entries(PRIORITIES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></Field><Field label="ارتباط بنظام آخر"><select style={input} value={form.relatedSystem||""} onChange={e=>setField("relatedSystem",e.target.value)}><option value="">بدون</option><option value="projects">Projects OS</option><option value="learning">Learning OS</option><option value="content">Content OS</option><option value="habits">Habit OS</option></select></Field><Field label="معرّف العنصر المرتبط"><input style={input} value={form.relatedId||""} onChange={e=>setField("relatedId",e.target.value)} placeholder="ID / slug"/></Field></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}><Field label="الأولوية"><select style={input} value={form.priority||"normal"} onChange={e=>setField("priority",e.target.value)}>{Object.entries(PRIORITIES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></Field><>{editor.kind==="meeting"?<Field label="المشروع المرتبط (اختياري)"><select style={input} value={form.relatedSystem==="projects"?(form.relatedId||""):""} disabled={meetingProjectsLoading||(!isDemo&&meetingProjects.length===0)} onChange={e=>{setField("relatedSystem",e.target.value?"projects":"");setField("relatedId",e.target.value);}}><option value="">{meetingProjectsLoading?"جارٍ تحميل المشروعات…":meetingProjects.length?"اجتماع عام — بدون مشروع":"لا توجد مشروعات متاحة للربط"}</option>{meetingProjects.map(p=><option key={p.id} value={p.id}>{p.name}{p.status?" · "+p.status:""}</option>)}</select></Field>:<><Field label="ارتباط بنظام آخر"><select style={input} value={form.relatedSystem||""} onChange={e=>setField("relatedSystem",e.target.value)}><option value="">بدون</option><option value="projects">Projects OS</option><option value="learning">Learning OS</option><option value="content">Content OS</option><option value="habits">Habit OS</option></select></Field><Field label="معرّف العنصر المرتبط"><input style={input} value={form.relatedId||""} onChange={e=>setField("relatedId",e.target.value)} placeholder="ID / slug"/></Field></>}</>
       <Field label="عناصر معرفة مرتبطة (يمكن اختيار أكثر من عنصر)"><select multiple style={{...input,minHeight:100}} value={form.relatedItemIds||[]} onChange={e=>setField("relatedItemIds",Array.from(e.target.selectedOptions).map(o=>o.value))}>{allItems.filter(x=>x.id!==(editor.id||"")&&x.status!=="archived").map(x=><option key={x.id} value={x.id}>{KINDS[x.kind]||x.kind} — {x.title}</option>)}</select><span style={{fontSize:11,color:C.muted}}>استخدم Ctrl أو Command لاختيار أكثر من عنصر. الروابط محفوظة داخل بيانات مساحة العمل.</span></Field>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
         <Field label="التصنيف"><select style={input} value={form.categoryId||""} onChange={e=>setField("categoryId",e.target.value)}><option value="">بدون تصنيف</option>{data.categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
