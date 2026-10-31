@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { validateHomeTask, nextHomeTaskDue, completeHomeTask, validateHomeMaintenance, validateHomePurchaseRequest, deriveHomePurchaseTotal, deriveHomePurchaseStatus, homeTaskEvent } from "../src/systems/home/operations-domain.js";
+import { validateHomeTask, nextHomeTaskDue, completeHomeTask, validateHomeMaintenance, validateHomePurchaseRequest, deriveHomePurchaseTotal, deriveHomePurchaseStatus, nextHomeBillDue, homeTaskEvent } from "../src/systems/home/operations-domain.js";
 
 const data = {
   properties: [{ id: "p1", name: "المنزل" }],
@@ -27,5 +27,12 @@ assert.deepEqual(validateHomePurchaseRequest(request, items, data), []);
 assert.equal(deriveHomePurchaseTotal(items), 125);
 assert.equal(deriveHomePurchaseStatus([{ quantity: 3, receivedQuantity: 1 }]), "partially_received");
 assert.equal(deriveHomePurchaseStatus([{ quantity: 3, receivedQuantity: 3 }]), "received");
+assert.equal(deriveHomePurchaseStatus([{ quantity: 3, receivedQuantity: 0 }]), "ordered");
+assert.equal(nextHomeBillDue("2026-01-31", "monthly"), "2026-02-28");
+assert.equal(nextHomeBillDue("2026-01-31", "quarterly"), "2026-04-30");
+assert.equal(nextHomeBillDue("2024-02-29", "yearly"), "2025-02-28");
+assert.equal(nextHomeBillDue("2026-10-31", "daily"), "2026-11-01");
+assert.equal(nextHomeBillDue("2026-10-31", "weekly"), "2026-11-07");
+assert.throws(() => nextHomeBillDue("2026-02-30", "monthly"), /DUE_DATE_INVALID/);
 assert.match(validateHomePurchaseRequest(request, [], data).join(" "), /عنصرًا/);
 console.log("Home OS operations domain tests passed.");
