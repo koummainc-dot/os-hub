@@ -13,6 +13,10 @@ assert.ok(entities.includes('req.status === "Verified" && !linkedOutputs.some((o
   "PRD requirement cannot be verified without a linked Final output");
 assert.ok(entities.includes('data.outputs.filter((o) => o.prd_id === d.id && D.isActiveRec(o))'),
   "archived or deleted outputs must not count as verification evidence");
+assert.ok(entities.includes('const linkedRisks = data.risks.filter((risk) => risk.prd_id === d.id && D.isActiveRec(risk))') &&
+  entities.includes('{ id: "risks", label: "المخاطر", count: linkedRisks.length }') &&
+  entities.includes('onClick={() => openProject(risk.project_id, "risks")}'),
+  "PRD must show active linked risks and provide navigation to them");
 assert.ok(screens.includes('related.wins.map((x) => <Btn key={x.id} small onClick={() => setPage("wins")}>'),
   "stakeholder update achievement references must be actionable");
 assert.ok(screens.includes('{w.output_ids?.length > 0 && <Btn small onClick={() => w.project_id && openProject(w.project_id, "outputs")}>'),
