@@ -182,6 +182,25 @@ function osMakeApi(wsId,systemId,part){
         return {available:true,ok:true,data};
       }catch(error){return {available:true,ok:false,error};}
     },
+    async recordHomeInventoryMovement(itemId, movement){
+      try{
+        const {data,error}=await supabase.rpc("home_record_inventory_movement",{
+          p_workspace_id:wsId,
+          p_item_id:itemId,
+          p_movement_type:movement.type,
+          p_quantity:movement.quantity,
+          p_idempotency_key:movement.idempotencyKey,
+          p_note:movement.note||"",
+          p_to_room_id:movement.toRoomId||null,
+          p_occurred_at:movement.occurredAt||new Date().toISOString()
+        });
+        if(error){
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_record_inventory_movement.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,ok:false,error};
+        }
+        return {available:true,ok:true,data};
+      }catch(error){return {available:true,ok:false,error};}
+    },
     async load(){
       try{
         const timeout=new Promise(r=>setTimeout(()=>r({ok:false,error:{message:"Supabase request timed out"}}),12000));
