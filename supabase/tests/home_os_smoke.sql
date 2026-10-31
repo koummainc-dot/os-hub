@@ -210,7 +210,7 @@ select public.home_operations_save(
     }]
   }'::jsonb
 );
-do $
+do $$
 declare v_loaded jsonb;
 begin
   if (select count(*) from public.home_bill_payments
@@ -246,7 +246,7 @@ begin
     or v_loaded->'bills'->0->>'dueDate' <> '2026-11-01' then
     raise exception 'HOME_RELATIONAL_BILL_LOAD_FAILED';
   end if;
-end $;
+end $$;
 reset role;
 do $$
 begin
