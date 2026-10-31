@@ -17,6 +17,9 @@ create table if not exists public.home_purchase_receipts (
 create index if not exists home_purchase_receipts_request_idx
   on public.home_purchase_receipts(workspace_id, request_id, received_at desc);
 
+create unique index if not exists home_purchase_request_items_workspace_id_id_idx
+  on public.home_purchase_request_items(workspace_id, id);
+
 create table if not exists public.home_purchase_receipt_items (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
