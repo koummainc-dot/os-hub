@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { A, S } from "../../core/ui.jsx";
 import { C, Btn, Chip, Head, Stat, Empty, Progress, Seg, SearchBar, Tabs, FormModal, Modal, Field, Avatar } from "../../core/kit.jsx";
 import { fmt, fmtShort, fmtMinutes, addDays, diffDays, dateOf } from "../../core/dates.js";
@@ -8,6 +8,7 @@ import * as D from "./domain.js";
 import { L, opts, DEFAULT_LOOKUPS, LOOKUP_LABEL, UPDATE_SECTIONS, MEETING_TEMPLATES, REVIEW_PROMPTS, PRD_TEMPLATE } from "./lookups.js";
 import { Who, ProjectName, mOpts, projOpts, HealthBadge, StatusChip } from "./parts.jsx";
 import { TemplatePicker } from "./screens_b.jsx";
+import { listKnowledgeMeetings } from "../knowledge/repository.js";
 
 // ═════ OKRs ═════
 export function Okrs() {
@@ -282,8 +283,49 @@ export function Templates() {
 
 // ═════ Meetings (owned by Knowledge OS) ═════
 export function Meetings() {
-  const { data, setPage } = useP();
-  return <div><Head title="الاجتماعات" sub="يملكها Knowledge OS" /><div style={{ ...S.card, padding: 24, textAlign: "center" }}><div style={{ fontSize: 36 }}>🗓️</div><div style={{ fontSize: 15, fontWeight: 700, margin: "6px 0" }}>الاجتماعات تُدار في Knowledge OS</div><div style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.9, maxWidth: 520, margin: "0 auto" }}>لتجنّب التكرار، لا يُنشئ Projects OS كياناً للاجتماعات. عند تفعيل Knowledge OS ستظهر هنا اجتماعات كل مشروع (قراءة فقط) وبنود الإجراءات منها كمهام مقترحة. تجد قوالب Standup / Weekly Sync / Sprint Planning / Post-mortem / Ad Hoc في «القوالب».</div><div style={{ marginTop: 12 }}><Btn onClick={() => setPage("templates")}>عرض قوالب الاجتماعات</Btn></div></div></div>;
+  const { data, setPage, ws, projectsById } = useP();
+  const [meetings, setMeetings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [projectFilter, setProjectFilter] = useState("all");
+
+  const refresh = async () => {
+    if (!ws?.id) { setMeetings([]); setLoading(false); return; }
+    setLoading(true); setLoadError("");
+    try {
+      const result = await listKnowledgeMeetings(ws.id);
+      if (!result.ok) throw result.error || new Error("تعذر تحميل اجتماعات المعرفة.");
+      setMeetings(result.meetings || []);
+    } catch (error) {
+      setLoadError(error?.message || "تعذر تحميل اجتماعات المعرفة.");
+    } finally { setLoading(false); }
+  };
+  useEffect(() => { refresh(); }, [ws?.id]);
+
+  const visible = useMemo(() => meetings
+    .filter((m) => !m.archived && m.status !== "archived")
+    .filter((m) => projectFilter === "all" || (m.relatedSystem === "projects" && String(m.relatedId) === String(projectFilter)))
+    .sort((a, b) => String(a.date || "").localeCompare(String(b.date || ""))), [meetings, projectFilter]);
+  const linkedCount = meetings.filter((m) => m.relatedSystem === "projects" && projectsById[m.relatedId]).length;
+
+  return <div>
+    <Head title="اجتماعات المشاريع" sub={`مصدر الاجتماعات: Knowledge OS · ${linkedCount} اجتماع مرتبط بمشروع`} right={<div style={{display:"flex",gap:7,flexWrap:"wrap"}}><select aria-label="تصفية الاجتماعات حسب المشروع" style={{...S.sel,width:220}} value={projectFilter} onChange={e=>setProjectFilter(e.target.value)}><option value="all">كل الاجتماعات</option>{data.projects.filter(p=>!p.is_system&&!p.archived_at).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><Btn onClick={refresh} disabled={loading}>تحديث</Btn><Btn kind="primary" onClick={() => setPage("templates")}>قوالب الاجتماعات</Btn></div>} />
+    <div style={{...S.card,padding:12,marginBottom:12,fontSize:12,color:C.dim,lineHeight:1.8}}>تُنشأ الاجتماعات وتُعدّل في Knowledge OS، وتظهر هنا تلقائيًا عند ربطها بمشروع. لا يتم إنشاء نسخة ثانية من سجل الاجتماع.</div>
+    {loading ? <div style={{...S.card,padding:30,textAlign:"center",color:C.muted}}>جارٍ تحميل الاجتماعات…</div>
+    : loadError ? <div role="alert" style={{...S.card,padding:24,textAlign:"center"}}><div style={{color:C.bad,marginBottom:10}}>{loadError}</div><Btn onClick={refresh}>إعادة المحاولة</Btn></div>
+    : !visible.length ? <Empty icon="🗓️" title={projectFilter==="all"?"لا توجد اجتماعات محفوظة في Knowledge OS":"لا توجد اجتماعات مرتبطة بهذا المشروع"} sub="افتح اجتماعًا في Knowledge OS واربطه بالمشروع من حقل «المشروع المرتبط»." />
+    : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>{visible.map(m=>{
+      const project=m.relatedSystem==="projects"?projectsById[m.relatedId]:null;
+      return <article key={m.id} style={{...S.card,padding:14}}>
+        <div style={{display:"flex",gap:8,alignItems:"flex-start"}}><div style={{fontSize:23}}>🗓️</div><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:14}}>{m.title}</div><div style={{fontSize:11,color:C.muted,marginTop:4}}>{m.date||"بدون تاريخ"}{m.startTime?" · "+m.startTime:""}{m.endTime?"–"+m.endTime:""}</div></div><Chip color={project?C.success:C.muted}>{project?"مرتبط بمشروع":"غير مرتبط"}</Chip></div>
+        <div style={{marginTop:9,fontSize:12,color:project?C.ink:C.muted}}>المشروع: <b>{project?.name||"اجتماع عام"}</b></div>
+        {m.summary&&<p style={{fontSize:12,lineHeight:1.8,margin:"8px 0"}}>{m.summary}</p>}
+        {Array.isArray(m.attendees)&&m.attendees.length>0&&<div style={{fontSize:11,color:C.dim,marginTop:5}}>المشاركون: {m.attendees.join("، ")}</div>}
+        {m.decisions&&<div style={{fontSize:12,lineHeight:1.8,marginTop:7}}><b>القرارات:</b> {m.decisions}</div>}
+        {Array.isArray(m.followups)&&m.followups.length>0&&<div style={{fontSize:12,lineHeight:1.8,marginTop:7}}><b>المتابعات:</b><ul style={{margin:"4px 0",paddingInlineStart:20}}>{m.followups.map((x,i)=><li key={i}>{x}</li>)}</ul></div>}
+      </article>;
+    })}</div>}
+  </div>;
 }
 
 // ═════ Settings ═════
