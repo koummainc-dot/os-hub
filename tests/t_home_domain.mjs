@@ -25,4 +25,30 @@ await repository.save(base);
 assert.equal((await repository.load()).data.items.length, 1);
 await assert.rejects(() => repository.save({ ...base, rooms: [{ id: "bad", propertyId: "missing", name: "bad", type: "kitchen" }] }), /HOME_ROOM_PROPERTY_MISSING/);
 await assert.rejects(() => repository.save({ ...base, movements: [{ id: "m1", itemId: "missing" }] }), /HOME_MOVEMENT_ITEM_MISSING/);
+
+let legacyWriteCalled = false;
+const unavailableNormalizedRepository = createHomeRepository({
+  async load() { return { data: persisted }; },
+  async save() { legacyWriteCalled = true; return { ok: true }; },
+  async saveNormalizedHome() {
+    return { available: false, error: { code: "PGRST202", message: "Could not find the function home_save_snapshot" } };
+  }
+});
+await assert.rejects(
+  () => unavailableNormalizedRepository.save(base),
+  /HOME_NORMALIZED_STORAGE_REQUIRED/
+);
+assert.equal(legacyWriteCalled, false, "normalized storage failure must not write to the legacy store");
+
+let normalizedSaved = null;
+const normalizedRepository = createHomeRepository({
+  async load() { return { data: null }; },
+  async save() { throw new Error("legacy save must not be called"); },
+  async loadNormalizedHome() { return { available: true, data: base, source: "normalized" }; },
+  async saveNormalizedHome(value) { normalizedSaved = value; return { available: true, ok: true, updatedAt: "2026-10-31T00:00:00.000Z" }; }
+});
+const normalizedSaveResult = await normalizedRepository.save(base);
+assert.equal(normalizedSaveResult.ok, true);
+assert.equal(normalizedSaved.items.length, 1);
+
 console.log("Home OS domain/repository tests passed.");
