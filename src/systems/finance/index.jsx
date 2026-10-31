@@ -133,7 +133,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     const type = "shopping.purchase.completed";
     const key = "os-finance-shopping-linked:" + ws.id;
     const handled = () => { try { return new Set(JSON.parse(localStorage.getItem(key) || "[]")); } catch { return new Set(); } };
-    const sync = events => { const done = handled(); setShoppingPurchases(events.filter(e => e.type === type && e.payload?.sourcePurchaseId && !done.has(e.payload.sourcePurchaseId))); };
+    const sync = events => { const done = handled(); setShoppingPurchases([...new Map(events.filter(e => e.type === type && e.payload?.sourcePurchaseId && !done.has(e.payload.sourcePurchaseId)).map(e => [e.payload.sourcePurchaseId, e])).values()]); };
     sync(readOSEvents({ workspaceId: ws.id, types: [type], limit: 100 }));
     const offEvent = subscribeOSEvents(event => sync([...readOSEvents({ workspaceId: ws.id, types: [type], limit: 100 }), event]), { workspaceId: ws.id, types: [type] });
     const offStorage = subscribeToStoredOSEvents(sync, { workspaceId: ws.id, types: [type], limit: 100 });
