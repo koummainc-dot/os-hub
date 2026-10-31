@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 
 const entities = await readFile(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
 const screens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
+const parts = await readFile(new URL("../src/systems/projects/parts.jsx", import.meta.url), "utf8");
 
 assert.ok(entities.includes('onClick={() => openProject(o.project_id, "prds")}') && entities.includes(">متطلب:"),
   "output requirement reference must navigate to the owning PRD section");
@@ -14,4 +15,8 @@ assert.ok(screens.includes('{w.output_ids?.length > 0 && <Btn small onClick={() 
   "achievement output evidence must navigate to the project's outputs");
 assert.ok(screens.includes('related.outputs.map((x) => <Btn key={x.id} small onClick={() => openProject(u.project_id, "outputs")}>'),
   "stakeholder update output references must navigate to the outputs section");
+assert.ok(parts.includes('linkedDecisions.map((x) => <button key={x.id} type="button" onClick={() => { closeTask(); openProject(x.project_id, "decisions"); }}'),
+  "task decision backlinks must be actionable");
+assert.ok(parts.includes('linkedWins.map((x) => <button key={x.id} type="button" onClick={() => { closeTask(); setPage("wins"); }}'),
+  "task achievement backlinks must be actionable");
 console.log("✓ Projects relationship navigation contracts passed");
