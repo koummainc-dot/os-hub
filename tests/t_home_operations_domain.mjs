@@ -8,6 +8,8 @@ const data = {
 };
 const daily = { id: "t1", title: "تنظيف", propertyId: "p1", roomId: "r1", status: "active", recurrenceRule: { frequency: "daily" } };
 assert.deepEqual(validateHomeTask(daily, data), []);
+assert.deepEqual(validateHomeTask({ ...daily, assignedTo: "u1" }, { ...data, members: [{ userId: "u1" }] }), []);
+assert.match(validateHomeTask({ ...daily, assignedTo: "missing" }, { ...data, members: [{ userId: "u1" }] }).join(" "), /عضوًا/);
 assert.match(validateHomeTask({ ...daily, title: " " }, data).join(" "), /عنوان/);
 assert.equal(nextHomeTaskDue(daily, "2026-10-31T08:00:00.000Z"), "2026-11-01T08:00:00.000Z");
 assert.equal(nextHomeTaskDue({ ...daily, recurrenceRule: { frequency: "interval", intervalDays: 3 } }, "2026-10-31T08:00:00.000Z"), "2026-11-03T08:00:00.000Z");
