@@ -27,7 +27,7 @@
 | P-09 | PRD | Create/edit requirements with stable IDs, acceptance criteria, priority, and status | PENDING — browser |
 | P-10 | PRD | Reject a task requirement that does not belong to its selected PRD | PASS — domain validation + SQL smoke |
 | P-11 | PRD | Reject an output requirement without a PRD or from another PRD/project | PASS — source validation + SQL smoke |
-| P-12 | PRD | Prevent marking a requirement Verified without linked Final output evidence | PASS — domain/SQL guard path; browser evidence pending |
+| P-12 | PRD | Prevent marking a requirement Verified without linked Final output evidence, and prevent removal of its last proof | PASS — UI guard plus new PostgreSQL trigger and SQL smoke scenarios; browser evidence pending |
 | P-13 | PRD | Show requirement's linked tasks and outputs, show linked risks, and navigate to them | PASS — PRD risks tab and requirement navigation controls added; browser confirmation pending |
 | P-14 | PRD | Create a new PRD version atomically and preserve/supersede the predecessor | PASS — contract test for atomic PRD versioning |
 | P-15 | PRD | Require complete PRD content and current-version reviewer approvals before final approval | PASS — PRD review-gate test |
@@ -74,6 +74,8 @@ The Projects SQL smoke workflow runs on disposable PostgreSQL 16 and passed on t
 
 The guards cover:
 - Task and output PRD/requirement references.
+- A Verified PRD requirement must have active Final output evidence. The last Final evidence cannot be downgraded, archived, or deleted while the requirement remains Verified.
+- A referenced PRD or requirement cannot be removed/archived while active tasks or outputs still point to it.
 - Task parent, issue, and discovery references.
 - Decision, risk, win, update, objective, KR, discovery, and issue relationships.
 - Same-workspace/project boundaries and active-record checks for the guarded relationship fields.
