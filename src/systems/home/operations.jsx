@@ -222,20 +222,10 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
   const completeBill = async bill => {
     if (bill.frequency === "once" && bill.status === "paid") return;
     const now = new Date().toISOString();
-    const paymentDate = (bill.dueDate || today());
-    let next;
-    if (bill.frequency === "once") {
-      next = { ...data, bills: data.bills.map(x => x.id === bill.id ? { ...x, status: "paid", lastPaidAt: now, updatedAt: now } : x) };
-    } else {
-      let nextDueDate;
-      try { nextDueDate = nextHomeBillDue(paymentDate, bill.frequency || "monthly"); }
-      catch (e) { setError(e?.message || "تعذر حساب موعد الفاتورة التالية."); return; }
-      next = { ...data, bills: data.bills.map(x => x.id === bill.id ? { ...x, lastPaidAt: now, dueDate: nextDueDate, status: "due", updatedAt: now } : x) };
-    }
-    const saved = await persist(next);
-    if (!saved || isDemo) return;
-    publishOSEvent({
+    const paymentDate = bill.dueDate || today();
+    const paymentEvent = {
       type: "home.bill.payment.recorded",
+      ownerSystem: "home",
       entityType: "home_bill",
       entityId: bill.id,
       occurredAt: now,
@@ -249,7 +239,19 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
         paymentDate,
         frequency: bill.frequency || "monthly"
       }
-    }, workspaceId, "home");
+    };
+    let bills;
+    if (bill.frequency === "once") {
+      bills = data.bills.map(x => x.id === bill.id ? { ...x, status: "paid", lastPaidAt: now, updatedAt: now } : x);
+    } else {
+      let nextDueDate;
+      try { nextDueDate = nextHomeBillDue(paymentDate, bill.frequency || "monthly"); }
+      catch (e) { setError(e?.message || "تعذر حساب موعد الفاتورة التالية."); return; }
+      bills = data.bills.map(x => x.id === bill.id ? { ...x, lastPaidAt: now, dueDate: nextDueDate, status: "due", updatedAt: now } : x);
+    }
+    const next = { ...data, bills, events: [paymentEvent, ...(data.events || [])] };
+    const saved = await persist(next);
+    if (saved && !isDemo) publishOSEvent(paymentEvent, workspaceId, "home");
   };
 
   if (!loaded) return <div style={styles.card}>جاري تحميل المهام والعمليات المنزلية…</div>;
