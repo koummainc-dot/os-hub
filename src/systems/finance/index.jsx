@@ -11,6 +11,7 @@ import FinanceAssets from "./Assets.jsx";
 import FinanceNetWorthHistory from "./NetWorthHistory.jsx";
 import FinanceFXRates from "./FXRates.jsx";
 import TransactionImport from "./TransactionImport.jsx";
+import { subscribeOSEvents } from "../integrationEvents.js";
 
 const GREEN = "#059669";
 const INK = "#17211D";
@@ -68,6 +69,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [exportingTransactions, setExportingTransactions] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [learningActivity, setLearningActivity] = useState([]);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [showTx, setShowTx] = useState(false);
@@ -124,6 +126,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     finally { setLoading(false); }
   }, [ws?.id, isDemo, budgetPeriod]);
 
+  useEffect(() => subscribeOSEvents((event) => setLearningActivity((items) => [event, ...items.filter((x) => x.id !== event.id)].slice(0, 3)), { workspaceId: ws?.id || "default", source: "learning", types: ["learning.study_session.completed", "learning.lesson.completed", "learning.course.completed"] }), [ws?.id]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(""), 5000); return () => clearTimeout(t); }, [notice]);
 
@@ -496,7 +499,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const th = { textAlign: "right", padding: "12px 10px", color: MUTED, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", borderBottom: "1px solid " + LINE };
   const td = { padding: "13px 10px", borderBottom: "1px solid #EEF2EF", fontSize: 12, whiteSpace: "nowrap" };
 
-  return <div style={pageStyle}>
+  return <div style={pageStyle}>{learningActivity.length > 0 && <Card style={{ borderColor: "#DDD6FE", background: "#F5F3FF", color: "#5B21B6", marginBottom: 12 }}><div style={{ fontWeight: 800, marginBottom: 6 }}>🔗 نشاط جديد من Learning OS</div>{learningActivity.map((event) => <div key={event.id} style={{ fontSize: 12, marginTop: 4 }}>{event.type === "learning.study_session.completed" ? `تم تسجيل جلسة دراسة — ${Number(event.payload?.minutes) || 0} دقيقة` : event.type === "learning.lesson.completed" ? `تم إكمال درس: ${event.payload?.lessonName || "درس"}` : `تم إكمال دورة: ${event.payload?.courseName || "دورة"}`}</div>)}<div style={{ marginTop: 8 }}><Button secondary onClick={() => setLearningActivity([])}>إخفاء</Button></div></Card>}
     <style>{`@media(max-width:640px){.fin-header{align-items:flex-start!important;flex-direction:column!important}.fin-actions{width:100%;display:flex;flex-wrap:wrap}.fin-actions button{flex:1}.fin-modal{padding:14px!important}.fin-tile{padding:14px!important}}`}</style>
     <div className="fin-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, marginBottom: 18 }}>
       <div><div style={{ color: GREEN, fontSize: 11, fontWeight: 800, letterSpacing: ".3px", marginBottom: 5 }}>FINANCE OS · {ws?.name || "مساحتي"}</div><h1 style={{ fontSize: 25, margin: 0, fontWeight: 850 }}>{pageTitle}</h1><p style={{ color: MUTED, fontSize: 12, margin: "7px 0 0" }}>كل حركة مالية لها أثر واضح وسجل قابل للمراجعة.</p></div>
