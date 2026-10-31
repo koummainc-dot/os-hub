@@ -43,7 +43,9 @@
 - أُضيفت `home_record_inventory_movement` لتحديث رصيد المخزون ودفتر الحركات ذريًا، مع idempotency ورفض الصرف فوق الرصيد. Trigger `home_inventory_balance_ledger_guard` يمنع تعديل رصيد عنصر موجود خارج RPC حركة مخزون أو استلام شراء مصرح به.
 - سجل مدفوعات الفواتير `home_bill_payments` أصبح متاحًا عبر `home_operations_load` ويظهر في واجهة الفواتير.
 - `home_load_snapshot_v2/save_v2` يضيفان optimistic concurrency إلى بيانات العقارات والغرف والمخزون؛ `home_inventory_balance_ledger_guard` يمنع تعديل الرصيد مباشرة.
-- Finance يستطيع قراءة اقتراحات التكلفة من `home_finance_outbox_load` دون منح العميل وصولًا مباشرًا لجدول Outbox. ما زال يلزم عامل تسليم خادمي وإقرار استهلاك، خصوصًا لـ Today.
+- Finance يستطيع قراءة اقتراحات التكلفة من `home_finance_outbox_load` وتأكيد استهلاكها عبر `home_finance_outbox_ack` بعد نجاح حفظ المعاملة. Today يقرأ إنجازات المهام عبر `home_today_outbox_load`.
+- `home_operations_reconciliation_report` يقدم مقارنة read-only لأعداد السجلات وبصمات المعرّفات؛ لا يوافق تلقائيًا على حذف fallback، لأن مقارنة الحقول والعلاقات والبيانات الفعلية ما زالت مطلوبة.
+- ما زال يلزم worker عام للـ Outbox مع lease/retry/dead-letter وحالة تسليم مستقلة لكل consumer.
 - **ما لم يُنجز:** كيانات العقارات والغرف والمخزون العام لم تنتقل بعد إلى أوامر علائقية ذرية بالكامل؛ لا يوجد dispatcher لخدمة Outbox، ولا صلاحيات على مستوى العقار/الغرفة، ولا تذكيرات خلفية. لذلك لا يُعد Home OS مقبولًا نهائيًا بعد.
 - لا يعني نجاح SQL smoke تطبيق أي migration على الإنتاج. تبقى كل migrations في الفرع حتى dry-run ومراجعة بشرية منفصلة.
 
