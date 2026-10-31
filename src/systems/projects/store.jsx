@@ -278,6 +278,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       const risk = (data.risks || []).find((item) => item.id === riskId);
       const project = risk && projectsById[risk.project_id];
       if (!risk || !project || project.is_system || project.archived_at) throw new Error("الخطر أو المشروع غير صالح.");
+      if (!can("risk.write", project) || !can("issue.write", project)) throw new Error("لا تملك صلاحية تحويل الخطر إلى مشكلة في هذا المشروع.");
       const existing = D.issueForRisk(risk, data.issues);
       if (existing) {
         if (existing.project_id !== risk.project_id) throw new Error("المشكلة المرتبطة بالخطر موجودة في مشروع مختلف؛ لم يتم تغيير الارتباط.");
@@ -436,6 +437,8 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (!issue?.id || !issue.project_id || !projectsById[issue.project_id] || projectsById[issue.project_id].is_system) throw new Error("المشكلة أو المشروع غير صالح.");
       const currentIssue = (data.issues || []).find((item) => item.id === issue.id);
       if (!currentIssue || currentIssue.project_id !== issue.project_id) throw new Error("تعذّر العثور على المشكلة في المشروع نفسه.");
+      const project = projectsById[currentIssue.project_id];
+      if (!can("issue.write", project) || !can("task.write", project)) throw new Error("لا تملك صلاحية إنشاء مهمة إصلاح في هذا المشروع.");
       const linkedIds = new Set([...(currentIssue.task_ids || []), ...idx.list.filter((t) => (t.issue_ids || []).includes(currentIssue.id)).map((t) => t.id)]);
       if ([...linkedIds].some((id) => idx.byId[id])) throw new Error("توجد مهمة إصلاح مرتبطة بالفعل بهذه المشكلة.");
       const taskId = uid();
