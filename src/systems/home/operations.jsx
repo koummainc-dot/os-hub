@@ -114,7 +114,8 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
       const completion = { id: uid(), taskId: task.id, outcome, completedAt: new Date().toISOString(), note: "", idempotencyKey: uid() };
       const result = completeHomeTask(task, completion);
       const next = { ...data, tasks: data.tasks.map(t => t.id === task.id ? result.task : t), completions: [result.completion, ...data.completions], events: [homeTaskEvent(result.task, result.completion), ...(data.events || [])] };
-      await persist(next);
+      const saved = await persist(next);
+      if (saved && !isDemo && outcome === "done") publishOSEvent(homeTaskEvent(result.task, result.completion), workspaceId, "home");
     } catch (e) { setError(e?.message || "تعذر تسجيل الإنجاز."); }
   };
 
