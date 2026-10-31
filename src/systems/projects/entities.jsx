@@ -177,7 +177,7 @@ export function IssuesView({ projectId }) {
 
 // ═════ Decisions ═════
 export function DecisionsView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast } = useP();
+  const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject } = useP();
   const [form, setForm] = useState(null);
   const list = data.decisions.filter((d) => !projectId || d.project_id === projectId).sort((a, b) => (b.decided_at || "").localeCompare(a.decided_at || ""));
   const canNew = projectId ? can("decision.write", projectsById[projectId]) : data.projects.some((p) => can("decision.write", p));
@@ -190,6 +190,11 @@ export function DecisionsView({ projectId }) {
           {d.rationale && <div style={{ fontSize: 12, color: C.dim }}><b>لماذا؟</b> {d.rationale}</div>}{d.rejected_alternatives && <div style={{ fontSize: 12, color: C.dim }}><b>بدائل مرفوضة:</b> {d.rejected_alternatives}</div>}
           {d.superseded_by_id && <div style={{ fontSize: 11.5, color: C.warn }}>حلّ محله: {(data.decisions.find((x) => x.id === d.superseded_by_id) || {}).title}</div>}
           <div style={{ fontSize: 11, color: C.muted, display: "flex", gap: 10 }}>{!projectId && <ProjectName id={d.project_id} />}<span>{fmt(d.decided_at)}</span>{d.decision_maker_id && <Who id={d.decision_maker_id} size={15} />}</div>
+          {(() => { const tasks = (d.related_task_ids || []).map((id) => idx.byId[id]).filter(Boolean); const issues = (d.related_issue_ids || []).map((id) => data.issues.find((x) => x.id === id)).filter(Boolean); const risks = (d.related_risk_ids || []).map((id) => data.risks.find((x) => x.id === id)).filter(Boolean); if (!tasks.length && !issues.length && !risks.length) return null; return <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}>
+            {tasks.map((t) => <Btn key={t.id} small onClick={() => openTask(t.id)}>↗ مهمة: {t.title}</Btn>}
+            {issues.map((i) => <Btn key={i.id} small onClick={() => openProject(i.project_id, "issues")}>↗ مشكلة: {i.title}</Btn>)}
+            {risks.map((r) => <Btn key={r.id} small onClick={() => openProject(r.project_id, "risks")}>↗ خطر: {r.title}</Btn>)}
+          </div>; })()}
         </div>))}</div>}
       {form && <FormModal title={form.id ? "تعديل القرار" : "قرار جديد"} wide initial={{ status: "Proposed", decided_at: new Date().toISOString().slice(0, 10), ...form }} onClose={() => setForm(null)}
         validate={(v) => D.validateDecisionStatus(v, v.status) ? { superseded_by_id: "إلزامي عند «حلّ محله قرار آخر»" } : null}
@@ -198,6 +203,9 @@ export function DecisionsView({ projectId }) {
           { key: "status", label: "الحالة", type: "select", allowEmpty: false, options: opts(L.decisionStatus) }, { key: "decided_at", label: "تاريخ القرار", type: "date" }, { key: "decision_maker_id", label: "صاحب القرار", type: "select", options: mOpts(people) },
           { key: "superseded_by_id", label: "القرار الذي حلّ محله", type: "select", show: (v) => v.status === "Superseded", required: true, options: (v) => data.decisions.filter((x) => x.id !== v.id && x.project_id === v.project_id).map((x) => ({ v: x.id, l: x.title })) },
           { key: "prd_id", label: "المواصفة", type: "select", emptyLabel: "— بلا —", options: (v) => data.prds.filter((p) => p.project_id === v.project_id).map((p) => ({ v: p.id, l: p.title })) },
+           { key: "related_task_ids", label: "المهام المتأثرة", type: "multi", options: (v) => idx.list.filter((t) => t.project_id === v.project_id).map((t) => ({ v: t.id, l: t.title })) },
+           { key: "related_issue_ids", label: "المشاكل المتأثرة", type: "multi", options: (v) => data.issues.filter((i) => i.project_id === v.project_id).map((i) => ({ v: i.id, l: i.title })) },
+           { key: "related_risk_ids", label: "المخاطر المتأثرة", type: "multi", options: (v) => data.risks.filter((r) => r.project_id === v.project_id).map((r) => ({ v: r.id, l: r.title })) },
           { key: "rationale", label: "لماذا؟", type: "textarea" }, { key: "rejected_alternatives", label: "البدائل المرفوضة", type: "textarea", rows: 2 }, { key: "expected_impact", label: "الأثر المتوقع", type: "textarea", rows: 2 }]} />}
     </div>
   );
