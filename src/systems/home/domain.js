@@ -59,7 +59,7 @@ export function validateHomeItem(record, data) {
   if (!Number.isFinite(quantity) || quantity < 0) errors.push("الكمية يجب أن تكون رقمًا غير سالب.");
   if (!Number.isFinite(minimum) || minimum < 0) errors.push("الحد الأدنى يجب أن يكون رقمًا غير سالب.");
   if (record?.unitPrice !== "" && record?.unitPrice != null && (!Number.isFinite(Number(record.unitPrice)) || Number(record.unitPrice) < 0)) errors.push("سعر الوحدة يجب أن يكون رقمًا غير سالب.");
-  if (record?.expiryDate && !/^\\d{4}-\\d{2}-\\d{2}$/.test(record.expiryDate)) errors.push("تاريخ الصلاحية غير صالح.");
+  if (record?.expiryDate && !/^\d{4}-\d{2}-\d{2}$/.test(record.expiryDate)) errors.push("تاريخ الصلاحية غير صالح.");
   if (!data.properties.some(p => p.id === record?.propertyId && !p.deletedAt)) errors.push("اختر عقارًا نشطًا.");
   if (record?.roomId && !data.rooms.some(r => r.id === record.roomId && r.propertyId === record.propertyId && !r.deletedAt)) errors.push("الغرفة لا تتبع العقار المحدد.");
   return errors;
