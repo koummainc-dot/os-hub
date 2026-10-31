@@ -27,6 +27,22 @@ begin
   end if;
 
   if tg_op = 'DELETE' then
+    if old.system_id = 'projects' and old.collection = 'prds' then
+      if exists (
+        select 1 from public.workspace_records linked
+         where linked.workspace_id = old.workspace_id
+           and linked.system_id = 'projects'
+           and linked.collection in ('tasks','outputs')
+           and linked.deleted = false
+           and linked.data->>'deleted_at' is null
+           and linked.data->>'archived_at' is null
+           and linked.data->>'prd_id' = old.id
+      ) then
+        raise exception 'Cannot delete a PRD while active tasks or outputs still reference it'
+          using errcode = '22023';
+      end if;
+      return old;
+    end if;
     if old.system_id <> 'projects' or old.collection <> 'outputs' then
       return old;
     end if;
