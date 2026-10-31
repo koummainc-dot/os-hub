@@ -18,7 +18,6 @@ begin
   end if;
   update public.home_outbox_events
     set published_at=coalesce(published_at,now()),
-        attempt_count=attempt_count+1,
         last_error=null
     where workspace_id=p_workspace_id
       and event_type in ('home.bill.payment.recorded','home.purchase.receipt.recorded','home.maintenance.cost.recorded')
