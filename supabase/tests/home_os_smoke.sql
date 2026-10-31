@@ -7,7 +7,7 @@ select set_config('test.allowed_workspace_id','10000000-0000-4000-8000-000000000
 select set_config('test.access_level','edit',false);
 set role authenticated;
 
-select public.home_save_snapshot(
+select public.home_save_snapshot_v2(
   '10000000-0000-4000-8000-000000000001',
   '{
     "schemaVersion":1,
@@ -17,9 +17,9 @@ select public.home_save_snapshot(
     "movements":[{"id":"60000000-0000-4000-8000-000000000001","itemId":"50000000-0000-4000-8000-000000000001","type":"receive","quantity":2,"occurredAt":"2026-10-31T00:00:00Z","note":"opening","idempotencyKey":"smoke-opening-item-0001"}],
     "settings":{"currency":"EGP","timezone":"Africa/Cairo","preferences":{}}
   }'::jsonb
-);
+, (public.home_load_snapshot_v2('10000000-0000-4000-8000-000000000001'::uuid)->>'_version')::integer);
 -- Replaying the same opening movement must not create a second inventory movement.
-select public.home_save_snapshot(
+select public.home_save_snapshot_v2(
   '10000000-0000-4000-8000-000000000001',
   '{
     "schemaVersion":1,
@@ -29,7 +29,7 @@ select public.home_save_snapshot(
     "movements":[{"id":"60000000-0000-4000-8000-000000000001","itemId":"50000000-0000-4000-8000-000000000001","type":"receive","quantity":2,"idempotencyKey":"smoke-opening-item-0001"}],
     "settings":{"currency":"EGP","timezone":"Africa/Cairo","preferences":{}}
   }'::jsonb
-);
+, (public.home_load_snapshot_v2('10000000-0000-4000-8000-000000000001'::uuid)->>'_version')::integer);
 do $$
 begin
   if (select count(*) from public.home_inventory_movements where workspace_id='10000000-0000-4000-8000-000000000001') <> 1 then
@@ -104,10 +104,10 @@ begin
   end;
 end $$;
 
-select public.home_operations_save(
+select public.home_operations_save_v2(
   '10000000-0000-4000-8000-000000000001',
   '{"tasks":[],"completions":[],"providers":[],"maintenance":[],"purchaseRequests":[],"purchaseItems":[],"bills":[],"events":[]}'::jsonb
-);
+, (public.home_operations_load_v2('10000000-0000-4000-8000-000000000001'::uuid)->>'_version')::integer);
 do $$
 declare snapshot jsonb;
 begin
@@ -120,7 +120,7 @@ end $$;
 -- Atomic purchase receipt: request status, inventory quantity/movement, receipt and outbox commit together.
 -- Seed the purchase through the same legacy snapshot API used by the current UI.
 -- The receipt RPC must hydrate relational purchase rows transactionally before receiving.
-select public.home_operations_save(
+select public.home_operations_save_v2(
   '10000000-0000-4000-8000-000000000001',
   '{
     "tasks":[],
@@ -148,7 +148,7 @@ select public.home_operations_save(
     "bills":[],
     "events":[]
   }'::jsonb
-);
+, (public.home_operations_load_v2('10000000-0000-4000-8000-000000000001'::uuid)->>'_version')::integer);
 select public.home_record_purchase_receipt(
   '10000000-0000-4000-8000-000000000001',
   '70000000-0000-4000-8000-000000000001',
@@ -215,7 +215,7 @@ set role authenticated;
 
 -- Bills are relational; payments create durable history, mark the old occurrence paid,
 -- retain the next due occurrence, and enqueue a Finance review event idempotently.
-select public.home_operations_save(
+select public.home_operations_save_v2(
   '10000000-0000-4000-8000-000000000001',
   '{
     "tasks":[{
@@ -250,8 +250,8 @@ select public.home_operations_save(
     }],
     "events":[{"type":"home.task.completed","ownerSystem":"home","entityType":"home_task","entityId":"73000000-0000-4000-8000-000000000001","occurredAt":"2026-10-31T08:00:00Z","payload":{"taskTitle":"Relational task","outcome":"done","assignedTo":null,"propertyId":"30000000-0000-4000-8000-000000000001","roomId":"40000000-0000-4000-8000-000000000001","nextDueAt":null}}]
   }'::jsonb
-);
-select public.home_operations_save(
+, (public.home_operations_load_v2('10000000-0000-4000-8000-000000000001'::uuid)->>'_version')::integer);
+select public.home_operations_save_v2(
   '10000000-0000-4000-8000-000000000001',
   '{
     "tasks":[],"completions":[],"providers":[],"maintenance":[],
@@ -272,9 +272,9 @@ select public.home_operations_save(
       }
     }]
   }'::jsonb
-);
+, (public.home_operations_load_v2('10000000-0000-4000-8000-000000000001'::uuid)->>'_version')::integer);
 -- Re-saving the same event must not create a duplicate payment or outbox row.
-select public.home_operations_save(
+select public.home_operations_save_v2(
   '10000000-0000-4000-8000-000000000001',
   '{
     "tasks":[],"completions":[],"providers":[],"maintenance":[],
@@ -295,7 +295,7 @@ select public.home_operations_save(
       }
     }]
   }'::jsonb
-);
+, (public.home_operations_load_v2('10000000-0000-4000-8000-000000000001'::uuid)->>'_version')::integer);
 do $$
 declare v_loaded jsonb;
 begin
@@ -424,10 +424,10 @@ end $$;
 select set_config('test.access_level','view',false);
 do $$
 begin
-  perform public.home_operations_save(
+  perform public.home_operations_save_v2(
     '10000000-0000-4000-8000-000000000001',
     '{"tasks":[{"id":"73000000-0000-4000-8000-000000000001","title":"Relational task","description":"","taskType":"routine","status":"active","priority":"normal","propertyId":"30000000-0000-4000-8000-000000000001","roomId":"40000000-0000-4000-8000-000000000001","dueDate":"2026-10-31","recurrenceRule":{"frequency":"daily"},"estimatedMinutes":15,"reminderAt":"2026-10-31T08:00:00Z","createdAt":"2026-10-31T00:00:00Z"}],"completions":[{"id":"74000000-0000-4000-8000-000000000001","taskId":"73000000-0000-4000-8000-000000000001","outcome":"done","completedAt":"2026-10-31T08:00:00Z","durationMinutes":15,"note":"","idempotencyKey":"smoke-task-completion-0001"}],"providers":[{"id":"75000000-0000-4000-8000-000000000001","name":"Plumber","serviceCategory":"plumbing","phone":"","email":"","notes":"","createdAt":"2026-10-31T00:00:00Z"}],"maintenance":[{"id":"76000000-0000-4000-8000-000000000001","propertyId":"30000000-0000-4000-8000-000000000001","roomId":"40000000-0000-4000-8000-000000000001","title":"Leak check","description":"","status":"reported","priority":"normal","reportedAt":"2026-10-31T00:00:00Z","costAmount":null,"currency":"EGP","notes":"","completionCount":0,"createdAt":"2026-10-31T00:00:00Z"}],"purchaseRequests":[],"purchaseItems":[],"bills":[],"events":[]}'::jsonb
-  );
+  , (public.home_operations_load_v2('10000000-0000-4000-8000-000000000001'::uuid)->>'_version')::integer);
   raise exception 'HOME_VIEW_ROLE_WRITE_SHOULD_FAIL';
 exception when insufficient_privilege then
   null;
