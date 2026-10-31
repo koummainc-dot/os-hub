@@ -23,6 +23,18 @@ assert.ok(entities.includes('s !== "Materialized" || can("issue.write", projects
 
 const mitigationStart = store.indexOf("async createRiskMitigationTask(riskId)");
 const mitigationEnd = store.indexOf("async createDecisionTask", mitigationStart);
-assert.ok(store.slice(mitigationStart, mitigationEnd).includes('!can("risk.write", project) || !can("task.write", project)'),
+const mitigationAction = store.slice(mitigationStart, mitigationEnd);
+assert.ok(mitigationAction.includes('!can("risk.write", project) || !can("task.write", project)'),
   "risk mitigation task requires both risk and task permissions");
-console.log("✓ Projects relationship permission contracts passed");
+assert.ok(mitigationAction.includes('const stableTaskId = "risk_mitigation_task_" + risk.id') && mitigationAction.includes("await R.putAtomic("),
+  "risk mitigation creation must be idempotent and atomic");
+
+const decisionStart = store.indexOf("async createDecisionTask(decisionId)");
+const decisionEnd = store.indexOf("// tasks", decisionStart);
+assert.ok(decisionStart >= 0 && decisionEnd > decisionStart, "decision implementation action must exist");
+const decisionAction = store.slice(decisionStart, decisionEnd);
+assert.ok(decisionAction.includes('decision.status !== "Approved"'), "decision implementation task requires an approved decision");
+assert.ok(decisionAction.includes('!can("decision.write", project) || !can("task.write", project)'), "decision implementation requires decision and task permissions");
+assert.ok(decisionAction.includes('const stableTaskId = "decision_task_" + decision.id') && decisionAction.includes("await R.putAtomic("),
+  "decision implementation creation must be idempotent and atomic");
+console.log("✓ Projects relationship permission and action contracts passed");
