@@ -16,6 +16,7 @@ export function validateHomeTask(task, data = {}) {
   if (!nonNegative(task?.estimatedMinutes)) errors.push("المدة التقديرية يجب ألا تكون سالبة.");
   if (task?.propertyId && !data.properties?.some(p => p.id === task.propertyId && !p.deletedAt)) errors.push("العقار المرتبط بالمهمة غير نشط.");
   if (task?.roomId && !data.rooms?.some(r => r.id === task.roomId && r.propertyId === task.propertyId && !r.deletedAt)) errors.push("الغرفة لا تتبع العقار المحدد.");
+  if (task?.assignedTo && Array.isArray(data.members) && !data.members.some(member => member.userId === task.assignedTo)) errors.push("المسؤول المحدد ليس عضوًا في مساحة العمل.");
   const rule = task?.recurrenceRule || { frequency: "none" };
   if (!["none", "daily", "weekly", "monthly", "yearly", "interval"].includes(rule.frequency)) errors.push("قاعدة التكرار غير مدعومة.");
   if (rule.frequency === "interval" && (!Number.isInteger(Number(rule.intervalDays)) || Number(rule.intervalDays) < 1 || Number(rule.intervalDays) > 365)) errors.push("فاصل التكرار يجب أن يكون من 1 إلى 365 يومًا.");
@@ -143,6 +144,6 @@ export function homeTaskEvent(task, completion) {
     entityType: "home_task",
     entityId: task.id,
     occurredAt: completion.completedAt,
-    payload: { taskTitle: task.title || "مهمة منزلية", outcome: completion.outcome, propertyId: task.propertyId || null, roomId: task.roomId || null, nextDueAt: task.nextDueAt || null }
+    payload: { taskTitle: task.title || "مهمة منزلية", outcome: completion.outcome, assignedTo: task.assignedTo || null, propertyId: task.propertyId || null, roomId: task.roomId || null, nextDueAt: task.nextDueAt || null }
   };
 }
