@@ -306,7 +306,7 @@ export default function HomeOperations({ api, canEdit = false, isDemo = false, w
     {tab === "bills" && <div style={styles.card}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}><h3>الفواتير والمصروفات المتكررة</h3>{canEdit&&<Button onClick={addBill}>＋ فاتورة</Button>}</div>
       <Row title={"متأخرة: "+overdueBills.length} meta={"الفواتير المتكررة: "+data.bills.length}/>
-      {data.bills.map(b=><Row key={b.id} title={b.title} meta={[currency(b.amount,b.currency),b.category,b.frequency,"الاستحقاق "+b.dueDate,b.dueDate<today()?"متأخرة":"قادمة"].filter(Boolean).join(" · ")}>{canEdit&&<><Button secondary onClick={()=>setBillForm({...b})}>تعديل</Button><Button onClick={()=>completeBill(b)}>تسجيل الدفع وترحيل الاستحقاق</Button></>}</Row>)}
+      {data.bills.map(b=><Row key={b.id} title={b.title} meta={[currency(b.amount,b.currency),b.category,b.frequency,"الاستحقاق "+b.dueDate,b.dueDate<today()?"متأخرة":"قادمة"].filter(Boolean).join(" · ")}>{canEdit&&<><Button secondary onClick={()=>setBillForm({...b})}>تعديل</Button>{!(b.frequency === "once" && b.status === "paid") && <Button onClick={()=>completeBill(b)}>تسجيل الدفع وترحيل الاستحقاق</Button>}</>}</Row>)}
       {billForm&&<form onSubmit={saveBill} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,marginTop:12}}>
         <Field label="اسم الفاتورة *">{input(billForm.title,v=>setBillForm({...billForm,title:v}))}</Field>
         <Field label="المبلغ *">{input(billForm.amount,v=>setBillForm({...billForm,amount:v}),"number",{min:0,step:"0.01"})}</Field>
