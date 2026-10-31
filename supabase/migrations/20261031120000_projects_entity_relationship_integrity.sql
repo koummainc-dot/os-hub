@@ -61,7 +61,7 @@ begin
         when jsonb_typeof(target_data->'project_ids') = 'array' then target_data->'project_ids'
         else '[]'::jsonb
       end;
-      if jsonb_array_length(project_list) > 0 and not exists (
+      if p_project_id is not null and jsonb_array_length(project_list) > 0 and not exists (
         select 1 from jsonb_array_elements_text(project_list) as project_ref(value)
         where value = p_project_id
       ) then
