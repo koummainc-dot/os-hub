@@ -62,8 +62,8 @@ begin
              from jsonb_array_elements(
                case when jsonb_typeof(prd_data->'requirements') = 'array'
                     then prd_data->'requirements' else '[]'::jsonb end
-             ) as requirement
-            where requirement->>'id' = requirement_id
+             ) as req(value)
+            where value->>'id' = requirement_id
          ) then
         raise exception 'The linked requirement does not belong to the selected PRD' using errcode = '22023';
       end if;
