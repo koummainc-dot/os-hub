@@ -153,3 +153,33 @@ export async function loadDurableOSEvents(workspaceId, sourceSystem = "hobbies",
     return { ok: false, events: [], reason: "server-read-failed", error };
   }
 }
+
+
+/** Subscribe to permission-filtered durable events for one workspace/source. */
+export function subscribeDurableOSEvents(workspaceId, sourceSystem = "hobbies", handler) {
+  if (!workspaceId || typeof handler !== "function" || typeof supabase?.channel !== "function") return () => {};
+  const channel = supabase
+    .channel(`os-integration-events:${workspaceId}:${sourceSystem}`)
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "os_integration_events",
+      filter: `workspace_id=eq.${String(workspaceId)}`,
+    }, (change) => {
+      const row = change?.new;
+      if (!row || row.source_system !== sourceSystem) return;
+      handler({
+        id: row.id,
+        workspaceId: row.workspace_id,
+        source: row.source_system,
+        type: row.event_type,
+        entityType: row.entity_type,
+        entityId: row.entity_id,
+        idempotencyKey: row.idempotency_key,
+        occurredAt: row.occurred_at,
+        payload: row.payload || {},
+      });
+    })
+    .subscribe();
+  return () => { supabase.removeChannel(channel); };
+}
