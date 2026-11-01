@@ -12,13 +12,14 @@
 - Expanded contract tests for event API compatibility and privacy defaults.
 - Added initial typed P1 domain constructors/validators for values, principles, practices, and flexible frequency configurations, plus unit-level contract assertions. This is **domain-layer progress only**; typed forms, repository persistence, migrations for typed fields, and full acceptance coverage remain open.
 - A prior head (`84afe5ca09a3276469148535418b97fefa512eb6`) had successful Verify app and CI runs (tests + production build), as well as Knowledge SQL smoke tests and Finance Family Center Checks. Subsequent validator/test commits were added after those runs, so the current PR head still requires fresh CI. No authenticated browser test or production migration has been completed.
+- Latest P1 hardening adds explicit upper bounds and type checks for value tags/description/meaning source and principle text fields, with regression assertions. The commits are saved, but not yet CI-verified.
 
 ## Phase 1 acceptance gates — close when possible; defer blocked environment/security work without blocking independent development
 - [x] Correct integration-event API shape.
 - [x] Prevent Spiritual record-save events from serializing private record metadata into browser localStorage.
 - [x] Mark all ten current collections private by default in the domain contract.
 - [x] Expand private-table collection constraint and policy metadata to all ten collections.
-- [ ] Run full CI on the latest PR head and verify every required job. **A prior head passed; rerun required after later validator/test commits `9a0e9fa`, `6ec17bc`, `ac604e5`, and `f9becd7` (plus this tracker update).**
+- [ ] Run full CI on the latest PR head and verify every required job. **A prior head passed; rerun required after later validator/test commits `9a0e9fa`, `6ec17bc`, `ac604e5`, `f9becd7`, `9dbfbe1`, `af76b96`, `84f1ed0`, and `2cf6522` (plus this tracker update).**
 - [ ] Run local contract tests and production build in a reproducible environment. **Deferred until a reproducible runtime is available; repository edits alone are not test evidence.**
 - [ ] Verify migration against the actual current Supabase schema in a rollback-only transaction, including policy/constraint idempotency and FK compatibility. **Deferred if safe read/transaction access is unavailable.**
 - [ ] Authenticated multi-user integration test: owner can read/write their own records; another user and workspace collaborator cannot select, mutate, or archive them. **Deferred until two safe test identities and a non-production test environment are available.**
