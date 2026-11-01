@@ -62,4 +62,6 @@ assert.equal(validateFinanceLink({tripId:"budget-trip",financeTransactionId:"tx-
 const foreignCurrency=tripBudgetBreakdown("budget-trip",budgetData,financeRows,"USD");
 assert.equal(foreignCurrency.requiresFx,true);
 assert.equal(foreignCurrency.actualInTripCurrency,null);
+assert.equal(foreignCurrency.plannedActivities,150);
+assert.equal(validateTravelImport({...importable,financeLinks:[{id:"fl1",tripId:"missing",financeTransactionId:"external-tx",kind:"expense"}]}).valid,false);
 console.log("Travel OS finance-linked budget tests passed");
