@@ -10,7 +10,7 @@ export function travelSourceKey(workspaceId, kind, recordId, dueAt = "") {
 }
 
 export function buildTravelReminderReference(workspaceId, alert) {
-  if (!alert?.id || !alert?.date || !alert?.type) return null;
+  if (!alert?.id || !alert?.date || !["cancellation", "document"].includes(alert?.type)) return null;
   const kind = alert.type === "cancellation" ? "booking-cancellation" : "document-expiry";
   const recordId = String(alert.id).replace(/^(booking|document):/, "");
   return {
