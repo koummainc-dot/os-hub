@@ -44,7 +44,9 @@ export function validateFrequencyConfig(config){
  const modes=new Set(["Daily","Weekdays","TimesPerWeek","TimesPerMonth","EveryNDays","MonthDay","Dates","Flexible"]);
  if(!modes.has(config.mode))return{ok:false,reason:"invalid-frequency-mode"};
  if(config.mode==="Weekdays"&&(!Array.isArray(config.days)||!config.days.length||config.days.some(d=>!Number.isInteger(d)||d<0||d>6)||new Set(config.days).size!==config.days.length))return{ok:false,reason:"invalid-weekdays"};
- if(config.mode==="TimesPerWeek"&&(!Number.isInteger(config.n)||config.n<1||config.n>7))return{ok:false,reason:"invalid-frequency-count"};\n if(config.mode==="TimesPerMonth"&&(!Number.isInteger(config.n)||config.n<1||config.n>31))return{ok:false,reason:"invalid-frequency-count"};\n if(config.mode==="EveryNDays"&&(!Number.isInteger(config.n)||config.n<1||config.n>365))return{ok:false,reason:"invalid-frequency-count"};
+ if(config.mode==="TimesPerWeek"&&(!Number.isInteger(config.n)||config.n<1||config.n>7))return{ok:false,reason:"invalid-frequency-count"};
+ if(config.mode==="TimesPerMonth"&&(!Number.isInteger(config.n)||config.n<1||config.n>31))return{ok:false,reason:"invalid-frequency-count"};
+ if(config.mode==="EveryNDays"&&(!Number.isInteger(config.n)||config.n<1||config.n>365))return{ok:false,reason:"invalid-frequency-count"};
  if(config.mode==="EveryNDays"&&!isDate(config.anchor))return{ok:false,reason:"invalid-frequency-anchor"};
  if(config.mode==="MonthDay"&&(!["gregorian","hijri"].includes(config.calendar)||!Array.isArray(config.days)||!config.days.length||config.days.some(d=>!Number.isInteger(d)||d<1||d>(config.calendar==="hijri"?30:31))||new Set(config.days).size!==config.days.length||![-1,0,1].includes(config.day_offset??0)))return{ok:false,reason:"invalid-month-days"};
  if(config.mode==="Dates"&&(!Array.isArray(config.dates)||config.dates.length===0||config.dates.some(d=>!isDate(d))||new Set(config.dates).size!==config.dates.length))return{ok:false,reason:"invalid-dates"};
