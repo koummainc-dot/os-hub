@@ -197,7 +197,7 @@ export function validateHobbyJournalEntry(input,hobbies,sessions=[],skills=[],mi
  const tags=Array.isArray(input.tags)?input.tags.map(x=>String(x).trim()).filter(Boolean).slice(0,10):String(input.tags||"").split(",").map(x=>x.trim()).filter(Boolean).slice(0,10);
  if(tags.some(t=>t.length>30))return {ok:false,error:"كل وسم يجب ألا يتجاوز 30 حرفًا."};
  const attachments=Array.isArray(input.attachments)?input.attachments:[];if(attachments.length>8)return {ok:false,error:"يمكن إضافة 8 روابط مرفقات كحد أقصى."};
- for(const value of attachments){try{const u=new URL(String(value));if(!["https:","http:"].includes(u.protocol)||String(value).length>2048)throw new Error();}catch{return {ok:false,error:"روابط المرفقات يجب أن تكون http أو https وبحد أقصى 2048 حرفًا."};}}
+ for(const value of attachments){if(value&&typeof value==="object"){if(value.kind!=="storage"||typeof value.path!=="string"||value.path.startsWith("/")||value.path.split("/").includes("..")||String(value.name||"").length>200||!Number.isFinite(Number(value.size))||Number(value.size)>10*1024*1024||!["image/jpeg","image/png","image/webp","application/pdf"].includes(value.mimeType))return {ok:false,error:"بيانات المرفق المخزن غير صالحة."};continue;}try{const u=new URL(String(value));if(!["https:","http:"].includes(u.protocol)||String(value).length>2048)throw new Error();}catch{return {ok:false,error:"روابط المرفقات يجب أن تكون http أو https وبحد أقصى 2048 حرفًا."};}}
  return {ok:true,value:{...input,title,body,entryType,localDate,mood:input.mood||null,sessionId:input.sessionId||null,skillId:input.skillId||null,milestoneId:input.milestoneId||null,tags,attachments,privacy:"private"}};
 }
 
