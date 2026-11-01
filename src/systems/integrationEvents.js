@@ -130,9 +130,9 @@ export async function publishDurableOSEvent(event, workspaceId, sourceSystem, id
     });
     if (error) throw error;
     const durable = data && typeof data === "object" ? data : null;
-    if (!durable?.id && !(durable?.duplicate === true && durable?.idempotencyKey === String(idempotencyKey))) return { ok: false, reason: "invalid-server-response" };
+    if (!(durable?.accepted === true || durable?.duplicate === true) || durable?.idempotencyKey !== String(idempotencyKey)) return { ok: false, reason: "invalid-server-response" };
     const local = publishOSEvent({ ...event, idempotencyKey: durable.idempotencyKey }, workspaceId, sourceSystem);
-    return { ok: true, event: { ...durable, ...local, id: durable.id || local.id, idempotencyKey: durable.idempotencyKey }, source: "server", duplicate: durable.duplicate === true };
+    return { ok: true, event: { ...durable, ...local, id: local.id, idempotencyKey: durable.idempotencyKey }, source: "server", duplicate: durable.duplicate === true };
   } catch (error) {
     return { ok: false, reason: "server-write-failed", error };
   }
