@@ -21,9 +21,12 @@ const valueModel=createSpiritualValue({name:"الرحمة",importance:"Core",ran
 assert.equal(validateSpiritualValue(valueModel).ok,true);
 assert.equal(validateSpiritualValue({...valueModel,name:" "}).reason,"name-required");
 assert.equal(validateSpiritualValue({...valueModel,importance:"Score"}).ok,false);
+assert.equal(validateSpiritualValue({...valueModel,tags:[{bad:true}]}).reason,"invalid-tags");
+assert.equal(validateSpiritualValue({...valueModel,meaningSource:"x".repeat(2001)}).reason,"content-too-long");
 const principleModel=createSpiritualPrinciple({title:"الرفق",statement:"التعامل برفق",driftSignals:"أراجع نفسي عندما أتعجل"});
 assert.equal(validateSpiritualPrinciple(principleModel).ok,true);
 assert.equal(validateSpiritualPrinciple({...principleModel,title:""}).reason,"title-required");
+assert.equal(validateSpiritualPrinciple({...principleModel,statement:"x".repeat(4001)}).reason,"content-too-long");
 const practiceModel=createSpiritualPractice({name:"قراءة",kind:"Quantity",target:10,minimum:2,slots:[{key:"morning",label:"الصباح",preferredTime:"08:30"}]});
 assert.equal(validateSpiritualPractice(practiceModel).ok,true);
 assert.equal(validateSpiritualPractice({...practiceModel,minimum:11}).reason,"minimum-exceeds-target");
