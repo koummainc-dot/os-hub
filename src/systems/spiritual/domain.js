@@ -46,8 +46,8 @@ export function validateFrequencyConfig(config){
  if(config.mode==="Weekdays"&&(!Array.isArray(config.days)||!config.days.length||config.days.some(d=>!Number.isInteger(d)||d<0||d>6)||new Set(config.days).size!==config.days.length))return{ok:false,reason:"invalid-weekdays"};
  if(["TimesPerWeek","TimesPerMonth","EveryNDays"].includes(config.mode)&&(!Number.isInteger(config.n)||config.n<1||config.n>31))return{ok:false,reason:"invalid-frequency-count"};
  if(config.mode==="EveryNDays"&&!isDate(config.anchor))return{ok:false,reason:"invalid-frequency-anchor"};
- if(config.mode==="MonthDay"&&(!["gregorian","hijri"].includes(config.calendar)||!Array.isArray(config.days)||!config.days.length||config.days.some(d=>!Number.isInteger(d)||d<1||d>(config.calendar==="hijri"?30:31))||![-1,0,1].includes(config.day_offset??0)))return{ok:false,reason:"invalid-month-days"};
- if(config.mode==="Dates"&&(!Array.isArray(config.dates)||config.dates.some(d=>!isDate(d))))return{ok:false,reason:"invalid-dates"};
+ if(config.mode==="MonthDay"&&(!["gregorian","hijri"].includes(config.calendar)||!Array.isArray(config.days)||!config.days.length||config.days.some(d=>!Number.isInteger(d)||d<1||d>(config.calendar==="hijri"?30:31))||new Set(config.days).size!==config.days.length||![-1,0,1].includes(config.day_offset??0)))return{ok:false,reason:"invalid-month-days"};
+ if(config.mode==="Dates"&&(!Array.isArray(config.dates)||config.dates.length===0||config.dates.some(d=>!isDate(d))||new Set(config.dates).size!==config.dates.length))return{ok:false,reason:"invalid-dates"};
  return{ok:true};
 }
 export function validateSpiritualPractice(practice){
@@ -59,7 +59,7 @@ export function validateSpiritualPractice(practice){
  if((practice.logMode==="HabitLinked")!==Boolean(practice.habitRef))return{ok:false,reason:"habit-link-mode-mismatch"};
  for(const key of ["target","minimum"])if(practice[key]!=null&&(!Number.isFinite(Number(practice[key]))||Number(practice[key])<=0))return{ok:false,reason:`invalid-${key}`};
  if(practice.target!=null&&practice.minimum!=null&&Number(practice.minimum)>Number(practice.target))return{ok:false,reason:"minimum-exceeds-target"};
- if(!Array.isArray(practice.slots)||practice.slots.length<1||practice.slots.length>8)return{ok:false,reason:"invalid-slots-count"};
+ if(!Array.isArray(practice.tags)||practice.tags.some(tag=>typeof tag!=="string"||tag.trim().length>60))return{ok:false,reason:"invalid-tags"};\n if(typeof practice.slotsRequired!=="string"||!(practice.slotsRequired==="All"||/^AtLeast\\([1-8]\\)$/.test(practice.slotsRequired)))return{ok:false,reason:"invalid-slots-required"};\n if(!Array.isArray(practice.slots)||practice.slots.length<1||practice.slots.length>8)return{ok:false,reason:"invalid-slots-count"};
  const keys=new Set();
  for(const slot of practice.slots){if(!slot||!String(slot.key||"").trim()||keys.has(slot.key)||!String(slot.label||"").trim())return{ok:false,reason:"invalid-slot"};keys.add(slot.key);if(slot.preferredTime!=null&&!isTime(slot.preferredTime))return{ok:false,reason:"invalid-slot-time"};}
  if(practice.preferredTime!=null&&!isTime(practice.preferredTime))return{ok:false,reason:"invalid-preferred-time"};
