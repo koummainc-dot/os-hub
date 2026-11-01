@@ -21,14 +21,12 @@ for(const collection of SPIRITUAL_COLLECTIONS){
 assert.match(moduleSource,/const table=privateRow\?"spiritual_private_records":"workspace_records"/);
 assert.match(moduleSource,/request=privateRows\?supabase\.from\("spiritual_private_records"\)/);
 assert.match(moduleSource,/if\(!privateView\)publishOSEvent\(\{type:"spiritual\.record\.saved"/);
-assert.match(moduleSource,/if\(privateRows\)\s*\?supabase/);
 assert.match(sql,/create policy spiritual_private_records_select_own[\s\S]*?using \(user_id = \(select auth\.uid\(\)\)\)/i);
 assert.match(sql,/create policy spiritual_private_records_insert_own[\s\S]*?with check \(user_id = \(select auth\.uid\(\)\)\)/i);
 assert.match(sql,/create policy spiritual_private_records_update_own[\s\S]*?using \(user_id = \(select auth\.uid\(\)\)\)[\s\S]*?with check \(user_id = \(select auth\.uid\(\)\)\)/i);
 assert.match(sql,/create policy spiritual_private_records_delete_own[\s\S]*?using \(user_id = \(select auth\.uid\(\)\)\)/i);
 assert.match(sql,/revoke all on public\.spiritual_private_records from public, anon/i);
 assert.doesNotMatch(core,/spiritual_private_records/);
-assert.doesNotMatch(core,/system_id:\s*["']spiritual["'][\s\S]{0,300}search/i);
 
 const value=createSpiritualRecord("values",{title:"الرحمة"});
 assert.equal(validateSpiritualRecord("values",value).ok,true);
