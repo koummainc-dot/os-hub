@@ -76,12 +76,12 @@ export default function NutritionOS({ ws, access, isDemo = false, api, page = "t
       for (const r of [fr,mr,er,wr,tr]) if (r.error) throw r.error;
       setFoods(fr.data || []); setMeals(mr.data || []); setEntries(er.data || []); setWater(wr.data || []); setMealTypes(tr.data || []);
       let st = sr.data;
-      if (!st) {
+      if (!st && canEdit) {
         const { data, error: se } = await supabase.from("nutrition_settings").insert({ workspace_id: ws.id, created_by: (await supabase.auth.getUser()).data.user?.id }).select("*").single();
         if (se) throw se; st = data;
       }
       setSettings(st || { display_mode: "Full", energy_unit: "kcal", timezone: "Africa/Cairo" });
-      if (!(tr.data || []).length) {
+      if (!(tr.data || []).length && canEdit) {
         const defaults = [{code:"breakfast",label_ar:"فطار",position:0},{code:"lunch",label_ar:"غداء",position:1},{code:"dinner",label_ar:"عشاء",position:2},{code:"snack",label_ar:"سناك",position:3}].map(x=>({ ...x, workspace_id: ws.id }));
         const { data: seeded, error: te } = await supabase.from("nutrition_meal_types").insert(defaults).select("*");
         if (te) throw te; setMealTypes(seeded || []);
@@ -95,9 +95,10 @@ export default function NutritionOS({ ws, access, isDemo = false, api, page = "t
         } catch {}
       }
     } finally { setLoading(false); }
-  }, [ws?.id, isDemo, api, selectedDate]);
+  }, [ws?.id, isDemo, api, selectedDate, canEdit]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setLogForm(v => ({ ...v, logged_at: selectedDate + "T" + ((v.logged_at || "").slice(11,16) || "12:00") })); }, [selectedDate]);
   useEffect(() => {
     if (isDemo || !ws?.id || loading || error) return;
     try { localStorage.setItem("nutrition-cache:" + ws.id + ":" + selectedDate, JSON.stringify({ foods, meals, entries, water })); } catch {}
