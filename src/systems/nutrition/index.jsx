@@ -135,13 +135,35 @@ export default function NutritionOS({ ws, access, isDemo = false, api, page = "t
     e.preventDefault(); if (!canEdit) return;
     const food=foods.find(f=>f.id===logForm.food_id); const qty=Number(logForm.quantity);
     if (!food || !(qty>0)) return setError("اختر غذاءً وأدخل كمية صحيحة.");
-    if (logForm.unit_code==="ml" && !food.density_g_per_ml && food.basis_type==="per_100g") return setError("هذا الغذاء لا يحتوي على كثافة لتحويل الملليلتر إلى جرام.");
+    if (food.basis_type==="per_100g" && logForm.unit_code==="ml" && !food.density_g_per_ml) return setError("هذا الغذاء لا يحتوي على كثافة لتحويل الملليلتر إلى جرام.");
+    if (food.basis_type==="per_100ml" && logForm.unit_code==="g" && !food.density_g_per_ml) return setError("هذا الغذاء لا يحتوي على كثافة لتحويل الجرام إلى ملليلتر.");
     let factor=0, baseQty=null;
-    if (logForm.unit_code==="serving") { if(!food.serving_size) return setError("لم تُحدد حصة افتراضية لهذا الغذاء."); factor=qty*food.serving_size/food.basis_qty; baseQty=qty*food.serving_size; }
-    else if (logForm.unit_code==="g" || logForm.unit_code==="ml") { baseQty=logForm.unit_code==="ml"&&food.density_g_per_ml?qty*Number(food.density_g_per_ml):qty; factor=food.basis_type==="per_serving"?baseQty/food.basis_qty:baseQty/food.basis_qty; }
-    else return setError("الوحدة غير مدعومة حاليًا لهذا الغذاء.");
+    if (food.basis_type==="per_serving") {
+      if (logForm.unit_code==="serving") factor=qty/food.basis_qty;
+      else { if(!food.serving_size) return setError("لم تُحدد حصة افتراضية لتحويل هذه الوحدة."); factor=(qty/Number(food.serving_size))/food.basis_qty; }
+      baseQty=logForm.unit_code==="serving"?(food.serving_size?qty*Number(food.serving_size):null):qty;
+    } else {
+      if (logForm.unit_code==="serving") {
+        if(!food.serving_size) return setError("لم تُحدد حصة افتراضية لهذا الغذاء.");
+        baseQty=qty*Number(food.serving_size);
+      } else if (logForm.unit_code==="ml" && food.basis_type==="per_100g") baseQty=qty*Number(food.density_g_per_ml);
+      else if (logForm.unit_code==="g" && food.basis_type==="per_100ml") baseQty=qty/Number(food.density_g_per_ml);
+      else baseQty=qty;
+      factor=baseQty/food.basis_qty;
+    }
     const snap = key => food[key] == null ? null : Number(food[key])*factor;
-    const row = { id:uid(), workspace_id:ws?.id, food_id:food.id, meal_id:null, logged_at:new Date(logForm.logged_at).toISOString(), local_date:selectedDate, tz:settings.timezone||"Africa/Cairo", entry_kind:"Food", display_name:food.name, food_version:food.version||1, quantity:qty, unit_code:logForm.unit_code, quantity_base:baseQty, calories_kcal:Number((snap("calories_kcal")||0).toFixed(2)), protein_g:snap("protein_g")===null?null:Number(snap("protein_g").toFixed(2)), carbs_g:snap("carbs_g")===null?null:Number(snap("carbs_g").toFixed(2)), fat_g:snap("fat_g")===null?null:Number(snap("fat_g").toFixed(2)), fiber_g:snap("fiber_g")===null?null:Number(snap("fiber_g").toFixed(2)), sugar_g:snap("sugar_g")===null?null:Number(snap("sugar_g").toFixed(2)), sodium_mg:snap("sodium_mg")===null?null:Number(snap("sodium_mg").toFixed(2)), micronutrients_snapshot:food.micronutrients||{}, snapshot_basis:{basis_type:food.basis_type,basis_qty:food.basis_qty,per_values:{calories_kcal:food.calories_kcal,protein_g:food.protein_g,carbs_g:food.carbs_g,fat_g:food.fat_g},source_kind:food.origin,source_version:food.version||1,density:food.density_g_per_ml,state:food.state,rounding_ver:1}, confidence:"Exact", source:"Manual", client_op_id:uid() };
+    let mealId=null;
+    if (logForm.meal_type_id) {
+      const mealType=mealTypes.find(x=>x.id===logForm.meal_type_id);
+      if (isDemo) {
+        const meal={id:uid(),workspace_id:ws?.id,local_date:selectedDate,meal_type_id:logForm.meal_type_id,name:mealType?.label_ar||"",time_at:new Date(logForm.logged_at).toISOString(),tz:settings.timezone||"Africa/Cairo",status:"Open"};
+        mealId=meal.id; setMeals(a=>[...a,meal]);
+      } else {
+        const {data:meal,error:me}=await supabase.from("nutrition_meals").insert({workspace_id:ws.id,local_date:selectedDate,meal_type_id:logForm.meal_type_id,name:mealType?.label_ar||null,time_at:new Date(logForm.logged_at).toISOString(),tz:settings.timezone||"Africa/Cairo"}).select("*").single();
+        if(me) throw me; mealId=meal.id; setMeals(a=>[...a,meal]);
+      }
+    }
+    const row = { id:uid(), workspace_id:ws?.id, food_id:food.id, meal_id:mealId, logged_at:new Date(logForm.logged_at).toISOString(), local_date:selectedDate, tz:settings.timezone||"Africa/Cairo", entry_kind:"Food", display_name:food.name, food_version:food.version||1, quantity:qty, unit_code:logForm.unit_code, quantity_base:baseQty, calories_kcal:Number((snap("calories_kcal")||0).toFixed(2)), protein_g:snap("protein_g")===null?null:Number(snap("protein_g").toFixed(2)), carbs_g:snap("carbs_g")===null?null:Number(snap("carbs_g").toFixed(2)), fat_g:snap("fat_g")===null?null:Number(snap("fat_g").toFixed(2)), fiber_g:snap("fiber_g")===null?null:Number(snap("fiber_g").toFixed(2)), sugar_g:snap("sugar_g")===null?null:Number(snap("sugar_g").toFixed(2)), sodium_mg:snap("sodium_mg")===null?null:Number(snap("sodium_mg").toFixed(2)), micronutrients_snapshot:food.micronutrients||{}, snapshot_basis:{basis_type:food.basis_type,basis_qty:food.basis_qty,per_values:{calories_kcal:food.calories_kcal,protein_g:food.protein_g,carbs_g:food.carbs_g,fat_g:food.fat_g},source_kind:food.origin,source_version:food.version||1,density:food.density_g_per_ml,state:food.state,rounding_ver:1}, confidence:"Exact", source:"Manual", client_op_id:uid() };
     setSaving(true); setError("");
     try {
       if (isDemo) { const next=[...entries,row]; setEntries(next); await api?.save?.({foods,meals,entries:next,water,settings,mealTypes}); }
