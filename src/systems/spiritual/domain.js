@@ -63,7 +63,10 @@ export function validateSpiritualPractice(practice){
  if((practice.logMode==="HabitLinked")!==Boolean(practice.habitRef))return{ok:false,reason:"habit-link-mode-mismatch"};
  for(const key of ["target","minimum"])if(practice[key]!=null&&(!Number.isFinite(Number(practice[key]))||Number(practice[key])<=0))return{ok:false,reason:`invalid-${key}`};
  if(practice.target!=null&&practice.minimum!=null&&Number(practice.minimum)>Number(practice.target))return{ok:false,reason:"minimum-exceeds-target"};
- if(!Array.isArray(practice.tags)||practice.tags.some(tag=>typeof tag!=="string"||tag.trim().length>60))return{ok:false,reason:"invalid-tags"};\n if(typeof practice.slotsRequired!=="string"||!(practice.slotsRequired==="All"||/^AtLeast\\([1-8]\\)$/.test(practice.slotsRequired)))return{ok:false,reason:"invalid-slots-required"};\n if(!Array.isArray(practice.slots)||practice.slots.length<1||practice.slots.length>8)return{ok:false,reason:"invalid-slots-count"};\n if(practice.slotsRequired!=="All"&&Number(practice.slotsRequired.match(/[1-8]/)?.[0]||0)>practice.slots.length)return{ok:false,reason:"slots-required-exceeds-slots"};
+ if(!Array.isArray(practice.tags)||practice.tags.some(tag=>typeof tag!=="string"||tag.trim().length>60))return{ok:false,reason:"invalid-tags"};
+ if(typeof practice.slotsRequired!=="string"||!(practice.slotsRequired==="All"||/^AtLeast\\([1-8]\\)$/.test(practice.slotsRequired)))return{ok:false,reason:"invalid-slots-required"};
+ if(!Array.isArray(practice.slots)||practice.slots.length<1||practice.slots.length>8)return{ok:false,reason:"invalid-slots-count"};
+ if(practice.slotsRequired!=="All"&&Number(practice.slotsRequired.match(/[1-8]/)?.[0]||0)>practice.slots.length)return{ok:false,reason:"slots-required-exceeds-slots"};
  const keys=new Set();
  for(const slot of practice.slots){if(!slot||!String(slot.key||"").trim()||keys.has(slot.key)||!String(slot.label||"").trim())return{ok:false,reason:"invalid-slot"};keys.add(slot.key);if(slot.preferredTime!=null&&!isTime(slot.preferredTime))return{ok:false,reason:"invalid-slot-time"};}
  if(practice.preferredTime!=null&&!isTime(practice.preferredTime))return{ok:false,reason:"invalid-preferred-time"};
