@@ -140,5 +140,5 @@ export function getPracticeDaySummary(logs,practice){
  const partial=levels.filter(x=>x==="Partial").length;
  const required=practice?.slotsRequired==="All"?(practice?.slots?.length||1):Number(String(practice?.slotsRequired||"AtLeast(1)").match(/[1-8]/)?.[0]||1);
  const completed=maintained;
- return{logged:own.length,maintainedSlots:maintained,partialSlots:partial,requiredSlots:required,state:maintained>=required?"Maintained":maintained+partial>0?"Partial":"Unrecorded"};
+ return{logged:own.length,maintainedSlots:maintained,partialSlots:partial,requiredSlots:required,state:own.length&&levels.every(x=>x==="Excused")?"Excused":maintained>=required?"Maintained":maintained+partial>0?"Partial":"Unrecorded"};
 }
