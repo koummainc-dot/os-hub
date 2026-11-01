@@ -213,7 +213,7 @@ export function hobbyInsights(hobbies=[],sessions=[],goals=[],skills=[],mileston
  const rows=sessions.filter(s=>!s.deleted_at&&validISODate(s.localDate)&&s.localDate<=date);
  const recent=rows.filter(s=>s.localDate>=start30),prior=rows.filter(s=>s.localDate>=priorStart&&s.localDate<=priorEnd);
  const sumMinutes=list=>list.reduce((n,s)=>n+(Number.isFinite(Number(s.durationMinutes))&&Number(s.durationMinutes)>0?Number(s.durationMinutes):0),0);
- const rated=rows.filter(s=>Number.isInteger(Number(s.satisfactionRating))&&Number(s.satisfactionRating)>=1&&Number(s.satisfactionRating)<=5);
+ const rated=rows.filter(s=>s.satisfactionRating!==null&&s.satisfactionRating!==undefined&&s.satisfactionRating!==""&&Number.isInteger(Number(s.satisfactionRating))&&Number(s.satisfactionRating)>=1&&Number(s.satisfactionRating)<=5);
  const hobbyRows=hobbies.filter(h=>!h.deleted_at&&h.status!=="archived").map(h=>{
   const own=rows.filter(s=>s.hobbyId===h.id);
   return {hobbyId:h.id,name:h.name||"هواية",sessions:own.length,minutes:sumMinutes(own),lastPracticedAt:own.map(s=>s.localDate).sort().at(-1)||null};
