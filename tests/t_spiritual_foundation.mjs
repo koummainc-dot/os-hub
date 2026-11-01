@@ -102,7 +102,7 @@ assert.match(moduleSource,/const transitionSeason=async/);
 assert.match(moduleSource,/transitionSeason\(r,"Completed"\)/);
 assert.match(moduleSource,/transitionSeason\(r,"Archived"\)/);
 assert.match(moduleSource,/transitionSeason\(r,"Draft"\)/);
-assert.match(moduleSource,/await saveRow\(ws\.id,"seasons",updated\)/);
+assert.match(moduleSource,/if\(!isDemo\)await saveRow\(ws\.id,"seasons",updated,cryptoKey\)/,"season transitions must persist through the authenticated encrypted repository path outside demo mode");
 
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"}},"2026-11-02",{scheduleOverrides:[{startDate:"2026-11-01",endDate:"2026-11-03",mode:"Unknown"}]}),true);
 assert.equal(isPracticeExpectedOnDate({...practiceModel,createdAt:"2026-11-02T12:00:00.000Z",frequency:{mode:"Daily"}},"2026-11-01"),false,"practice is not expected before its creation date");
