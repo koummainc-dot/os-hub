@@ -403,7 +403,7 @@ Phase 1: عدد الهوايات النشطة، الاهتمامات قيد ال
 ### 19.1 التخزين الخادمي
 - Migration: `20261101150000_os_integration_events.sql`.
 - جدول `os_integration_events` موحد للأحداث المرجعية، مع workspace scope وsource system وevent type وentity reference وidempotency key وpayload محدود الحجم.
-- لا توجد صلاحية مباشرة للجدول من anon/authenticated؛ النشر والقراءة عبر RPC بدوال SECURITY DEFINER مع فحص `auth.uid()` وصلاحيات المصدر/الهدف.
+- الجدول محمي بـ RLS؛ النشر والقراءة عبر RPC بدوال SECURITY INVOKER، مع سياسات SELECT/INSERT تتحقق من صلاحيات مساحة العمل. لا توجد دوال SECURITY DEFINER لهذا التكامل.
 
 ### 19.2 الصلاحيات ومنع التكرار
 - نشر الحدث يتطلب edit على النظام المصدر في مساحة العمل.
