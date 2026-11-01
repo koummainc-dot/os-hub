@@ -1,13 +1,13 @@
 # Hobbies OS — الخطة الرئيسية الموحدة (الإصدار 1)
 
-**الحالة:** Phase 1 منفذة على فرع مستقل — لا يوجد دمج إلى main ولا نشر إنتاجي.
+**الحالة:** Phase 1 وPhase 2 منفذتان على فرع مستقل — لا يوجد دمج إلى main ولا نشر إنتاجي.
 
 ## 1. الغرض وحدود الملكية
 Hobbies OS يدير دورة حياة الاهتمام والهواية وجلسات الممارسة وتطور المهارات والإنجازات والموارد والمعدات المرتبطة بها. يملك سجل الهواية وسجل الممارسة، ولا يكرر بيانات العادات (Habit OS) أو المعاملات (Finance OS) أو الأصول (Home / Personal Inventory OS) أو الدورات (Learning OS) أو المشاريع (Projects OS).
 
 ## 2. نطاق الإصدار
 - **Phase 1 — Foundation & Practice:** سجل الهوايات، التصنيفات، حالات الاهتمام، البحث، الأرشفة، تسجيل جلسات الممارسة، مؤشرات الوقت والتكرار، التصدير، واختبارات الدومين.
-- **Phase 2 — Skills & Progress:** المهارات، طرق القياس المختلفة، سجلات تغير المستوى، أدلة التقدم، milestones والإنجازات.
+- **Phase 2 — Skills & Progress:** منفذة على الفرع: المهارات، طرق القياس المختلفة، سجلات تغير المستوى، أدلة التقدم، milestones والإنجازات.
 - **Phase 3 — Goals & Plans:** أهداف قابلة للقياس أو وصفية، خطط دورية، مستهدفات جلسات/وقت، مراجعات دون اعتبار عدم الإنجاز فشلًا تلقائيًا.
 - **Phase 4 — Resources & Equipment:** موارد ومراجع ومواقع وأدوات، وروابط خارجية لمعرفات السجلات المالكة في الأنظمة الأخرى.
 - **Phase 5 — Journal & Memories:** يوميات الهواية، مرفقات خاصة، ربط الجلسات بالملاحظات والذكريات.
@@ -28,7 +28,7 @@ Hobbies OS يدير دورة حياة الاهتمام والهواية وجلس
 | hobby_equipment_links | علاقة الهواية بمعدات مملوكة | Hobbies owns link; Inventory owns asset |
 | hobby_journal_entries | يوميات وذكريات | Hobbies |
 
-في التطبيق الحالي تُخزن سجلات النظام عبر workspace_records ومجموعات النظام، ولا تُنشأ جداول متخصصة موازية بلا حاجة. المجموعات الحالية: hobbies, sessions. كل سجل يمر عبر useRecordStore مع مساحة العمل والنظام، صلاحيات المنصة، tombstones، والمزامنة القائمة.
+في التطبيق الحالي تُخزن سجلات النظام عبر workspace_records ومجموعات النظام، ولا تُنشأ جداول متخصصة موازية بلا حاجة. المجموعات الحالية: hobbies, sessions, skills, skillLogs, milestones. كل سجل يمر عبر useRecordStore مع مساحة العمل والنظام، صلاحيات المنصة، tombstones، والمزامنة القائمة.
 
 ## 4. نموذج الهواية
 - status: considering / active / paused / archived.
@@ -54,7 +54,7 @@ Hobbies OS يدير دورة حياة الاهتمام والهواية وجلس
 - التواريخ التشغيلية localDate محفوظة بجانب timestamps القياسية التي يضيفها record store.
 
 ## 7. الشاشات
-Dashboard، My Hobbies، Explore & Wishlist، Sessions، Hobby Details (قيد التوسعة)، Skills & Progress (Phase 2)، Goals & Plans (Phase 3)، Equipment & Resources (Phase 4)، Journal & Memories (Phase 5)، Insights، Settings.
+Dashboard، My Hobbies، Explore & Wishlist، Sessions، Skills & Progress (Phase 2 منفذة)، Milestones (Phase 2 منفذة)، Hobby Details (قيد التوسعة)، Goals & Plans (Phase 3)، Equipment & Resources (Phase 4)، Journal & Memories (Phase 5)، Insights، Settings.
 
 ## 8. التقارير
 Phase 1: عدد الهوايات النشطة، الاهتمامات قيد التجربة، جلسات الأسبوع، دقائق الممارسة، آخر الجلسات، عدد الجلسات وأيام الممارسة والوقت التراكمي لكل هواية. لا يُستنتج الإهمال أو الفشل من عدم النشاط.
@@ -85,7 +85,8 @@ Phase 1: عدد الهوايات النشطة، الاهتمامات قيد ال
 | مؤشرات الوقت والتكرار | منفذ |
 | Demo mode عبر seed فارغ | مدعوم من record store |
 | Export JSON | منفذ مبدئي |
-| Skills / Goals / Plans / Milestones | مؤجل Phase 2–3 |
+| Skills / Skill Progress / Milestones | منفذ Phase 2 على الفرع |
+| Goals / Plans | مؤجل Phase 3 |
 | Resources / Equipment / Journal | مؤجل Phase 4–5 |
 | تكاملات الأنظمة | غير موصولة بعد |
 | اختبار قاعدة البيانات وRLS الفعلي | غير منفذ في هذه المرحلة |
@@ -100,3 +101,49 @@ Phase 1: عدد الهوايات النشطة، الاهتمامات قيد ال
 4. لا نكرر Finance/Inventory: Hobbies يعرض روابط ومؤشرات فقط.
 5. تغيير الحالة لا يمس السجل التاريخي.
 6. أي تكامل لاحق يعتمد على معرف مرجعي وموافقة، وليس نسخ بيانات بين الأنظمة.
+
+
+## 13. تفاصيل تنفيذ Phase 2 — Skills & Progress
+
+### 13.1 hobby_skills (مجموعة skills)
+- id: معرّف السجل.
+- hobbyId: مرجع إلزامي إلى hobbies.id.
+- name: اسم المهارة (1–120 حرفًا).
+- measurementType: descriptive / number / level / checklist.
+- unit: وحدة اختيارية للقياس الرقمي (مثل دقيقة، كيلومتر، عدد).
+- currentValue / targetValue: قيم رقمية اختيارية للقياس number أو level فقط؛ المستوى عدد صحيح غير سالب، والمستهدف لا يقل عن الحالي.
+- description: وصف اختياري.
+- timestamps القياسية وdeleted_at من record store.
+
+### 13.2 hobby_skill_logs (مجموعة skillLogs)
+- id، skillId، localDate.
+- previousValue / newValue: اختياريان للقياس الوصفي والقائمة، وإلزامي newValue للقياس الرقمي والمستوى.
+- note: ملاحظة توضح ما حدث.
+- evidenceUrl: رابط اختياري لصورة أو ملف/دليل تقدم.
+- عند تسجيل تقدم رقمي/مستوى، تُحدّث currentValue في المهارة مع الاحتفاظ بالسجل التاريخي.
+
+### 13.3 hobby_milestones (مجموعة milestones)
+- id، hobbyId، skillId اختياري.
+- title، milestoneType، achievedAt، description، evidenceUrl.
+- الأنواع: achievement / first_time / personal_best / completion / recognition / other.
+- يجب أن تنتمي المهارة المرتبطة إلى نفس الهواية.
+
+### 13.4 قواعد المرحلة
+- لا نفرض سلم مستويات واحدًا على جميع الهوايات؛ القياس وصفي أو رقمي أو مستويات أو قائمة إنجاز.
+- لا يُعدّ غياب سجل تقدم تراجعًا أو فشلًا.
+- الإنجاز لا يغيّر حالة الهواية تلقائيًا ولا ينشئ جلسة ممارسة.
+- حذف سجل تقدم أو إنجاز حذف منطقي عبر record store ولا يمس جلسات الممارسة.
+- التصدير أصبح schemaVersion 2 ويشمل hobbies, sessions, skills, skillLogs, milestones. مدقق الاستيراد التقدمي يتحقق من المعرّفات والعلاقات؛ واجهة الاستيراد مؤجلة.
+
+### 13.5 حالة Phase 2
+| الميزة | الحالة |
+|---|---|
+| تعريف المهارات وربطها بالهوايات | منفذ |
+| طرق قياس وصفية ورقمية ومستويات وقوائم | منفذ كأنواع بيانات وواجهات إدخال؛ checklist التفصيلي ما زال بسيطًا ويحتاج توسيعًا لاحقًا |
+| سجل تاريخي لتغير التقدم مع ملاحظات ودليل | منفذ |
+| تحديث القيمة الحالية بعد سجل رقمي/مستوى | منفذ |
+| الإنجازات وربطها بالهواية والمهارة | منفذ |
+| التحقق من العلاقات في الدومين والتصدير | منفذ |
+| تحرير/إعادة تسمية المهارة والإنجاز من الواجهة | مؤجل لتحسين لاحق |
+| تخزين مرفقات داخلية ورفع ملفات | مؤجل؛ المتاح حاليًا روابط أدلة |
+| اختبارات قاعدة البيانات/RLS والتزامن | غير منفذة في بيئة غير إنتاجية |
