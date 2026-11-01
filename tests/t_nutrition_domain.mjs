@@ -16,6 +16,8 @@ assert.equal(validateFood(food).ok,true);
 assert.equal(validateFood({...food,name:""}).ok,false);
 assert.equal(validateFood({...food,basisAmount:0}).ok,false,"zero basis must not be normalized to default");
 assert.equal(validateFood({...food,calories:-1}).ok,false);
+assert.equal(validateFood({...food,barcode:"0123456789012",catalogSource:"licensed-catalog"}).value.catalogSource,"licensed-catalog");
+assert.equal(searchFoods([{...food,barcode:"0123456789012"}],"0123456789012").length,1,"barcode should be searchable locally");
 assert.deepEqual(scaleNutrients(food,50),{calories:194.5,proteinG:8.45,carbsG:33.15,fatG:3.45,fiberG:5.3,sugarG:0.45,sodiumMg:1});
 assert.throws(()=>scaleNutrients(food,-1),/كمية الاستهلاك/);
 
