@@ -20,6 +20,18 @@ create index if not exists os_integration_events_recent_idx
   on public.os_integration_events(workspace_id, source_system, created_at desc);
 
 alter table public.os_integration_events enable row level security;
+do $
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public'
+      and tablename = 'os_integration_events'
+  ) then
+    alter publication supabase_realtime add table public.os_integration_events;
+  end if;
+end $;
+
+
 revoke all on public.os_integration_events from anon, authenticated;
 grant select, insert on public.os_integration_events to authenticated;
 
@@ -85,7 +97,7 @@ create or replace function public.os_integration_events_load(
   p_source_system text default 'hobbies',
   p_limit integer default 20
 ) returns jsonb
-language plpgsql security definer set search_path = public
+language plpgsql security invoker set search_path = public
 as $$
 declare v_events jsonb;
 begin
@@ -140,7 +152,7 @@ create or replace function public.os_integration_event_publish(
   p_occurred_at timestamptz,
   p_payload jsonb default '{}'::jsonb
 ) returns jsonb
-language plpgsql security definer set search_path = public
+language plpgsql security invoker set search_path = public
 as $$
 declare v_event public.os_integration_events%rowtype;
 begin
@@ -181,7 +193,7 @@ create or replace function public.os_integration_events_load(
   p_source_system text default 'hobbies',
   p_limit integer default 20
 ) returns jsonb
-language plpgsql security definer set search_path = public
+language plpgsql security invoker set search_path = public
 as $$
 declare v_events jsonb;
 begin
