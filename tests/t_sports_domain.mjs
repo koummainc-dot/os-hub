@@ -44,7 +44,7 @@ assert.equal(prs[0].value,50.67);
 assert.equal(validateSportsImport({data:{exercises:[{id:"x"}]}}).ok,true);
 assert.equal(validateSportsImport({data:{exercises:[{name:"missing-id"}]}}).ok,false);
 
-import { generateWorkoutDays, validatePlannedExercise, plannedSetProgress, calculateWorkoutAdherence } from "../src/systems/sports/domain.js";
+import { generateWorkoutDays, validatePlannedExercise, plannedSetProgress, calculateWorkoutAdherence, findMissedWorkoutDays } from "../src/systems/sports/domain.js";
 const generated = generateWorkoutDays({id:"p1",name:"3-day plan",durationWeeks:2,daysPerWeek:3,startDate:"2026-11-02"}, prefix => prefix+"-"+Math.random());
 assert.equal(generated.ok, true);
 assert.equal(generated.value.length, 6);
@@ -79,6 +79,20 @@ assert.equal(adherence.percentage,40);
 assert.equal(adherence.targetReps,40);
 assert.equal(adherence.actualReps,18);
 assert.equal(adherence.exercised,1);
+const missedDays = findMissedWorkoutDays([
+  {id:"missed",programId:"active",scheduledDate:"2026-10-30",status:"Planned"},
+  {id:"today",programId:"active",scheduledDate:"2026-11-01",status:"Planned"},
+  {id:"future",programId:"active",scheduledDate:"2026-11-03",status:"Planned"},
+  {id:"attempted",programId:"active",scheduledDate:"2026-10-29",status:"Planned"},
+  {id:"completed",programId:"active",scheduledDate:"2026-10-28",status:"Completed"},
+  {id:"draft-plan",programId:"draft",scheduledDate:"2026-10-27",status:"Planned"},
+],[
+  {id:"active",status:"Active"},
+  {id:"draft",status:"Draft"},
+],[
+  {id:"session-1",workoutDayId:"attempted",status:"Abandoned"},
+], "2026-11-01");
+assert.deepEqual(missedDays.map(day=>day.id),["missed"]);
 const noPlan = calculateWorkoutAdherence([], plannedActualSets);
 assert.equal(noPlan.percentage,0);
 assert.equal(noPlan.completedSets,0);
