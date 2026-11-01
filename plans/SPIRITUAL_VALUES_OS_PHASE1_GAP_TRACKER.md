@@ -1,5 +1,5 @@
 # Spiritual & Values OS — Phase 1 gap tracker
-**Status:** In progress; not accepted; do not merge or deploy.
+**Status:** In progress; not accepted for production. Implement independent work while explicitly deferring blockers; do not merge/deploy until the production safety gates are met.
 **Authoritative specification:** `plans/SPIRITUAL_VALUES_OS_UNIFIED_MASTER_PLAN_v4.md` (v4.0). This tracker supplements and never replaces it.
 **Branch:** `feat/spiritual-values-phase1-foundation`
 **PR:** #103
@@ -12,19 +12,19 @@
 - Expanded contract tests for event API compatibility and privacy defaults.
 - These are repository changes only. They have not yet been confirmed by a successful CI run, authenticated browser test, or production migration.
 
-## Phase 1 acceptance gates — must close before merge
+## Phase 1 acceptance gates — close when possible; defer blocked environment/security work without blocking independent development
 - [x] Correct integration-event API shape.
 - [x] Prevent Spiritual record-save events from serializing private record metadata into browser localStorage.
 - [x] Mark all ten current collections private by default in the domain contract.
 - [x] Expand private-table collection constraint and policy metadata to all ten collections.
-- [ ] Run full CI on the latest PR head and verify every required job.
-- [ ] Run local contract tests and production build in a reproducible environment.
-- [ ] Verify migration against the actual current Supabase schema in a rollback-only transaction, including policy/constraint idempotency and FK compatibility.
-- [ ] Authenticated multi-user integration test: owner can read/write their own records; another user and workspace collaborator cannot select, mutate, or archive them.
+- [ ] Run full CI on the latest PR head and verify every required job. **Deferred until CI run is available; do not claim passed.**
+- [ ] Run local contract tests and production build in a reproducible environment. **Deferred until a reproducible runtime is available; repository edits alone are not test evidence.**
+- [ ] Verify migration against the actual current Supabase schema in a rollback-only transaction, including policy/constraint idempotency and FK compatibility. **Deferred if safe read/transaction access is unavailable.**
+- [ ] Authenticated multi-user integration test: owner can read/write their own records; another user and workspace collaborator cannot select, mutate, or archive them. **Deferred until two safe test identities and a non-production test environment are available.**
 - [ ] Confirm private records are excluded from global search, Today, Calendar, notifications, admin tooling, analytics, exports, and logs unless an explicit, consented contract allows a minimal derived signal.
-- [ ] Decide and implement encryption-at-rest for sensitive free text. JSONB plus RLS is access control, not field-level encryption; do not claim end-to-end encryption.
+- [ ] Decide and implement encryption-at-rest for sensitive free text. JSONB plus RLS is access control, not field-level encryption; do not claim end-to-end encryption. **Deferred as a security architecture task; do not ship sensitive real data before it is resolved.**
 - [ ] Verify authenticated-user ownership is enforced server-side, not only by UI role checks.
-- [ ] Confirm backup, deletion, retention, export, audit and key-recovery behavior before production rollout.
+- [ ] Confirm backup, deletion, retention, export, audit and key-recovery behavior before production rollout. **Deferred until the encryption/retention design and test environment are ready.**
 - [ ] Keep system status `planned` until all required gates pass.
 
 ## Remaining implementation scope from v4.0
@@ -98,8 +98,16 @@ The current interface is a foundation shell and generic record form, not the com
 7. **No authenticated E2E privacy test:** RLS policy text alone is not proof of actual access isolation.
 8. **No production migration or deployment:** migration has not been applied to production; production deployment must remain unchanged until the quota issue and acceptance gates are resolved.
 
+## Deferred items and unblock conditions
+- **Latest CI/build verification:** deferred until a run for the latest head can be triggered or retrieved; rerun after any subsequent code change.
+- **Authenticated multi-user RLS/E2E:** deferred until a non-production Supabase environment and two test identities are available.
+- **Encryption/key lifecycle:** deferred to a dedicated design/implementation task; never represent RLS as encryption and do not put real sensitive content into the system before this closes.
+- **Production migration/deployment:** deferred until the migration has been validated against the live schema in rollback-only mode, security tests pass, and deployment quota is available. Production remains unchanged.
+- **Offline encrypted sync/conflict handling:** deferred until the local encrypted storage and key lifecycle are chosen; basic UI/domain work may proceed independently.
+- **Calendar/ICS, push notifications, cross-system integrations and automated review schedules:** defer until their opt-in contracts and permissions are defined; no integration should silently activate.
+
 ## Change and acceptance protocol
-- Work P0 only until its acceptance gates pass. Then proceed P1 through P8 in order.
+- Close any P0 gates that can be safely verified now. Explicitly defer environment-dependent gates instead of pretending they passed, and continue with independent domain/UI work in P1–P8 on the feature branch. No merge or production deployment while privacy-critical gates remain open.
 - Each phase must have: schema/domain change, UI workflow, permission/privacy tests, calculation tests where relevant, regression/build, and an updated checklist.
 - Never merge or deploy with failing or unverified privacy controls.
 - Do not silently change v4.0 decisions. Record any proposed deviation as a decision for explicit approval.
