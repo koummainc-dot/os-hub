@@ -71,6 +71,28 @@ export function buildTravelExport(value,{includeSensitive=false}={}){
   return {exported,redactedFields};
 }
 export function validateTrip(trip){const errors=[];if(!String(trip?.name||"").trim())errors.push("اسم الرحلة مطلوب");if(!String(trip?.destination||"").trim())errors.push("الوجهة مطلوبة");if(trip?.startDate&&trip?.endDate&&trip.endDate<trip.startDate)errors.push("تاريخ العودة يجب ألا يسبق تاريخ المغادرة");if(trip?.budget!==""&&trip?.budget!=null&&(!Number.isFinite(Number(trip.budget))||Number(trip.budget)<0))errors.push("الميزانية يجب أن تكون صفرًا أو أكثر");return errors;}
+export function financeTransactionState(tx,financeTransactions=[]){
+  if(!tx)return "missing";
+  const status=String(tx.status||"").toLowerCase();
+  if(status!=="posted")return status||"unknown";
+  if(tx.reversal_of_id)return "reversal";
+  if(financeTransactions.some(row=>row.status==="Posted"&&row.reversal_of_id===tx.id))return "reversed";
+  return "posted";
+}
+export function financeTransactionStateLabel(tx,financeTransactions=[]){
+  const state=financeTransactionState(tx,financeTransactions);
+  const labels={posted:"مرحّلة وقابلة للاحتساب",missing:"غير متاحة",reversal:"حركة عكسية — لا تُحتسب منفردة",reversed:"معكوسة بحركة لاحقة",cancelled:"ملغاة — لا تُحتسب",canceled:"ملغاة — لا تُحتسب",void:"ملغاة — لا تُحتسب",voided:"ملغاة — لا تُحتسب",draft:"مسودة — لا تُحتسب",pending:"معلقة — لا تُحتسب"};
+  return labels[state]||("غير قابلة للاحتساب: "+String(tx?.status||"حالة غير معروفة"));
+}
+function isEffectivePostedTransaction(tx,financeTransactions=[]){
+  return financeTransactionState(tx,financeTransactions)==="posted";
+}
+function hasMatchingOriginalExpense(link,tx,data,financeTransactions=[]){
+  if(!tx?.refund_of_id)return false;
+  const original=financeTransactions.find(row=>row.id===tx.refund_of_id);
+  if(!original||original.pnl_effect!=="Expense"||!isEffectivePostedTransaction(original,financeTransactions))return false;
+  return (data?.financeLinks||[]).some(row=>row.financeTransactionId===original.id&&row.kind==="expense"&&row.tripId===link.tripId&&row.sourceType===link.sourceType&&String(row.sourceId||"")===String(link.sourceId||""));
+}
 export function validateFinanceLink(link,data,financeTransactions=[]){
   const errors=[];
   if(!link?.tripId||!(data?.trips||[]).some(t=>t.id===link.tripId))errors.push("اختر رحلة موجودة.");
@@ -78,12 +100,17 @@ export function validateFinanceLink(link,data,financeTransactions=[]){
   if((data?.financeLinks||[]).some(x=>x.financeTransactionId===link.financeTransactionId))errors.push("هذه الحركة المالية مرتبطة بالسفر بالفعل.");
   const tx=financeTransactions.find(x=>x.id===link.financeTransactionId);
   if(!tx)errors.push("الحركة المالية غير متاحة في مساحة العمل الحالية.");
-  if(tx&&tx.status!=="Posted")errors.push("يمكن ربط الحركات المرحلة فقط.");
+  if(tx&&financeTransactionState(tx,financeTransactions)!=="posted")errors.push("لا يمكن ربط الحركة: "+financeTransactionStateLabel(tx,financeTransactions)+".");
   if(tx&&link.kind==="expense"&&tx.pnl_effect!=="Expense")errors.push("اختر حركة مصروف لربطها كمصروف سفر.");
-  if(tx&&link.kind==="refund"&&tx.pnl_effect!=="Income")errors.push("الاسترداد يجب أن يكون حركة دخل مسجلة في Finance.");
+  if(tx&&link.kind==="refund"){
+    if(tx.pnl_effect!=="Income")errors.push("الاسترداد يجب أن يكون حركة دخل مسجلة في Finance.");
+    if(!tx.refund_of_id)errors.push("لا يمكن ربط الاسترداد دون مرجع المصروف الأصلي في Finance.");
+    else if(!financeTransactions.some(row=>row.id===tx.refund_of_id))errors.push("المصروف الأصلي للاسترداد غير متاح في مساحة العمل الحالية.");
+    else if(!hasMatchingOriginalExpense(link,tx,data,financeTransactions))errors.push("يجب ربط المصروف الأصلي أولًا وبالرحلة والحجز أو النشاط نفسه قبل ربط الاسترداد.");
+  }
   if(link?.sourceType==="booking"&&!(data?.bookings||[]).some(x=>x.id===link.sourceId&&x.tripId===link.tripId))errors.push("الحجز المرتبط غير موجود في الرحلة.");
   if(link?.sourceType==="itinerary"&&!(data?.itinerary||[]).some(x=>x.id===link.sourceId&&x.tripId===link.tripId))errors.push("عنصر البرنامج المرتبط غير موجود في الرحلة.");
-  return errors;
+  return [...new Set(errors)];
 }
 export function tripBudgetBreakdown(tripId,data,financeTransactions=[],financeBaseCurrency="EGP"){
   const trip=(data?.trips||[]).find(x=>x.id===tripId);
@@ -93,30 +120,31 @@ export function tripBudgetBreakdown(tripId,data,financeTransactions=[],financeBa
   const itinerary=(data?.itinerary||[]).filter(x=>x.tripId===tripId&&x.status!=="skipped");
   const links=(data?.financeLinks||[]).filter(x=>x.tripId===tripId);
   const txById=new Map(financeTransactions.map(x=>[x.id,x]));
-  const linkedRows=links.map(link=>({link,tx:txById.get(link.financeTransactionId)}).filter?null:null);
-  const actualExpenseLinks=links.filter(link=>link.kind==="expense").map(link=>({link,tx:txById.get(link.financeTransactionId)})).filter(x=>x.tx&&x.tx.status==="Posted"&&x.tx.pnl_effect==="Expense");
-  const refundLinks=links.filter(link=>link.kind==="refund").map(link=>({link,tx:txById.get(link.financeTransactionId)})).filter(x=>x.tx&&x.tx.status==="Posted"&&x.tx.pnl_effect==="Income");
-  const actualExpenses=actualExpenseLinks.reduce((sum,x)=>sum+Number(x.tx.base_amount||0),0);
-  const refunds=refundLinks.reduce((sum,x)=>sum+Number(x.tx.base_amount||0),0);
+  const actualExpenseLinks=links.filter(link=>link.kind==="expense").map(link=>({link,tx:txById.get(link.financeTransactionId)})).filter(({tx})=>tx&&tx.pnl_effect==="Expense"&&isEffectivePostedTransaction(tx,financeTransactions));
+  const refundLinks=links.filter(link=>link.kind==="refund").map(link=>({link,tx:txById.get(link.financeTransactionId)})).filter(({link,tx})=>tx&&tx.pnl_effect==="Income"&&isEffectivePostedTransaction(tx,financeTransactions)&&hasMatchingOriginalExpense(link,tx,data,financeTransactions));
+  const actualExpenses=actualExpenseLinks.reduce((sum,row)=>sum+Number(row.tx.base_amount||0),0);
+  const refunds=refundLinks.reduce((sum,row)=>sum+Number(row.tx.base_amount||0),0);
   const netActual=actualExpenses-refunds;
-  const actualBySource=new Set(currency===financeBaseCurrency?actualExpenseLinks.filter(x=>x.link.sourceType==="itinerary").map(x=>x.link.sourceId):[]);
-  const plannedActivities=itinerary.filter(x=>!actualBySource.has(x.id)).reduce((sum,x)=>sum+Number(x.estimatedCost||0),0);
-  const bookingCommitments=bookings.reduce((sum,x)=>sum+Number(x.cost||0),0);
-  const bookingLinks=links.filter(x=>x.sourceType==="booking");
-  const paidForBooking=bookingLinks.reduce((sum,link)=>{
-    const tx=txById.get(link.financeTransactionId), booking=bookings.find(x=>x.id===link.sourceId);
-    if(!tx||!booking||booking.currency!==financeBaseCurrency||tx.status!=="Posted")return sum;
+  const actualBySource=new Set(currency===financeBaseCurrency?actualExpenseLinks.filter(row=>row.link.sourceType==="itinerary").map(row=>row.link.sourceId):[]);
+  const plannedActivities=itinerary.filter(row=>!actualBySource.has(row.id)).reduce((sum,row)=>sum+Number(row.estimatedCost||0),0);
+  const bookingCommitments=bookings.reduce((sum,row)=>sum+Number(row.cost||0),0);
+  const paidForBooking=links.reduce((sum,link)=>{
+    if(link.sourceType!=="booking")return sum;
+    const tx=txById.get(link.financeTransactionId);
+    const booking=bookings.find(row=>row.id===link.sourceId);
+    if(!tx||!booking||booking.currency!==financeBaseCurrency||!isEffectivePostedTransaction(tx,financeTransactions))return sum;
     if(link.kind==="expense"&&tx.pnl_effect==="Expense")return sum+Number(tx.base_amount||0);
-    if(link.kind==="refund"&&tx.pnl_effect==="Income")return sum-Number(tx.base_amount||0);
+    if(link.kind==="refund"&&tx.pnl_effect==="Income"&&hasMatchingOriginalExpense(link,tx,data,financeTransactions))return sum-Number(tx.base_amount||0);
     return sum;
   },0);
-  const bookingCommitmentInTripCurrency=bookings.reduce((sum,x)=>sum+Number(x.cost||0),0);
-  const outstandingBookingCommitment=Math.max(0,bookingCommitmentInTripCurrency-(currency===financeBaseCurrency?paidForBooking:0));
+  const outstandingBookingCommitment=Math.max(0,bookingCommitments-(currency===financeBaseCurrency?paidForBooking:0));
   const actualInTripCurrency=currency===financeBaseCurrency?netActual:null;
   const projectedTotal=outstandingBookingCommitment+plannedActivities+(actualInTripCurrency==null?0:Math.max(0,actualInTripCurrency));
   const remainingBudget=budget==null?null:budget-projectedTotal;
   const unresolvedLinks=links.filter(link=>!txById.has(link.financeTransactionId)).length;
-  return {budget,currency,bookingCommitments:bookingCommitmentInTripCurrency,outstandingBookingCommitment,plannedActivities,actualExpensesBase:actualExpenses,refundsBase:refunds,netActualBase:netActual,financeBaseCurrency,actualInTripCurrency,projectedTotal,remainingBudget,hasFinanceLinks:links.length>0,financeLinkCount:links.length,unresolvedLinks,requiresFx:currency!==financeBaseCurrency&&links.length>0};
+  const excludedLinks=links.filter(link=>{const tx=txById.get(link.financeTransactionId);return !!tx&&financeTransactionState(tx,financeTransactions)!=="posted";}).length;
+  const invalidRefundLinks=links.filter(link=>{if(link.kind!=="refund")return false;const tx=txById.get(link.financeTransactionId);return !!tx&&tx.pnl_effect==="Income"&&isEffectivePostedTransaction(tx,financeTransactions)&&!hasMatchingOriginalExpense(link,tx,data,financeTransactions);}).length;
+  return {budget,currency,bookingCommitments,outstandingBookingCommitment,plannedActivities,actualExpensesBase:actualExpenses,refundsBase:refunds,netActualBase:netActual,financeBaseCurrency,actualInTripCurrency,projectedTotal,remainingBudget,hasFinanceLinks:links.length>0,financeLinkCount:links.length,unresolvedLinks,excludedLinks,invalidRefundLinks,requiresFx:currency!==financeBaseCurrency&&links.length>0};
 }
 export function tripSpend(tripId,data){
   const trip=(data?.trips||[]).find(x=>x.id===tripId);
