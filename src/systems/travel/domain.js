@@ -90,14 +90,12 @@ export function findItineraryConflicts(items=[]){
     let end=Number(item.endTime.slice(0,2))*60+Number(item.endTime.slice(3,5));
     if(end<=start)end+=1440;
     return {...item,startMinute:start,endMinute:end};
-  });
+  }).sort((a,b)=>a.date.localeCompare(b.date)||a.startMinute-b.startMinute);
   const conflicts=[];
   for(let i=0;i<events.length;i++)for(let j=i+1;j<events.length;j++){
     const a=events[i],b=events[j];
-    const dayDiff=(Date.parse(b.date+"T00:00:00Z")-Date.parse(a.date+"T00:00:00Z"))/86400000;
-    if(dayDiff<0){const tmp=a;a=b;b=tmp;}
     const diff=(Date.parse(b.date+"T00:00:00Z")-Date.parse(a.date+"T00:00:00Z"))/86400000;
-    if(diff>1)continue;
+    if(diff>1)break;
     const bStart=b.startMinute+diff*1440,bEnd=b.endMinute+diff*1440;
     if(a.startMinute<bEnd&&bStart<a.endMinute)conflicts.push({firstId:a.id,secondId:b.id,date:a.date,firstTitle:a.title||a.id,secondTitle:b.title||b.id});
   }
