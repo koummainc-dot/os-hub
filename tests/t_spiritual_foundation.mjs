@@ -72,6 +72,15 @@ assert.equal(validateSpiritualSeason(seasonNoConflict,[seasonA]).ok,true);
 assert.deepEqual(getSeasonPracticeOverrides([seasonA],"p1","2026-11-03").map(x=>x.mode),["Pause"]);
 assert.deepEqual(getSeasonPracticeOverrides([seasonA],"p1","2026-11-20"),[]);
 assert.equal(getSeasonPracticeOverrides([seasonA,seasonConflict],"p1","2026-11-06").reason,"season-overlap");
+const dailyPractice={...practiceModel,id:"p1",active:true,archivedAt:null,frequency:{mode:"Daily"}};
+const seasonPauseContext={seasons:[seasonA]};
+assert.equal(isPracticeExpectedOnDate(dailyPractice,"2026-11-03",seasonPauseContext),false,"season Pause overrides the base Daily schedule");
+assert.equal(isPracticeExpectedOnDate(dailyPractice,"2026-11-11",seasonPauseContext),true,"base schedule resumes after season ends");
+const seasonExpected=createSpiritualSeason({id:"season-expected",name:"إضافة أيام",startDate:"2026-11-01",endDate:"2026-11-10",status:"Active",practiceOverrides:[{practiceId:"p1",mode:"Expected"}]});
+const weekdaysPractice={...dailyPractice,frequency:{mode:"Weekdays",days:[1,2,3,4,5]}};
+assert.equal(isPracticeExpectedOnDate(weekdaysPractice,"2026-11-01",{seasons:[seasonExpected]}),true,"season Expected overrides a non-scheduled weekday");
+assert.equal(isPracticeExpectedOnDate(dailyPractice,"2026-11-06",{seasons:[seasonA,seasonConflict]}),null,"overlapping season rules remain unknown instead of guessing");
+assert.equal(isPracticeExpectedOnDate(dailyPractice,"2026-11-03",{seasons:[seasonA],scheduleOverrides:[{startDate:"2026-11-01",endDate:"2026-11-05",mode:"Expected"}]}),true,"explicit date override takes precedence over season override");
 
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"}},"2026-11-02",{scheduleOverrides:[{startDate:"2026-11-01",endDate:"2026-11-03",mode:"Unknown"}]}),true);
 
