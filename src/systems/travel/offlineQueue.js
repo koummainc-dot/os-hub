@@ -34,7 +34,8 @@ export function clearTravelSyncQueue(storage, workspaceId) {
 export function assessTravelSyncQueue(item, serverUpdatedAt, serverAvailable) {
   if (!item) return { state: "none", canReplay: false };
   if (!serverAvailable) return { state: "waiting-for-server", canReplay: false };
-  if ((item.baseUpdatedAt || null) !== (serverUpdatedAt || null)) {
+  if (!item.baseUpdatedAt || !serverUpdatedAt) return { state: "manual-recovery-required", canReplay: false };
+  if (item.baseUpdatedAt !== serverUpdatedAt) {
     return { state: "conflict", canReplay: false };
   }
   return { state: "ready", canReplay: true };
