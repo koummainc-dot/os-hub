@@ -95,3 +95,22 @@ const phase5Import=validateHobbiesProgressImport({hobbies:[hobby],sessions:[jour
 assert.equal(phase5Import.ok,true);assert.equal(phase5Import.value.schemaVersion,5);
 assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],journalEntries:[{...journalInput,sessionId:"session-j1"}]}).ok,false);
 console.log("Hobbies OS Phase 5 journal and memories tests passed.");
+
+
+const insightSessions=[
+ {id:"a",hobbyId:"h1",localDate:"2026-11-01",durationMinutes:60,satisfactionRating:5},
+ {id:"b",hobbyId:"h1",localDate:"2026-10-20",durationMinutes:30,satisfactionRating:3},
+ {id:"c",hobbyId:"h2",localDate:"2026-09-25",durationMinutes:90},
+ {id:"deleted",hobbyId:"h1",localDate:"2026-10-31",durationMinutes:500,deleted_at:"2026-11-01"}
+];
+const insightData=hobbyInsights([{id:"h1",name:"تصوير",status:"active"},{id:"h2",name:"موسيقى",status:"paused"}],insightSessions,[{id:"g1",hobbyId:"h1",title:"10 جلسات",targetType:"sessions",targetValue:10,startDate:"2026-10-01",status:"active"}],[],[],"2026-11-01");
+assert.equal(insightData.totalSessions,3);
+assert.equal(insightData.totalMinutes,180);
+assert.equal(insightData.recentSessions,2);
+assert.equal(insightData.recentMinutes,90);
+assert.equal(insightData.previousMinutes,90);
+assert.equal(insightData.minutesChangePercent,0);
+assert.equal(insightData.averageSatisfaction,4);
+assert.equal(insightData.goals[0].current,2);
+assert.equal(hobbyInsights([],[],[],[],[],"2026-11-01").minutesChangePercent,0);
+console.log("Hobbies OS Phase 6 insights tests passed.");
