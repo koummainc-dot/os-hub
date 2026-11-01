@@ -87,9 +87,11 @@ export function encodeSpiritualTypedRecord(collection, model){
  else if(collection==="reflections")valid=validateSpiritualReflection(model);
  else if(collection==="important_dates")valid=validateSpiritualImportantDate(model);
  else if(collection==="reviews")valid=validateSpiritualReview(model);
+ else if(collection==="goals")valid=validateSpiritualGoal(model);
+ else if(collection==="commitments")valid=validateSpiritualCommitment(model);
  else return{ok:false,reason:"unsupported-typed-collection"};
  if(!valid.ok)return valid;
- const title=collection==="values"?model.name:collection==="practices"?model.name:collection==="reflections"?"تأمل · "+model.date:collection==="important_dates"?model.name:collection==="reviews"?"مراجعة · "+model.period+" · "+model.periodStart:model.title;
+ const title=collection==="values"?model.name:collection==="practices"?model.name:collection==="reflections"?"تأمل · "+model.date:collection==="important_dates"?model.name:collection==="reviews"?"مراجعة · "+model.period+" · "+model.periodStart:collection==="goals"?model.name:model.title;
  const description=collection==="values"?model.description:collection==="principles"?model.statement:collection==="reflections"?model.prompt:collection==="important_dates"?model.kind:collection==="reviews"?model.status:model.why;
  return{ok:true,record:{id:model.id,title,description,body:JSON.stringify({schema:"spiritual.typed.v1",kind,data:model}),status:model.active===false?"archived":"active",collection,createdAt:model.createdAt,updatedAt:model.updatedAt}};
 }
@@ -98,7 +100,7 @@ export function decodeSpiritualTypedRecord(collection, record){
  try{
   const parsed=JSON.parse(record.body||"");
   if(parsed?.schema!=="spiritual.typed.v1"||parsed.kind!==collection||!parsed.data||typeof parsed.data!=="object")return{kind:"legacy",data:null};
-  const validators={values:validateSpiritualValue,principles:validateSpiritualPrinciple,practices:validateSpiritualPractice,reflections:validateSpiritualReflection,important_dates:validateSpiritualImportantDate,reviews:validateSpiritualReview};
+  const validators={values:validateSpiritualValue,principles:validateSpiritualPrinciple,practices:validateSpiritualPractice,reflections:validateSpiritualReflection,important_dates:validateSpiritualImportantDate,reviews:validateSpiritualReview,goals:validateSpiritualGoal,commitments:validateSpiritualCommitment};
   const validator=validators[collection];
   if(!validator||!validator(parsed.data).ok)return{kind:"legacy",data:null};
   return{kind:"typed",data:parsed.data};
@@ -296,5 +298,34 @@ export function validateSpiritualReview(value){
  if(!isDate(value.periodStart)||!isDate(value.periodEnd)||value.periodEnd<value.periodStart)return{ok:false,reason:"invalid-date-range"};
  if(!Array.isArray(value.sections)||value.sections.length>30||value.sections.some(x=>!SPIRITUAL_REVIEW_KEYS.has(x.key)||x.prompt.length>2000||x.answer.length>12000))return{ok:false,reason:"invalid-review-sections"};
  if(new Set(value.sections.map(x=>x.key)).size!==value.sections.length)return{ok:false,reason:"duplicate-review-section"};
+ return{ok:true};
+}
+
+const SPIRITUAL_GOAL_TYPES=new Set(["Sum","Days","Milestones","Free"]);
+const SPIRITUAL_GOAL_STATES=new Set(["Active","Paused","Completed","Released"]);
+const SPIRITUAL_COMMITMENT_STATES=new Set(["Active","Paused","Completed","Released","Revised"]);
+const SPIRITUAL_COMMITMENT_CADENCES=new Set(["None","Daily","Weekly","Custom"]);
+export function createSpiritualGoal(input={}){
+ const now=new Date().toISOString();
+ return{id:input.id||globalThis.crypto?.randomUUID?.()||"spg-"+Date.now(),name:String(input.name||"").trim(),description:String(input.description||""),type:SPIRITUAL_GOAL_TYPES.has(input.type)?input.type:"Free",unit:String(input.unit||""),startDate:String(input.startDate||""),targetDate:String(input.targetDate||""),status:SPIRITUAL_GOAL_STATES.has(input.status)?input.status:"Active",targetValue:input.targetValue==null||input.targetValue===""?null:Number(input.targetValue),coreGoalRef:input.coreGoalRef||null,notes:String(input.notes||""),practiceIds:Array.isArray(input.practiceIds)?[...new Set(input.practiceIds)]:[],milestones:Array.isArray(input.milestones)?input.milestones.map(x=>({...x})):[],createdAt:input.createdAt||now,updatedAt:now};
+}
+export function validateSpiritualGoal(value){
+ if(!value||typeof value!=="object"||!String(value.name||"").trim()||value.name.length>120)return{ok:false,reason:"name-required"};
+ if(!SPIRITUAL_GOAL_TYPES.has(value.type)||!SPIRITUAL_GOAL_STATES.has(value.status))return{ok:false,reason:"invalid-goal-state"};
+ if(!isDate(value.startDate)||!isDate(value.targetDate)||value.targetDate<value.startDate)return{ok:false,reason:"invalid-date-range"};
+ if(value.targetValue!=null&&(!Number.isFinite(value.targetValue)||value.targetValue<=0))return{ok:false,reason:"invalid-target"};
+ if(value.description.length>4000||value.notes.length>4000||value.unit.length>60)return{ok:false,reason:"content-too-long"};
+ if(!Array.isArray(value.practiceIds)||value.practiceIds.length>100||!Array.isArray(value.milestones)||value.milestones.length>100)return{ok:false,reason:"invalid-goal-links"};
+ return{ok:true};
+}
+export function createSpiritualCommitment(input={}){
+ const now=new Date().toISOString();
+ return{id:input.id||globalThis.crypto?.randomUUID?.()||"spc-"+Date.now(),title:String(input.title||"").trim(),description:String(input.description||""),relatedValueId:input.relatedValueId||null,relatedPrincipleId:input.relatedPrincipleId||null,practiceId:input.practiceId||null,startDate:String(input.startDate||""),reviewDate:String(input.reviewDate||""),cadence:SPIRITUAL_COMMITMENT_CADENCES.has(input.cadence)?input.cadence:"None",cadenceConfig:input.cadenceConfig&&typeof input.cadenceConfig==="object"?input.cadenceConfig:{},status:SPIRITUAL_COMMITMENT_STATES.has(input.status)?input.status:"Active",statusNote:String(input.statusNote||""),revisedFromId:input.revisedFromId||null,notes:String(input.notes||""),createdAt:input.createdAt||now,updatedAt:now};
+}
+export function validateSpiritualCommitment(value){
+ if(!value||typeof value!=="object"||!String(value.title||"").trim()||value.title.length>180)return{ok:false,reason:"title-required"};
+ if(!SPIRITUAL_COMMITMENT_STATES.has(value.status)||!SPIRITUAL_COMMITMENT_CADENCES.has(value.cadence))return{ok:false,reason:"invalid-commitment-state"};
+ if(!isDate(value.startDate)||!isDate(value.reviewDate)||value.reviewDate<value.startDate)return{ok:false,reason:"invalid-date-range"};
+ if(value.description.length>4000||value.statusNote.length>2000||value.notes.length>4000)return{ok:false,reason:"content-too-long"};
  return{ok:true};
 }
