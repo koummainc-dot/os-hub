@@ -211,3 +211,10 @@ The current interface is a foundation shell and generic record form, not the com
 
 - Additional recurrence correctness fix: practices are no longer considered expected before their own creation date. Added regression coverage for the day immediately before creation and the creation date itself.
 - Hijri and creation-date code/tests are in CI on the latest branch commits; final green status is still pending.
+
+## Continued implementation — normalized practice-log management (2026-11-01)
+- Added authenticated edit and delete controls for normalized `spiritual_practice_logs` records directly in the practice card.
+- Editing preserves the existing log identity, idempotency key, original date, and slot; updates status/quantity/duration through the existing owner-scoped upsert path. Private note editing remains blocked until encryption/key management exists; the UI does not pretend encrypted notes can be recovered.
+- Deletion requires explicit confirmation and filters by authenticated `user_id`, workspace, and log ID; the database's existing owner RLS delete policy remains the final authorization boundary.
+- Demo mode mirrors the same edit/delete behavior in in-memory demo records.
+- This is code-only progress. No tests were run or requested, no database branch was created, and no migrations were applied.
