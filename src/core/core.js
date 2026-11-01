@@ -36,7 +36,7 @@ const OS_SYSTEMS=[
  sections:osSec("dashboard:لوحة القيادة:⌂|inbox:الوارد:📥|transactions:الحركات:🧾|accounts:الحسابات:🏦|categories:التصنيفات:🗂️|budgets:الميزانيات:📊|assets:الأصول:📈|debts:الديون والأقساط:💳|goals:الأهداف المالية:🎯|recurring:المتكرر والاشتراكات:🔁|projects:المشاريع المالية:📁|networth:صافي الثروة:💎|fx:أسعار الصرف:💱|reports:التقارير:📑|family:مركز مصاريف الأسرة:👪|family_sensitive:بيانات العائلة الحساسة:🔒|settings:الإعدادات والأمان:🔐")},
 {id:"home",group:"life",scope:"shared",icon:"🏠",color:"#F97316",name:"Home OS",title:"إدارة البيت",status:"live",phase:"المرحلة 1 · إدارة المنزل والمخزون والعمليات",sensitive:false,plan:"Home_OS_v4_Unified_Master_Plan.md",
  desc:"الغرف والمخزون المنزلي ومهام البيت والصيانة والمشتريات.",
- sections:osSec("dashboard:الرئيسية:⌂|rooms:الغرف:🚪|inventory:المخزون:📦|tasks:المهام والجدول:✅|maintenance:الصيانة:🔧|shopping:المشتريات:🛒|reports:التقارير:📑|settings:الإعدادات:⚙️")},
+ sections:osSec("dashboard:الرئيسية:⌂|rooms:الغرف:🚪|inventory:المخزون:📦|tasks:المهام والجدول:✅|maintenance:الصيانة:🔧|shopping:المشتريات:🛒|bills:الفواتير:🧾|providers:مقدمو الخدمات:👷|reports:التقارير:📑|settings:الإعدادات:⚙️")},
 {id:"inventory",group:"money",scope:"shared",icon:"🧳",color:"#A16207",name:"Personal Inventory OS",title:"الممتلكات الشخصية",status:"live",phase:"المرحلة 7 · نسخة أولية",sensitive:false,plan:"PERSONAL_INVENTORY_OS_UNIFIED_MASTER_PLAN_v4.md",
  desc:"جرد ممتلكاتك والضمان والاستبدال والإعارات والمستندات.",
  sections:osSec("home:الرئيسية:⌂|items:الأصناف:📦|categories:التصنيفات:🗂️|places:الأماكن:📍|warranty:الضمان:🛡️|replacement:الاستبدال:♻️|documents:المستندات:📄|loans:الإعارات:🤝|history:التاريخ:🕘|audit:الجرد:☑️|collections:المجموعات:🎒|maintenance:الصيانة:🔧|archive:الأرشيف:🗄️|settings:الإعدادات:⚙️")},
