@@ -205,4 +205,15 @@ export function getUpcomingTravelAlerts(data,today=new Date().toISOString().slic
 }
 export function getActiveTrip(data,today=new Date().toISOString().slice(0,10)){return (data?.trips||[]).filter(t=>t.status!=="cancelled"&&t.status!=="completed"&&t.startDate&&t.endDate&&t.startDate<=today&&t.endDate>=today).sort((a,b)=>a.startDate.localeCompare(b.startDate))[0]||null;}
 export function upcomingTrips(data,today=new Date().toISOString().slice(0,10)){return (data?.trips||[]).filter(t=>!["cancelled","completed","active"].includes(t.status)&&t.startDate>=today).sort((a,b)=>a.startDate.localeCompare(b.startDate));}
+export function travelDeletionBlocker(kind,row,data){
+  const id=row?.id;
+  if(!id)return "لا يمكن حذف سجل دون معرّف.";
+  if(kind==="trip"){
+    const related=["stops","itinerary","bookings","packing","documents","memories","reviews","experiences","financeLinks"];
+    if(related.some(key=>(data?.[key]||[]).some(item=>item.tripId===id)))return "لا يمكن حذف رحلة لها سجلات مرتبطة؛ غيّر حالتها إلى ملغاة للاحتفاظ بالتاريخ دون ترك سجلات يتيمة.";
+  }
+  if(kind==="destination"&&(data?.places||[]).some(item=>item.destinationId===id))return "لا يمكن حذف وجهة مرتبطة بأماكن محفوظة؛ عدّل روابط الأماكن أولًا.";
+  if(kind==="place"&&(data?.experiences||[]).some(item=>item.placeId===id))return "لا يمكن حذف مكان مرتبط بتجارب فعلية؛ عدّل روابط التجارب أولًا.";
+  return "";
+}
 export function validateRelatedRecord(kind,row,data){const errors=[];if(["stops","itinerary","bookings","packing","documents","memories","reviews","experiences"].includes(kind)&&row?.tripId&&!(data.trips||[]).some(t=>t.id===row.tripId))errors.push("الرحلة المرتبطة غير موجودة");if(kind==="itinerary"&&!String(row?.title||"").trim())errors.push("عنوان النشاط مطلوب");if(kind==="stops")errors.push(...validateStop(row));if(kind==="experiences"&&!String(row?.title||"").trim())errors.push("اسم التجربة مطلوب");if(kind==="experiences"&&row?.placeId&&!(data.places||[]).some(x=>x.id===row.placeId))errors.push("المكان المرتبط بالتجربة غير موجود.");if(kind==="bookings"&&!String(row?.title||"").trim())errors.push("اسم الحجز مطلوب");if(kind==="packing"&&!String(row?.item||"").trim())errors.push("اسم العنصر مطلوب");if(kind==="destinations"&&!String(row?.name||"").trim())errors.push("اسم الوجهة مطلوب");if(kind==="places"&&!String(row?.name||"").trim())errors.push("اسم المكان أو التجربة مطلوب");return errors;}
