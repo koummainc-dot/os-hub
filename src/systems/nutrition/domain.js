@@ -47,7 +47,7 @@ const num = v => Number.isFinite(Number(v)) ? Number(v) : 0;
 const nonNegative = v => Number.isFinite(Number(v)) && Number(v)>=0;
 export function normalizeFood(food) {
   const f=food&&typeof food==="object"?food:{};
-  const out={id:String(f.id||""),name:String(f.name||"").trim(),brand:String(f.brand||"").trim(),basisAmount:num(f.basisAmount||100),basisUnit:f.basisUnit==="ml"?"ml":"g",servingAmount:num(f.servingAmount||0),servingUnit:String(f.servingUnit||(f.basisUnit==="ml"?"مل":"جم")),origin:f.origin||"user",verificationLevel:f.verificationLevel||"unverified",status:f.status||"active",aliases:Array.isArray(f.aliases)?f.aliases:[],barcode:String(f.barcode||""),favorite:!!f.favorite,createdAt:f.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  const out={id:String(f.id||""),name:String(f.name||"").trim(),brand:String(f.brand||"").trim(),basisAmount:num(f.basisAmount??100),basisUnit:f.basisUnit==="ml"?"ml":"g",servingAmount:num(f.servingAmount??0),servingUnit:String(f.servingUnit||(f.basisUnit==="ml"?"مل":"جم")),origin:f.origin||"user",verificationLevel:f.verificationLevel||"unverified",status:f.status||"active",aliases:Array.isArray(f.aliases)?f.aliases:[],barcode:String(f.barcode||""),favorite:!!f.favorite,createdAt:f.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
   for(const key of NUTRIENTS) out[key]=num(f[key]);
   return out;
 }
