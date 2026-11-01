@@ -1,8 +1,8 @@
 export const HOBBY_STATUSES = ["considering", "active", "paused", "archived"];
 export const HOBBY_CATEGORIES = [
 {id:"creative",label:"فنون وإبداع",icon:"🎨"},{id:"music",label:"موسيقى",icon:"🎵"},{id:"sports",label:"رياضة وحركة",icon:"🏃"},{id:"outdoors",label:"أنشطة خارجية",icon:"🌿"},{id:"crafts",label:"حرف وصناعة",icon:"🛠️"},{id:"technology",label:"تقنية",icon:"💻"},{id:"games",label:"ألعاب",icon:"🎮"},{id:"collecting",label:"جمع المقتنيات",icon:"📚"},{id:"culture",label:"ثقافة ومعرفة",icon:"🌍"},{id:"other",label:"أخرى",icon:"✨"}];
-export const HOBBY_SECTIONS = [{id:"dashboard",label:"الرئيسية",icon:"⌂"},{id:"hobbies",label:"هواياتي",icon:"🎯"},{id:"explore",label:"اهتمامات مستقبلية",icon:"🔎"},{id:"sessions",label:"جلسات الممارسة",icon:"⏱️"},{id:"settings",label:"الإعدادات",icon:"⚙️"}];
-export const emptyHobbiesData = () => ({schemaVersion:1,hobbies:[],sessions:[],settings:{timezone:"Africa/Cairo",weekStartDay:6}});
+export const HOBBY_SECTIONS = [{id:"dashboard",label:"الرئيسية",icon:"⌂"},{id:"hobbies",label:"هواياتي",icon:"🎯"},{id:"explore",label:"اهتمامات مستقبلية",icon:"🔎"},{id:"sessions",label:"جلسات الممارسة",icon:"⏱️"},{id:"skills",label:"المهارات والتقدم",icon:"📈"},{id:"milestones",label:"الإنجازات",icon:"🏆"},{id:"settings",label:"الإعدادات",icon:"⚙️"}];
+export const emptyHobbiesData = () => ({schemaVersion:2,hobbies:[],sessions:[],skills:[],skillLogs:[],milestones:[],settings:{timezone:"Africa/Cairo",weekStartDay:6}});
 export const makeHobbyId = (prefix="hobby") => globalThis.crypto?.randomUUID?.() || prefix+"-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8);
 export function validateHobby(input) {
 const name=String(input?.name||"").trim(); if(!name)return {ok:false,error:"اسم الهواية مطلوب."}; if(name.length>120)return {ok:false,error:"اسم الهواية يجب ألا يتجاوز 120 حرفًا."};
