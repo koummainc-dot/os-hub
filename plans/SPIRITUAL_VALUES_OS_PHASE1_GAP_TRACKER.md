@@ -50,9 +50,15 @@ The current interface is a foundation shell and generic record form, not the com
 - [Remaining] Entity-specific persistence/schema and relations from §5.2–5.4; user-controlled ordering; full legacy-edit workflow; no mandatory moral score.
 - Principle drift signals are user-defined and private; never label them as moral violations.
 - Practice type/unit, targets/minimum, flexible frequency, slots, preferred time, Habit link mode, versions, pause/archive/restore lifecycle.
+- P2 partial: typed own-practice log constructor/validator; accepted statuses Done/Partial/Excused only; date/practice/slot validation; deterministic `(practiceId,date,slotKey)` record identity; canonical `_` key for a single slot; multiple configured slots supported; optional actual/duration/note; source and client operation ID.
+- P2 partial: quick logging UI on practice cards, date and slot selection, status/quantity/note, day summary labels Maintained/Partial/Unrecorded; HabitLinked practices are explicitly read-only and never create duplicate logs.
+- P2 contract tests cover date/status/slot validation, completion levels, multiple slots, unrecorded semantics, and Habit-linked rejection. These checks await CI.
 - Duplicate-name, ownership, date, range and state-transition validations.
 
 ### P2 — Practice logs, flexible slots, consistency and continuity
+- [Partial] Own-mode log domain contract and quick-entry UI implemented against the private generic record envelope; multiple slots per day use stable slot keys, with `_` for a single slot. This is not yet normalized `sp_practice_logs` persistence.
+- [Partial] Completion-level derivation (Full/Minimum/Partial/None/Excused) and neutral per-day slot summary implemented; missing rows remain Unrecorded, never Missed.
+- [Remaining] Persist and enforce database uniqueness `(practice_id,date,slot_key)` plus `client_op_id` idempotency at the repository/database layer; multi-slot editing/history UX; configurable day boundary/timezone and pause/expected-day calculations; `TimesPerWeek/TimesPerMonth` and full consistency/continuity calculations.
 - Multiple occurrences per practice/day using a stable slot key.
 - Expected-day calculation and completion levels; missing log is not Missed.
 - Neutral consistency/continuity metrics are optional, hidden by default, and never replace Habit-owned streaks or Daily Logs.
