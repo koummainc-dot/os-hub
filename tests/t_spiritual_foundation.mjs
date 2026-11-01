@@ -28,7 +28,7 @@ const practiceModel=createSpiritualPractice({name:"قراءة",kind:"Quantity",t
 assert.equal(validateSpiritualPractice(practiceModel).ok,true);
 assert.equal(validateSpiritualPractice({...practiceModel,minimum:11}).reason,"minimum-exceeds-target");
 assert.equal(validateSpiritualPractice({...practiceModel,slots:[{key:"x",label:"A"},{key:"x",label:"B"}]}).reason,"invalid-slot");
-assert.equal(validateSpiritualPractice({...practiceModel,preferredTime:"25:00"}).reason,"invalid-preferred-time");
+assert.equal(validateSpiritualPractice({...practiceModel,preferredTime:"25:00"}).reason,"invalid-preferred-time");\nassert.equal(validateSpiritualPractice({...practiceModel,slotsRequired:"AtLeast(0)"}).reason,"invalid-slots-required");\nassert.equal(validateSpiritualPractice({...practiceModel,tags:[{unexpected:true}]}).reason,"invalid-tags");
 assert.equal(validateSpiritualPractice({...practiceModel,logMode:"HabitLinked"}).reason,"habit-link-mode-mismatch");
 assert.equal(validateSpiritualPractice({...practiceModel,logMode:"HabitLinked",habitRef:{system:"habit",type:"habit",id:"h1"}}).ok,true);
 assert.equal(validateFrequencyConfig({mode:"Daily"}).ok,true);
@@ -36,7 +36,7 @@ assert.equal(validateFrequencyConfig({mode:"TimesPerWeek",n:3}).ok,true);
 assert.equal(validateFrequencyConfig({mode:"TimesPerWeek",n:0}).ok,false);
 assert.equal(validateFrequencyConfig({mode:"Weekdays",days:[1,1]}).ok,false);
 assert.equal(validateFrequencyConfig({mode:"EveryNDays",n:2,anchor:"2026-02-29"}).ok,false);
-assert.equal(validateFrequencyConfig({mode:"MonthDay",calendar:"hijri",days:[30],day_offset:1}).ok,true);
+assert.equal(validateFrequencyConfig({mode:"MonthDay",calendar:"hijri",days:[30],day_offset:1}).ok,true);\nassert.equal(validateFrequencyConfig({mode:"MonthDay",calendar:"gregorian",days:[1,1]}).reason,"invalid-month-days");\nassert.equal(validateFrequencyConfig({mode:"Dates",dates:[]}).reason,"invalid-dates");\nassert.equal(validateFrequencyConfig({mode:"Dates",dates:["2026-12-01","2026-12-01"]}).reason,"invalid-dates");
 assert.equal(validateFrequencyConfig({mode:"Flexible"}).ok,true);
 assert.ok(moduleSource.includes("active===\"settings\""));
 assert.ok(moduleSource.includes("spiritual_private_records"));
