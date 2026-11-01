@@ -431,3 +431,27 @@ Phase 1: عدد الهوايات النشطة، الاهتمامات قيد ال
 ### 19.6 اختبارات القبول
 - اختبارات ثابتة لعقد RPC وقيود idempotency وحدود payload والتحقق من صلاحيات المصدر والهدف.
 - اختبار الدومين السابق لعقد حدث جلسة Hobbies مستمر.
+
+
+## 20. Phase 6B-3 — Durable real-time delivery to Today
+
+### Implemented
+- Added `os_integration_events` to the Supabase Realtime publication in the migration.
+- Added `subscribeDurableOSEvents` using authenticated Postgres Changes subscription filtered by workspace and source system.
+- Projects/Today merges realtime inserts with durable history and local browser events using the idempotency key.
+- Subscription cleanup is performed when the workspace/screen effect unmounts or changes.
+- Realtime visibility remains governed by the event table's SELECT RLS policy: member must have view/edit access to both Projects and the source system.
+- Both RPCs use SECURITY INVOKER. Table reads/writes are governed by explicit RLS policies; no public SECURITY DEFINER RPC bypass is used.
+- Publish acknowledgements return only accepted/duplicate status and idempotency key, avoiding an INSERT RETURNING read-policy dependency for source editors who do not have Projects read access.
+
+### Remaining limitations
+- Realtime delivery requires the migration to be applied and the table included in `supabase_realtime`; it is not active in any database until then.
+- No retry queue for offline/failed publishes. The original session remains saved, and UI reports local-only activity on publish failure.
+- No Calendar OS exists in the current runtime. Calendar appointments, reminders, and planned-vs-completed calendar views remain out of scope until a shared Calendar contract and owner system are defined.
+- No Habit OS integration until the operational module is registered.
+- Learning events are not yet migrated to this durable event table.
+
+### Security note
+- Event table has RLS SELECT and INSERT policies. SELECT requires Projects + source-system read access; INSERT requires source-system edit access and `created_by = auth.uid()`.
+- Authenticated users receive only SELECT/INSERT table grants; no direct UPDATE/DELETE grants.
+- Publish/load RPCs are SECURITY INVOKER, not SECURITY DEFINER.
