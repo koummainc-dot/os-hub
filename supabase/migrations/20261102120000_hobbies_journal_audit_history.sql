@@ -25,7 +25,7 @@ revoke all on sequence public.hobbies_journal_audit_events_id_seq from anon, aut
 create policy hobbies_journal_audit_select on public.hobbies_journal_audit_events
   for select to authenticated
   using (
-    public.ws_access_level(workspace_id,'hobbies','journal') in ('view','edit')
+    public.ws_access_level(workspace_id,'hobbies','journalEntries') in ('view','edit')
     and (visible_to is null or (select auth.uid()) = any(visible_to))
   );
 
