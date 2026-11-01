@@ -1,9 +1,9 @@
-const {JSDOM}=require('jsdom');const fs=require('fs');
+const {JSDOM}=require('jsdom');const {TextEncoder,TextDecoder}=require('node:util');const fs=require('fs');
 const path=require('path');
 const appJs=fs.readFileSync(path.join(__dirname,'..','dist-test','app.iife.js'),'utf8');
 function makeEnv(supaStub){
   const dom=new JSDOM('<!DOCTYPE html><html><body><div id="root"></div></body></html>',{runScripts:'outside-only',url:'https://os.example.app/',pretendToBeVisual:true});
-  const w=dom.window; const errors=[];
+  const w=dom.window; w.TextEncoder=TextEncoder; w.TextDecoder=TextDecoder; const errors=[];
   w.console.error=(...a)=>{errors.push(a.map(x=>x&&x.message?x.message:String(x)).join(' ').slice(0,300));};
   w.console.warn=()=>{}; w.console.log=()=>{};
   w.addEventListener('error',e=>errors.push('WINERR '+e.message));
