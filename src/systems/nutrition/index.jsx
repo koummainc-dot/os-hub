@@ -15,7 +15,7 @@ const emptyQuick = () => ({ display_name: "", calories_kcal: "", protein_g: "", 
 const demoSeed = () => ({ foods: [], meals: [], entries: [], water: [], settings: { display_mode: "Full", energy_unit: "kcal", timezone: "Africa/Cairo" }, mealTypes: [{ id: "demo-breakfast", code: "breakfast", label_ar: "فطار", position: 0 }, { id: "demo-lunch", code: "lunch", label_ar: "غداء", position: 1 }, { id: "demo-dinner", code: "dinner", label_ar: "عشاء", position: 2 }, { id: "demo-snack", code: "snack", label_ar: "سناك", position: 3 }] });
 
 function Card({ children, style = {} }) { return <section style={{ background: "#fff", border: "1px solid " + LINE, borderRadius: 16, padding: 18, ...style }}>{children}</section>; }
-function Button({ children, onClick, secondary = false, disabled = false, style = {}, type = "button" }) { return <button type={type} disabled={disabled} onClick={onClick} style={{ border: "1px solid " + (secondary ? LINE : GREEN), background: secondary ? "#fff" : GREEN, color: secondary ? INK : "#fff", borderRadius: 10, padding: "10px 14px", fontWeight: 750, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? .55 : 1, fontFamily: "inherit", fontSize: 13, ...style }}>{children}</button>; }
+function Button({ children, onClick, secondary = false, disabled = false, style = {}, type = "button", form }) { return <button type={type} form={form} disabled={disabled} onClick={onClick} style={{ border: "1px solid " + (secondary ? LINE : GREEN), background: secondary ? "#fff" : GREEN, color: secondary ? INK : "#fff", borderRadius: 10, padding: "10px 14px", fontWeight: 750, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? .55 : 1, fontFamily: "inherit", fontSize: 13, ...style }}>{children}</button>; }
 function Field({ label, children }) { return <label style={{ display: "grid", gap: 6, color: "#46544B", fontSize: 12, fontWeight: 700 }}>{label}{children}</label>; }
 const inputStyle = { width: "100%", minWidth: 0, border: "1px solid #D8E2DB", borderRadius: 9, padding: "10px 11px", background: "#fff", color: INK, font: "inherit", fontSize: 13, boxSizing: "border-box" };
 function Input(props) { return <input {...props} style={{ ...inputStyle, ...(props.style || {}) }} />; }
@@ -152,20 +152,20 @@ export default function NutritionOS({ ws, access, isDemo = false, api, page = "t
       factor=baseQty/food.basis_qty;
     }
     const snap = key => food[key] == null ? null : Number(food[key])*factor;
-    let mealId=null;
-    if (logForm.meal_type_id) {
-      const mealType=mealTypes.find(x=>x.id===logForm.meal_type_id);
-      if (isDemo) {
-        const meal={id:uid(),workspace_id:ws?.id,local_date:selectedDate,meal_type_id:logForm.meal_type_id,name:mealType?.label_ar||"",time_at:new Date(logForm.logged_at).toISOString(),tz:settings.timezone||"Africa/Cairo",status:"Open"};
-        mealId=meal.id; setMeals(a=>[...a,meal]);
-      } else {
-        const {data:meal,error:me}=await supabase.from("nutrition_meals").insert({workspace_id:ws.id,local_date:selectedDate,meal_type_id:logForm.meal_type_id,name:mealType?.label_ar||null,time_at:new Date(logForm.logged_at).toISOString(),tz:settings.timezone||"Africa/Cairo"}).select("*").single();
-        if(me) throw me; mealId=meal.id; setMeals(a=>[...a,meal]);
-      }
-    }
-    const row = { id:uid(), workspace_id:ws?.id, food_id:food.id, meal_id:mealId, logged_at:new Date(logForm.logged_at).toISOString(), local_date:selectedDate, tz:settings.timezone||"Africa/Cairo", entry_kind:"Food", display_name:food.name, food_version:food.version||1, quantity:qty, unit_code:logForm.unit_code, quantity_base:baseQty, calories_kcal:Number((snap("calories_kcal")||0).toFixed(2)), protein_g:snap("protein_g")===null?null:Number(snap("protein_g").toFixed(2)), carbs_g:snap("carbs_g")===null?null:Number(snap("carbs_g").toFixed(2)), fat_g:snap("fat_g")===null?null:Number(snap("fat_g").toFixed(2)), fiber_g:snap("fiber_g")===null?null:Number(snap("fiber_g").toFixed(2)), sugar_g:snap("sugar_g")===null?null:Number(snap("sugar_g").toFixed(2)), sodium_mg:snap("sodium_mg")===null?null:Number(snap("sodium_mg").toFixed(2)), micronutrients_snapshot:food.micronutrients||{}, snapshot_basis:{basis_type:food.basis_type,basis_qty:food.basis_qty,per_values:{calories_kcal:food.calories_kcal,protein_g:food.protein_g,carbs_g:food.carbs_g,fat_g:food.fat_g},source_kind:food.origin,source_version:food.version||1,density:food.density_g_per_ml,state:food.state,rounding_ver:1}, confidence:"Exact", source:"Manual", client_op_id:uid() };
     setSaving(true); setError("");
     try {
+      let mealId=null;
+      if (logForm.meal_type_id) {
+        const mealType=mealTypes.find(x=>x.id===logForm.meal_type_id);
+        if (isDemo) {
+          const meal={id:uid(),workspace_id:ws?.id,local_date:selectedDate,meal_type_id:logForm.meal_type_id,name:mealType?.label_ar||"",time_at:new Date(logForm.logged_at).toISOString(),tz:settings.timezone||"Africa/Cairo",status:"Open"};
+          mealId=meal.id; setMeals(a=>[...a,meal]);
+        } else {
+          const {data:meal,error:me}=await supabase.from("nutrition_meals").insert({workspace_id:ws.id,local_date:selectedDate,meal_type_id:logForm.meal_type_id,name:mealType?.label_ar||null,time_at:new Date(logForm.logged_at).toISOString(),tz:settings.timezone||"Africa/Cairo"}).select("*").single();
+          if(me) throw me; mealId=meal.id; setMeals(a=>[...a,meal]);
+        }
+      }
+      const row = { id:uid(), workspace_id:ws?.id, food_id:food.id, meal_id:mealId, logged_at:new Date(logForm.logged_at).toISOString(), local_date:selectedDate, tz:settings.timezone||"Africa/Cairo", entry_kind:"Food", display_name:food.name, food_version:food.version||1, quantity:qty, unit_code:logForm.unit_code, quantity_base:baseQty, calories_kcal:Number((snap("calories_kcal")||0).toFixed(2)), protein_g:snap("protein_g")===null?null:Number(snap("protein_g").toFixed(2)), carbs_g:snap("carbs_g")===null?null:Number(snap("carbs_g").toFixed(2)), fat_g:snap("fat_g")===null?null:Number(snap("fat_g").toFixed(2)), fiber_g:snap("fiber_g")===null?null:Number(snap("fiber_g").toFixed(2)), sugar_g:snap("sugar_g")===null?null:Number(snap("sugar_g").toFixed(2)), sodium_mg:snap("sodium_mg")===null?null:Number(snap("sodium_mg").toFixed(2)), micronutrients_snapshot:food.micronutrients||{}, snapshot_basis:{basis_type:food.basis_type,basis_qty:food.basis_qty,per_values:{calories_kcal:food.calories_kcal,protein_g:food.protein_g,carbs_g:food.carbs_g,fat_g:food.fat_g},source_kind:food.origin,source_version:food.version||1,density:food.density_g_per_ml,state:food.state,rounding_ver:1}, confidence:"Exact", source:"Manual", client_op_id:uid() };
       if (isDemo) { const next=[...entries,row]; setEntries(next); await api?.save?.({foods,meals,entries:next,water,settings,mealTypes}); }
       else { const {data,error:e1}=await supabase.from("nutrition_food_log_entries").insert(row).select("*").single(); if(e1) throw e1; setEntries(a=>[...a,data]); }
       setShowLog(false); setLogForm({food_id:"",quantity:"100",unit_code:"g",meal_type_id:"",logged_at:new Date().toISOString().slice(0,16)}); notify("تم تسجيل الوجبة.");
