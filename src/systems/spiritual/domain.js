@@ -145,7 +145,7 @@ export function isPracticeExpectedOnDate(practice,date){
  return null;
 }
 export function getPracticeDaySummary(logs,practice,date){
- const own=(logs||[]).filter(x=>x.practiceId===practice?.id);
+ const own=(logs||[]).filter(x=>x.practiceId===practice?.id&&(!date||x.date===date));
  const levels=own.map(x=>getPracticeCompletionLevel(x,practice));
  const maintained=levels.filter(x=>x==="Full"||x==="Minimum").length;
  const partial=levels.filter(x=>x==="Partial").length;
