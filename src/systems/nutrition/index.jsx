@@ -237,10 +237,17 @@ export default function NutritionOS({ ws, access, isDemo = false, api, page = "t
     if (!canEdit) return;
     const source = entries.filter(x=>x.meal_id===mealId && x.local_date===selectedDate);
     if (!source.length) return setError("لا توجد إدخالات في هذه الوجبة لنسخها.");
+    const sourceMeal = meals.find(m=>m.id===mealId);
     const targetDate = new Date(selectedDate+"T12:00:00"); targetDate.setDate(targetDate.getDate()+1);
     const date = targetDate.toLocaleDateString("en-CA");
     try {
-      const copies = source.map(x=>({...x,id:uid(),local_date:date,logged_at:new Date(date+"T"+new Date(x.logged_at).toISOString().slice(11,16)+":00").toISOString(),client_op_id:uid(),created_at:undefined,updated_at:undefined}));
+      let targetMealId = null;
+      if (sourceMeal) {
+        const mealCopy = {workspace_id:ws?.id,local_date:date,name:sourceMeal.name,meal_type_id:sourceMeal.meal_type_id,time_at:date+"T"+(sourceMeal.time_at?new Date(sourceMeal.time_at).toISOString().slice(11,19):"12:00:00")+"Z",tz:sourceMeal.tz||settings.timezone||"Africa/Cairo",status:"Open",venue_label:sourceMeal.venue_label||null,notes:sourceMeal.notes||null};
+        if(isDemo){const m={...mealCopy,id:uid()};targetMealId=m.id;setMeals(a=>[...a,m]);}
+        else {const {data,error:e0}=await supabase.from("nutrition_meals").insert(mealCopy).select("*").single();if(e0)throw e0;targetMealId=data.id;setMeals(a=>[...a,data]);}
+      }
+      const copies = source.map(x=>({...x,id:uid(),meal_id:targetMealId,local_date:date,logged_at:date+"T"+new Date(x.logged_at).toISOString().slice(11,19)+"Z",client_op_id:uid(),created_at:undefined,updated_at:undefined}));
       if(isDemo){const next=[...entries,...copies];setEntries(next);await api?.save?.({foods,meals,entries:next,water,settings,mealTypes});}
       else {const {data,error:e1}=await supabase.from("nutrition_food_log_entries").insert(copies.map(({created_at,updated_at,...x})=>x)).select("*");if(e1)throw e1;setEntries(a=>[...a,...(data||[])]);}
       notify("تم نسخ الوجبة إلى "+date+" مع الاحتفاظ بلقطة القيم الغذائية.");
