@@ -137,7 +137,9 @@ export function hobbyGoalProgress(goal,{sessions=[],skills=[],milestones=[]}={})
  return {current,target:goal.targetValue,percent:Math.min(100,Math.round(current/goal.targetValue*100)),remaining:Math.max(0,goal.targetValue-current),reached:current>=goal.targetValue};
 }
 export function hobbyPlanProgress(plan,sessions,periodStart,periodEnd){
- const from=plan.startDate>periodStart?plan.startDate:periodStart;\n const to=plan.endDate&&plan.endDate<periodEnd?plan.endDate:periodEnd;\n const rows=plan.status==="active"&&from<=to?sessions.filter(s=>s.hobbyId===plan.hobbyId&&!s.deleted_at&&s.localDate>=from&&s.localDate<=to):[];
+ const from=plan.startDate>periodStart?plan.startDate:periodStart;
+ const to=plan.endDate&&plan.endDate<periodEnd?plan.endDate:periodEnd;
+ const rows=plan.status==="active"&&from<=to?sessions.filter(s=>s.hobbyId===plan.hobbyId&&!s.deleted_at&&s.localDate>=from&&s.localDate<=to):[];
  const minutes=rows.reduce((n,s)=>n+(Number(s.durationMinutes)||0),0);
  return {sessions:rows.length,minutes,targetSessions:plan.targetSessions,targetMinutes:plan.targetMinutes,sessionsPercent:plan.targetSessions?Math.min(100,Math.round(rows.length/plan.targetSessions*100)):null,minutesPercent:plan.targetMinutes?Math.min(100,Math.round(minutes/plan.targetMinutes*100)):null};
 }
