@@ -27,6 +27,7 @@ const importable={schemaVersion:1,trips:[{id:"t1",name:"Trip"}],bookings:[{id:"b
 assert.equal(validateTravelImport(importable).valid,true);
 assert.equal(validateTravelImport({...importable,bookings:[{id:"b1",tripId:"missing"}]}).valid,false);
 assert.equal(validateTravelImport({...importable,trips:"not-an-array"}).valid,false);
+assert.equal(validateTravelImport({}).valid,false);
 assert.equal(validateTravelImport({...importable,trips:[{id:"same"},{id:"same"}]}).valid,false);
 const safeExport=buildTravelExport(importable);
 assert.equal(safeExport.redactedFields,4);
