@@ -175,6 +175,8 @@ export function getPracticeCompletionLevel(log,practice){
 export function isPracticeExpectedOnDate(practice,date,context={}){
  if(!practice||!isDate(date))return null;
  if(practice.active===false||practice.archivedAt)return false;
+ const createdDate=typeof practice.createdAt==="string"?practice.createdAt.slice(0,10):null;
+ if(isDate(createdDate)&&date<createdDate)return false;
  const periods=[...(Array.isArray(context.pausePeriods)?context.pausePeriods:[]),...(Array.isArray(practice.pausePeriods)?practice.pausePeriods:[])];
  if(periods.some(p=>p&&isDate(p.startDate)&&isDate(p.endDate)&&p.startDate<=date&&date<=p.endDate))return false;
  // Explicit per-date schedule overrides have priority over season overlays.
