@@ -203,6 +203,29 @@ export function validateHobbyJournalEntry(input,hobbies,sessions=[],skills=[],mi
 
 
 /**
+ * Event contract consumed by the unified Today activity stream.
+ * The event points back to the source session; it never creates a second activity record.
+ */
+export function hobbySessionEvent(session,hobby){
+ if(!session?.id||!session?.hobbyId||!hobby?.id||session.hobbyId!==hobby.id)throw new Error("HOBBY_SESSION_EVENT_SOURCE_INVALID");
+ return {
+  type:"hobbies.practice_session.completed",
+  entityType:"practice_session",
+  entityId:String(session.id),
+  occurredAt:session.updated_at||session.created_at||new Date().toISOString(),
+  payload:{
+   sourceRef:{system:"hobbies",type:"practice_session",id:String(session.id)},
+   hobbyId:String(hobby.id),
+   hobbyName:String(hobby.name||"هواية"),
+   sessionDate:String(session.localDate||""),
+   minutes:Number.isFinite(Number(session.durationMinutes))?Number(session.durationMinutes):0,
+   sessionType:String(session.sessionType||"practice"),
+   timezone:"Africa/Cairo"
+  }
+ };
+}
+
+/**
  * Local Hobbies OS analytics only. Dates are ISO local dates supplied by the app;
  * no external OS data is read or copied here.
  */
