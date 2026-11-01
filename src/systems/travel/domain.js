@@ -54,6 +54,7 @@ export function validateTravelImport(value){
       if(row?.[field]&&!targetIds.has(String(row[field])))errors.push(label+"["+index+"] يشير إلى سجل غير موجود ("+field+").");
     });
   }
+  for(const [index,row] of (collections.stops||[]).entries()){if(!row?.tripId)errors.push("محطات الرحلة["+index+"] يجب ربطها برحلة.");}
   for(const [index,row] of (collections.itinerary||[]).entries()){if(!row?.stopId)continue;const stop=(collections.stops||[]).find(item=>String(item.id)===String(row.stopId));if(stop&&stop.tripId!==row.tripId)errors.push("البرنامج["+index+"] مرتبط بمحطة تابعة لرحلة مختلفة.");}
   const counts={};
   for(const key of TRAVEL_COLLECTIONS)counts[key]=(collections[key]||[]).length;
@@ -77,6 +78,7 @@ export function buildTravelExport(value,{includeSensitive=false}={}){
 }
 export function validateStop(stop){
   const errors=[];
+  if(!stop?.tripId)errors.push("اربط المحطة برحلة موجودة.");
   if(!String(stop?.name||stop?.destination||"").trim())errors.push("اسم المحطة أو وجهتها مطلوب.");
   if(stop?.arrivalDate&&stop?.departureDate&&stop.departureDate<stop.arrivalDate)errors.push("تاريخ مغادرة المحطة يجب ألا يسبق تاريخ الوصول.");
   if(stop?.order!=null&&stop.order!==""&&(!Number.isInteger(Number(stop.order))||Number(stop.order)<1))errors.push("ترتيب المحطة يجب أن يكون رقمًا صحيحًا يبدأ من 1.");
