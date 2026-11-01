@@ -88,3 +88,54 @@ export function validateHobbiesProgressImport(value) {
   if(milestones.some(m=>m.skillId&&(!skillById.has(m.skillId)||skillById.get(m.skillId).hobbyId!==m.hobbyId)))return {ok:false,error:"المهارة المرتبطة بالإنجاز لا تتبع الهواية المحددة."};
   return {ok:true,value:{...base.value,schemaVersion:2,skills,skillLogs:logs,milestones}};
 }
+
+
+export const HOBBY_GOAL_TARGET_TYPES=["sessions","minutes","skill_value","milestones"];
+export const HOBBY_GOAL_STATUSES=["active","completed","paused","cancelled"];
+export const HOBBY_PLAN_CADENCES=["weekly","monthly"];
+const validISODate=value=>{const d=String(value||"");return /^\\d{4}-\\d{2}-\\d{2}$/.test(d)&&!Number.isNaN(Date.parse(d+"T12:00:00Z"))&&new Date(d+"T12:00:00Z").toISOString().slice(0,10)===d;};
+export function validateHobbyGoal(input,hobbies,skills=[]){
+ const title=String(input?.title||"").trim(),hobby=hobbies.find(h=>h.id===input.hobbyId);
+ if(!title||title.length>160)return {ok:false,error:"عنوان الهدف مطلوب وبحد أقصى 160 حرفًا."};
+ if(!hobby||hobby.status==="archived")return {ok:false,error:"اختر هواية موجودة وغير مؤرشفة."};
+ const targetType=input.targetType||"sessions";
+ if(!HOBBY_GOAL_TARGET_TYPES.includes(targetType))return {ok:false,error:"نوع مستهدف الهدف غير صحيح."};
+ const targetValue=Number(input.targetValue);
+ if(!Number.isFinite(targetValue)||targetValue<=0)return {ok:false,error:"قيمة المستهدف يجب أن تكون أكبر من صفر."};
+ if(["sessions","minutes","milestones"].includes(targetType)&&!Number.isInteger(targetValue))return {ok:false,error:"المستهدف يجب أن يكون عددًا صحيحًا."};
+ if(targetType==="skill_value"&&!skills.some(s=>s.id===input.skillId&&s.hobbyId===input.hobbyId))return {ok:false,error:"اختر مهارة تابعة لنفس الهواية."};
+ if(!validISODate(input.startDate))return {ok:false,error:"تاريخ بداية الهدف غير صالح."};
+ if(input.endDate&&(!validISODate(input.endDate)||input.endDate<input.startDate))return {ok:false,error:"تاريخ نهاية الهدف غير صالح أو يسبق البداية."};
+ if(!HOBBY_GOAL_STATUSES.includes(input.status||"active"))return {ok:false,error:"حالة الهدف غير صحيحة."};
+ return {ok:true,value:{...input,title,hobbyId:hobby.id,targetType,targetValue,skillId:targetType==="skill_value"?input.skillId:null,startDate:input.startDate,endDate:input.endDate||null,status:input.status||"active",description:String(input.description||"").trim()}};
+}
+export function validateHobbyPlan(input,hobbies){
+ const title=String(input?.title||"").trim(),hobby=hobbies.find(h=>h.id===input.hobbyId);
+ if(!title||title.length>160)return {ok:false,error:"اسم الخطة مطلوب وبحد أقصى 160 حرفًا."};
+ if(!hobby||hobby.status==="archived")return {ok:false,error:"اختر هواية موجودة وغير مؤرشفة."};
+ const cadence=input.cadence||"weekly";
+ if(!HOBBY_PLAN_CADENCES.includes(cadence))return {ok:false,error:"دورية الخطة يجب أن تكون أسبوعية أو شهرية."};
+ const targetSessions=input.targetSessions===""||input.targetSessions==null?null:Number(input.targetSessions);
+ const targetMinutes=input.targetMinutes===""||input.targetMinutes==null?null:Number(input.targetMinutes);
+ if(targetSessions===null&&targetMinutes===null)return {ok:false,error:"حدد مستهدف الجلسات أو الدقائق على الأقل."};
+ if(targetSessions!==null&&(!Number.isInteger(targetSessions)||targetSessions<1||targetSessions>100))return {ok:false,error:"مستهدف الجلسات يجب أن يكون من 1 إلى 100."};
+ if(targetMinutes!==null&&(!Number.isInteger(targetMinutes)||targetMinutes<1||targetMinutes>100000))return {ok:false,error:"مستهدف الدقائق يجب أن يكون عددًا موجبًا."};
+ if(!validISODate(input.startDate))return {ok:false,error:"تاريخ بداية الخطة غير صالح."};
+ if(input.endDate&&(!validISODate(input.endDate)||input.endDate<input.startDate))return {ok:false,error:"تاريخ نهاية الخطة غير صالح أو يسبق البداية."};
+ const days=Array.isArray(input.daysOfWeek)?[...new Set(input.daysOfWeek.map(Number))]:[];
+ if(days.some(d=>!Number.isInteger(d)||d<0||d>6))return {ok:false,error:"أيام الممارسة المختارة غير صحيحة."};
+ return {ok:true,value:{...input,title,hobbyId:hobby.id,cadence,targetSessions,targetMinutes,startDate:input.startDate,endDate:input.endDate||null,daysOfWeek:days,notes:String(input.notes||"").trim(),status:["active","paused","completed","cancelled"].includes(input.status)?input.status:"active"}};
+}
+export function hobbyGoalProgress(goal,{sessions=[],skills=[],milestones=[]}={}){
+ let current=0;
+ if(goal.targetType==="sessions")current=sessions.filter(s=>s.hobbyId===goal.hobbyId&&!s.deleted_at&&s.localDate>=goal.startDate&&(!goal.endDate||s.localDate<=goal.endDate)).length;
+ if(goal.targetType==="minutes")current=sessions.filter(s=>s.hobbyId===goal.hobbyId&&!s.deleted_at&&s.localDate>=goal.startDate&&(!goal.endDate||s.localDate<=goal.endDate)).reduce((n,s)=>n+(Number(s.durationMinutes)||0),0);
+ if(goal.targetType==="skill_value")current=Number(skills.find(s=>s.id===goal.skillId)?.currentValue)||0;
+ if(goal.targetType==="milestones")current=milestones.filter(m=>m.hobbyId===goal.hobbyId&&!m.deleted_at&&m.achievedAt>=goal.startDate&&(!goal.endDate||m.achievedAt<=goal.endDate)).length;
+ return {current,target:goal.targetValue,percent:Math.min(100,Math.round(current/goal.targetValue*100)),remaining:Math.max(0,goal.targetValue-current),reached:current>=goal.targetValue};
+}
+export function hobbyPlanProgress(plan,sessions,periodStart,periodEnd){
+ const rows=sessions.filter(s=>s.hobbyId===plan.hobbyId&&!s.deleted_at&&s.localDate>=periodStart&&s.localDate<=periodEnd);
+ const minutes=rows.reduce((n,s)=>n+(Number(s.durationMinutes)||0),0);
+ return {sessions:rows.length,minutes,targetSessions:plan.targetSessions,targetMinutes:plan.targetMinutes,sessionsPercent:plan.targetSessions?Math.min(100,Math.round(rows.length/plan.targetSessions*100)):null,minutesPercent:plan.targetMinutes?Math.min(100,Math.round(minutes/plan.targetMinutes*100)):null};
+}
