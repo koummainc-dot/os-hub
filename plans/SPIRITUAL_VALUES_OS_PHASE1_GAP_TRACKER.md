@@ -62,7 +62,10 @@ The current interface is a foundation shell and generic record form, not the com
 - [Partial] Own-mode log domain contract and quick-entry UI implemented against the private generic record envelope; multiple slots per day use stable slot keys, with `_` for a single slot. This is not yet normalized `sp_practice_logs` persistence.
 - [Partial] Completion-level derivation (Full/Minimum/Partial/None/Excused) and neutral per-day slot summary implemented; missing rows remain Unrecorded, never Missed.
 - [Partial] Database uniqueness and owner-scoped RLS for normalized practice logs are specified in the additive migration; actual execution against a non-production Supabase environment and two-user RLS tests remain open.
-- [Partial] Daily Log view reads normalized history; legacy generic log backfill, history filters/pagination, multi-slot edit/delete UX, and explicit `client_op_id` retry behavior remain open.
+- [Partial] Daily Log view reads normalized history and now supports date-range, status and text filters. Generic edit/archive actions are intentionally hidden for normalized log rows until dedicated safe update/delete operations are implemented. Legacy generic log backfill, pagination, multi-slot edit/delete UX, and explicit `client_op_id` retry behavior remain open.
+- [Partial] Added `isPracticeExpectedOnDate` for Daily, Weekdays, EveryNDays, explicit Dates, and Gregorian MonthDay schedules. Count-based weekly/monthly schedules, Flexible schedules and Hijri MonthDay return `null` (unknown), rather than guessing a date. Daily summaries now distinguish `NotExpected` from `Unrecorded`, and scope records to the selected date.
+- [x] Fixed a literal escaped newline in the repository module that would have broken JavaScript parsing; added regression assertions for schedule semantics and date-isolated summaries.
+- [Partial] Per-date expected-day evaluation is available for supported calendar patterns, but it does not yet account for configured day cutoff, timezone, pause periods, seasons or overrides.
 - [Remaining] Configurable day boundary/timezone and pause/expected-day calculations; `TimesPerWeek/TimesPerMonth` and full consistency/continuity calculations.
 - Multiple occurrences per practice/day using a stable slot key.
 - Expected-day calculation and completion levels; missing log is not Missed.
