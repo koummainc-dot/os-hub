@@ -4,6 +4,7 @@ import { SUPABASE_SDK_FAILED, supabase } from "../core/supabase.js";
 import { A, AccessDenied, Logo, S, ToastContainer, ToastCtx } from "../core/ui.jsx";
 import { OSAuthScreen, OSAvatar, OSOverlay, OSStatusScreen } from "./auth.jsx";
 import { OSAccountPage, OSInvitesPage, OSScaffold, OSTeamPage, OSTodayPage } from "./pages.jsx";
+import { createPlatformIntegrationServices } from "./integrations.js";
 
 
 // ════════════════ SYSTEM HOST (contract every system module follows) ════════════════
@@ -27,6 +28,7 @@ function OSSystemHost({sys,ws,acc,me,members,isDemo,demoStore,section,setSection
     if(!mod||mod.scaffold) return null;
     return isDemo?osMakeDemoApi(demoStore,ws.id+":"+sys.id,mod.demoSeed||null):osMakeApi(ws.id,sys.id,"main");
   },[mod,ws.id,sys.id,isDemo]);
+  const wiredApi=useMemo(()=>api?({...api,integrations:createPlatformIntegrationServices({workspaceId:ws.id,isDemo,demoStore,adapter:isDemo?undefined:osMakeApi(ws.id,"platform-integrations","main")})}):null,[api,ws.id,isDemo,demoStore]);
   if(st.err) return(
     <div style={{...S.card,maxWidth:480,margin:"40px auto",textAlign:"center",padding:28}}>
       <div style={{fontSize:32,marginBottom:6}}>📡</div>
@@ -38,7 +40,7 @@ function OSSystemHost({sys,ws,acc,me,members,isDemo,demoStore,section,setSection
   if(!mod) return <div style={{textAlign:"center",padding:60,color:"#6E7781",fontSize:13}}><div style={{width:30,height:30,border:`3px solid ${A}30`,borderTopColor:A,borderRadius:"50%",margin:"0 auto 12px",animation:"spin 0.8s linear infinite"}}/>جاري تحميل {sys.title}...</div>;
   if(mod.scaffold) return <OSScaffold sys={sys} section={section} acc={acc} isDemo={isDemo}/>;
   const Comp=mod.default;
-  return <Comp api={api} access={acc} authUser={me} ws={ws} members={members} isDemo={isDemo} demoStore={demoStore} page={section} setPage={setSection} shell={shell}/>;
+  return <Comp api={wiredApi} access={acc} authUser={me} ws={ws} members={members} isDemo={isDemo} demoStore={demoStore} page={section} setPage={setSection} shell={shell}/>;
 }
 
 // ════════════════ PLATFORM ROOT + SHELL ════════════════
