@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import assert from "node:assert/strict";
 import {publishOSEvent} from "../src/systems/integrationEvents.js";
-import {SPIRITUAL_COLLECTIONS,SPIRITUAL_SECTIONS,SENSITIVE_COLLECTIONS,createSpiritualRecord,validateSpiritualRecord,canShareSpiritualCollection,createSpiritualValue,validateSpiritualValue,createSpiritualPrinciple,validateSpiritualPrinciple,createSpiritualPractice,validateSpiritualPractice,validateFrequencyConfig,encodeSpiritualTypedRecord,decodeSpiritualTypedRecord,createSpiritualPracticeLog,validateSpiritualPracticeLog,getPracticeCompletionLevel,getPracticeDaySummary} from "../src/systems/spiritual/domain.js";
+import {SPIRITUAL_COLLECTIONS,SPIRITUAL_SECTIONS,SENSITIVE_COLLECTIONS,createSpiritualRecord,validateSpiritualRecord,canShareSpiritualCollection,createSpiritualValue,validateSpiritualValue,createSpiritualPrinciple,validateSpiritualPrinciple,createSpiritualPractice,validateSpiritualPractice,validateFrequencyConfig,encodeSpiritualTypedRecord,decodeSpiritualTypedRecord,createSpiritualPracticeLog,validateSpiritualPracticeLog,getPracticeCompletionLevel,getPracticeDaySummary,isPracticeExpectedOnDate} from "../src/systems/spiritual/domain.js";
 const core=fs.readFileSync("src/core/core.js","utf8"),moduleSource=fs.readFileSync("src/systems/spiritual/index.jsx","utf8"),sql=fs.readFileSync("supabase/migrations/20261101130000_spiritual_values_foundation.sql","utf8"),practiceSql=fs.readFileSync("supabase/migrations/20261101143000_spiritual_practice_logs.sql","utf8");
 assert.match(core,/id:"spiritual"[\s\S]*?status:"planned"/);
 assert.equal(SPIRITUAL_SECTIONS.length,13);
@@ -54,6 +54,15 @@ assert.equal(validateSpiritualPracticeLog(amLog,multiSlotPractice).ok,true);
 assert.equal(validateSpiritualPracticeLog(pmLog,multiSlotPractice).ok,true);
 assert.equal(getPracticeDaySummary([amLog,pmLog],multiSlotPractice).state,"Maintained");
 assert.equal(getPracticeDaySummary([],multiSlotPractice).state,"Unrecorded");
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"}},"2026-11-01"),true);
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Weekdays",days:[1,2,3,4,5]}},"2026-11-01"),false);
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Weekdays",days:[0,1,2,3,4,5,6]}},"2026-11-01"),true);
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"EveryNDays",n:2,anchor:"2026-11-01"}},"2026-11-03"),true);
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Dates",dates:["2026-11-01"]}},"2026-11-02"),false);
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"MonthDay",calendar:"hijri",days:[1]}},"2026-11-01"),null);
+assert.equal(getPracticeDaySummary([], {...practiceModel,frequency:{mode:"Weekdays",days:[1,2,3,4,5]}},"2026-11-01").state,"NotExpected");
+assert.equal(getPracticeDaySummary([], {...practiceModel,frequency:{mode:"Daily"}},"2026-11-01").state,"Unrecorded");
+
 const excusedLog=createSpiritualPracticeLog({practiceId:practiceModel.id,date:"2026-11-01",slotKey:"_",status:"Excused"});
 assert.equal(getPracticeDaySummary([excusedLog],practiceModel).state,"Excused");
 assert.match(practiceSql,/create table if not exists public\.spiritual_practice_logs/i);
