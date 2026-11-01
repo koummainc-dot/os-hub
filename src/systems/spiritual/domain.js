@@ -98,3 +98,47 @@ export function decodeSpiritualTypedRecord(collection, record){
   return{kind:"typed",data:parsed.data};
  }catch{return{kind:"legacy",data:null};}
 }
+
+
+// P2 practice logs. Missing rows are intentionally "unrecorded", never Missed.
+const PRACTICE_LOG_STATUSES=new Set(["Done","Partial","Excused"]);
+const PRACTICE_LOG_SOURCES=new Set(["Manual","Quick","Import","Proposal"]);
+export function createSpiritualPracticeLog(input={}){
+ const practiceId=String(input.practiceId||"").trim(),date=String(input.date||"").trim(),slotKey=String(input.slotKey||"_").trim();
+ return{id:input.id||[practiceId,date,slotKey].join(":"),practiceId,date,slotKey,status:PRACTICE_LOG_STATUSES.has(input.status)?input.status:"Done",actual:input.actual===""||input.actual==null?null:Number(input.actual),durationMin:input.durationMin===""||input.durationMin==null?null:Number(input.durationMin),note:String(input.note||""),privateReflection:String(input.privateReflection||""),source:PRACTICE_LOG_SOURCES.has(input.source)?input.source:"Manual",clientOpId:input.clientOpId||globalThis.crypto?.randomUUID?.()||`op-${Date.now()}`,loggedAt:input.loggedAt||new Date().toISOString()};
+}
+export function validateSpiritualPracticeLog(log,practice){
+ if(!log||typeof log!=="object")return{ok:false,reason:"invalid-record"};
+ if(!practice||!practice.id||practice.logMode!=="Own")return{ok:false,reason:"practice-not-own"};
+ if(log.practiceId!==practice.id)return{ok:false,reason:"practice-mismatch"};
+ if(!isDate(log.date))return{ok:false,reason:"invalid-date"};
+ const slots=Array.isArray(practice.slots)?practice.slots:[];
+ if(!slots.some(s=>s.key===log.slotKey)||(!slots.length&&log.slotKey!=="_"))return{ok:false,reason:"invalid-slot"};
+ if(!PRACTICE_LOG_STATUSES.has(log.status))return{ok:false,reason:"invalid-status"};
+ if(log.actual!=null&&(!Number.isFinite(Number(log.actual))||Number(log.actual)<0))return{ok:false,reason:"invalid-actual"};
+ if(log.durationMin!=null&&(!Number.isInteger(Number(log.durationMin))||Number(log.durationMin)<0||Number(log.durationMin)>1440))return{ok:false,reason:"invalid-duration"};
+ if(typeof log.note!=="string"||log.note.length>2000||typeof log.privateReflection!=="string"||log.privateReflection.length>4000)return{ok:false,reason:"content-too-long"};
+ if(!PRACTICE_LOG_SOURCES.has(log.source))return{ok:false,reason:"invalid-source"};
+ if(typeof log.clientOpId!=="string"||!log.clientOpId.trim()||log.clientOpId.length>100)return{ok:false,reason:"invalid-client-op"};
+ return{ok:true};
+}
+export function getPracticeCompletionLevel(log,practice){
+ if(!log||log.status==="Excused")return log?.status==="Excused"?"Excused":"None";
+ if(log.status==="Partial")return"Partial";
+ if(log.actual!=null&&practice?.target!=null){
+  const actual=Number(log.actual),target=Number(practice.target),minimum=Number(practice.minimum??practice.target);
+  if(actual>=target)return"Full";
+  if(actual>=minimum)return"Minimum";
+  return actual>0?"Partial":"None";
+ }
+ return log.status==="Done"?"Full":"Partial";
+}
+export function getPracticeDaySummary(logs,practice){
+ const own=(logs||[]).filter(x=>x.practiceId===practice?.id);
+ const levels=own.map(x=>getPracticeCompletionLevel(x,practice));
+ const maintained=levels.filter(x=>x==="Full"||x==="Minimum").length;
+ const partial=levels.filter(x=>x==="Partial").length;
+ const required=practice?.slotsRequired==="All"?(practice?.slots?.length||1):Number(String(practice?.slotsRequired||"AtLeast(1)").match(/[1-8]/)?.[0]||1);
+ const completed=maintained;
+ return{logged:own.length,maintainedSlots:maintained,partialSlots:partial,requiredSlots:required,state:maintained>=required?"Maintained":maintained+partial>0?"Partial":"Unrecorded"};
+}
