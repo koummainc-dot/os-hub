@@ -1,7 +1,7 @@
 export const HOBBY_STATUSES = ["considering", "active", "paused", "archived"];
 export const HOBBY_CATEGORIES = [
 {id:"creative",label:"فنون وإبداع",icon:"🎨"},{id:"music",label:"موسيقى",icon:"🎵"},{id:"sports",label:"رياضة وحركة",icon:"🏃"},{id:"outdoors",label:"أنشطة خارجية",icon:"🌿"},{id:"crafts",label:"حرف وصناعة",icon:"🛠️"},{id:"technology",label:"تقنية",icon:"💻"},{id:"games",label:"ألعاب",icon:"🎮"},{id:"collecting",label:"جمع المقتنيات",icon:"📚"},{id:"culture",label:"ثقافة ومعرفة",icon:"🌍"},{id:"other",label:"أخرى",icon:"✨"}];
-export const HOBBY_SECTIONS = [{id:"dashboard",label:"الرئيسية",icon:"⌂"},{id:"hobbies",label:"هواياتي",icon:"🎯"},{id:"explore",label:"اهتمامات مستقبلية",icon:"🔎"},{id:"sessions",label:"جلسات الممارسة",icon:"⏱️"},{id:"skills",label:"المهارات والتقدم",icon:"📈"},{id:"milestones",label:"الإنجازات",icon:"🏆"},{id:"settings",label:"الإعدادات",icon:"⚙️"}];
+export const HOBBY_SECTIONS = [{id:"dashboard",label:"الرئيسية",icon:"⌂"},{id:"hobbies",label:"هواياتي",icon:"🎯"},{id:"explore",label:"اهتمامات مستقبلية",icon:"🔎"},{id:"sessions",label:"جلسات الممارسة",icon:"⏱️"},{id:"skills",label:"المهارات والتقدم",icon:"📈"},{id:"milestones",label:"الإنجازات",icon:"🏆"},{id:"goals",label:"الأهداف",icon:"🎯"},{id:"plans",label:"خطط الممارسة",icon:"🗓️"},{id:"settings",label:"الإعدادات",icon:"⚙️"}];
 export const emptyHobbiesData = () => ({schemaVersion:2,hobbies:[],sessions:[],skills:[],skillLogs:[],milestones:[],settings:{timezone:"Africa/Cairo",weekStartDay:6}});
 export const makeHobbyId = (prefix="hobby") => globalThis.crypto?.randomUUID?.() || prefix+"-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8);
 export function validateHobby(input) {
@@ -76,11 +76,11 @@ export function validateHobbiesProgressImport(value) {
   const base=validateHobbiesImport(value);
   if(!base.ok)return base;
   const source=value?.data&&typeof value.data==="object"?value.data:value;
-  const collections=["skills","skillLogs","milestones"];
+  const collections=["skills","skillLogs","milestones","goals","plans"];
   for(const key of collections) if(source[key]!==undefined&&!Array.isArray(source[key])) return {ok:false,error:"مجموعة "+key+" يجب أن تكون قائمة."};
-  const skills=source.skills||[],logs=source.skillLogs||[],milestones=source.milestones||[];
+  const skills=source.skills||[],logs=source.skillLogs||[],milestones=source.milestones||[],goals=source.goals||[],plans=source.plans||[];
   const unique=(rows,key)=>{const ids=new Set();for(const row of rows){if(!row||!String(row.id||"").trim()||ids.has(row.id))return false;ids.add(row.id);}return true;};
-  if(!unique(skills,"id")||!unique(logs,"id")||!unique(milestones,"id"))return {ok:false,error:"يوجد معرّف مفقود أو مكرر في بيانات التقدم."};
+  if(!unique(skills,"id")||!unique(logs,"id")||!unique(milestones,"id")||!unique(goals,"id")||!unique(plans,"id"))return {ok:false,error:"يوجد معرّف مفقود أو مكرر في بيانات التقدم."};
   const hobbyIds=new Set(base.value.hobbies.map(h=>h.id)),skillIds=new Set(skills.map(s=>s.id));
   if(skills.some(s=>!hobbyIds.has(s.hobbyId))||logs.some(l=>!skillIds.has(l.skillId))||milestones.some(m=>!hobbyIds.has(m.hobbyId)||(m.skillId&&!skillIds.has(m.skillId))))return {ok:false,error:"توجد علاقة غير صحيحة في بيانات المهارات أو الإنجازات."};
   const skillById=new Map(skills.map(s=>[s.id,s]));
