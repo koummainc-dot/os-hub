@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {emptyTravelData,normalizeTravelData,validateTrip,tripSpend,packingProgress,getActiveTrip,upcomingTrips,validateRelatedRecord,validateTravelImport,buildTravelExport,validateFinanceLink,tripBudgetBreakdown} from "../src/systems/travel/domain.js";
+import {emptyTravelData,normalizeTravelData,validateTrip,tripSpend,packingProgress,getActiveTrip,upcomingTrips,validateRelatedRecord,validateTravelImport,buildTravelExport,validateFinanceLink,tripBudgetBreakdown,financeTransactionState,financeTransactionStateLabel} from "../src/systems/travel/domain.js";
 const base=emptyTravelData();
 assert.equal(base.trips.length,0);
 assert.deepEqual(validateTrip({name:"",destination:""}),["اسم الرحلة مطلوب","الوجهة مطلوبة"]);
@@ -42,21 +42,22 @@ const budgetData=normalizeTravelData({
  trips:[{id:"budget-trip",name:"Budget Trip",destination:"Cairo",budget:1000,currency:"EGP"}],
  bookings:[{id:"stay",tripId:"budget-trip",title:"Hotel",cost:300,currency:"EGP",status:"confirmed"},{id:"cancelled-stay",tripId:"budget-trip",cost:200,currency:"EGP",status:"cancelled"}],
  itinerary:[{id:"museum",tripId:"budget-trip",title:"Museum",estimatedCost:100,status:"planned"},{id:"tour",tripId:"budget-trip",title:"Tour",estimatedCost:50,status:"planned"}],
- financeLinks:[{id:"link-hotel",tripId:"budget-trip",sourceType:"booking",sourceId:"stay",financeTransactionId:"tx-hotel",kind:"expense"},{id:"link-refund",tripId:"budget-trip",sourceType:"trip",sourceId:"",financeTransactionId:"tx-refund",kind:"refund"}]
+ financeLinks:[{id:"link-hotel",tripId:"budget-trip",sourceType:"booking",sourceId:"stay",financeTransactionId:"tx-hotel",kind:"expense"},{id:"link-hotel-part2",tripId:"budget-trip",sourceType:"booking",sourceId:"stay",financeTransactionId:"tx-hotel-part2",kind:"expense"},{id:"link-refund",tripId:"budget-trip",sourceType:"booking",sourceId:"stay",financeTransactionId:"tx-refund",kind:"refund"}]
 });
 const financeRows=[
- {id:"tx-hotel",name:"Hotel paid",base_amount:100,currency:"EGP",status:"Posted",pnl_effect:"Expense"},
- {id:"tx-refund",name:"Refund",base_amount:20,currency:"EGP",status:"Posted",pnl_effect:"Income"}
+ {id:"tx-hotel",name:"Hotel deposit",base_amount:100,currency:"EGP",status:"Posted",pnl_effect:"Expense"},
+ {id:"tx-hotel-part2",name:"Hotel second payment",base_amount:50,currency:"EGP",status:"Posted",pnl_effect:"Expense"},
+ {id:"tx-refund",name:"Hotel refund",base_amount:20,currency:"EGP",status:"Posted",pnl_effect:"Income",refund_of_id:"tx-hotel"}
 ];
 const breakdown=tripBudgetBreakdown("budget-trip",budgetData,financeRows,"EGP");
 assert.equal(breakdown.bookingCommitments,300);
-assert.equal(breakdown.outstandingBookingCommitment,200);
+assert.equal(breakdown.outstandingBookingCommitment,170);
 assert.equal(breakdown.plannedActivities,150);
-assert.equal(breakdown.actualExpensesBase,100);
+assert.equal(breakdown.actualExpensesBase,150);
 assert.equal(breakdown.refundsBase,20);
-assert.equal(breakdown.netActualBase,80);
-assert.equal(breakdown.projectedTotal,430);
-assert.equal(breakdown.remainingBudget,570);
+assert.equal(breakdown.netActualBase,130);
+assert.equal(breakdown.projectedTotal,450);
+assert.equal(breakdown.remainingBudget,550);
 const activityLinkedData=normalizeTravelData({
  trips:[{id:"activity-trip",name:"Activity Trip",destination:"Cairo",budget:500,currency:"EGP"}],
  itinerary:[{id:"activity-1",tripId:"activity-trip",title:"Museum",estimatedCost:120,status:"planned"}],
@@ -74,3 +75,40 @@ assert.equal(foreignCurrency.actualInTripCurrency,null);
 assert.equal(foreignCurrency.plannedActivities,150);
 assert.equal(validateTravelImport({...importable,financeLinks:[{id:"fl1",tripId:"missing",financeTransactionId:"external-tx",kind:"expense"}]}).valid,false);
 console.log("Travel OS finance-linked budget tests passed");
+
+const mismatchedRefundData=normalizeTravelData({
+ trips:[{id:"refund-trip",name:"Refund Trip",destination:"Cairo",budget:1000,currency:"EGP"}],
+ bookings:[{id:"booking-a",tripId:"refund-trip",title:"Hotel A",cost:300,currency:"EGP",status:"confirmed"},{id:"booking-b",tripId:"refund-trip",title:"Hotel B",cost:200,currency:"EGP",status:"confirmed"}],
+ financeLinks:[{id:"original-link",tripId:"refund-trip",sourceType:"booking",sourceId:"booking-a",financeTransactionId:"original-expense",kind:"expense"}]
+});
+const refundTransactions=[
+ {id:"original-expense",base_amount:100,status:"Posted",pnl_effect:"Expense"},
+ {id:"wrong-booking-refund",base_amount:25,status:"Posted",pnl_effect:"Income",refund_of_id:"original-expense"}
+];
+assert.ok(validateFinanceLink({tripId:"refund-trip",sourceType:"booking",sourceId:"booking-b",financeTransactionId:"wrong-booking-refund",kind:"refund"},mismatchedRefundData,refundTransactions).some(e=>e.includes("الحجز أو النشاط نفسه")));
+assert.deepEqual(validateFinanceLink({tripId:"refund-trip",sourceType:"booking",sourceId:"booking-a",financeTransactionId:"wrong-booking-refund",kind:"refund"},mismatchedRefundData,refundTransactions),[]);
+const invalidRefundBreakdown=tripBudgetBreakdown("refund-trip",normalizeTravelData({...mismatchedRefundData,financeLinks:[...mismatchedRefundData.financeLinks,{id:"wrong-refund-link",tripId:"refund-trip",sourceType:"booking",sourceId:"booking-b",financeTransactionId:"wrong-booking-refund",kind:"refund"}]}),refundTransactions,"EGP");
+assert.equal(invalidRefundBreakdown.refundsBase,0);
+assert.equal(invalidRefundBreakdown.invalidRefundLinks,1);
+const cancelledTx={id:"cancelled-tx",base_amount:70,status:"Cancelled",pnl_effect:"Expense"};
+const reversalOriginal={id:"reversed-tx",base_amount:80,status:"Posted",pnl_effect:"Expense"};
+const reversalTx={id:"reversal-entry",base_amount:-80,status:"Posted",pnl_effect:"Income",reversal_of_id:"reversed-tx"};
+const stateRows=[cancelledTx,reversalOriginal,reversalTx];
+assert.equal(financeTransactionState(cancelledTx,stateRows),"cancelled");
+assert.equal(financeTransactionState(reversalOriginal,stateRows),"reversed");
+assert.equal(financeTransactionState(reversalTx,stateRows),"reversal");
+assert.match(financeTransactionStateLabel(reversalOriginal,stateRows),/معكوسة/);
+const excludedData=normalizeTravelData({
+ trips:[{id:"excluded-trip",name:"Excluded",destination:"Cairo",budget:1000,currency:"EGP"}],
+ financeLinks:[
+  {id:"cancelled-link",tripId:"excluded-trip",sourceType:"trip",sourceId:"",financeTransactionId:"cancelled-tx",kind:"expense"},
+  {id:"reversed-link",tripId:"excluded-trip",sourceType:"trip",sourceId:"",financeTransactionId:"reversed-tx",kind:"expense"},
+  {id:"reversal-link",tripId:"excluded-trip",sourceType:"trip",sourceId:"",financeTransactionId:"reversal-entry",kind:"expense"}
+ ]
+});
+const excludedBreakdown=tripBudgetBreakdown("excluded-trip",excludedData,stateRows,"EGP");
+assert.equal(excludedBreakdown.actualExpensesBase,0);
+assert.equal(excludedBreakdown.excludedLinks,3);
+assert.ok(validateFinanceLink({tripId:"excluded-trip",sourceType:"trip",sourceId:"",financeTransactionId:"reversed-tx",kind:"expense"},excludedData,stateRows).some(e=>e.includes("معكوسة")));
+console.log("Travel OS partial payment, refund matching, and reversal tests passed");
+
