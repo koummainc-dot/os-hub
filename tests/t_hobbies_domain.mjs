@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {validateHobbySkill,validateHobbySkillLog,validateHobbyMilestone,validateHobbiesProgressImport,validateHobbyGoal,validateHobbyPlan,hobbyGoalProgress,hobbyPlanProgress,validateHobbyResource,validateHobbyEquipmentLink,validateHobbiesProgressImport} from "../src/systems/hobbies/domain.js";
+import {validateHobbySkill,validateHobbySkillLog,validateHobbyMilestone,validateHobbiesProgressImport,validateHobbyGoal,validateHobbyPlan,hobbyGoalProgress,hobbyPlanProgress,validateHobbyResource,validateHobbyEquipmentLink,validateHobbyJournalEntry} from "../src/systems/hobbies/domain.js";
 import {HOBBY_STATUSES,HOBBY_CATEGORIES,validateHobby,validateHobbySession,hobbyMetrics,hobbiesSummary,validateHobbiesImport} from "../src/systems/hobbies/domain.js";
 assert.deepEqual(HOBBY_STATUSES,["considering","active","paused","archived"]);
 const hobby={id:"h1",name:"التصوير",categoryId:"creative",status:"active",enjoymentRating:5};
@@ -78,3 +78,20 @@ assert.equal(phase4Import.ok,true);assert.equal(phase4Import.value.schemaVersion
 assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],resources:[{...resource,hobbyId:"missing"}]}).ok,false);
 assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],equipmentLinks:[{...equipment,ownerSystem:"finance"}]}).ok,false);
 console.log("Hobbies OS Phase 4 resources and equipment tests passed.");
+
+const journalSession={id:"session-j1",hobbyId:"h1",localDate:"2026-11-01",sessionType:"practice"};
+const journalSkill={id:"skill-j1",hobbyId:"h1",name:"التكوين"};
+const journalMilestone={id:"mile-j1",hobbyId:"h1",title:"أول معرض"};
+const journalInput={id:"journal-j1",hobbyId:"h1",entryType:"journal",title:"تجربة جميلة",body:"تعلمت اليوم شيئًا جديدًا.",localDate:"2026-11-01",mood:"proud",sessionId:"session-j1",skillId:"skill-j1",milestoneId:"mile-j1",tags:["تصوير","تعلم"],attachments:["https://example.com/photo.jpg"]};
+assert.equal(validateHobbyJournalEntry(journalInput,[hobby],[journalSession],[journalSkill],[journalMilestone]).ok,true);
+assert.equal(validateHobbyJournalEntry({...journalInput,body:" "},[hobby],[journalSession],[journalSkill],[journalMilestone]).ok,false);
+assert.equal(validateHobbyJournalEntry({...journalInput,localDate:"2026-02-31"},[hobby],[journalSession],[journalSkill],[journalMilestone]).ok,false);
+assert.equal(validateHobbyJournalEntry({...journalInput,sessionId:"foreign"},[hobby],[journalSession],[journalSkill],[journalMilestone]).ok,false);
+assert.equal(validateHobbyJournalEntry({...journalInput,skillId:"foreign"},[hobby],[journalSession],[journalSkill],[journalMilestone]).ok,false);
+assert.equal(validateHobbyJournalEntry({...journalInput,milestoneId:"foreign"},[hobby],[journalSession],[journalSkill],[journalMilestone]).ok,false);
+assert.equal(validateHobbyJournalEntry({...journalInput,attachments:["javascript:alert(1)"]},[hobby],[journalSession],[journalSkill],[journalMilestone]).ok,false);
+assert.equal(validateHobbyJournalEntry({...journalInput,attachments:Array(9).fill("https://example.com/a")},[hobby],[journalSession],[journalSkill],[journalMilestone]).ok,false);
+const phase5Import=validateHobbiesProgressImport({hobbies:[hobby],sessions:[journalSession],skills:[journalSkill],skillLogs:[],milestones:[journalMilestone],goals:[],plans:[],resources:[],equipmentLinks:[],journalEntries:[journalInput]});
+assert.equal(phase5Import.ok,true);assert.equal(phase5Import.value.schemaVersion,5);
+assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],journalEntries:[{...journalInput,sessionId:"session-j1"}]}).ok,false);
+console.log("Hobbies OS Phase 5 journal and memories tests passed.");
