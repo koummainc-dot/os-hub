@@ -191,3 +191,11 @@ The current interface is a foundation shell and generic record form, not the com
 
 - Follow-up hardening: private-record archival now requires an authenticated session and adds an explicit `user_id = auth.uid()` client filter in addition to RLS. The new integrity-contract test also guards this source-level ownership filter.
 - CI for the migration/test/package changes was still running at the last check; do not mark this slice verified until all latest-head jobs complete successfully. No database was modified.
+
+
+## Continuation — collection-safe FK and privacy leak contracts (2026-11-01)
+- Confirmed CI, Verify app, Finance Family Center Checks, and Knowledge SQL smoke all passed for the prior head `7ae8d9d130df5be0973d3dcd3a5ff0eaa98888d6`, including the practice-log integrity migration contract and authenticated owner-filter check.
+- Tightened the un-applied integrity migration so the foreign key includes a `practice_collection = 'practices'` discriminator and references `(user_id, workspace_id, id, collection)`. This prevents a normalized practice log from being linked to a same-owner row in the wrong collection. The migration still preflights orphan/cross-workspace rows and fails closed.
+- Expanded the source-contract test to guard against this class of cross-collection reference and against obvious privacy leaks from this UI module: writing Spiritual content to browser localStorage, logging record contents, or placing private record fields in integration-event payloads.
+- These latest edits are awaiting CI at the latest head; until those runs finish, they are **not verified**. Static checks are not a substitute for live multi-user RLS/E2E tests.
+- No database migration was applied. Encryption/key lifecycle, authenticated two-user isolation tests, migration execution/rollback in an isolated database, and export/import/wipe lifecycle remain open blockers.
