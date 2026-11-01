@@ -113,6 +113,14 @@ assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Dates",
 const hijriParts=date=>new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn",{day:"numeric",month:"numeric",timeZone:"UTC"}).formatToParts(new Date(date+"T00:00:00.000Z"));
 const hijriDayOnDate=Number(hijriParts("2026-11-01").find(x=>x.type==="day")?.value);
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"MonthDay",calendar:"hijri",days:[hijriDayOnDate]}},"2026-11-01"),true,"Hijri MonthDay uses the documented Umm al-Qura calendar");
+const tabularDay=Number(new Intl.DateTimeFormat("en-u-ca-islamic-nu-latn",{day:"numeric",month:"numeric",timeZone:"UTC"}).formatToParts(new Date("2026-11-01T00:00:00.000Z")).find(x=>x.type==="day")?.value);
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"MonthDay",calendar:"hijri",days:[tabularDay]}},"2026-11-01",{hijriAlgorithm:"tabular"}),true,"configured tabular Hijri algorithm is honored");
+const hijriMonthEnd=new Date("2026-01-01T00:00:00.000Z");
+let monthEndDate=null;
+for(let i=0;i<430;i++){const d=new Date(hijriMonthEnd.getTime()+i*86400000),next=new Date(d.getTime()+86400000);const p=hijriParts(d.toISOString().slice(0,10)),n=hijriParts(next.toISOString().slice(0,10));if(Number(p.find(x=>x.type==="day")?.value)===29&&p.find(x=>x.type==="month")?.value!==n.find(x=>x.type==="month")?.value){monthEndDate=d.toISOString().slice(0,10);break;}}
+assert.ok(monthEndDate,"test fixture finds a 29-day Hijri month");
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"MonthDay",calendar:"hijri",days:[30] }},monthEndDate),true,"Hijri day 30 maps to the last day of a 29-day month");
+
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"MonthDay",calendar:"hijri",days:[hijriDayOnDate===30?29:30]}},"2026-11-01"),false,"Hijri recurrence does not match a different lunar day");
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"MonthDay",calendar:"hijri",days:[hijriDayOnDate],day_offset:1}},"2026-11-01"),isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"MonthDay",calendar:"hijri",days:[Number(hijriParts("2026-10-31").find(x=>x.type==="day")?.value)]}},"2026-11-01"),"Hijri day_offset shifts the comparison date");
 
