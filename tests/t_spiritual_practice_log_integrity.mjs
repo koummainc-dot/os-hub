@@ -10,4 +10,7 @@ assert.match(sql, /create unique index if not exists spiritual_private_records_u
 assert.match(sql, /foreign key \(user_id, workspace_id, practice_id\)[\s\S]*references public\.spiritual_private_records\(user_id, workspace_id, id\)[\s\S]*on delete cascade[\s\S]*not valid/i);
 assert.match(sql, /validate constraint spiritual_practice_logs_user_workspace_practice_fk/i);
 assert.match(sql, /if not exists \([\s\S]*pg_constraint[\s\S]*spiritual_practice_logs_user_workspace_practice_fk/i);
+
+const ui = await readFile(new URL("../src/systems/spiritual/index.jsx", import.meta.url), "utf8");
+assert.match(ui, /async function archiveRow\(ws,collection,id\)[\s\S]*?supabase\.auth\.getUser\(\)[\s\S]*?if\(privateRow\)request=request\.eq\("user_id",user\.id\)/);
 console.log("Spiritual normalized practice-log integrity migration contract passed.");
