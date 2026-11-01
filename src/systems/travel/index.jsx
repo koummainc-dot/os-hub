@@ -47,7 +47,10 @@ export default function TravelExperiencesOS({api,access,ws,isDemo=false,page="ho
    ]);
    if(!alive)return;
    if(txRes.error){setFinanceTransactions([]);setFinanceLoadError("تعذر قراءة حركات Finance لهذه المساحة؛ لم تُحسب مصروفات فعلية.");return;}
-   setFinanceTransactions(txRes.data||[]);
+   let rows=txRes.data||[];
+   const linkedIds=[...new Set((data.financeLinks||[]).map(link=>link.financeTransactionId).filter(Boolean))];
+   if(linkedIds.length){const linkedRes=await supabase.from("finance_transactions").select("id,name,base_amount,currency,local_date,status,pnl_effect,type").eq("workspace_id",ws.id).in("id",linkedIds);if(!alive)return;if(!linkedRes.error){const byId=new Map([...rows,...(linkedRes.data||[])].map(tx=>[tx.id,tx]));rows=[...byId.values()];}}
+   setFinanceTransactions(rows);
    setFinanceBaseCurrency(settingsRes.data?.base_currency||"EGP");
   }
   loadFinanceTransactions();
