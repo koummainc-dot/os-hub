@@ -10,7 +10,8 @@
 - Changed the domain privacy classification so all ten collections are private by default.
 - Updated the foundation migration to allow all ten collections in the owner-scoped private table and mark every collection sensitive with external summaries disabled.
 - Expanded contract tests for event API compatibility and privacy defaults.
-- Added initial typed P1 domain constructors/validators for values, principles, practices, and flexible frequency configurations, plus unit-level contract assertions. This is **domain-layer progress only**; typed forms, repository persistence, migrations for typed fields, and full acceptance coverage remain open.
+- Added initial typed P1 domain constructors/validators for values, principles, practices, and flexible frequency configurations.
+- Added a versioned compatibility adapter (`spiritual.typed.v1`) that serializes typed values/principles/practices into the current generic owner-scoped row envelope and safely decodes them; invalid/unknown payloads fall back to legacy display rather than being treated as typed records. This is **adapter/domain progress only**; specialized forms are not yet connected, and typed repository persistence, migrations for typed fields, and full acceptance coverage remain open.
 - A prior head (`84afe5ca09a3276469148535418b97fefa512eb6`) had successful Verify app and CI runs (tests + production build), as well as Knowledge SQL smoke tests and Finance Family Center Checks. Subsequent validator/test commits were added after those runs, so the current PR head still requires fresh CI. No authenticated browser test or production migration has been completed.
 - Latest P1 hardening adds explicit upper bounds and type checks for value tags/description/meaning source and principle text fields, with regression assertions. The commits are saved, but not yet CI-verified.
 
@@ -42,7 +43,8 @@ The current interface is a foundation shell and generic record form, not the com
 
 ### P1 — Values, principles, practices and versions
 - [Partial] Typed domain constructors/validators now cover core values, principles, practices, slot constraints, Habit-linked mode consistency, and frequency configuration shapes. Recent hardening validates tag types/lengths, bounded free text, unique/non-empty explicit dates, unique month-day selections, weekly limits, intervals up to 365 days, and required slot count not exceeding configured slots. These assertions are committed but await fresh CI.
-- [Remaining] Real entity-specific persistence/schema and relations from §5.2–5.4; user-controlled ordering; no mandatory moral score.
+- [Partial] Versioned adapter maps typed values/principles/practices into the current row envelope without assuming new database columns; decoder preserves legacy fallback.
+- [Remaining] Connect specialized forms to the adapter; real entity-specific persistence/schema and relations from §5.2–5.4; user-controlled ordering; no mandatory moral score.
 - Principle drift signals are user-defined and private; never label them as moral violations.
 - Practice type/unit, targets/minimum, flexible frequency, slots, preferred time, Habit link mode, versions, pause/archive/restore lifecycle.
 - Duplicate-name, ownership, date, range and state-transition validations.
