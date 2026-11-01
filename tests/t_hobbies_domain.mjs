@@ -21,3 +21,23 @@ assert.equal(validateHobbiesImport({hobbies:[hobby],sessions:[{id:"s",hobbyId:"m
 assert.equal(validateHobbiesImport({hobbies:[{name:"no id"}],sessions:[]}).ok,false);
 assert.equal(HOBBY_CATEGORIES.length>=8,true);
 console.log("Hobbies OS domain tests passed.");
+
+
+import {validateHobbySkill,validateHobbySkillLog,validateHobbyMilestone,validateHobbiesProgressImport} from "../src/systems/hobbies/domain.js";
+const skill={id:"sk1",hobbyId:"h1",name:"التحكم في الكاميرا",measurementType:"level",currentValue:2,targetValue:5};
+assert.equal(validateHobbySkill(skill,hobby).ok,true);
+assert.equal(validateHobbySkill({...skill,name:""},hobby).ok,false);
+assert.equal(validateHobbySkill({...skill,currentValue:2.5},hobby).ok,false);
+assert.equal(validateHobbySkill({...skill,targetValue:1},hobby).ok,false);
+assert.equal(validateHobbySkill({...skill,measurementType:"bad"},hobby).ok,false);
+assert.equal(validateHobbySkill(skill,{...hobby,status:"archived"}).ok,false);
+assert.equal(validateHobbySkillLog({localDate:"2026-11-01",newValue:3,previousValue:2},skill).ok,true);
+assert.equal(validateHobbySkillLog({localDate:"2026-02-31",newValue:3},skill).ok,false);
+assert.equal(validateHobbySkillLog({localDate:"2026-11-01",newValue:2.5},skill).ok,false);
+assert.equal(validateHobbyMilestone({title:"أول معرض",hobbyId:"h1",skillId:"sk1",achievedAt:"2026-11-01",milestoneType:"achievement"},[hobby],[skill]).ok,true);
+assert.equal(validateHobbyMilestone({title:"إنجاز",hobbyId:"h1",skillId:"missing",achievedAt:"2026-11-01"},[hobby],[skill]).ok,false);
+assert.equal(validateHobbyMilestone({title:"إنجاز",hobbyId:"h1",achievedAt:"2026-02-31"},[hobby]).ok,false);
+const progressImport=validateHobbiesProgressImport({hobbies:[hobby],sessions:[],skills:[skill],skillLogs:[{id:"log1",skillId:"sk1"}],milestones:[{id:"m1",hobbyId:"h1",skillId:"sk1"}]});
+assert.equal(progressImport.ok,true);
+assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],skills:[{...skill,hobbyId:"missing"}]}).ok,false);
+console.log("Hobbies OS Phase 2 domain tests passed.");
