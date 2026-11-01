@@ -89,7 +89,8 @@ export function validateExerciseSet(set, exercise) {
   if (["Duration", "Time-Distance"].includes(mode) && (!Number.isFinite(Number(set.durationSeconds)) || Number(set.durationSeconds) <= 0)) return { ok: false, error: "المدة يجب أن تكون أكبر من صفر." };
   if (["Distance", "Time-Distance"].includes(mode) && (!Number.isFinite(Number(set.distanceMeters)) || Number(set.distanceMeters) <= 0)) return { ok: false, error: "المسافة يجب أن تكون أكبر من صفر." };
   if (set.rpe !== "" && set.rpe != null && (!Number.isFinite(Number(set.rpe)) || Number(set.rpe) < 1 || Number(set.rpe) > 10)) return { ok: false, error: "RPE يجب أن يكون بين 1 و10." };
-  out.weightKg = set.weightKg === "" || set.weightKg == null ? null : Number(set.weightKg);
+  out.weightKg = mode === "Weight-Reps" && set.weightKg !== "" && set.weightKg != null ? Number(set.weightKg) : null;
+  if (!["Weight-Reps", "Reps"].includes(mode)) out.reps = null;
   out.durationSeconds = set.durationSeconds === "" || set.durationSeconds == null ? null : Number(set.durationSeconds);
   out.distanceMeters = set.distanceMeters === "" || set.distanceMeters == null ? null : Number(set.distanceMeters);
   out.rpe = set.rpe === "" || set.rpe == null ? null : Number(set.rpe);
