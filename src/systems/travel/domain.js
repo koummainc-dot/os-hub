@@ -16,6 +16,7 @@ const TRAVEL_COLLECTIONS=["trips","stops","itinerary","bookings","packing","pack
 const TRAVEL_REFERENCE_RULES=[
   ["stops","tripId","trips","محطات الرحلة"],
   ["itinerary","tripId","trips","البرنامج"],
+  ["itinerary","stopId","stops","محطة البرنامج"],
   ["bookings","tripId","trips","الحجوزات"],
   ["packing","tripId","trips","التجهيز"],
   ["documents","tripId","trips","المستندات"],
@@ -95,6 +96,7 @@ export function findItineraryConflicts(items=[]){
   for(let i=0;i<events.length;i++)for(let j=i+1;j<events.length;j++){
     const a=events[i],b=events[j];
     if(a.tripId!==b.tripId)continue;
+    if(a.stopId&&b.stopId&&a.stopId!==b.stopId)continue;
     const diff=(Date.parse(b.date+"T00:00:00Z")-Date.parse(a.date+"T00:00:00Z"))/86400000;
     if(diff>1)break;
     const bStart=b.startMinute+diff*1440,bEnd=b.endMinute+diff*1440;
@@ -216,4 +218,4 @@ export function travelDeletionBlocker(kind,row,data){
   if(kind==="place"&&(data?.experiences||[]).some(item=>item.placeId===id))return "لا يمكن حذف مكان مرتبط بتجارب فعلية؛ عدّل روابط التجارب أولًا.";
   return "";
 }
-export function validateRelatedRecord(kind,row,data){const errors=[];if(["stops","itinerary","bookings","packing","documents","memories","reviews","experiences"].includes(kind)&&row?.tripId&&!(data.trips||[]).some(t=>t.id===row.tripId))errors.push("الرحلة المرتبطة غير موجودة");if(kind==="itinerary"&&!String(row?.title||"").trim())errors.push("عنوان النشاط مطلوب");if(kind==="stops")errors.push(...validateStop(row));if(kind==="experiences"&&!String(row?.title||"").trim())errors.push("اسم التجربة مطلوب");if(kind==="experiences"&&row?.placeId&&!(data.places||[]).some(x=>x.id===row.placeId))errors.push("المكان المرتبط بالتجربة غير موجود.");if(kind==="bookings"&&!String(row?.title||"").trim())errors.push("اسم الحجز مطلوب");if(kind==="packing"&&!String(row?.item||"").trim())errors.push("اسم العنصر مطلوب");if(kind==="destinations"&&!String(row?.name||"").trim())errors.push("اسم الوجهة مطلوب");if(kind==="places"&&!String(row?.name||"").trim())errors.push("اسم المكان أو التجربة مطلوب");return errors;}
+export function validateRelatedRecord(kind,row,data){const errors=[];if(["stops","itinerary","bookings","packing","documents","memories","reviews","experiences"].includes(kind)&&row?.tripId&&!(data.trips||[]).some(t=>t.id===row.tripId))errors.push("الرحلة المرتبطة غير موجودة");if(kind==="itinerary"&&!String(row?.title||"").trim())errors.push("عنوان النشاط مطلوب");if(kind==="itinerary"&&row?.stopId&&!(data.stops||[]).some(stop=>stop.id===row.stopId&&stop.tripId===row.tripId))errors.push("محطة البرنامج يجب أن تكون تابعة للرحلة المختارة.");if(kind==="stops")errors.push(...validateStop(row));if(kind==="experiences"&&!String(row?.title||"").trim())errors.push("اسم التجربة مطلوب");if(kind==="experiences"&&row?.placeId&&!(data.places||[]).some(x=>x.id===row.placeId))errors.push("المكان المرتبط بالتجربة غير موجود.");if(kind==="bookings"&&!String(row?.title||"").trim())errors.push("اسم الحجز مطلوب");if(kind==="packing"&&!String(row?.item||"").trim())errors.push("اسم العنصر مطلوب");if(kind==="destinations"&&!String(row?.name||"").trim())errors.push("اسم الوجهة مطلوب");if(kind==="places"&&!String(row?.name||"").trim())errors.push("اسم المكان أو التجربة مطلوب");return errors;}
