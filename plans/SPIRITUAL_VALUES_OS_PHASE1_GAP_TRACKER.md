@@ -44,7 +44,8 @@ The current interface is a foundation shell and generic record form, not the com
 ### P1 — Values, principles, practices and versions
 - [Partial] Typed domain constructors/validators now cover core values, principles, practices, slot constraints, Habit-linked mode consistency, and frequency configuration shapes. Recent hardening validates tag types/lengths, bounded free text, unique/non-empty explicit dates, unique month-day selections, weekly limits, intervals up to 365 days, and required slot count not exceeding configured slots. These assertions are committed but await fresh CI.
 - [x] Specialized Arabic create/edit forms for values, principles and practices use typed constructors, validation and versioned adapter persistence.
-- [x] Typed list summaries render structured fields rather than raw serialized payload; legacy records retain generic fallback display.
+- [x] Typed list summaries render structured fields rather than raw serialized payload; legacy records retain generic fallback display and can still be edited through the generic form.
+- [x] Added adapter round-trip contract assertions for values, principles, practices, invalid payloads and legacy fallback; these tests await CI confirmation.
 - [Partial] Versioned adapter maps typed values/principles/practices into the current row envelope without assuming new database columns; decoder preserves legacy fallback. This is compatibility storage, not the final normalized schema.
 - [Remaining] Entity-specific persistence/schema and relations from §5.2–5.4; user-controlled ordering; full legacy-edit workflow; no mandatory moral score.
 - Principle drift signals are user-defined and private; never label them as moral violations.
