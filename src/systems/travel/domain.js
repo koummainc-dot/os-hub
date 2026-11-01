@@ -26,6 +26,7 @@ export function validateTravelImport(value){
   const errors=[],warnings=[];
   if(!value||typeof value!=="object"||Array.isArray(value))return {valid:false,errors:["ملف الاستيراد يجب أن يحتوي على كائن JSON في المستوى الرئيسي."],warnings:[],counts:{}};
   if(value.schemaVersion!=null&&(!Number.isInteger(Number(value.schemaVersion))||Number(value.schemaVersion)>1||Number(value.schemaVersion)<1))errors.push("إصدار ملف السفر غير مدعوم.");
+  if(!TRAVEL_COLLECTIONS.some(key=>Array.isArray(value[key])))errors.push("الملف لا يحتوي على أي قائمة بيانات معروفة؛ تم إيقاف الاستيراد لحماية البيانات الحالية.");
   for(const key of TRAVEL_COLLECTIONS){
     if(value[key]!=null&&!Array.isArray(value[key]))errors.push("الحقل "+key+" يجب أن يكون قائمة.");
   }
