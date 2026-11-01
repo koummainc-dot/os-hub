@@ -51,7 +51,7 @@ assert.equal(validateHobbyGoal({...goal,endDate:"2026-09-30"},[hobby],[skill]).o
 assert.equal(validateHobbyGoal({...goal,hobbyId:"missing"},[hobby],[skill]).ok,false);
 const goalProgress=hobbyGoalProgress(goal,{sessions:[{hobbyId:"h1",localDate:"2026-10-15"},{hobbyId:"h1",localDate:"2026-11-01"}]});
 assert.equal(goalProgress.current,2);assert.equal(goalProgress.percent,10);
-const plan={id:"p1",hobbyId:"h1",title:"ممارسة أسبوعية",cadence:"weekly",targetSessions:3,targetMinutes:120,startDate:"2026-11-01"};
+const plan={id:"p1",hobbyId:"h1",title:"ممارسة أسبوعية",cadence:"weekly",targetSessions:3,targetMinutes:120,startDate:"2026-11-01",status:"active"};
 assert.equal(validateHobbyPlan(plan,[hobby]).ok,true);
 assert.equal(validateHobbyPlan({...plan,targetSessions:0,targetMinutes:null},[hobby]).ok,false);
 assert.equal(validateHobbyPlan({...plan,cadence:"daily"},[hobby]).ok,false);
