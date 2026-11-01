@@ -174,5 +174,5 @@ const multiStopSchedule=[
 assert.equal(findItineraryConflicts(multiStopSchedule).length,0);
 const badStopAssignment=normalizeTravelData({...stopData,itinerary:[{id:"wrong-stop",tripId:"other-trip",stopId:"stop-1",title:"Wrong trip"}],trips:[...stopData.trips,{id:"other-trip",name:"Other",destination:"Elsewhere"}]});
 assert.ok(validateRelatedRecord("itinerary",badStopAssignment.itinerary[0],badStopAssignment).some(e=>e.includes("محطة البرنامج")));
-assert.equal(validateTravelImport({...importable,stops:[{id:"s1",tripId:"t1",name:"A",order:1}],itinerary:[{id:"i1",tripId:"missing",stopId:"s1",title:"Wrong"}]}).valid,false);
+assert.equal(validateTravelImport({...importable,trips:[{id:"t1",name:"Trip 1"},{id:"t2",name:"Trip 2"}],stops:[{id:"s1",tripId:"t1",name:"A",order:1}],itinerary:[{id:"i1",tripId:"t2",stopId:"s1",title:"Wrong"}]}).valid,false);
 console.log("Travel OS itinerary-to-stop relationship tests passed");
