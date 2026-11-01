@@ -232,6 +232,20 @@ export function plannedSetProgress(plannedExercise, sets = []) {
   };
 }
 
+export function findMissedWorkoutDays(workoutDays = [], programs = [], sessions = [], today = todayInZone()) {
+  const activeProgramIds = new Set(programs.filter(program => program && !program.deleted_at && program.status === "Active").map(program => program.id));
+  const attemptedDayIds = new Set(sessions.filter(session => session && !session.deleted_at && session.workoutDayId).map(session => session.workoutDayId));
+  return workoutDays.filter(day =>
+    day &&
+    !day.deleted_at &&
+    activeProgramIds.has(day.programId) &&
+    String(day.scheduledDate || "") < String(today) &&
+    day.status !== "Completed" &&
+    day.status !== "Skipped" &&
+    !attemptedDayIds.has(day.id)
+  ).slice().sort((a, b) => String(a.scheduledDate).localeCompare(String(b.scheduledDate)));
+}
+
 export function calculateWorkoutAdherence(plannedExercises = [], sets = []) {
   const planned = plannedExercises.filter(item => item && !item.deleted_at);
   const rows = planned.map(item => ({ item, ...plannedSetProgress(item, sets) }));
