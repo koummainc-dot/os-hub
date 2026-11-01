@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {validateHobbySkill,validateHobbySkillLog,validateHobbyMilestone,validateHobbiesProgressImport} from "../src/systems/hobbies/domain.js";
+import {validateHobbySkill,validateHobbySkillLog,validateHobbyMilestone,validateHobbiesProgressImport,validateHobbyGoal,validateHobbyPlan,hobbyGoalProgress,hobbyPlanProgress} from "../src/systems/hobbies/domain.js";
 import {HOBBY_STATUSES,HOBBY_CATEGORIES,validateHobby,validateHobbySession,hobbyMetrics,hobbiesSummary,validateHobbiesImport} from "../src/systems/hobbies/domain.js";
 assert.deepEqual(HOBBY_STATUSES,["considering","active","paused","archived"]);
 const hobby={id:"h1",name:"التصوير",categoryId:"creative",status:"active",enjoymentRating:5};
@@ -42,8 +42,6 @@ assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],skills:[
 assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],skills:[{...skill,hobbyId:"h1"}],milestones:[{id:"m2",hobbyId:"h1",skillId:"other"}]}).ok,false);
 console.log("Hobbies OS Phase 2 domain tests passed.");
 
-
-import {validateHobbyGoal,validateHobbyPlan,hobbyGoalProgress,hobbyPlanProgress,validateHobbiesProgressImport} from "../src/systems/hobbies/domain.js";
 const goal={id:"g1",hobbyId:"h1",title:"إنهاء 20 جلسة",targetType:"sessions",targetValue:20,startDate:"2026-10-01",endDate:"2026-12-31",status:"active"};
 assert.equal(validateHobbyGoal(goal,[hobby],[skill]).ok,true);
 assert.equal(validateHobbyGoal({...goal,targetValue:0},[hobby],[skill]).ok,false);
