@@ -81,6 +81,7 @@ The current interface is a foundation shell and generic record form, not the com
 - No text or content in events, notifications, analytics or global search.
 
 ### P4 — Goals, commitments and seasons
+- [Partial] Season domain contract now validates user-defined date ranges, statuses and per-practice overrides; rejects conflicting overlapping scheduled/active seasons on the same practice and exposes a date-scoped resolver. Not yet wired to persistence or UI.
 - Derived goal progress with transparent inputs, milestones and adjustment history.
 - Commitment check-ins use dignified neutral states; no “failure” status; progress is derived.
 - Custom seasons can override selected practice schedules only for the selected period, then restore base settings automatically.
