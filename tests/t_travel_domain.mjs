@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {emptyTravelData,normalizeTravelData,validateTrip,tripSpend,packingProgress,getActiveTrip,upcomingTrips,validateRelatedRecord,validateTravelImport,buildTravelExport,validateFinanceLink,tripBudgetBreakdown,financeTransactionState,financeTransactionStateLabel,validateStop,sortTripStops,findItineraryConflicts} from "../src/systems/travel/domain.js";
+import {emptyTravelData,normalizeTravelData,validateTrip,tripSpend,packingProgress,getActiveTrip,upcomingTrips,validateRelatedRecord,validateTravelImport,buildTravelExport,validateFinanceLink,tripBudgetBreakdown,financeTransactionState,financeTransactionStateLabel,validateStop,sortTripStops,findItineraryConflicts,getUpcomingTravelAlerts} from "../src/systems/travel/domain.js";
 const base=emptyTravelData();
 assert.equal(base.trips.length,0);
 assert.deepEqual(validateTrip({name:"",destination:""}),["اسم الرحلة مطلوب","الوجهة مطلوبة"]);
@@ -133,3 +133,17 @@ assert.ok(timeConflicts.some(x=>x.firstId==="a"&&x.secondId==="b"));
 assert.ok(timeConflicts.some(x=>x.firstId==="overnight"&&x.secondId==="next-night"));
 assert.equal(validateTravelImport({...importable,stops:[{id:"bad-stop",tripId:"missing"}]}).valid,false);
 console.log("Travel OS stops and itinerary conflict tests passed");
+
+
+const alertData=normalizeTravelData({
+ trips:[{id:"alert-trip",name:"Alert trip",destination:"Cairo"}],
+ bookings:[{id:"cancel-soon",tripId:"alert-trip",title:"Hotel",status:"confirmed",cancellationDeadline:"2026-11-03"},{id:"cancelled-booking",tripId:"alert-trip",title:"Cancelled",status:"cancelled",cancellationDeadline:"2026-11-02"}],
+ documents:[{id:"passport",tripId:"alert-trip",title:"Passport",expiryDate:"2026-11-20"},{id:"expired-visa",tripId:"alert-trip",title:"Visa",expiryDate:"2026-10-30"}]
+});
+const alerts=getUpcomingTravelAlerts(alertData,"2026-11-01");
+assert.equal(alerts.length,3);
+assert.equal(alerts[0].id,"document:expired-visa");
+assert.equal(alerts[0].level,"urgent");
+assert.ok(alerts.some(a=>a.id==="booking:cancel-soon"&&a.daysUntil===2));
+assert.ok(!alerts.some(a=>a.id==="booking:cancelled-booking"));
+console.log("Travel OS deadline alert tests passed");
