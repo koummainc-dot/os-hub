@@ -17,10 +17,23 @@ function OSPageHead({title,sub,right}){
 }
 function OSTodayPage({me,ws,systems,go,incoming,onInvites}){
   const [integrationEvents,setIntegrationEvents]=useState([]);
+  const [homeTaskEvents,setHomeTaskEvents]=useState([]);
   useEffect(()=>{
     const options={workspaceId:ws?.id||"default",source:"learning",types:["learning.study_session.completed","learning.lesson.completed","learning.course.completed"],limit:8};
     setIntegrationEvents(readOSEvents(options).slice().reverse());
     return subscribeOSEvents(event=>setIntegrationEvents(items=>[event,...items.filter(x=>x.id!==event.id)].slice(0,8)),options);
+  },[ws?.id]);
+  useEffect(()=>{
+    let alive=true;
+    setHomeTaskEvents([]);
+    if(!ws?.id) return ()=>{alive=false;};
+    (async()=>{
+      try {
+        const {data,error}=await supabase.rpc("home_today_outbox_load",{p_workspace_id:ws.id});
+        if(alive&&!error&&Array.isArray(data)) setHomeTaskEvents(data);
+      } catch { /* durable Today feed is optional until the Home migration is installed */ }
+    })();
+    return ()=>{alive=false;};
   },[ws?.id]);
   const hr=new Date().getHours(); const greet=hr<12?"صباح الخير":hr<18?"مساء الخير":"مساء النور";
   let dateStr=""; try{dateStr=new Date().toLocaleDateString("ar-EG",{weekday:"long",day:"numeric",month:"long",year:"numeric"});}catch(e){}
@@ -36,6 +49,7 @@ function OSTodayPage({me,ws,systems,go,incoming,onInvites}){
         </div>
       )}
       {integrationEvents.length>0&&<div style={{...S.card,marginBottom:16,border:"1px solid #DDD6FE",background:"#F5F3FF"}}><div style={{fontSize:14,fontWeight:800,color:"#5B21B6",marginBottom:8}}>🔗 نشاطك الأخير من Learning OS</div><div style={{display:"grid",gap:8}}>{integrationEvents.map(event=><div key={event.id} style={{display:"flex",gap:9,alignItems:"start",fontSize:12,color:"#4C1D95"}}><span>•</span><span>{event.type==="learning.study_session.completed"?`جلسة دراسة: ${Number(event.payload?.minutes)||0} دقيقة`:event.type==="learning.lesson.completed"?`إكمال درس: ${event.payload?.lessonName||"درس"}`:`إكمال دورة: ${event.payload?.courseName||"دورة"}`}</span><span style={{marginInlineStart:"auto",fontSize:10,color:"#7C3AED",whiteSpace:"nowrap"}}>{event.occurredAt?new Date(event.occurredAt).toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"}):""}</span></div>)}</div></div>}
+      {homeTaskEvents.length>0&&<div style={{...S.card,marginBottom:16,border:"1px solid #D1FAE5",background:"#ECFDF5"}}><div style={{fontSize:14,fontWeight:800,color:"#065F46",marginBottom:8}}>🏠 إنجازات المنزل</div><div style={{display:"grid",gap:8}}>{homeTaskEvents.map(event=><div key={event.id} style={{display:"flex",gap:9,alignItems:"start",fontSize:12,color:"#065F46"}}><span>•</span><span>{event.payload?.outcome==="skipped"?"تم تخطي المهمة: ":"تم إنجاز المهمة: "}{event.payload?.taskTitle||"مهمة منزلية"}</span><span style={{marginInlineStart:"auto",fontSize:10,color:"#047857",whiteSpace:"nowrap"}}>{event.occurredAt?new Date(event.occurredAt).toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"}):""}</span></div>)}</div></div>}
       <div style={{fontSize:12,color:"#6E7781",marginBottom:12}}>أنظمتك ({systems.length}) · {live} جاهز · {systems.length-live} قيد البناء</div>
       {systems.length===0&&<div style={{...S.card,textAlign:"center",padding:36,color:"#6E7781"}}><div style={{fontSize:34,marginBottom:8}}>🔒</div>لا توجد أنظمة متاحة لك في هذه المساحة بعد. اطلب من صاحب المساحة منحك صلاحية.</div>}
       {OS_GROUPS.map(g=>{

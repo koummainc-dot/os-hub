@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { A, S } from "../../core/ui.jsx";
 import { C, Btn, Chip, Head, Stat, Empty, Progress, Seg, Board, SearchBar, Tabs, FormModal } from "../../core/kit.jsx";
 import { fmt, fmtShort, fmtMinutes, addDays, diffDays, dayName, monthDays, MONTH_NAMES, dow } from "../../core/dates.js";
 import { uid } from "../../core/records.jsx";
 import { useP, GENERAL_ID } from "./store.jsx";
 import * as D from "./domain.js";
+import { readOSEvents, subscribeOSEvents, subscribeToStoredOSEvents } from "../integrationEvents.js";
 import { L, opts } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, DueChip, ProjectName, TaskForm, mOpts, projOpts } from "./parts.jsx";
 
@@ -83,8 +84,18 @@ export function Dashboard() {
 
 // ═════ Today ═════
 export function Today() {
-  const { me, data, idx, today, settings, A: act, can, alerts, people, nameOf, openTask, openProject, runningTimer, projectsById, toast, setPage } = useP();
+  const { ws, me, data, idx, today, settings, A: act, can, alerts, people, nameOf, openTask, openProject, runningTimer, projectsById, toast, setPage } = useP();
   const feed = D.todayFeed(me, { idx, issues: data.issues, projects: data.projects, contacts: data.contacts, today, settings });
+  const [homeCompletions, setHomeCompletions] = useState([]);
+  useEffect(() => {
+    if (!ws?.id) { setHomeCompletions([]); return; }
+    const options = { workspaceId: ws.id, source: "home", types: ["home.task.completed"], limit: 30 };
+    const sync = events => setHomeCompletions(events.filter(e => e.payload?.outcome === "done").slice(-30).reverse());
+    sync(readOSEvents(options));
+    const offEvent = subscribeOSEvents(() => sync(readOSEvents(options)), options);
+    const offStorage = subscribeToStoredOSEvents(sync, options);
+    return () => { offEvent(); offStorage(); };
+  }, [ws?.id]);
   const [title, setTitle] = useState(""); const [form, setForm] = useState(false);
   const total = feed.overdue.length + feed.dueToday.length + feed.thisWeek.length;
   const dateLabel = `${dayName(today)} ${fmt(today)}`;
@@ -99,6 +110,7 @@ export function Today() {
       <Head title="اليوم" sub={`${dateLabel} · ${total ? total + " مهمة تنتظرك" : "لا مهام معلّقة — يوم هادئ 🌿"}`} right={can("task.write", projectsById[GENERAL_ID]) && <Btn kind="primary" onClick={() => setForm(true)}>➕ مهمة</Btn>} />
       {can("task.write", projectsById[GENERAL_ID]) && <div style={{ display: "flex", gap: 8, marginBottom: 12 }}><input style={S.inp} placeholder="أضف مهمة سريعة لهذا الأسبوع… (Enter)" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && quickAdd()} /><Btn kind="primary" onClick={quickAdd}>إضافة</Btn></div>}
       {alerts.length > 0 && <Section title="تنبيهات" count={alerts.length} color={C.warn}>{alerts.map((a) => <div key={a.key} style={{ display: "flex", gap: 8, alignItems: "center", padding: "5px 0", fontSize: 12.5, color: lvl[a.level] || C.dim }}><span>●</span><span style={{ flex: 1 }}>{a.text}</span>{a.project && <Btn small onClick={() => openProject(a.project)}>فتح</Btn>}</div>)}</Section>}
+      {homeCompletions.length > 0 && <Section title="إنجازات المنزل" count={homeCompletions.length} color={C.ok}>{homeCompletions.slice(0, 8).map(event => <div key={event.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "5px 0", fontSize: 12.5 }}><span>🏠 {event.payload?.taskTitle || "مهمة منزلية"}</span><span style={{ color: C.muted, whiteSpace: "nowrap" }}>{fmt(event.occurredAt?.slice(0, 10) || today)}</span></div>)}</Section>}
       {feed.overdue.length > 0 && <Section title="متأخرة" count={feed.overdue.length} color={C.bad}>{feed.overdue.map((t) => <TaskLine key={t.id} t={t} />)}</Section>}
       <Section title="مستحقة اليوم" count={feed.dueToday.length} color={C.warn}>{!feed.dueToday.length ? <span style={{ fontSize: 12, color: C.muted }}>لا شيء مستحق اليوم</span> : feed.dueToday.map((t) => <TaskLine key={t.id} t={t} />)}</Section>
       <Section title="هذا الأسبوع" count={feed.thisWeek.length} color={C.info}>{!feed.thisWeek.length ? <span style={{ fontSize: 12, color: C.muted }}>لا مهام مخطَّطة. حرّك مهام من الوارد في «هذا الأسبوع».</span> : feed.thisWeek.map((t) => <TaskLine key={t.id} t={t} />)}</Section>
