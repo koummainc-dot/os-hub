@@ -179,6 +179,13 @@ begin
     where id=v_id and status='completed') then
     raise exception 'cleanup completion status was not persisted';
   end if;
+  begin
+    insert into public.workspace_records(workspace_id,system_id,collection,id,data)
+    values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','hobbies','journalEntries','journal-d',
+      '{"title":"must not reuse deleted path","attachments":[{"kind":"storage","path":"11111111-1111-4111-8111-111111111111/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/journal-a/shared.webp"}]}');
+    raise exception 'a cleanup-queued attachment was unexpectedly reusable';
+  exception when check_violation then null;
+  end;
 end $lifecycle$;
 
 -- Soft deletion and restore must preserve attachments; permanent deletion is retention-gated.
