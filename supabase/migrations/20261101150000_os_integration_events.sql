@@ -56,7 +56,7 @@ create or replace function public.os_integration_event_publish(
 ) returns jsonb
 language plpgsql security invoker set search_path = public
 as $$
-declare v_event public.os_integration_events%rowtype;
+declare v_rows integer;
 begin
   if auth.uid() is null then raise exception 'AUTH_REQUIRED' using errcode='42501'; end if;
   if p_source_system is null or p_event_type is null or split_part(p_event_type,'.',1) <> p_source_system then
@@ -79,16 +79,13 @@ begin
     p_workspace_id,p_source_system,p_event_type,p_entity_type,p_entity_id,p_idempotency_key,
     coalesce(p_occurred_at,now()),coalesce(p_payload,'{}'::jsonb),auth.uid()
   )
-  on conflict (workspace_id,source_system,idempotency_key) do nothing
-  returning * into v_event;
+  on conflict (workspace_id,source_system,idempotency_key) do nothing;
 
-  if not found then
-    return jsonb_build_object('duplicate',true,'idempotencyKey',p_idempotency_key);
-  end if;
+  get diagnostics v_rows = row_count;
   return jsonb_build_object(
-    'id',v_event.id,'workspaceId',v_event.workspace_id,'source',v_event.source_system,
-    'type',v_event.event_type,'entityType',v_event.entity_type,'entityId',v_event.entity_id,
-    'idempotencyKey',v_event.idempotency_key,'occurredAt',v_event.occurred_at,'payload',v_event.payload
+    'accepted',v_rows = 1,
+    'duplicate',v_rows = 0,
+    'idempotencyKey',p_idempotency_key
   );
 end $$;
 
