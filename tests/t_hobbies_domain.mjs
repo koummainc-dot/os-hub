@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {hobbyInsights} from "../src/systems/hobbies/domain.js";
 import {validateHobbySkill,validateHobbySkillLog,validateHobbyMilestone,validateHobbiesProgressImport,validateHobbyGoal,validateHobbyPlan,hobbyGoalProgress,hobbyPlanProgress,validateHobbyResource,validateHobbyEquipmentLink,validateHobbyJournalEntry} from "../src/systems/hobbies/domain.js";
 import {HOBBY_STATUSES,HOBBY_CATEGORIES,validateHobby,validateHobbySession,hobbyMetrics,hobbiesSummary,validateHobbiesImport} from "../src/systems/hobbies/domain.js";
 assert.deepEqual(HOBBY_STATUSES,["considering","active","paused","archived"]);
