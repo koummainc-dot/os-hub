@@ -44,7 +44,7 @@ assert.equal(prs[0].value,50.67);
 assert.equal(validateSportsImport({data:{exercises:[{id:"x"}]}}).ok,true);
 assert.equal(validateSportsImport({data:{exercises:[{name:"missing-id"}]}}).ok,false);
 
-import { generateWorkoutDays, validatePlannedExercise } from "../src/systems/sports/domain.js";
+import { generateWorkoutDays, validatePlannedExercise, plannedSetProgress, calculateWorkoutAdherence } from "../src/systems/sports/domain.js";
 const generated = generateWorkoutDays({id:"p1",name:"3-day plan",durationWeeks:2,daysPerWeek:3,startDate:"2026-11-02"}, prefix => prefix+"-"+Math.random());
 assert.equal(generated.ok, true);
 assert.equal(generated.value.length, 6);
@@ -54,6 +54,32 @@ assert.equal(new Set(generated.value.map(x=>x.id)).size, 6);
 assert.equal(generateWorkoutDays({id:"p",name:"bad",durationWeeks:1,daysPerWeek:3,startDate:"2026-02-31"}).ok, false);
 assert.equal(validatePlannedExercise({targetSets:3,targetReps:10,restSeconds:90},{id:"ex",name:"Squat"},{id:"day",programId:"p"}).ok,true);
 assert.equal(validatePlannedExercise({targetSets:0,targetReps:10},{id:"ex"},{id:"day",programId:"p"}).ok,false);
+const plannedExercise = {id:"planned-1",exerciseId:"ex-1",targetSets:3,targetReps:10};
+const plannedActualSets = [
+  {id:"actual-1",plannedExerciseId:"planned-1",plannedSetNumber:1,sequence:1,reps:10},
+  {id:"actual-2",plannedExerciseId:"planned-1",plannedSetNumber:2,sequence:2,reps:8},
+  {id:"actual-extra",plannedExerciseId:"planned-1",plannedSetNumber:4,sequence:4,reps:6},
+  {id:"historical",sessionId:"old-session",exerciseId:"ex-1",reps:20},
+];
+const setProgress = plannedSetProgress(plannedExercise, plannedActualSets);
+assert.equal(setProgress.targetSets,3);
+assert.equal(setProgress.completedSets,3);
+assert.equal(setProgress.remainingSets,0);
+assert.equal(setProgress.extraSets,0); // The helper counts only sets ordered within the target window.
+assert.equal(setProgress.actualReps,24);
+const adherence = calculateWorkoutAdherence([
+  plannedExercise,
+  {id:"planned-2",exerciseId:"run",targetSets:2,targetReps:5},
+], plannedActualSets);
+assert.equal(adherence.targetSets,5);
+assert.equal(adherence.completedSets,3);
+assert.equal(adherence.percentage,60);
+assert.equal(adherence.targetReps,40);
+assert.equal(adherence.actualReps,24);
+assert.equal(adherence.exercised,1);
+const noPlan = calculateWorkoutAdherence([], plannedActualSets);
+assert.equal(noPlan.percentage,0);
+assert.equal(noPlan.completedSets,0);
 console.log("Sports OS scheduling tests passed.");
 
 console.log("Sports OS domain tests passed.");
