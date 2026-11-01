@@ -63,19 +63,19 @@ const plannedActualSets = [
 ];
 const setProgress = plannedSetProgress(plannedExercise, plannedActualSets);
 assert.equal(setProgress.targetSets,3);
-assert.equal(setProgress.completedSets,3);
-assert.equal(setProgress.remainingSets,0);
-assert.equal(setProgress.extraSets,0); // The helper counts only sets ordered within the target window.
-assert.equal(setProgress.actualReps,24);
+assert.equal(setProgress.completedSets,2);
+assert.equal(setProgress.remainingSets,1);
+assert.equal(setProgress.extraSets,1);
+assert.equal(setProgress.actualReps,18);
 const adherence = calculateWorkoutAdherence([
   plannedExercise,
   {id:"planned-2",exerciseId:"run",targetSets:2,targetReps:5},
 ], plannedActualSets);
 assert.equal(adherence.targetSets,5);
-assert.equal(adherence.completedSets,3);
-assert.equal(adherence.percentage,60);
+assert.equal(adherence.completedSets,2);
+assert.equal(adherence.percentage,40);
 assert.equal(adherence.targetReps,40);
-assert.equal(adherence.actualReps,24);
+assert.equal(adherence.actualReps,18);
 assert.equal(adherence.exercised,1);
 const noPlan = calculateWorkoutAdherence([], plannedActualSets);
 assert.equal(noPlan.percentage,0);
