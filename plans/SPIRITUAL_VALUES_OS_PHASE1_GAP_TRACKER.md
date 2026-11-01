@@ -65,10 +65,10 @@ The current interface is a foundation shell and generic record form, not the com
 - [Partial] Daily Log view reads normalized history and now supports date-range, status and text filters. Generic edit/archive actions are intentionally hidden for normalized log rows until dedicated safe update/delete operations are implemented. Legacy generic log backfill, pagination, multi-slot edit/delete UX, and explicit `client_op_id` retry behavior remain open.
 - [Partial] Added `isPracticeExpectedOnDate` for Daily, Weekdays, EveryNDays, explicit Dates, and Gregorian MonthDay schedules. Count-based weekly/monthly schedules, Flexible schedules and Hijri MonthDay return `null` (unknown), rather than guessing a date. Daily summaries now distinguish `NotExpected` from `Unrecorded`, and scope records to the selected date.
 - [x] Fixed literal escaped newlines in both the repository module and domain validator that caused JavaScript parsing/build failure; added a regression assertion against escaped newlines, plus schedule semantics and date-isolated summary tests. The repair is committed; fresh CI is pending.
-- [Partial] Per-date expected-day evaluation now respects inactive/archived practices, explicit pause periods, and explicit date-range schedule overrides (`Pause`, `NotExpected`, `Expected`). This is a domain contract only; the UI and persistence schema for managing these periods/overrides and season-to-practice inheritance are not yet implemented.
+- [Partial] Per-date expected-day evaluation respects inactive/archived practices, explicit pause periods, explicit date-range schedule overrides (`Pause`, `NotExpected`, `Expected`), and now user-defined season overrides supplied through `context.seasons`. Precedence is: inactive/archive and pause periods => explicit date-range overrides => season overrides => base frequency. Season `Pause`/`NotExpected` suppresses expected days only inside the season range; `Expected` makes the practice expected inside that range; outside the range the unchanged base schedule resumes. Overlapping season rules return `null` (unknown) rather than guessing. UI and persistence for season management are still open.
 - [Partial] Supported base calendar patterns remain Daily, Weekdays, EveryNDays, explicit Dates, and Gregorian MonthDay. Count-based weekly/monthly, Flexible without an override, and Hijri MonthDay remain unknown (`null`) rather than guessed.
 - [Remaining] Configurable day boundary/timezone, real season precedence/overlap validation and persistence, `TimesPerWeek/TimesPerMonth` accounting and full consistency/continuity calculations.
-- [Remaining] Configurable day boundary/timezone and pause/expected-day calculations; `TimesPerWeek/TimesPerMonth` and full consistency/continuity calculations.
+- [Remaining] Configurable day boundary/timezone; `TimesPerWeek/TimesPerMonth` and full consistency/continuity calculations.
 - Multiple occurrences per practice/day using a stable slot key.
 - Expected-day calculation and completion levels; missing log is not Missed.
 - Neutral consistency/continuity metrics are optional, hidden by default, and never replace Habit-owned streaks or Daily Logs.
@@ -81,7 +81,7 @@ The current interface is a foundation shell and generic record form, not the com
 - No text or content in events, notifications, analytics or global search.
 
 ### P4 — Goals, commitments and seasons
-- [Partial] Season domain contract now validates user-defined date ranges, statuses and per-practice overrides; rejects conflicting overlapping scheduled/active seasons on the same practice and exposes a date-scoped resolver. Not yet wired to persistence or UI.
+- [Partial] Season domain contract validates user-defined date ranges, statuses and per-practice overrides; rejects conflicting overlapping scheduled/active seasons on the same practice and exposes a date-scoped resolver. The resolver is now wired into isPracticeExpectedOnDate through `context.seasons`; schedule overlays are derived at calculation time and never mutate base frequency. Regression assertions cover Pause, Expected, restoration after season end, explicit override precedence, and overlap-as-unknown. UI and persistence for seasons remain open.
 - Derived goal progress with transparent inputs, milestones and adjustment history.
 - Commitment check-ins use dignified neutral states; no “failure” status; progress is derived.
 - Custom seasons can override selected practice schedules only for the selected period, then restore base settings automatically.
@@ -136,3 +136,11 @@ The current interface is a foundation shell and generic record form, not the com
 - Each phase must have: schema/domain change, UI workflow, permission/privacy tests, calculation tests where relevant, regression/build, and an updated checklist.
 - Never merge or deploy with failing or unverified privacy controls.
 - Do not silently change v4.0 decisions. Record any proposed deviation as a decision for explicit approval.
+
+
+## Latest continuation — season calculation wiring
+- Wired `context.seasons` into `isPracticeExpectedOnDate` without changing or persisting over the practice's base frequency.
+- Calculation precedence is explicit: inactive/archived and pause periods are checked first; explicit date-range schedule overrides win over season rules; season rules apply only within their own date range; otherwise the base frequency decides.
+- `Pause` and `NotExpected` return not-expected for the season interval; `Expected` returns expected for that interval. After the season ends, the original base frequency applies automatically.
+- If multiple season rules overlap for the same practice/date, calculation returns `null` (unknown) rather than selecting a rule silently.
+- Added regression assertions for all the above. These tests are committed but have **not yet been executed in a reproducible runtime**, and latest-head CI must be checked before acceptance.
