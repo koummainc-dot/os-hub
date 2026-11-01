@@ -237,3 +237,19 @@ export function getPracticeDaySummary(logs,practice,date,context={}){
  const state=own.length&&levels.every(x=>x==="Excused")?"Excused":maintained>=required?"Maintained":maintained+partial>0?"Partial":expected===false?"NotExpected":"Unrecorded";
  return{logged:own.length,maintainedSlots:maintained,partialSlots:partial,requiredSlots:required,state};
 }
+
+const SPIRITUAL_UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export function getSpiritualRecordRelations(collection,record){
+ let data;
+ try{const parsed=JSON.parse(record?.body||"");if(parsed?.schema!=="spiritual.typed.v1"||parsed.kind!==collection||!parsed.data)return[];data=parsed.data;}catch{return[];}
+ const edges=[];
+ const add=(targetId,targetCollection,relationType)=>{if(typeof targetId==="string"&&SPIRITUAL_UUID.test(targetId))edges.push({target_id:targetId,target_collection:targetCollection,relation_type:relationType});};
+ if(collection==="principles")add(data.relatedValueId,"values","principle_value");
+ if(collection==="practices")for(const id of [...(data.valueIds||[]),...(data.relatedValueIds||[])])add(id,"values","practice_value");
+ if(collection==="goals")for(const link of data.practiceLinks||[])add(typeof link==="string"?link:link.practiceId,"practices","goal_practice");
+ if(collection==="goals")for(const id of data.practiceIds||[])add(id,"practices","goal_practice");
+ if(collection==="commitments"){add(data.relatedValueId,"values","commitment_value");add(data.relatedPrincipleId,"principles","commitment_principle");add(data.practiceId,"practices","commitment_practice");}
+ if(collection==="reflections")add(data.commitmentId,"commitments","reflection_commitment");
+ const unique=new Map(edges.map(edge=>[edge.relation_type+":"+edge.target_collection+":"+edge.target_id,edge]));
+ return [...unique.values()];
+}
