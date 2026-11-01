@@ -21,9 +21,13 @@ begin
 end
 $$;
 
--- Required as the referenced composite key for the ownership/workspace FK.
-create unique index if not exists spiritual_private_records_user_workspace_id_uidx
-  on public.spiritual_private_records(user_id, workspace_id, id);
+-- Include collection in the referenced key so a log cannot point at a values/principles row.
+alter table public.spiritual_practice_logs
+  add column if not exists practice_collection text not null default 'practices'
+  check (practice_collection = 'practices');
+
+create unique index if not exists spiritual_private_records_user_workspace_id_collection_uidx
+  on public.spiritual_private_records(user_id, workspace_id, id, collection);
 
 do $$
 begin
@@ -35,8 +39,8 @@ begin
   ) then
     alter table public.spiritual_practice_logs
       add constraint spiritual_practice_logs_user_workspace_practice_fk
-      foreign key (user_id, workspace_id, practice_id)
-      references public.spiritual_private_records(user_id, workspace_id, id)
+      foreign key (user_id, workspace_id, practice_id, practice_collection)
+      references public.spiritual_private_records(user_id, workspace_id, id, collection)
       on delete cascade
       not valid;
   end if;
