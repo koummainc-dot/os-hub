@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
   emptyNutritionData,normalizeNutritionData,nutritionToday,validateFood,scaleNutrients,snapshotFoodLog,
   validateFoodLog,calculateRecipeNutrition,summarizeNutritionDay,normalizeSearch,searchFoods,validateGoal,
-  validateWater,buildGroceryNeeds,validateNutritionImport,nutritionAnalytics,nutritionDeletionBlocker
+  validateWater,buildGroceryNeeds,validateNutritionImport,validateRecipe,validateCookingBatch,remainingBatchServings,nutritionAnalytics,nutritionDeletionBlocker
 } from "../src/systems/nutrition/domain.js";
 
 const base=emptyNutritionData();
@@ -73,4 +73,18 @@ const analytics=nutritionAnalytics({logs,water,goals:[goal],days:7,today:"2026-1
 assert.equal(analytics.summaries.length,7);
 assert.equal(analytics.completeDays,2,"days without food logs must not count as zero-consumption days");
 assert.equal(analytics.averageCalories,647.25);
+
+const recipeMulti={id:"r-multi",name:"طبق متوازن",servings:4};
+const multiIngredients=[{id:"mi1",recipeId:"r-multi",foodId:"f1",amount:200,unit:"g"},{id:"mi2",recipeId:"r-multi",foodId:"f2",amount:400,unit:"g"}];
+assert.equal(validateRecipe(recipeMulti,multiIngredients,[food,yogurt]).ok,true);
+assert.equal(validateRecipe({...recipeMulti,name:""},multiIngredients,[food,yogurt]).ok,false);
+assert.equal(validateRecipe(recipeMulti,[...multiIngredients,{...multiIngredients[0],id:"mi3"}],[food,yogurt]).ok,false);
+assert.equal(validateCookingBatch({id:"b1",recipeId:"r-multi",totalServings:6,consumedServings:2,cookedDate:"2026-11-01",expiryDate:"2026-11-03"},[recipeMulti]).ok,true);
+assert.equal(validateCookingBatch({id:"b2",recipeId:"missing",totalServings:6,consumedServings:0},[recipeMulti]).ok,false);
+assert.equal(remainingBatchServings({totalServings:6,consumedServings:2}),4);
+assert.equal(remainingBatchServings({totalServings:2,consumedServings:4}),0);
+const scaledNeeds=buildGroceryNeeds({planSlots:[{id:"s1",recipeId:"r-multi",portions:2,status:"planned"},{id:"s2",recipeId:"r-multi",portions:4,status:"planned"}],recipes:[recipeMulti],recipeIngredients:multiIngredients,foods:[food,yogurt]});
+assert.equal(scaledNeeds.find(x=>x.foodId==="f1").amount,300);
+assert.equal(scaledNeeds.find(x=>x.foodId==="f2").amount,600);
+assert.deepEqual(scaledNeeds.find(x=>x.foodId==="f1").sourceSlotIds,["s1","s2"]);
 console.log("Nutrition OS domain tests passed");

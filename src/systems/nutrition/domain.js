@@ -83,7 +83,7 @@ export function validateFoodLog(input, foods=[]) {
 export function calculateRecipeNutrition(recipe, ingredients=[], foods=[]) {
   const foodById=new Map(foods.map(f=>[f.id,f]));
   const total=Object.fromEntries(NUTRIENTS.map(k=>[k,0]));
-  for(const item of ingredients.filter(x=>x.recipeId===recipe?.id)) {
+  for(const item of ingredients.filter(x=>x.recipeId===recipe?.id&&x.status!=="archived")) {
     const food=foodById.get(item.foodId); if(!food) continue;
     const scaled=scaleNutrients(food,num(item.amount),food.basisAmount);
     for(const key of NUTRIENTS) total[key]+=scaled[key];
@@ -130,17 +130,38 @@ export function buildGroceryNeeds({planSlots=[],recipes=[],recipeIngredients=[],
   const recipeById=new Map(recipes.map(x=>[x.id,x]));
   const foodById=new Map(foods.map(x=>[x.id,x]));
   const totals=new Map();
-  for(const slot of planSlots.filter(x=>x.status!=="skipped"&&x.recipeId)) {
-    const recipe=recipeById.get(slot.recipeId); if(!recipe) continue;
-    for(const ingredient of recipeIngredients.filter(x=>x.recipeId===recipe.id)) {
+  for(const slot of planSlots.filter(x=>!["skipped","archived","cancelled"].includes(x.status)&&x.recipeId)) {
+    const recipe=recipeById.get(slot.recipeId); if(!recipe||recipe.status==="archived") continue;
+    const recipeServings=Math.max(1,num(recipe.servings)||1), portions=Math.max(0,num(slot.portions)||1);
+    for(const ingredient of recipeIngredients.filter(x=>x.recipeId===recipe.id&&x.status!=="archived")) {
       const food=foodById.get(ingredient.foodId); if(!food) continue;
-      const key=food.id; const existing=totals.get(key)||{foodId:food.id,name:food.name,amount:0,unit:ingredient.unit||food.basisUnit,sourceSlotIds:[]};
-      existing.amount+=num(ingredient.amount)*Math.max(1,num(slot.portions)||1);
-      existing.sourceSlotIds.push(slot.id); totals.set(key,existing);
+      const unit=String(ingredient.unit||food.basisUnit), key=food.id+"::"+unit, amount=num(ingredient.amount)*portions/recipeServings;
+      const row=totals.get(key)||{foodId:food.id,name:food.name,amount:0,unit,sourceSlotIds:[],sourceSlotAmounts:{}};
+      row.amount+=amount;if(!row.sourceSlotIds.includes(slot.id))row.sourceSlotIds.push(slot.id);
+      row.sourceSlotAmounts[slot.id]=(row.sourceSlotAmounts[slot.id]||0)+amount;totals.set(key,row);
     }
   }
-  return [...totals.values()].map(x=>({...x,amount:Math.round(x.amount*100)/100}));
+  return [...totals.values()].map(x=>({...x,amount:Math.round(x.amount*100)/100,sourceSlotAmounts:Object.fromEntries(Object.entries(x.sourceSlotAmounts).map(([k,v])=>[k,Math.round(v*100)/100]))}));
 }
+export function validateRecipe(recipe,ingredients=[],foods=[]) {
+ const errors=[],active=ingredients.filter(x=>x.status!=="archived");
+ if(!String(recipe?.name||"").trim())errors.push("اسم الوصفة مطلوب.");
+ if(!Number.isFinite(Number(recipe?.servings))||Number(recipe.servings)<=0)errors.push("عدد الحصص يجب أن يكون أكبر من صفر.");
+ if(active.some(x=>!foods.some(f=>f.id===x.foodId)))errors.push("كل مكوّن يجب أن يرتبط بغذاء موجود.");
+ if(active.some(x=>!Number.isFinite(Number(x.amount))||Number(x.amount)<=0))errors.push("كمية كل مكوّن يجب أن تكون أكبر من صفر.");
+ if(new Set(active.map(x=>x.foodId)).size!==active.length)errors.push("لا تكرر الغذاء نفسه في الوصفة؛ اجمع كميته في سطر واحد.");
+ if(!active.length)errors.push("أضف مكوّنًا واحدًا على الأقل.");
+ return {ok:errors.length===0,errors};
+}
+export function validateCookingBatch(input,recipes=[]) {
+ const x=input&&typeof input==="object"?input:{},errors=[];
+ if(!recipes.some(r=>r.id===x.recipeId&&r.status!=="archived"))errors.push("اختر وصفة نشطة للدفعة.");
+ if(!Number.isFinite(Number(x.totalServings))||Number(x.totalServings)<=0)errors.push("عدد حصص الدفعة يجب أن يكون أكبر من صفر.");
+ if(!Number.isFinite(Number(x.consumedServings||0))||Number(x.consumedServings||0)<0||Number(x.consumedServings||0)>Number(x.totalServings))errors.push("عدد الحصص المستهلكة غير صالح.");
+ if(x.expiryDate&&x.cookedDate&&x.expiryDate<x.cookedDate)errors.push("تاريخ الانتهاء لا يمكن أن يسبق تاريخ التحضير.");
+ return {ok:errors.length===0,errors};
+}
+export function remainingBatchServings(batch){return Math.max(0,Math.round((num(batch?.totalServings)-num(batch?.consumedServings))*100)/100);}
 export function validateNutritionImport(input) {
   if(!input||typeof input!=="object"||input.schemaVersion!==1) return {ok:false,errors:["ملف الاستيراد غير صالح أو غير مدعوم."],data:null};
   const data=normalizeNutritionData(input),errors=[];
