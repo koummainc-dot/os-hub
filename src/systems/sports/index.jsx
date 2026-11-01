@@ -241,11 +241,130 @@ export default function SportsOS({ api, access, ws, isDemo, demoStore, page="das
     <Panel title="آخر الجلسات" action={<Button onClick={()=>setPage("history")}>عرض السجل</Button>}>{summary.recentSessions.length?summary.recentSessions.slice(0,5).map(x=><RecordRow key={x.session.id} title={fmtDate(x.session.localDate)+" · "+(x.session.sessionType==="Free"?"جلسة حرة":x.session.sessionType)} sub={x.session.notes||"لا توجد ملاحظات"} badges={[x.session.status,x.setCount+" مجموعة/فترة",x.volumeKg+" كجم"]}/>):<Empty title="لسه مفيش سجل" body="بعد تسجيل أول جلسة هتظهر هنا."/ >}</Panel>
     <Panel title="الأهداف النشطة" action={<Button onClick={()=>setPage("goals")}>إدارة الأهداف</Button>}>{data.goals.filter(g=>g.status==="Active"&&!g.deleted_at).slice(0,4).map(g=><RecordRow key={g.id} title={g.name} sub={"الهدف: "+g.targetValue+" "+(g.unit||"")+" · الموعد "+fmtDate(g.targetDate)} badges={[g.type,g.priority||"Medium"]}/>)}{!data.goals.some(g=>g.status==="Active"&&!g.deleted_at)&&<Empty title="لم تضف أهدافًا بعد" body="أنشئ أهداف القوة أو الجري أو التكرار الأسبوعي."/ >}</Panel>
   </>;
-  const workout = <><Panel title={currentSession?"تسجيل التمرين الجاري":"بدء جلسة تدريب"} hint="كل مجموعة أو فترة تُحفظ كسجل مستقل؛ لا يتم وضع الأداء التاريخي داخل تعريف التمرين.">{!currentSession?<><p style={{fontSize:12,color:C.muted}}>ابدأ جلسة من يوم مجدول أو جلسة حرة.</p>{canEdit&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8,alignItems:"end"}}><div><Select label="اختر يومًا من الجدول" value={selectedScheduledDayId} onChange={setSelectedScheduledDayId} options={[{value:"",label:"اختيار اليوم التدريبي"},...data.workoutDays.filter(d=>!d.deleted_at&&programs.some(p=>p.id===d.programId)).sort((a,b)=>String(a.scheduledDate).localeCompare(String(b.scheduledDate))).map(d=>({value:d.id,label:(programs.find(p=>p.id===d.programId)?.name||"برنامج")+" · الأسبوع "+d.weekNumber+" · "+fmtDate(d.scheduledDate)+" · "+data.plannedExercises.filter(x=>x.workoutDayId===d.id&&!x.deleted_at).length+" تمرين"}))]}/></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Button kind="primary" onClick={()=>startSession("Free")}>▶ بدء جلسة حرة</Button><Button disabled={!selectedScheduledDayId} onClick={()=>startSession("Scheduled",data.workoutDays.find(d=>d.id===selectedScheduledDayId))}>▶ بدء اليوم المحدد</Button></div></div>}</>:<><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10,marginBottom:12}}><div style={{padding:12,background:C.soft,borderRadius:10}}><div style={{fontSize:11,color:C.muted}}>وقت البدء</div><b>{new Date(currentSession.startedAt).toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"})}</b></div><div style={{padding:12,background:C.soft,borderRadius:10}}><div style={{fontSize:11,color:C.muted}}>المجموعات/الفترات</div><b>{currentSessionSets.length}</b></div><div style={{padding:12,background:C.soft,borderRadius:10}}><div style={{fontSize:11,color:C.muted}}>حجم التدريب المسجل</div><b>{sessionMetrics(currentSession,sets).volumeKg} كجم</b></div></div>
-      {currentSession.status==="Paused"&&<div style={{display:"flex",gap:8,marginBottom:12}}><Button kind="primary" onClick={resumeSession}>▶ استئناف الجلسة</Button></div>}{currentSession.status==="In Progress"&&<div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}><Button onClick={pauseSession}>Ⅱ إيقاف مؤقت</Button><Button kind="danger" onClick={finishSession}>✓ إنهاء الجلسة</Button></div>}{currentSession.status==="In Progress"&&currentSession.workoutDayId&&<Panel title="تمارين اليوم المجدول" hint="اختَر تمرينًا مخططًا؛ سيُربط الأداء الفعلي بالخطة.">{currentPlannedExercises.map(p=>{const ex=exercisesById[p.exerciseId],done=currentSessionSets.filter(x=>x.plannedExerciseId===p.id).length;return <RecordRow key={p.id} title={p.exerciseNameSnapshot||ex?.name||"تمرين"} sub={p.notes||"—"} badges={[done+"/"+p.targetSets+" مجموعات",p.targetReps!=null?p.targetReps+" تكرار مستهدف":"هدف مخصص","راحة "+p.restSeconds+"ث"]} action={<Button onClick={()=>setSelectedExerciseId(p.exerciseId)}>اختيار التمرين</Button}/>})}</Panel>}{canEdit&&currentSession.status==="In Progress"&&<form onSubmit={addSet} style={{display:"grid",gap:11}}><Select label="التمرين" value={selectedExerciseId||selectedExercise?.id||""} onChange={setSelectedExerciseId} options={(currentPlannedExercises.length?currentPlannedExercises.map(p=>exercisesById[p.exerciseId]).filter(Boolean):exercises).map(e=>({value:e.id,label:e.name+" · "+e.category}))}/>{selectedPlannedExercise&&<div style={{fontSize:11,color:C.accent}}>الخطة: {selectedPlannedExercise.targetSets} مجموعات × {selectedPlannedExercise.targetReps??"—"} تكرار · راحة {selectedPlannedExercise.restSeconds} ثانية</div>}{selectedExercise&&<div style={{fontSize:11,color:C.muted,lineHeight:1.7}}>{selectedExercise.instructions||"لا توجد تعليمات مضافة."} · طريقة التتبع: {selectedExercise.trackingMode}{youtubeEmbedUrl(selectedExercise.youtubeUrl)&&<div style={{marginTop:8,position:"relative",paddingTop:"56.25%",borderRadius:10,overflow:"hidden",background:"#0F172A"}}><iframe title={"فيديو "+selectedExercise.name} src={youtubeEmbedUrl(selectedExercise.youtubeUrl)} style={{position:"absolute",inset:0,width:"100%",height:"100%",border:0}} loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/></div>}</div>}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:9}}>{["Weight-Reps","Reps"].includes(selectedExercise?.trackingMode)&&<Field label="التكرارات" value={setDraft.reps} onChange={v=>setSetDraft(p=>({...p,reps:v}))} type="number" min="1" max="10000" required/>}{selectedExercise?.trackingMode==="Weight-Reps"&&<Field label="الوزن (كجم)" value={setDraft.weightKg} onChange={v=>setSetDraft(p=>({...p,weightKg:v}))} type="number" min="0" max="2000" step="0.25"/>}{["Duration","Time-Distance"].includes(selectedExercise?.trackingMode)&&<Field label="المدة (ثانية)" value={setDraft.durationSeconds} onChange={v=>setSetDraft(p=>({...p,durationSeconds:v}))} type="number" min="1" required/>}{["Distance","Time-Distance"].includes(selectedExercise?.trackingMode)&&<Field label="المسافة (متر)" value={setDraft.distanceMeters} onChange={v=>setSetDraft(p=>({...p,distanceMeters:v}))} type="number" min="1" required/>}<Field label="RPE (اختياري)" value={setDraft.rpe} onChange={v=>setSetDraft(p=>({...p,rpe:v}))} type="number" min="1" max="10" step="0.5"/></div><Button kind="primary" type="submit">＋ تسجيل المجموعة / الفترة</Button></form>}{currentSession.status==="In Progress"&&<Panel title={"مؤقت الراحة · "+Math.floor(restRemaining/60)+":"+String(restRemaining%60).padStart(2,"0")} hint="يبدأ تلقائيًا بعد تسجيل المجموعة."><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Button onClick={()=>{const secs=Number(selectedPlannedExercise?.restSeconds??settings.defaultRestSeconds??90);save("sessions",{...currentSession,restTimerEndsAt:secs?new Date(Date.now()+secs*1000).toISOString():null,restTimerRemainingSeconds:0});}}>بدء/إعادة المؤقت</Button><Button onClick={endRestEarly}>إنهاء الراحة</Button></div></Panel>}
-      <div style={{marginTop:16}}><h3 style={{fontSize:13}}>المجموعات المسجلة</h3>{currentSessionSets.map((s,i)=><RecordRow key={s.id} title={(i+1)+". "+(exercisesById[s.exerciseId]?.name||"تمرين مؤرشف")} sub={[s.reps!=null?s.reps+" تكرار":null,s.weightKg!=null?s.weightKg+" كجم":null,s.durationSeconds!=null?Math.round(s.durationSeconds/60*10)/10+" دقيقة":null,s.distanceMeters!=null?s.distanceMeters+" متر":null,s.rpe!=null?"RPE "+s.rpe:null].filter(Boolean).join(" · ")||"فترة مسجلة"} badges={[s.setType||"Working"]} action={canEdit?<Button kind="danger" onClick={()=>archive("exerciseSets",s)}>أرشفة</Button>:null}/>)}{!currentSessionSets.length&&<Empty title="ابدأ بأول مجموعة" body="اختَر التمرين وأدخل المقاييس المناسبة لطريقة تتبعه."/ >}</div>
-      <div style={{marginTop:14,display:"grid",gap:8}}><Field label="ملاحظات الجلسة" value={sessionNote} onChange={setSessionNote} placeholder="إحساسك بالتمرين أو أي ملاحظة"/><Button kind="primary" onClick={finishSession} disabled={currentSession.status!=="In Progress"}>✓ إنهاء الجلسة وحفظها كمكتملة</Button></div></>}</Panel></>;
+  const sessionExerciseOptions = currentPlannedExercises.length ? currentPlannedExercises.map(p=>exercisesById[p.exerciseId]).filter(Boolean) : exercises;
+  const workout = (
+    <>
+      <Panel title={currentSession ? "تسجيل التمرين الجاري" : "بدء جلسة تدريب"} hint="كل مجموعة أو فترة تُحفظ كسجل مستقل؛ لا يتم وضع الأداء التاريخي داخل تعريف التمرين.">
+        {!currentSession ? (
+          <>
+            <p style={{fontSize:12,color:C.muted}}>ابدأ جلسة من يوم مجدول أو جلسة حرة.</p>
+            {canEdit && (
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8,alignItems:"end"}}>
+                <div>
+                  <Select
+                    label="اختر يومًا من الجدول"
+                    value={selectedScheduledDayId}
+                    onChange={setSelectedScheduledDayId}
+                    options={[
+                      {value:"",label:"اختيار اليوم التدريبي"},
+                      ...data.workoutDays
+                        .filter(d=>!d.deleted_at&&programs.some(p=>p.id===d.programId))
+                        .sort((a,b)=>String(a.scheduledDate).localeCompare(String(b.scheduledDate)))
+                        .map(d=>({
+                          value:d.id,
+                          label:(programs.find(p=>p.id===d.programId)?.name||"برنامج")+" · الأسبوع "+d.weekNumber+" · "+fmtDate(d.scheduledDate)+" · "+data.plannedExercises.filter(x=>x.workoutDayId===d.id&&!x.deleted_at).length+" تمرين"
+                        }))
+                    ]}
+                  />
+                </div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <Button kind="primary" onClick={()=>startSession("Free")}>▶ بدء جلسة حرة</Button>
+                  <Button disabled={!selectedScheduledDayId} onClick={()=>startSession("Scheduled",data.workoutDays.find(d=>d.id===selectedScheduledDayId))}>▶ بدء اليوم المحدد</Button>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10,marginBottom:12}}>
+              <div style={{padding:12,background:C.soft,borderRadius:10}}>
+                <div style={{fontSize:11,color:C.muted}}>وقت البدء</div>
+                <b>{new Date(currentSession.startedAt).toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"})}</b>
+              </div>
+              <div style={{padding:12,background:C.soft,borderRadius:10}}>
+                <div style={{fontSize:11,color:C.muted}}>المجموعات/الفترات</div>
+                <b>{currentSessionSets.length}</b>
+              </div>
+              <div style={{padding:12,background:C.soft,borderRadius:10}}>
+                <div style={{fontSize:11,color:C.muted}}>حجم التدريب المسجل</div>
+                <b>{sessionMetrics(currentSession,sets).volumeKg} كجم</b>
+              </div>
+            </div>
+            {currentSession.status==="Paused" && (
+              <div style={{display:"flex",gap:8,marginBottom:12}}>
+                <Button kind="primary" onClick={resumeSession}>▶ استئناف الجلسة</Button>
+              </div>
+            )}
+            {currentSession.status==="In Progress" && (
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+                <Button onClick={pauseSession}>Ⅱ إيقاف مؤقت</Button>
+                <Button kind="danger" onClick={finishSession}>✓ إنهاء الجلسة</Button>
+              </div>
+            )}
+            {currentSession.status==="In Progress" && currentSession.workoutDayId && (
+              <Panel title="تمارين اليوم المجدول" hint="اختَر تمرينًا مخططًا؛ سيُربط الأداء الفعلي بالخطة.">
+                {currentPlannedExercises.map(p=>{
+                  const ex=exercisesById[p.exerciseId];
+                  const done=currentSessionSets.filter(x=>x.plannedExerciseId===p.id).length;
+                  return <RecordRow key={p.id} title={p.exerciseNameSnapshot||ex?.name||"تمرين"} sub={p.notes||"—"} badges={[done+"/"+p.targetSets+" مجموعات",p.targetReps!=null?p.targetReps+" تكرار مستهدف":"هدف مخصص","راحة "+p.restSeconds+"ث"]} action={<Button onClick={()=>setSelectedExerciseId(p.exerciseId)}>اختيار التمرين</Button}/>;
+                })}
+              </Panel>
+            )}
+            {canEdit && currentSession.status==="In Progress" && (
+              <form onSubmit={addSet} style={{display:"grid",gap:11}}>
+                <Select
+                  label="التمرين"
+                  value={selectedExerciseId||selectedExercise?.id||""}
+                  onChange={setSelectedExerciseId}
+                  options={sessionExerciseOptions.map(e=>({value:e.id,label:e.name+" · "+e.category}))}
+                />
+                {selectedPlannedExercise && (
+                  <div style={{fontSize:11,color:C.accent}}>
+                    الخطة: {selectedPlannedExercise.targetSets} مجموعات × {selectedPlannedExercise.targetReps??"—"} تكرار · راحة {selectedPlannedExercise.restSeconds} ثانية
+                  </div>
+                )}
+                {selectedExercise && (
+                  <div style={{fontSize:11,color:C.muted,lineHeight:1.7}}>
+                    {selectedExercise.instructions||"لا توجد تعليمات مضافة."} · طريقة التتبع: {selectedExercise.trackingMode}
+                    {youtubeEmbedUrl(selectedExercise.youtubeUrl) && (
+                      <div style={{marginTop:8,position:"relative",paddingTop:"56.25%",borderRadius:10,overflow:"hidden",background:"#0F172A"}}>
+                        <iframe title={"فيديو "+selectedExercise.name} src={youtubeEmbedUrl(selectedExercise.youtubeUrl)} style={{position:"absolute",inset:0,width:"100%",height:"100%",border:0}} loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:9}}>
+                  {["Weight-Reps","Reps"].includes(selectedExercise?.trackingMode) && <Field label="التكرارات" value={setDraft.reps} onChange={v=>setSetDraft(p=>({...p,reps:v}))} type="number" min="1" max="10000" required/>}
+                  {selectedExercise?.trackingMode==="Weight-Reps" && <Field label="الوزن (كجم)" value={setDraft.weightKg} onChange={v=>setSetDraft(p=>({...p,weightKg:v}))} type="number" min="0" max="2000" step="0.25"/>}
+                  {["Duration","Time-Distance"].includes(selectedExercise?.trackingMode) && <Field label="المدة (ثانية)" value={setDraft.durationSeconds} onChange={v=>setSetDraft(p=>({...p,durationSeconds:v}))} type="number" min="1" required/>}
+                  {["Distance","Time-Distance"].includes(selectedExercise?.trackingMode) && <Field label="المسافة (متر)" value={setDraft.distanceMeters} onChange={v=>setSetDraft(p=>({...p,distanceMeters:v}))} type="number" min="1" required/>}
+                  <Field label="RPE (اختياري)" value={setDraft.rpe} onChange={v=>setSetDraft(p=>({...p,rpe:v}))} type="number" min="1" max="10" step="0.5"/>
+                </div>
+                <Button kind="primary" type="submit">＋ تسجيل المجموعة / الفترة</Button>
+              </form>
+            )}
+            {currentSession.status==="In Progress" && (
+              <Panel title={"مؤقت الراحة · "+Math.floor(restRemaining/60)+":"+String(restRemaining%60).padStart(2,"0")} hint="يبدأ تلقائيًا بعد تسجيل المجموعة.">
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <Button onClick={()=>{const secs=Number(selectedPlannedExercise?.restSeconds??settings.defaultRestSeconds??90);save("sessions",{...currentSession,restTimerEndsAt:secs?new Date(Date.now()+secs*1000).toISOString():null,restTimerRemainingSeconds:0});}}>بدء/إعادة المؤقت</Button>
+                  <Button onClick={endRestEarly}>إنهاء الراحة</Button>
+                </div>
+              </Panel>
+            )}
+            <div style={{marginTop:16}}>
+              <h3 style={{fontSize:13}}>المجموعات المسجلة</h3>
+              {currentSessionSets.map((set,i)=><RecordRow key={set.id} title={(i+1)+". "+(exercisesById[set.exerciseId]?.name||"تمرين مؤرشف")} sub={[set.reps!=null?set.reps+" تكرار":null,set.weightKg!=null?set.weightKg+" كجم":null,set.durationSeconds!=null?Math.round(set.durationSeconds/60*10)/10+" دقيقة":null,set.distanceMeters!=null?set.distanceMeters+" متر":null,set.rpe!=null?"RPE "+set.rpe:null].filter(Boolean).join(" · ")||"فترة مسجلة"} badges={[set.setType||"Working"]} action={canEdit?<Button kind="danger" onClick={()=>archive("exerciseSets",set)}>أرشفة</Button>:null}/>)}
+              {!currentSessionSets.length && <Empty title="ابدأ بأول مجموعة" body="اختَر التمرين وأدخل المقاييس المناسبة لطريقة تتبعه."/>}
+            </div>
+            <div style={{marginTop:14,display:"grid",gap:8}}>
+              <Field label="ملاحظات الجلسة" value={sessionNote} onChange={setSessionNote} placeholder="إحساسك بالتمرين أو أي ملاحظة"/>
+              <Button kind="primary" onClick={finishSession} disabled={currentSession.status!=="In Progress"}>✓ إنهاء الجلسة وحفظها كمكتملة</Button>
+            </div>
+          </>
+        )}
+      </Panel>
+    </>
+  );
   const exercisesPage = <><Panel title="إضافة تمرين إلى مكتبتك" hint="المكتبة تصف التمرين وطريقة تسجيله؛ كل أداء فعلي محفوظ في مجموعات الجلسات.">{canEdit&&<form onSubmit={createExercise} style={{display:"grid",gap:10}}><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}><Field label="اسم التمرين بالعربية" value={exerciseDraft.name} onChange={v=>setExerciseDraft(p=>({...p,name:v}))} required/><Field label="الاسم بالإنجليزية (اختياري)" value={exerciseDraft.nameEn} onChange={v=>setExerciseDraft(p=>({...p,nameEn:v}))}/><Select label="التصنيف" value={exerciseDraft.category} onChange={v=>setExerciseDraft(p=>({...p,category:v}))} options={EXERCISE_CATEGORIES}/><Select label="طريقة التتبع" value={exerciseDraft.trackingMode} onChange={v=>setExerciseDraft(p=>({...p,trackingMode:v}))} options={TRACKING_MODES}/><Select label="نوع الحمل" value={exerciseDraft.loadType} onChange={v=>setExerciseDraft(p=>({...p,loadType:v}))} options={["External","Bodyweight","Weighted Bodyweight","Assisted","Improvised","None"]}/><Select label="نمط الحركة" value={exerciseDraft.movementPattern} onChange={v=>setExerciseDraft(p=>({...p,movementPattern:v}))} options={["Squat","Hinge","Push","Pull","Carry","Rotate","Locomotion","Other"]}/><Select label="الصعوبة" value={exerciseDraft.difficulty} onChange={v=>setExerciseDraft(p=>({...p,difficulty:v}))} options={["Beginner","Intermediate","Advanced"]}/></div><Field label="التعليمات وملاحظات السلامة" value={exerciseDraft.instructions} onChange={v=>setExerciseDraft(p=>({...p,instructions:v}))}/><Field label="رابط فيديو YouTube للتمرين (اختياري)" value={exerciseDraft.youtubeUrl} onChange={v=>setExerciseDraft(p=>({...p,youtubeUrl:v}))} placeholder="https://www.youtube.com/watch?v=..."/><Button kind="primary" type="submit">حفظ التمرين</Button></form>}</Panel>
     <Panel title="مكتبة التمارين" action={<span style={{fontSize:11,color:C.muted}}>{filteredExercises.length} تمرين</span>}><Field label="بحث بالاسم أو التصنيف أو نمط الحركة" value={query} onChange={setQuery} placeholder="مثال: ضغط، جري، Pull"/>{filteredExercises.map(e=><div key={e.id} style={{borderBottom:"1px solid "+C.line,paddingBottom:10,marginBottom:10}}><RecordRow title={e.name+(e.nameEn?" · "+e.nameEn:"")} sub={e.instructions||"لا توجد تعليمات"} badges={[e.category,e.trackingMode,e.difficulty||"Beginner",e.isSystemExercise?"تمرين نظامي":"تمرين مخصص"]} action={canEdit&&!e.isSystemExercise?<Button kind="danger" onClick={()=>archive("exercises",e)}>أرشفة</Button>:null}/>{youtubeEmbedUrl(e.youtubeUrl)&&<div style={{marginTop:8,position:"relative",paddingTop:"56.25%",borderRadius:10,overflow:"hidden",background:"#0F172A"}}><iframe title={"فيديو "+e.name} src={youtubeEmbedUrl(e.youtubeUrl)} style={{position:"absolute",inset:0,width:"100%",height:"100%",border:0}} loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/></div>}</div>)}{!filteredExercises.length&&<Empty title="لا توجد تمارين مطابقة" body="جرّب تغيير البحث أو أضف تمرينًا جديدًا."/ >}</Panel></>;
   const programsPage = <><Panel title="إنشاء برنامج تدريبي" hint="يتم توليد أيام التدريب تلقائيًا عند إنشاء البرنامج؛ يمكنك مراجعة تاريخ كل يوم وعدد التمارين المخططة.">{canEdit&&<form onSubmit={createProgram} style={{display:"grid",gap:10}}><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}><Field label="اسم البرنامج" value={programDraft.name} onChange={v=>setProgramDraft(p=>({...p,name:v}))} required/><Select label="نوع البرنامج" value={programDraft.programType} onChange={v=>setProgramDraft(p=>({...p,programType:v}))} options={PROGRAM_TYPES}/><Field label="عدد الأسابيع" value={programDraft.durationWeeks} onChange={v=>setProgramDraft(p=>({...p,durationWeeks:v}))} type="number" min="1" max="104" required/><Field label="أيام التدريب أسبوعيًا" value={programDraft.daysPerWeek} onChange={v=>setProgramDraft(p=>({...p,daysPerWeek:v}))} type="number" min="1" max="7" required/><Field label="تاريخ البداية" value={programDraft.startDate} onChange={v=>setProgramDraft(p=>({...p,startDate:v}))} type="date" required/></div><Field label="الوصف" value={programDraft.description} onChange={v=>setProgramDraft(p=>({...p,description:v}))}/><Button kind="primary" type="submit">إنشاء البرنامج</Button></form>}</Panel>
