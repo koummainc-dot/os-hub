@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {validateHobbySkill,validateHobbySkillLog,validateHobbyMilestone,validateHobbiesProgressImport} from "../src/systems/hobbies/domain.js";
 import {HOBBY_STATUSES,HOBBY_CATEGORIES,validateHobby,validateHobbySession,hobbyMetrics,hobbiesSummary,validateHobbiesImport} from "../src/systems/hobbies/domain.js";
 assert.deepEqual(HOBBY_STATUSES,["considering","active","paused","archived"]);
 const hobby={id:"h1",name:"التصوير",categoryId:"creative",status:"active",enjoymentRating:5};
@@ -22,8 +23,6 @@ assert.equal(validateHobbiesImport({hobbies:[{name:"no id"}],sessions:[]}).ok,fa
 assert.equal(HOBBY_CATEGORIES.length>=8,true);
 console.log("Hobbies OS domain tests passed.");
 
-
-import {validateHobbySkill,validateHobbySkillLog,validateHobbyMilestone,validateHobbiesProgressImport} from "../src/systems/hobbies/domain.js";
 const skill={id:"sk1",hobbyId:"h1",name:"التحكم في الكاميرا",measurementType:"level",currentValue:2,targetValue:5};
 assert.equal(validateHobbySkill(skill,hobby).ok,true);
 assert.equal(validateHobbySkill({...skill,name:""},hobby).ok,false);
@@ -40,4 +39,5 @@ assert.equal(validateHobbyMilestone({title:"إنجاز",hobbyId:"h1",achievedAt:
 const progressImport=validateHobbiesProgressImport({hobbies:[hobby],sessions:[],skills:[skill],skillLogs:[{id:"log1",skillId:"sk1"}],milestones:[{id:"m1",hobbyId:"h1",skillId:"sk1"}]});
 assert.equal(progressImport.ok,true);
 assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],skills:[{...skill,hobbyId:"missing"}]}).ok,false);
+assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],skills:[{...skill,hobbyId:"h1"}],milestones:[{id:"m2",hobbyId:"h1",skillId:"other"}]}).ok,false);
 console.log("Hobbies OS Phase 2 domain tests passed.");
