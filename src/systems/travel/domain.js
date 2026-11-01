@@ -12,7 +12,7 @@ export const TRIP_STATUS_LABELS = {idea:"فكرة",planning:"قيد التخطي
 export function emptyTravelData(){return {schemaVersion:1,trips:[],itinerary:[],bookings:[],packing:[],destinations:[],places:[],documents:[],memories:[],reviews:[],settings:{baseCurrency:"EGP",defaultPackingTemplate:[]},financeLinks:[],audit:[]};}
 export function normalizeTravelData(value){const base=emptyTravelData(),src=value&&typeof value==="object"?value:{};const out={...base,...src,schemaVersion:1};for(const key of ["trips","itinerary","bookings","packing","destinations","places","documents","memories","reviews","financeLinks","audit"])out[key]=Array.isArray(src[key])?src[key]:[];out.settings={...base.settings,...(src.settings||{})};return out;}
 
-const TRAVEL_COLLECTIONS=["trips","itinerary","bookings","packing","destinations","places","documents","memories","reviews","audit"];
+const TRAVEL_COLLECTIONS=["trips","itinerary","bookings","packing","destinations","places","documents","memories","reviews","financeLinks","audit"];
 const TRAVEL_REFERENCE_RULES=[
   ["itinerary","tripId","trips","البرنامج"],
   ["bookings","tripId","trips","الحجوزات"],
@@ -99,7 +99,7 @@ export function tripBudgetBreakdown(tripId,data,financeTransactions=[],financeBa
   const actualExpenses=actualExpenseLinks.reduce((sum,x)=>sum+Number(x.tx.base_amount||0),0);
   const refunds=refundLinks.reduce((sum,x)=>sum+Number(x.tx.base_amount||0),0);
   const netActual=actualExpenses-refunds;
-  const actualBySource=new Set(actualExpenseLinks.filter(x=>x.link.sourceType==="itinerary").map(x=>x.link.sourceId));
+  const actualBySource=new Set(currency===financeBaseCurrency?actualExpenseLinks.filter(x=>x.link.sourceType==="itinerary").map(x=>x.link.sourceId):[]);
   const plannedActivities=itinerary.filter(x=>!actualBySource.has(x.id)).reduce((sum,x)=>sum+Number(x.estimatedCost||0),0);
   const bookingCommitments=bookings.reduce((sum,x)=>sum+Number(x.cost||0),0);
   const bookingLinks=links.filter(x=>x.sourceType==="booking");
