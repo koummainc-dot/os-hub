@@ -22,7 +22,8 @@ export function validateSpiritualValue(value){
  if(String(value.name).trim().length>120)return{ok:false,reason:"name-too-long"};
  if(value.importance!=null&&!SPIRITUAL_IMPORTANCE.has(value.importance))return{ok:false,reason:"invalid-importance"};
  if(value.rank!=null&&(!Number.isInteger(value.rank)||value.rank<1))return{ok:false,reason:"invalid-rank"};
- if(!Array.isArray(value.tags))return{ok:false,reason:"invalid-tags"};
+ if(!Array.isArray(value.tags)||value.tags.some(tag=>typeof tag!=="string"||tag.trim().length>60))return{ok:false,reason:"invalid-tags"};
+ if(String(value.description||"").length>4000||String(value.meaningSource||"").length>2000)return{ok:false,reason:"content-too-long"};
  return{ok:true};
 }
 export function createSpiritualPrinciple(input={}){
@@ -33,6 +34,7 @@ export function validateSpiritualPrinciple(principle){
  if(!String(principle.title||"").trim())return{ok:false,reason:"title-required"};
  if(String(principle.title).trim().length>200)return{ok:false,reason:"title-too-long"};
  for(const key of ["statement","context","examples","driftSignals"])if(typeof principle[key]!=="string")return{ok:false,reason:`invalid-${key}`};
+ if(principle.statement.length>4000||principle.context.length>2000||principle.examples.length>4000||principle.driftSignals.length>2000)return{ok:false,reason:"content-too-long"};
  return{ok:true};
 }
 export function createSpiritualPractice(input={}){
