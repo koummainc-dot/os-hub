@@ -306,7 +306,7 @@ export default function SportsOS({ api, access, ws, isDemo, demoStore, page="das
                 {currentPlannedExercises.map(p=>{
                   const ex=exercisesById[p.exerciseId];
                   const done=currentSessionSets.filter(x=>x.plannedExerciseId===p.id).length;
-                  return <RecordRow key={p.id} title={p.exerciseNameSnapshot||ex?.name||"تمرين"} sub={p.notes||"—"} badges={[done+"/"+p.targetSets+" مجموعات",p.targetReps!=null?p.targetReps+" تكرار مستهدف":"هدف مخصص","راحة "+p.restSeconds+"ث"]} action={<Button onClick={()=>setSelectedExerciseId(p.exerciseId)}>اختيار التمرين</Button}/>;
+                  return <RecordRow key={p.id} title={p.exerciseNameSnapshot||ex?.name||"تمرين"} sub={p.notes||"—"} badges={[done+"/"+p.targetSets+" مجموعات",p.targetReps!=null?p.targetReps+" تكرار مستهدف":"هدف مخصص","راحة "+p.restSeconds+"ث"]} action={<Button onClick={()=>setSelectedExerciseId(p.exerciseId)}>اختيار التمرين</Button>} />;
                 })}
               </Panel>
             )}
