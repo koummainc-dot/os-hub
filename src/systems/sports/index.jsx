@@ -46,8 +46,8 @@ function RecordRow({title,sub,badges,action}) {
   return <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 0",borderBottom:"1px solid "+C.line,flexWrap:"wrap"}}><div style={{flex:1,minWidth:180}}><div style={{fontWeight:750,fontSize:13,color:C.ink}}>{title}</div>{sub&&<div style={{fontSize:11,color:C.muted,marginTop:4,lineHeight:1.7}}>{sub}</div>}{badges&&<div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:5}}>{badges.map((x,i)=><span key={i} style={{fontSize:10,padding:"3px 7px",borderRadius:8,background:C.soft,color:C.accent}}>{x}</span>)}</div>}</div>{action}</div>;
 }
 
-export default function SportsOS({ api, access, ws, isDemo, page="dashboard", setPage=()=>{}, shell }) {
-  const store = useRecordStore({ wsId:ws?.id || api?.workspaceId || "demo", systemId:"sports", isDemo, demoStore:api?.demoStore || undefined, seed, onToast:msg=>shell?.toast?.(msg) });
+export default function SportsOS({ api, access, ws, isDemo, demoStore, page="dashboard", setPage=()=>{}, shell }) {
+  const store = useRecordStore({ wsId:ws?.id || api?.workspaceId || "demo", systemId:"sports", isDemo, demoStore:demoStore || {current:{}}, seed, onToast:msg=>shell?.toast?.(msg) });
   const [error,setError] = useState("");
   const [notice,setNotice] = useState("");
   const [query,setQuery] = useState("");
