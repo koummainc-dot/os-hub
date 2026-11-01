@@ -67,10 +67,12 @@ assert.equal(setProgress.completedSets,2);
 assert.equal(setProgress.remainingSets,1);
 assert.equal(setProgress.extraSets,1);
 assert.equal(setProgress.actualReps,18);
+const originalActualSnapshot = JSON.stringify(plannedActualSets);
 const adherence = calculateWorkoutAdherence([
   plannedExercise,
   {id:"planned-2",exerciseId:"run",targetSets:2,targetReps:5},
 ], plannedActualSets);
+assert.equal(JSON.stringify(plannedActualSets),originalActualSnapshot); // Progress calculation is read-only and preserves historical rows.
 assert.equal(adherence.targetSets,5);
 assert.equal(adherence.completedSets,2);
 assert.equal(adherence.percentage,40);
