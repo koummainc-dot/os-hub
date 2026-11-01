@@ -90,7 +90,7 @@ set data = data || '{"deleted_at":null}'::jsonb
 where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
   and system_id='hobbies' and collection='journalEntries' and id='journal-a';
 
-do $
+do $audit$
 declare v_count integer; v_actor uuid; v_actions text[];
 begin
   select count(*), (array_agg(actor_id order by occurred_at))[1], array_agg(action order by occurred_at)
@@ -108,21 +108,21 @@ begin
       and record_id='journal-a'
       and (coalesce(before_state,'{}'::jsonb) ? 'body' or coalesce(after_state,'{}'::jsonb) ? 'body')
   ) then raise exception 'audit snapshot must not include Journal body'; end if;
-end $;
+end $audit$;
 reset role;
 
 set request.jwt.claim.sub = '22222222-2222-4222-8222-222222222222';
 set role authenticated;
-do $
+do $audit$
 declare v_count integer;
 begin
   select count(*) into v_count from public.hobbies_journal_audit_events
   where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and record_id='journal-a';
   if v_count <> 0 then raise exception 'another member can read private Journal audit events'; end if;
-end $;
+end $audit$;
 reset role;
 
-do $
+do $audit$
 begin
   begin
     update public.hobbies_journal_audit_events set action='updated'
@@ -130,6 +130,6 @@ begin
     raise exception 'audit event mutation unexpectedly succeeded';
   exception when insufficient_privilege then null;
   end;
-end $;
+end $audit$;
 
 select 'Hobbies Journal privacy, Storage isolation, and immutable audit tests passed.' as result;
