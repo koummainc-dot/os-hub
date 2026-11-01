@@ -185,7 +185,7 @@ begin
     end if;
 
     perform public.hobbies_journal_enqueue_attachment_cleanup(
-      old.workspace_id, old.id, v_path, v_reason
+      old.workspace_id, split_part(v_path,'/',3), v_path, v_reason
     );
   end loop;
 
