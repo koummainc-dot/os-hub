@@ -31,6 +31,22 @@ export async function unlockSpiritualKeyring(passphrase,keyring){
   return crypto.subtle.importKey("raw",raw,{name:"AES-GCM"},false,["encrypt","decrypt"]);
  }catch{throw new Error("incorrect-passphrase-or-corrupt-keyring");}
 }
+export async function rewrapSpiritualKeyring(currentPassphrase,nextPassphrase,keyring){
+ requireCrypto();
+ if(typeof nextPassphrase!=="string"||nextPassphrase.length<12)throw new Error("passphrase-too-short");
+ if(!keyring||keyring.version!==1||keyring.kdf!=="PBKDF2-SHA-256"||!Number.isInteger(keyring.iterations)||keyring.iterations<100000||keyring.iterations>2000000)throw new Error("unsupported-keyring");
+ let raw;
+ try{
+  const oldWrappingKey=await deriveWrappingKey(currentPassphrase,fromBase64(keyring.salt),keyring.iterations);
+  raw=await crypto.subtle.decrypt({name:"AES-GCM",iv:fromBase64(keyring.wrap_iv)},oldWrappingKey,fromBase64(keyring.wrapped_key));
+ }catch{throw new Error("incorrect-passphrase-or-corrupt-keyring");}
+ const salt=randomBytes(16),iv=randomBytes(12);
+ const nextWrappingKey=await deriveWrappingKey(nextPassphrase,salt);
+ const wrapped=await crypto.subtle.encrypt({name:"AES-GCM",iv},nextWrappingKey,raw);
+ const key=await crypto.subtle.importKey("raw",raw,{name:"AES-GCM"},false,["encrypt","decrypt"]);
+ new Uint8Array(raw).fill(0);
+ return{key,keyring:{version:1,kdf:"PBKDF2-SHA-256",iterations:ITERATIONS,salt:toBase64(salt),wrap_iv:toBase64(iv),wrapped_key:toBase64(wrapped)}};
+}
 export async function encryptSpiritualPayload(key,value){
  requireCrypto();
  if(!key)throw new Error("encryption-locked");
