@@ -10,7 +10,7 @@ import { Projects } from "./screens_b.jsx";
 import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView, DiscoveryView } from "./entities.jsx";
 import { Okrs, Updates, Wins, Reviews, Contacts, Team, Templates, Meetings, Settings } from "./screens_c.jsx";
 import { buildSeed } from "./demo.js";
-import { subscribeOSEvents } from "../integrationEvents.js";
+import { readOSEvents, subscribeOSEvents } from "../integrationEvents.js";
 
 function RisksPage() {
   const [tab, setTab] = useState("risks"); const { data } = useP();
@@ -23,9 +23,13 @@ const SCREENS = { dashboard: Dashboard, today: Today, week: Week, projects: Proj
 function Router() {
   const ctx = useP(); const { page, ready, error, store, access, role, shell, ws } = ctx; const lvl = osSectionLevel(access, page);
   const [crossSystemActivity, setCrossSystemActivity] = useState([]);
-  useEffect(() => subscribeOSEvents((event) => {
-    setCrossSystemActivity((items) => [event, ...items.filter((x) => x.id !== event.id)].slice(0, 5));
-  }, { workspaceId: ws?.id || "default", types: ["learning.study_session.completed", "learning.lesson.completed", "learning.course.completed", "hobbies.practice_session.completed"] }), [ws?.id]);
+  useEffect(() => {
+    const options = { workspaceId: ws?.id || "default", limit: 5, types: ["learning.study_session.completed", "learning.lesson.completed", "learning.course.completed", "hobbies.practice_session.completed"] };
+    setCrossSystemActivity(readOSEvents(options).reverse());
+    return subscribeOSEvents((event) => {
+      setCrossSystemActivity((items) => [event, ...items.filter((x) => x.id !== event.id)].slice(0, 5));
+    }, options);
+  }, [ws?.id]);
   // sections hidden for Viewers (plan §13.2) are removed from the shell menu
   useEffect(() => { if (shell && shell.publish) shell.publish("projects", { visible: Object.keys(SCREENS).filter((k) => !(role === "Viewer" && ["reviews", "contacts"].includes(k))) }); }, [role]);
   if (error) return <ErrorState error={error} onRetry={() => store.api.reload()} />;
