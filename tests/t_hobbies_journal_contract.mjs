@@ -14,7 +14,7 @@ assert.match(migration,/HOBBIES_JOURNAL_VISIBILITY_IMMUTABLE/);
 assert.match(migration,/security invoker/);
 assert.match(migration,/before insert or update on public\.workspace_records/);
 assert.match(ui,/supabase\.auth\.getUser\(\)/);
-assert.match(ui,/visibility\._vis=\[data\.user\.id\]/);
+assert.match(ui,/visibility\._vis=\[userId\]/);
 assert.match(ui,/const editJournalEntry/);
 assert.match(ui,/journalQuery/);
 assert.match(ui,/journalTypeFilter/);
