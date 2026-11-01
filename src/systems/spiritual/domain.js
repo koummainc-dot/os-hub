@@ -197,7 +197,21 @@ export function isPracticeExpectedOnDate(practice,date,context={}){
  if(f.mode==="Weekdays")return Array.isArray(f.days)?f.days.includes(day.getUTCDay()):null;
  if(f.mode==="EveryNDays"){if(!Number.isInteger(f.n)||f.n<1||!isDate(f.anchor))return null;const anchor=new Date(f.anchor+"T00:00:00.000Z");const delta=Math.round((day-anchor)/86400000);return delta>=0&&delta%f.n===0;}
  if(f.mode==="Dates")return Array.isArray(f.dates)?f.dates.includes(date):null;
- if(f.mode==="MonthDay"){if(f.calendar!=="gregorian"||!Array.isArray(f.days))return null;const offset=Number(f.day_offset||0);const shifted=new Date(day.getTime()-offset*86400000);return f.days.includes(shifted.getUTCDate());}
+ if(f.mode==="MonthDay"){
+  if(!Array.isArray(f.days))return null;
+  const offset=Number(f.day_offset||0),shifted=new Date(day.getTime()-offset*86400000);
+  if(f.calendar==="gregorian")return f.days.includes(shifted.getUTCDate());
+  if(f.calendar==="hijri"){
+   try{
+    // Umm al-Qura is the documented default approximation. Keep this derived
+    // check deterministic for the runtime's ICU data and never guess on failure.
+    const parts=new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn",{day:"numeric",month:"numeric",timeZone:"UTC"}).formatToParts(shifted);
+    const hijriDay=Number(parts.find(x=>x.type==="day")?.value);
+    return Number.isInteger(hijriDay)&&hijriDay>=1&&hijriDay<=30?f.days.includes(hijriDay):null;
+   }catch{return null;}
+  }
+  return null;
+ }
  // Count-based and flexible schedules do not identify a specific expected day.
  return null;
 }
