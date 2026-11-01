@@ -27,7 +27,7 @@ assert.equal(buildTravelCalendarReference("ws-1",{id:"it-1"}),null);
 assert.deepEqual(getTravelIntegrationStatus({}).map(x=>x.available),[false,false,false]);
 const status=getTravelIntegrationStatus({integrations:{files:{upload(){},getUrl(){},remove(){}},notifications:{upsert(){},cancel(){}},calendar:{upsert(){},remove(){}}}});
 assert.deepEqual(status.map(x=>x.available),[true,true,true]);
-assert.equal(getTravelIntegrationStatus({integrations:{files:{upload(){}}})[0].available,false,"partial file adapter must not be treated as ready");
+assert.equal(getTravelIntegrationStatus({integrations:{files:{upload(){}}}})[0].available,false,"partial file adapter must not be treated as ready");
 
 const unavailableBridge=createTravelIntegrationBridge({}, "ws-1");
 assert.deepEqual(unavailableBridge.status,{files:false,notifications:false,calendar:false});
