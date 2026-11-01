@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {emptyTravelData,normalizeTravelData,validateTrip,tripSpend,packingProgress,getActiveTrip,upcomingTrips,validateRelatedRecord,validateTravelImport,buildTravelExport,validateFinanceLink,tripBudgetBreakdown,financeTransactionState,financeTransactionStateLabel,validateStop,sortTripStops,findItineraryConflicts,getUpcomingTravelAlerts} from "../src/systems/travel/domain.js";
+import {emptyTravelData,normalizeTravelData,validateTrip,tripSpend,packingProgress,getActiveTrip,upcomingTrips,validateRelatedRecord,validateTravelImport,buildTravelExport,validateFinanceLink,tripBudgetBreakdown,financeTransactionState,financeTransactionStateLabel,validateStop,sortTripStops,findItineraryConflicts,getUpcomingTravelAlerts,travelDeletionBlocker} from "../src/systems/travel/domain.js";
 const base=emptyTravelData();
 assert.equal(base.trips.length,0);
 assert.deepEqual(validateTrip({name:"",destination:""}),["اسم الرحلة مطلوب","الوجهة مطلوبة"]);
@@ -147,3 +147,11 @@ assert.equal(alerts[0].level,"urgent");
 assert.ok(alerts.some(a=>a.id==="booking:cancel-soon"&&a.daysUntil===2));
 assert.ok(!alerts.some(a=>a.id==="booking:cancelled-booking"));
 console.log("Travel OS deadline alert tests passed");
+
+
+assert.equal(travelDeletionBlocker("trip",{id:"multi-stop"},stopData),"لا يمكن حذف رحلة لها سجلات مرتبطة؛ غيّر حالتها إلى ملغاة للاحتفاظ بالتاريخ دون ترك سجلات يتيمة.");
+const linkedPlaceData=normalizeTravelData({destinations:[{id:"dest"}],places:[{id:"place",destinationId:"dest"}],experiences:[{id:"exp",placeId:"place"}]});
+assert.ok(travelDeletionBlocker("destination",{id:"dest"},linkedPlaceData).includes("وجهة مرتبطة"));
+assert.ok(travelDeletionBlocker("place",{id:"place"},linkedPlaceData).includes("تجارب فعلية"));
+assert.equal(travelDeletionBlocker("place",{id:"unlinked"},linkedPlaceData),"");
+console.log("Travel OS deletion integrity tests passed");
