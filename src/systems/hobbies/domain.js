@@ -1,7 +1,7 @@
 export const HOBBY_STATUSES = ["considering", "active", "paused", "archived"];
 export const HOBBY_CATEGORIES = [
 {id:"creative",label:"فنون وإبداع",icon:"🎨"},{id:"music",label:"موسيقى",icon:"🎵"},{id:"sports",label:"رياضة وحركة",icon:"🏃"},{id:"outdoors",label:"أنشطة خارجية",icon:"🌿"},{id:"crafts",label:"حرف وصناعة",icon:"🛠️"},{id:"technology",label:"تقنية",icon:"💻"},{id:"games",label:"ألعاب",icon:"🎮"},{id:"collecting",label:"جمع المقتنيات",icon:"📚"},{id:"culture",label:"ثقافة ومعرفة",icon:"🌍"},{id:"other",label:"أخرى",icon:"✨"}];
-export const HOBBY_SECTIONS = [{id:"dashboard",label:"الرئيسية",icon:"⌂"},{id:"hobbies",label:"هواياتي",icon:"🎯"},{id:"explore",label:"اهتمامات مستقبلية",icon:"🔎"},{id:"sessions",label:"جلسات الممارسة",icon:"⏱️"},{id:"skills",label:"المهارات والتقدم",icon:"📈"},{id:"milestones",label:"الإنجازات",icon:"🏆"},{id:"goals",label:"الأهداف",icon:"🎯"},{id:"plans",label:"خطط الممارسة",icon:"🗓️"},{id:"resources",label:"الموارد والمراجع",icon:"📚"},{id:"equipment",label:"المعدات المرتبطة",icon:"🧰"},{id:"journal",label:"اليوميات والذكريات",icon:"📔"},{id:"settings",label:"الإعدادات",icon:"⚙️"}];
+export const HOBBY_SECTIONS = [{id:"dashboard",label:"الرئيسية",icon:"⌂"},{id:"hobbies",label:"هواياتي",icon:"🎯"},{id:"explore",label:"اهتمامات مستقبلية",icon:"🔎"},{id:"sessions",label:"جلسات الممارسة",icon:"⏱️"},{id:"skills",label:"المهارات والتقدم",icon:"📈"},{id:"milestones",label:"الإنجازات",icon:"🏆"},{id:"goals",label:"الأهداف",icon:"🎯"},{id:"plans",label:"خطط الممارسة",icon:"🗓️"},{id:"resources",label:"الموارد والمراجع",icon:"📚"},{id:"equipment",label:"المعدات المرتبطة",icon:"🧰"},{id:"journal",label:"اليوميات والذكريات",icon:"📔"},{id:"insights",label:"التحليلات والرؤى",icon:"📊"},{id:"settings",label:"الإعدادات",icon:"⚙️"}];
 export const emptyHobbiesData = () => ({schemaVersion:5,hobbies:[],sessions:[],skills:[],skillLogs:[],milestones:[],goals:[],plans:[],resources:[],equipmentLinks:[],journalEntries:[],settings:{timezone:"Africa/Cairo",weekStartDay:6}});
 export const makeHobbyId = (prefix="hobby") => globalThis.crypto?.randomUUID?.() || prefix+"-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8);
 export function validateHobby(input) {
@@ -199,4 +199,41 @@ export function validateHobbyJournalEntry(input,hobbies,sessions=[],skills=[],mi
  const attachments=Array.isArray(input.attachments)?input.attachments:[];if(attachments.length>8)return {ok:false,error:"يمكن إضافة 8 روابط مرفقات كحد أقصى."};
  for(const value of attachments){try{const u=new URL(String(value));if(!["https:","http:"].includes(u.protocol)||String(value).length>2048)throw new Error();}catch{return {ok:false,error:"روابط المرفقات يجب أن تكون http أو https وبحد أقصى 2048 حرفًا."};}}
  return {ok:true,value:{...input,title,body,entryType,localDate,mood:input.mood||null,sessionId:input.sessionId||null,skillId:input.skillId||null,milestoneId:input.milestoneId||null,tags,attachments,privacy:"private"}};
+}
+
+
+/**
+ * Local Hobbies OS analytics only. Dates are ISO local dates supplied by the app;
+ * no external OS data is read or copied here.
+ */
+export function hobbyInsights(hobbies=[],sessions=[],goals=[],skills=[],milestones=[],asOf){
+ const date=validISODate(asOf)?asOf:new Date().toISOString().slice(0,10);
+ const shift=(value,days)=>{const d=new Date(value+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);};
+ const start30=shift(date,-29),priorStart=shift(date,-59),priorEnd=shift(date,-30);
+ const rows=sessions.filter(s=>!s.deleted_at&&validISODate(s.localDate)&&s.localDate<=date);
+ const recent=rows.filter(s=>s.localDate>=start30),prior=rows.filter(s=>s.localDate>=priorStart&&s.localDate<=priorEnd);
+ const sumMinutes=list=>list.reduce((n,s)=>n+(Number.isFinite(Number(s.durationMinutes))&&Number(s.durationMinutes)>0?Number(s.durationMinutes):0),0);
+ const rated=rows.filter(s=>Number.isInteger(Number(s.satisfactionRating))&&Number(s.satisfactionRating)>=1&&Number(s.satisfactionRating)<=5);
+ const hobbyRows=hobbies.filter(h=>!h.deleted_at&&h.status!=="archived").map(h=>{
+  const own=rows.filter(s=>s.hobbyId===h.id);
+  return {hobbyId:h.id,name:h.name||"هواية",sessions:own.length,minutes:sumMinutes(own),lastPracticedAt:own.map(s=>s.localDate).sort().at(-1)||null};
+ }).sort((a,b)=>b.minutes-a.minutes||b.sessions-a.sessions);
+ const goalRows=goals.filter(g=>!g.deleted_at&&g.status==="active").map(g=>{
+  let current=0;
+  if(g.targetType==="sessions")current=rows.filter(s=>s.hobbyId===g.hobbyId&&s.localDate>=g.startDate&&(!g.endDate||s.localDate<=g.endDate)).length;
+  if(g.targetType==="minutes")current=sumMinutes(rows.filter(s=>s.hobbyId===g.hobbyId&&s.localDate>=g.startDate&&(!g.endDate||s.localDate<=g.endDate)));
+  if(g.targetType==="milestones")current=milestones.filter(m=>!m.deleted_at&&m.hobbyId===g.hobbyId&&m.achievedAt>=g.startDate&&(!g.endDate||m.achievedAt<=g.endDate)).length;
+  if(g.targetType==="skill_value")current=Number(skills.find(s=>s.id===g.skillId)?.currentValue)||0;
+  return {id:g.id,title:g.title,hobbyName:hobbies.find(h=>h.id===g.hobbyId)?.name||"هواية",current,target:Number(g.targetValue)||0,percent:Number(g.targetValue)>0?Math.min(100,Math.round(current/Number(g.targetValue)*100)):0};
+ });
+ const recentMinutes=sumMinutes(recent),priorMinutes=sumMinutes(prior);
+ const delta=priorMinutes===0?(recentMinutes>0?null:0):Math.round((recentMinutes-priorMinutes)/priorMinutes*100);
+ return {
+  asOf:date,windowStart:start30,previousWindowStart:priorStart,previousWindowEnd:priorEnd,
+  totalSessions:rows.length,totalMinutes:sumMinutes(rows),practiceDays:new Set(rows.map(s=>s.localDate)).size,
+  recentSessions:recent.length,recentMinutes,previousSessions:prior.length,previousMinutes:priorMinutes,
+  minutesChangePercent:delta,averageSatisfaction:rated.length?Math.round(rated.reduce((n,s)=>n+Number(s.satisfactionRating),0)/rated.length*10)/10:null,
+  ratedSessions:rated.length,activeHobbies:hobbyRows.filter(h=>h.sessions>0).length,
+  topHobbies:hobbyRows.slice(0,5),goals:goalRows
+ };
 }
