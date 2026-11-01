@@ -219,10 +219,11 @@ export function isPracticeExpectedOnDate(practice,date,context={}){
     if(f.days.includes(hijriDay))return true;
     if(hijriDay===29&&f.days.includes(30)){
      const next=new Date(shifted.getTime()+86400000);
-     const nextParts=new Intl.DateTimeFormat(`en-u-ca-${algorithm}-nu-latn`,{day:"numeric",month:"numeric",timeZone:"UTC"}).formatToParts(next);
-     const nextMonth=Number(nextParts.find(x=>x.type==="month")?.value);
-     const currentMonth=Number(parts.find(x=>x.type==="month")?.value);
-     if(Number.isInteger(nextMonth)&&Number.isInteger(currentMonth)&&nextMonth!==currentMonth)return true;
+     const nextParts=new Intl.DateTimeFormat(`en-u-ca-${algorithm}-nu-latn`,{day:"numeric",timeZone:"UTC"}).formatToParts(next);
+     const nextDay=Number(nextParts.find(x=>x.type==="day")?.value);
+     // Day 30 is treated as the final day only when this Hijri month has
+     // 29 days; the next calendar day must be day 1 of the following month.
+     if(nextDay===1)return true;
     }
     return false;
    }catch{return null;}
