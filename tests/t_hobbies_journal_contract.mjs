@@ -64,3 +64,12 @@ assert.match(smoke,/immutable audit tests passed/);
 assert.match(workflow,/20261102120000_hobbies_journal_audit_history\.sql/);
 assert.match(records,/visible_to: rec\._vis \|\| null/);
 console.log("Hobbies Journal privacy, editing, search, private storage, immutable audit, and memory organization contract tests passed.");
+
+const domain=readFileSync(new URL("../src/systems/hobbies/domain.js",import.meta.url),"utf8");
+assert.match(ui,/resurfaceHobbyMemories/);
+assert.match(ui,/ذكريات تستحق الرجوع إليها/);
+assert.match(ui,/في مثل هذا اليوم/);
+assert.match(ui,/مرتبطة بآخر ممارسة/);
+assert.match(domain,/export function resurfaceHobbyMemories/);
+assert.match(domain,/!entry\.deleted_at&&!entry\.archivedAt/);
+console.log("Hobbies Journal memory resurfacing UI contract tests passed.");
