@@ -193,3 +193,44 @@ export async function markKnowledgeNotificationRead(workspaceId, notificationId)
 }
 
 export { hasKnowledgeContent };
+
+
+export async function listKnowledgeProjects(workspaceId) {
+  if (!workspaceId || !supabase) return { ok: false, projects: [], reason: "workspace-or-client-unavailable" };
+  const { data, error } = await supabase
+    .from("workspace_data")
+    .select("data")
+    .eq("workspace_id", workspaceId)
+    .eq("system_id", "projects")
+    .eq("part", "main")
+    .limit(1);
+  if (error) return { ok: false, projects: [], error };
+  const snapshot = data?.[0]?.data;
+  const raw = snapshot?.projects ?? snapshot;
+  const rows = Array.isArray(raw) ? raw : raw && typeof raw === "object" ? Object.values(raw) : [];
+  const projects = rows
+    .filter((item) => item && typeof item === "object" && item.id && item.name && !item.deleted_at && !item.archived_at && item.status !== "Archived")
+    .map((item) => ({ id: String(item.id), name: String(item.name), status: item.status || "" }))
+    .sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  return { ok: true, projects };
+}
+
+export async function listKnowledgeMeetings(workspaceId) {
+  if (!workspaceId || !supabase) return { ok: false, meetings: [], reason: "workspace-or-client-unavailable" };
+  const normalized = await loadNormalizedKnowledge(workspaceId);
+  if (normalized.available && normalized.data && !normalized.error) {
+    const meetings = Array.isArray(normalized.data.meetings) ? normalized.data.meetings : [];
+    return { ok: true, meetings, source: "normalized" };
+  }
+  const { data, error } = await supabase
+    .from("workspace_data")
+    .select("data")
+    .eq("workspace_id", workspaceId)
+    .eq("system_id", "knowledge")
+    .eq("part", "main")
+    .maybeSingle();
+  if (error) return { ok: false, meetings: [], error };
+  const raw = data?.data?.meetings;
+  const meetings = Array.isArray(raw) ? raw : raw && typeof raw === "object" ? Object.values(raw) : [];
+  return { ok: true, meetings: meetings.filter((item) => item && typeof item === "object" && item.id && item.title && !item.deleted_at), source: "workspace_data" };
+}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { A, S } from "../../core/ui.jsx";
 import { C, Btn, Chip, Head, Stat, Empty, Progress, Seg, SearchBar, Tabs, FormModal, Modal, Field, Avatar } from "../../core/kit.jsx";
 import { fmt, fmtShort, fmtMinutes, addDays, diffDays, dateOf } from "../../core/dates.js";
@@ -8,6 +8,7 @@ import * as D from "./domain.js";
 import { L, opts, DEFAULT_LOOKUPS, LOOKUP_LABEL, UPDATE_SECTIONS, MEETING_TEMPLATES, REVIEW_PROMPTS, PRD_TEMPLATE } from "./lookups.js";
 import { Who, ProjectName, mOpts, projOpts, HealthBadge, StatusChip } from "./parts.jsx";
 import { TemplatePicker } from "./screens_b.jsx";
+import { listKnowledgeMeetings } from "../knowledge/repository.js";
 
 // ═════ OKRs ═════
 export function Okrs() {
@@ -282,8 +283,107 @@ export function Templates() {
 
 // ═════ Meetings (owned by Knowledge OS) ═════
 export function Meetings() {
-  const { data, setPage } = useP();
-  return <div><Head title="الاجتماعات" sub="يملكها Knowledge OS" /><div style={{ ...S.card, padding: 24, textAlign: "center" }}><div style={{ fontSize: 36 }}>🗓️</div><div style={{ fontSize: 15, fontWeight: 700, margin: "6px 0" }}>الاجتماعات تُدار في Knowledge OS</div><div style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.9, maxWidth: 520, margin: "0 auto" }}>لتجنّب التكرار، لا يُنشئ Projects OS كياناً للاجتماعات. عند تفعيل Knowledge OS ستظهر هنا اجتماعات كل مشروع (قراءة فقط) وبنود الإجراءات منها كمهام مقترحة. تجد قوالب Standup / Weekly Sync / Sprint Planning / Post-mortem / Ad Hoc في «القوالب».</div><div style={{ marginTop: 12 }}><Btn onClick={() => setPage("templates")}>عرض قوالب الاجتماعات</Btn></div></div></div>;
+  const { data, setPage, ws, projectsById, A: act, toast, me, today, can } = useP();
+  const [meetings, setMeetings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [projectFilter, setProjectFilter] = useState("all");
+  const [creatingFollowup, setCreatingFollowup] = useState("");
+
+  const refresh = async () => {
+    if (!ws?.id) { setMeetings([]); setLoading(false); return; }
+    setLoading(true); setLoadError("");
+    try {
+      const result = await listKnowledgeMeetings(ws.id);
+      if (!result.ok) throw result.error || new Error("تعذر تحميل اجتماعات المعرفة.");
+      setMeetings(result.meetings || []);
+    } catch (error) {
+      setLoadError(error?.message || "تعذر تحميل اجتماعات المعرفة.");
+    } finally { setLoading(false); }
+  };
+  useEffect(() => { refresh(); }, [ws?.id]);
+
+  const visible = useMemo(() => meetings
+    .filter((m) => !m.archived && m.status !== "archived")
+    .filter((m) => projectFilter === "all" || (m.relatedSystem === "projects" && String(m.relatedId) === String(projectFilter)))
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))), [meetings, projectFilter]);
+  const linkedCount = meetings.filter((m) => m.relatedSystem === "projects" && projectsById[m.relatedId]).length;
+  const orphanCount = meetings.filter((m) => m.relatedSystem === "projects" && m.relatedId && !projectsById[m.relatedId]).length;
+  const archivedCount = meetings.filter((m) => {
+    const p = m.relatedSystem === "projects" ? projectsById[m.relatedId] : null;
+    return !!p && (!!p.archived_at || p.status === "Archived");
+  }).length;
+
+  async function createFollowupTask(meeting, followup, index) {
+    const key = String(meeting.id) + ":" + index;
+    const project = meeting.relatedSystem === "projects" ? projectsById[meeting.relatedId] : null;
+    if (!project || project.archived_at || project.status === "Archived") {
+      toast("اربط الاجتماع بمشروع نشط قبل إنشاء مهام المتابعة.");
+      return;
+    }
+    if (!can("task.write", project)) {
+      toast("ليس لديك صلاحية إنشاء مهام في هذا المشروع.");
+      return;
+    }
+    if (!act || typeof act.saveTask !== "function") {
+      toast("تعذر الوصول إلى خدمة مهام المشاريع.");
+      return;
+    }
+    const existing = data.tasks.find((task) =>
+      task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index
+    );
+    if (existing) {
+      toast("هذه المتابعة مرتبطة بالفعل بمهمة: " + existing.title);
+      return;
+    }
+    const title = String(followup || "").trim();
+    if (!title) return;
+    setCreatingFollowup(key);
+    try {
+      const saved = await act.saveTask({
+        title,
+        project_id: project.id,
+        assignee_id: me,
+        status: "Not Started",
+        planning_bucket: "Inbox",
+        due_date: meeting.date && meeting.date >= today ? meeting.date : "",
+        source_meeting_id: meeting.id,
+        source_meeting_title: meeting.title || "",
+        source_followup_index: index,
+      }, true);
+      if (saved) toast("✅ أُنشئت مهمة متابعة مرتبطة بالاجتماع والمشروع.");
+    } catch (error) {
+      toast("⛔ تعذّر إنشاء المهمة: " + (error?.message || "فشل الحفظ"));
+    } finally {
+      setCreatingFollowup("");
+    }
+  }
+
+  return <div>
+    <Head title="اجتماعات المشاريع" sub={`مصدر الاجتماعات: Knowledge OS · ${linkedCount} مرتبط · ${archivedCount} لمشروعات مؤرشفة · ${orphanCount} يحتاج مراجعة الارتباط`} right={<div style={{display:"flex",gap:7,flexWrap:"wrap"}}><select aria-label="تصفية الاجتماعات حسب المشروع" style={{...S.sel,width:220}} value={projectFilter} onChange={e=>setProjectFilter(e.target.value)}><option value="all">كل الاجتماعات</option>{data.projects.filter(p=>!p.is_system&&!p.archived_at&&p.status!=="Archived").map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><Btn onClick={refresh} disabled={loading}>تحديث</Btn><Btn kind="primary" onClick={() => setPage("templates")}>قوالب الاجتماعات</Btn></div>} />
+    <div style={{...S.card,padding:12,marginBottom:12,fontSize:12,color:C.dim,lineHeight:1.8}}>الاجتماع محفوظ مرة واحدة في Knowledge OS. يمكن تحويل كل متابعة إلى مهمة فعلية في المشروع المرتبط. المشروعات المؤرشفة تظل ظاهرة كسجل تاريخي، أما مرجع المشروع غير الموجود فيحتاج مراجعة وإعادة ربط من Knowledge OS.</div>
+    {loading ? <div style={{...S.card,padding:30,textAlign:"center",color:C.muted}}>جارٍ تحميل الاجتماعات…</div>
+    : loadError ? <div role="alert" style={{...S.card,padding:24,textAlign:"center"}}><div style={{color:C.bad,marginBottom:10}}>{loadError}</div><Btn onClick={refresh}>إعادة المحاولة</Btn></div>
+    : !visible.length ? <Empty icon="🗓️" title={projectFilter==="all"?"لا توجد اجتماعات محفوظة في Knowledge OS":"لا توجد اجتماعات مرتبطة بهذا المشروع"} sub="افتح اجتماعًا في Knowledge OS واربطه بالمشروع من حقل «المشروع المرتبط»." />
+    : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>{visible.map(m=>{
+      const project=m.relatedSystem==="projects"?projectsById[m.relatedId]:null;
+      const orphan=m.relatedSystem==="projects"&&!!m.relatedId&&!project;
+      const archived=!!project&&(!!project.archived_at||project.status==="Archived");
+      const followups=Array.isArray(m.followups)?m.followups:[];
+      return <article key={m.id} style={{...S.card,padding:14}}>
+        <div style={{display:"flex",gap:8,alignItems:"flex-start"}}><div style={{fontSize:23}}>🗓️</div><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:14}}>{m.title}</div><div style={{fontSize:11,color:C.muted,marginTop:4}}>{m.date||"بدون تاريخ"}{m.startTime?" · "+m.startTime:""}{m.endTime?"–"+m.endTime:""}</div></div><Chip color={orphan?C.bad:archived?C.warn:project?C.ok:C.muted}>{orphan?"مرجع مشروع غير متاح":archived?"مشروع مؤرشف":project?"مرتبط بمشروع":"اجتماع عام"}</Chip></div>
+        <div style={{marginTop:9,fontSize:12,color:orphan?C.bad:archived?C.warn:project?C.ink:C.muted}}>المشروع: <b>{project?.name||(orphan?"المشروع محذوف أو غير متاح":"اجتماع عام")}</b>{orphan&&<div style={{marginTop:4}}>راجع حقل المشروع المرتبط في Knowledge OS لإعادة ربط الاجتماع أو إزالة المرجع القديم.</div>}</div>
+        {m.summary&&<p style={{fontSize:12,lineHeight:1.8,margin:"8px 0"}}>{m.summary}</p>}
+        {Array.isArray(m.attendees)&&m.attendees.length>0&&<div style={{fontSize:11,color:C.dim,marginTop:5}}>المشاركون: {m.attendees.join("، ")}</div>}
+        {m.decisions&&<div style={{fontSize:12,lineHeight:1.8,marginTop:7}}><b>القرارات:</b> {m.decisions}</div>}
+        {followups.length>0&&<div style={{fontSize:12,lineHeight:1.8,marginTop:7}}><b>المتابعات والمهام:</b><ul style={{margin:"4px 0",paddingInlineStart:20}}>{followups.map((x,i)=>{
+          const existing=data.tasks.find(task=>task.source_meeting_id===m.id&&Number(task.source_followup_index)===i);
+          const key=String(m.id)+":"+i;
+          return <li key={i} style={{marginBottom:7}}><div>{String(x)}</div>{existing?<div style={{fontSize:11,color:C.ok,marginTop:3}}>✓ مهمة موجودة: {existing.title}</div>:project&&!archived&&can("task.write",project)?<Btn small disabled={creatingFollowup===key} onClick={()=>createFollowupTask(m,x,i)}>{creatingFollowup===key?"جارٍ الإنشاء…":"تحويل إلى مهمة"}</Btn>:<div style={{fontSize:11,color:C.muted,marginTop:3}}>{archived?"استعد المشروع قبل إنشاء مهام جديدة.":orphan?"أعد ربط الاجتماع بمشروع نشط.":project&&!can("task.write",project)?"لا تملك صلاحية إنشاء مهام في هذا المشروع.":"اربط الاجتماع بمشروع نشط لإنشاء مهمة متابعة."}</div>}</li>;
+        })}</ul></div>}
+      </article>;
+    })}</div>}
+  </div>;
 }
 
 // ═════ Settings ═════
