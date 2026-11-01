@@ -165,3 +165,14 @@ assert.equal(validateTravelImport(safeStopsExport.exported).valid,true);
 assert.equal(safeStopsExport.exported.stops[0].name,"Aswan");
 assert.equal(safeStopsExport.exported.experiences[0].title,"Walk");
 console.log("Travel OS new collections import/export tests passed");
+
+
+const multiStopSchedule=[
+ {id:"city-a-1",tripId:"multi-stop",stopId:"stop-1",date:"2026-12-01",startTime:"09:00",endTime:"10:00",title:"City A"},
+ {id:"city-b-1",tripId:"multi-stop",stopId:"stop-2",date:"2026-12-01",startTime:"09:30",endTime:"10:30",title:"City B"}
+];
+assert.equal(findItineraryConflicts(multiStopSchedule).length,0);
+const badStopAssignment=normalizeTravelData({...stopData,itinerary:[{id:"wrong-stop",tripId:"other-trip",stopId:"stop-1",title:"Wrong trip"}],trips:[...stopData.trips,{id:"other-trip",name:"Other",destination:"Elsewhere"}]});
+assert.ok(validateRelatedRecord("itinerary",badStopAssignment.itinerary[0],badStopAssignment).some(e=>e.includes("محطة البرنامج")));
+assert.equal(validateTravelImport({...importable,stops:[{id:"s1",tripId:"t1",name:"A",order:1}],itinerary:[{id:"i1",tripId:"missing",stopId:"s1",title:"Wrong"}]}).valid,false);
+console.log("Travel OS itinerary-to-stop relationship tests passed");
