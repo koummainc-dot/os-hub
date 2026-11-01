@@ -49,5 +49,7 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261102110000_hobbies_journal_private_storage.sql
       - name: Apply Journal immutable audit migration
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261102120000_hobbies_journal_audit_history.sql
-      - name: Verify private rows, attachments, and audit history
+      - name: Apply Journal attachment lifecycle migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261102130000_hobbies_journal_attachment_lifecycle.sql
+      - name: Verify private rows, attachments, audit history, retention, and cleanup queue
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/hobbies_journal_privacy_smoke.sql
