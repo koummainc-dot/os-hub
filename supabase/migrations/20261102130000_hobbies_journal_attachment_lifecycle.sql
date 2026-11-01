@@ -140,7 +140,8 @@ declare
   v_reason text;
 begin
   if auth.uid() is null then
-    return case when tg_op = 'DELETE' then old else new end;
+    if tg_op = 'DELETE' then return old; end if;
+    return new;
   end if;
 
   v_reason := case when tg_op = 'DELETE'
@@ -185,7 +186,8 @@ begin
     );
   end loop;
 
-  return case when tg_op = 'DELETE' then old else new end;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
 end;
 $function$;
 
