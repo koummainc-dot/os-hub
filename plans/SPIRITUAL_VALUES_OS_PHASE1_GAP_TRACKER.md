@@ -11,7 +11,7 @@
 - Updated the foundation migration to allow all ten collections in the owner-scoped private table and mark every collection sensitive with external summaries disabled.
 - Expanded contract tests for event API compatibility and privacy defaults.
 - Added initial typed P1 domain constructors/validators for values, principles, practices, and flexible frequency configurations.
-- Added a versioned compatibility adapter (`spiritual.typed.v1`) that serializes typed values/principles/practices into the current generic owner-scoped row envelope and safely decodes them; invalid/unknown payloads fall back to legacy display rather than being treated as typed records. This is **adapter/domain progress only**; specialized forms are not yet connected, and typed repository persistence, migrations for typed fields, and full acceptance coverage remain open.
+- Added a versioned compatibility adapter (`spiritual.typed.v1`) that serializes typed values/principles/practices into the current generic owner-scoped row envelope and safely decodes them; invalid/unknown payloads fall back to legacy display rather than being treated as typed records. Specialized Arabic forms for values, principles and practices are now connected to typed constructors, validators and the adapter; typed list summaries avoid printing serialized JSON. The adapter still stores a versioned payload in the existing generic `body` field, so entity-specific schema/relations and full acceptance coverage remain open.
 - A prior head (`84afe5ca09a3276469148535418b97fefa512eb6`) had successful Verify app and CI runs (tests + production build), as well as Knowledge SQL smoke tests and Finance Family Center Checks. Subsequent validator/test commits were added after those runs, so the current PR head still requires fresh CI. No authenticated browser test or production migration has been completed.
 - Latest P1 hardening adds explicit upper bounds and type checks for value tags/description/meaning source and principle text fields, with regression assertions. The commits are saved, but not yet CI-verified.
 
@@ -20,7 +20,7 @@
 - [x] Prevent Spiritual record-save events from serializing private record metadata into browser localStorage.
 - [x] Mark all ten current collections private by default in the domain contract.
 - [x] Expand private-table collection constraint and policy metadata to all ten collections.
-- [ ] Run full CI on the latest PR head and verify every required job. **A prior head passed; rerun required after later validator/test commits `9a0e9fa`, `6ec17bc`, `ac604e5`, `f9becd7`, `9dbfbe1`, `af76b96`, `84f1ed0`, and `2cf6522` (plus this tracker update).**
+- [ ] Run full CI on the latest PR head and verify every required job. **The typed UI, adapter and regression-test commits are newer than the last completed CI evidence; inspect the latest runs before acceptance.**
 - [ ] Run local contract tests and production build in a reproducible environment. **Deferred until a reproducible runtime is available; repository edits alone are not test evidence.**
 - [ ] Verify migration against the actual current Supabase schema in a rollback-only transaction, including policy/constraint idempotency and FK compatibility. **Deferred if safe read/transaction access is unavailable.**
 - [ ] Authenticated multi-user integration test: owner can read/write their own records; another user and workspace collaborator cannot select, mutate, or archive them. **Deferred until two safe test identities and a non-production test environment are available.**
@@ -43,8 +43,10 @@ The current interface is a foundation shell and generic record form, not the com
 
 ### P1 — Values, principles, practices and versions
 - [Partial] Typed domain constructors/validators now cover core values, principles, practices, slot constraints, Habit-linked mode consistency, and frequency configuration shapes. Recent hardening validates tag types/lengths, bounded free text, unique/non-empty explicit dates, unique month-day selections, weekly limits, intervals up to 365 days, and required slot count not exceeding configured slots. These assertions are committed but await fresh CI.
-- [Partial] Versioned adapter maps typed values/principles/practices into the current row envelope without assuming new database columns; decoder preserves legacy fallback.
-- [Remaining] Connect specialized forms to the adapter; real entity-specific persistence/schema and relations from §5.2–5.4; user-controlled ordering; no mandatory moral score.
+- [x] Specialized Arabic create/edit forms for values, principles and practices use typed constructors, validation and versioned adapter persistence.
+- [x] Typed list summaries render structured fields rather than raw serialized payload; legacy records retain generic fallback display.
+- [Partial] Versioned adapter maps typed values/principles/practices into the current row envelope without assuming new database columns; decoder preserves legacy fallback. This is compatibility storage, not the final normalized schema.
+- [Remaining] Entity-specific persistence/schema and relations from §5.2–5.4; user-controlled ordering; full legacy-edit workflow; no mandatory moral score.
 - Principle drift signals are user-defined and private; never label them as moral violations.
 - Practice type/unit, targets/minimum, flexible frequency, slots, preferred time, Habit link mode, versions, pause/archive/restore lifecycle.
 - Duplicate-name, ownership, date, range and state-transition validations.
