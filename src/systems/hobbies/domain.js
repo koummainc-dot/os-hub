@@ -2,7 +2,7 @@ export const HOBBY_STATUSES = ["considering", "active", "paused", "archived"];
 export const HOBBY_CATEGORIES = [
 {id:"creative",label:"فنون وإبداع",icon:"🎨"},{id:"music",label:"موسيقى",icon:"🎵"},{id:"sports",label:"رياضة وحركة",icon:"🏃"},{id:"outdoors",label:"أنشطة خارجية",icon:"🌿"},{id:"crafts",label:"حرف وصناعة",icon:"🛠️"},{id:"technology",label:"تقنية",icon:"💻"},{id:"games",label:"ألعاب",icon:"🎮"},{id:"collecting",label:"جمع المقتنيات",icon:"📚"},{id:"culture",label:"ثقافة ومعرفة",icon:"🌍"},{id:"other",label:"أخرى",icon:"✨"}];
 export const HOBBY_SECTIONS = [{id:"dashboard",label:"الرئيسية",icon:"⌂"},{id:"hobbies",label:"هواياتي",icon:"🎯"},{id:"explore",label:"اهتمامات مستقبلية",icon:"🔎"},{id:"sessions",label:"جلسات الممارسة",icon:"⏱️"},{id:"skills",label:"المهارات والتقدم",icon:"📈"},{id:"milestones",label:"الإنجازات",icon:"🏆"},{id:"goals",label:"الأهداف",icon:"🎯"},{id:"plans",label:"خطط الممارسة",icon:"🗓️"},{id:"settings",label:"الإعدادات",icon:"⚙️"}];
-export const emptyHobbiesData = () => ({schemaVersion:2,hobbies:[],sessions:[],skills:[],skillLogs:[],milestones:[],settings:{timezone:"Africa/Cairo",weekStartDay:6}});
+export const emptyHobbiesData = () => ({schemaVersion:4,hobbies:[],sessions:[],skills:[],skillLogs:[],milestones:[],goals:[],plans:[],resources:[],equipmentLinks:[],settings:{timezone:"Africa/Cairo",weekStartDay:6}});
 export const makeHobbyId = (prefix="hobby") => globalThis.crypto?.randomUUID?.() || prefix+"-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8);
 export function validateHobby(input) {
 const name=String(input?.name||"").trim(); if(!name)return {ok:false,error:"اسم الهواية مطلوب."}; if(name.length>120)return {ok:false,error:"اسم الهواية يجب ألا يتجاوز 120 حرفًا."};
@@ -76,11 +76,11 @@ export function validateHobbiesProgressImport(value) {
   const base=validateHobbiesImport(value);
   if(!base.ok)return base;
   const source=value?.data&&typeof value.data==="object"?value.data:value;
-  const collections=["skills","skillLogs","milestones","goals","plans"];
+  const collections=["skills","skillLogs","milestones","goals","plans","resources","equipmentLinks"];
   for(const key of collections) if(source[key]!==undefined&&!Array.isArray(source[key])) return {ok:false,error:"مجموعة "+key+" يجب أن تكون قائمة."};
-  const skills=source.skills||[],logs=source.skillLogs||[],milestones=source.milestones||[],goals=source.goals||[],plans=source.plans||[];
+  const skills=source.skills||[],logs=source.skillLogs||[],milestones=source.milestones||[],goals=source.goals||[],plans=source.plans||[],resources=source.resources||[],equipmentLinks=source.equipmentLinks||[];
   const unique=(rows,key)=>{const ids=new Set();for(const row of rows){if(!row||!String(row.id||"").trim()||ids.has(row.id))return false;ids.add(row.id);}return true;};
-  if(!unique(skills,"id")||!unique(logs,"id")||!unique(milestones,"id")||!unique(goals,"id")||!unique(plans,"id"))return {ok:false,error:"يوجد معرّف مفقود أو مكرر في بيانات التقدم."};
+  if(!unique(skills,"id")||!unique(logs,"id")||!unique(milestones,"id")||!unique(goals,"id")||!unique(plans,"id")||!unique(resources,"id")||!unique(equipmentLinks,"id"))return {ok:false,error:"يوجد معرّف مفقود أو مكرر في بيانات التقدم."};
   const hobbyIds=new Set(base.value.hobbies.map(h=>h.id)),skillIds=new Set(skills.map(s=>s.id));
   if(skills.some(s=>!hobbyIds.has(s.hobbyId))||logs.some(l=>!skillIds.has(l.skillId))||milestones.some(m=>!hobbyIds.has(m.hobbyId)||(m.skillId&&!skillIds.has(m.skillId))))return {ok:false,error:"توجد علاقة غير صحيحة في بيانات المهارات أو الإنجازات."};
   const skillById=new Map(skills.map(s=>[s.id,s]));
@@ -144,4 +144,34 @@ export function hobbyPlanProgress(plan,sessions,periodStart,periodEnd){
  const rows=plan.status==="active"&&from<=to?sessions.filter(s=>s.hobbyId===plan.hobbyId&&!s.deleted_at&&s.localDate>=from&&s.localDate<=to):[];
  const minutes=rows.reduce((n,s)=>n+(Number(s.durationMinutes)||0),0);
  return {sessions:rows.length,minutes,targetSessions:plan.targetSessions,targetMinutes:plan.targetMinutes,sessionsPercent:plan.targetSessions?Math.min(100,Math.round(rows.length/plan.targetSessions*100)):null,minutesPercent:plan.targetMinutes?Math.min(100,Math.round(minutes/plan.targetMinutes*100)):null};
+}
+
+
+export const HOBBY_RESOURCE_TYPES=["book","video","article","website","course","lesson","reference","tool","other"];
+export const HOBBY_RESOURCE_STATUSES=["new","in_progress","completed","deferred","not_suitable"];
+export const HOBBY_EQUIPMENT_OWNER_SYSTEMS=["home","inventory"];
+export function validateHobbyResource(input,hobbies,skills=[],goals=[]){
+ const title=String(input?.title||"").trim(),hobby=hobbies.find(h=>h.id===input.hobbyId);
+ if(!title||title.length>180)return {ok:false,error:"عنوان المورد مطلوب وبحد أقصى 180 حرفًا."};
+ if(!hobby||hobby.status==="archived")return {ok:false,error:"اختر هواية موجودة وغير مؤرشفة."};
+ const resourceType=input.resourceType||"other",status=input.status||"new";
+ if(!HOBBY_RESOURCE_TYPES.includes(resourceType))return {ok:false,error:"نوع المورد غير صحيح."};
+ if(!HOBBY_RESOURCE_STATUSES.includes(status))return {ok:false,error:"حالة المورد غير صحيحة."};
+ const url=String(input.url||"").trim();
+ if(url){try{const parsed=new URL(url);if(!["http:","https:"].includes(parsed.protocol))throw new Error();}catch{return {ok:false,error:"رابط المورد يجب أن يبدأ بـ http أو https."};}}
+ if(input.skillId&&!skills.some(s=>s.id===input.skillId&&s.hobbyId===input.hobbyId))return {ok:false,error:"المهارة المرتبطة لا تتبع هذه الهواية."};
+ if(input.goalId&&!goals.some(g=>g.id===input.goalId&&g.hobbyId===input.hobbyId))return {ok:false,error:"الهدف المرتبط لا يتبع هذه الهواية."};
+ const rating=input.rating===""||input.rating==null?null:Number(input.rating);
+ if(rating!==null&&(!Number.isInteger(rating)||rating<1||rating>5))return {ok:false,error:"تقييم المورد يجب أن يكون من 1 إلى 5."};
+ return {ok:true,value:{...input,title,resourceType,status,url,notes:String(input.notes||"").trim(),skillId:input.skillId||null,goalId:input.goalId||null,rating}};
+}
+export function validateHobbyEquipmentLink(input,hobbies){
+ const hobby=hobbies.find(h=>h.id===input.hobbyId);
+ if(!hobby||hobby.status==="archived")return {ok:false,error:"اختر هواية موجودة وغير مؤرشفة."};
+ if(!HOBBY_EQUIPMENT_OWNER_SYSTEMS.includes(input.ownerSystem))return {ok:false,error:"النظام المالك للمعدة غير مدعوم."};
+ const ownerRecordId=String(input.ownerRecordId||"").trim();
+ if(!ownerRecordId||ownerRecordId.length>180)return {ok:false,error:"معرّف سجل المعدة في النظام المالك مطلوب."};
+ const role=String(input.role||"").trim();
+ if(role.length>100)return {ok:false,error:"وصف الاستخدام يجب ألا يتجاوز 100 حرف."};
+ return {ok:true,value:{...input,ownerRecordId,role,notes:String(input.notes||"").trim()}};
 }
