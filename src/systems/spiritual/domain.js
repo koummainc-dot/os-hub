@@ -144,7 +144,7 @@ export function isPracticeExpectedOnDate(practice,date){
  // Count-based and flexible schedules do not identify a specific expected day.
  return null;
 }
-export function getPracticeDaySummary(logs,practice){
+export function getPracticeDaySummary(logs,practice,date){
  const own=(logs||[]).filter(x=>x.practiceId===practice?.id);
  const levels=own.map(x=>getPracticeCompletionLevel(x,practice));
  const maintained=levels.filter(x=>x==="Full"||x==="Minimum").length;
