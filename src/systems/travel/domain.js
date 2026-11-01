@@ -12,7 +12,7 @@ export const TRIP_STATUS_LABELS = {idea:"فكرة",planning:"قيد التخطي
 export function emptyTravelData(){return {schemaVersion:1,trips:[],stops:[],itinerary:[],bookings:[],packing:[],packingTemplates:[],destinations:[],places:[],experiences:[],documents:[],memories:[],reviews:[],settings:{baseCurrency:"EGP",defaultPackingTemplate:[]},financeLinks:[],audit:[]};}
 export function normalizeTravelData(value){const base=emptyTravelData(),src=value&&typeof value==="object"?value:{};const out={...base,...src,schemaVersion:1};for(const key of ["trips","stops","itinerary","bookings","packing","packingTemplates","destinations","places","experiences","documents","memories","reviews","financeLinks","audit"])out[key]=Array.isArray(src[key])?src[key]:[];out.settings={...base.settings,...(src.settings||{})};return out;}
 
-const TRAVEL_COLLECTIONS=["trips","itinerary","bookings","packing","destinations","places","documents","memories","reviews","financeLinks","audit"];
+const TRAVEL_COLLECTIONS=["trips","stops","itinerary","bookings","packing","packingTemplates","destinations","places","experiences","documents","memories","reviews","financeLinks","audit"];
 const TRAVEL_REFERENCE_RULES=[
   ["stops","tripId","trips","محطات الرحلة"],
   ["itinerary","tripId","trips","البرنامج"],
@@ -94,6 +94,7 @@ export function findItineraryConflicts(items=[]){
   const conflicts=[];
   for(let i=0;i<events.length;i++)for(let j=i+1;j<events.length;j++){
     const a=events[i],b=events[j];
+    if(a.tripId!==b.tripId)continue;
     const diff=(Date.parse(b.date+"T00:00:00Z")-Date.parse(a.date+"T00:00:00Z"))/86400000;
     if(diff>1)break;
     const bStart=b.startMinute+diff*1440,bEnd=b.endMinute+diff*1440;
@@ -185,4 +186,4 @@ export function tripSpend(tripId,data){
 export function packingProgress(tripId,data){const rows=(data?.packing||[]).filter(x=>x.tripId===tripId);const packed=rows.filter(x=>x.packed).length;return {total:rows.length,packed,remaining:rows.length-packed,percent:rows.length?Math.round(packed/rows.length*100):0};}
 export function getActiveTrip(data,today=new Date().toISOString().slice(0,10)){return (data?.trips||[]).filter(t=>t.status!=="cancelled"&&t.status!=="completed"&&t.startDate&&t.endDate&&t.startDate<=today&&t.endDate>=today).sort((a,b)=>a.startDate.localeCompare(b.startDate))[0]||null;}
 export function upcomingTrips(data,today=new Date().toISOString().slice(0,10)){return (data?.trips||[]).filter(t=>!["cancelled","completed","active"].includes(t.status)&&t.startDate>=today).sort((a,b)=>a.startDate.localeCompare(b.startDate));}
-export function validateRelatedRecord(kind,row,data){const errors=[];if(["itinerary","bookings","packing","documents","memories","reviews"].includes(kind)&&row?.tripId&&!(data.trips||[]).some(t=>t.id===row.tripId))errors.push("الرحلة المرتبطة غير موجودة");if(kind==="itinerary"&&!String(row?.title||"").trim())errors.push("عنوان النشاط مطلوب");if(kind==="stops")errors.push(...validateStop(row));if(kind==="experiences"&&!String(row?.title||"").trim())errors.push("اسم التجربة مطلوب");if(kind==="experiences"&&row?.placeId&&!(data.places||[]).some(x=>x.id===row.placeId))errors.push("المكان المرتبط بالتجربة غير موجود.");if(kind==="bookings"&&!String(row?.title||"").trim())errors.push("اسم الحجز مطلوب");if(kind==="packing"&&!String(row?.item||"").trim())errors.push("اسم العنصر مطلوب");if(kind==="destinations"&&!String(row?.name||"").trim())errors.push("اسم الوجهة مطلوب");if(kind==="places"&&!String(row?.name||"").trim())errors.push("اسم المكان أو التجربة مطلوب");return errors;}
+export function validateRelatedRecord(kind,row,data){const errors=[];if(["stops","itinerary","bookings","packing","documents","memories","reviews","experiences"].includes(kind)&&row?.tripId&&!(data.trips||[]).some(t=>t.id===row.tripId))errors.push("الرحلة المرتبطة غير موجودة");if(kind==="itinerary"&&!String(row?.title||"").trim())errors.push("عنوان النشاط مطلوب");if(kind==="stops")errors.push(...validateStop(row));if(kind==="experiences"&&!String(row?.title||"").trim())errors.push("اسم التجربة مطلوب");if(kind==="experiences"&&row?.placeId&&!(data.places||[]).some(x=>x.id===row.placeId))errors.push("المكان المرتبط بالتجربة غير موجود.");if(kind==="bookings"&&!String(row?.title||"").trim())errors.push("اسم الحجز مطلوب");if(kind==="packing"&&!String(row?.item||"").trim())errors.push("اسم العنصر مطلوب");if(kind==="destinations"&&!String(row?.name||"").trim())errors.push("اسم الوجهة مطلوب");if(kind==="places"&&!String(row?.name||"").trim())errors.push("اسم المكان أو التجربة مطلوب");return errors;}
