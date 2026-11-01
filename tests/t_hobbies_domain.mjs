@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {hobbyInsights} from "../src/systems/hobbies/domain.js";
+import {hobbyInsights,hobbySessionEvent} from "../src/systems/hobbies/domain.js";
 import {validateHobbySkill,validateHobbySkillLog,validateHobbyMilestone,validateHobbiesProgressImport,validateHobbyGoal,validateHobbyPlan,hobbyGoalProgress,hobbyPlanProgress,validateHobbyResource,validateHobbyEquipmentLink,validateHobbyJournalEntry} from "../src/systems/hobbies/domain.js";
 import {HOBBY_STATUSES,HOBBY_CATEGORIES,validateHobby,validateHobbySession,hobbyMetrics,hobbiesSummary,validateHobbiesImport} from "../src/systems/hobbies/domain.js";
 assert.deepEqual(HOBBY_STATUSES,["considering","active","paused","archived"]);
@@ -116,3 +116,14 @@ assert.equal(hobbyInsights([{id:"h1",status:"active"}],[{hobbyId:"h1",localDate:
 assert.equal(insightData.goals[0].current,2);
 assert.equal(hobbyInsights([],[],[],[],[],"2026-11-01").minutesChangePercent,0);
 console.log("Hobbies OS Phase 6 insights tests passed.");
+
+const sessionEvent=hobbySessionEvent({id:"session-123",hobbyId:"h1",localDate:"2026-11-01",durationMinutes:45,sessionType:"practice",created_at:"2026-11-01T10:00:00.000Z"},{id:"h1",name:"تصوير"});
+assert.equal(sessionEvent.type,"hobbies.practice_session.completed");
+assert.equal(sessionEvent.entityType,"practice_session");
+assert.equal(sessionEvent.entityId,"session-123");
+assert.deepEqual(sessionEvent.payload.sourceRef,{system:"hobbies",type:"practice_session",id:"session-123"});
+assert.equal(sessionEvent.payload.hobbyName,"تصوير");
+assert.equal(sessionEvent.payload.minutes,45);
+assert.equal(sessionEvent.payload.timezone,"Africa/Cairo");
+assert.throws(()=>hobbySessionEvent({id:"session-123",hobbyId:"h2"},{id:"h1",name:"تصوير"}),/HOBBY_SESSION_EVENT_SOURCE_INVALID/);
+console.log("Hobbies OS Phase 6B Today event contract tests passed.");
