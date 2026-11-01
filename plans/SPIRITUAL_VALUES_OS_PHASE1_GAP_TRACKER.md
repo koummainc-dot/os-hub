@@ -208,3 +208,6 @@ The current interface is a foundation shell and generic record form, not the com
 - Supabase security advisors also surfaced unrelated workspace-wide findings (including tables with RLS enabled but no policies and many callable SECURITY DEFINER functions). These are not automatically attributable to Spiritual and were not modified; they need a separate scoped security review before production acceptance.
 - Latest PR head is `c309f2619935b414450f895dae2ac9f6cfd5158f`; fresh workflow runs for this exact head were not yet returned at the time of this update. The most recent completed workflow evidence remains for an earlier head and does not certify the Hijri changes.
 - Still open: encrypted text/key management, live two-user RLS isolation, non-production migration apply/rollback, typed relational schema, offline encrypted sync/conflict handling, export/import/wipe, and full P0–P8 acceptance. No merge, deploy, or production schema change.
+
+- Additional recurrence correctness fix: practices are no longer considered expected before their own creation date. Added regression coverage for the day immediately before creation and the creation date itself.
+- Hijri and creation-date code/tests are in CI on the latest branch commits; final green status is still pending.
