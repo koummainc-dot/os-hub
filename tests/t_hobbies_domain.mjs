@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {hobbyInsights,hobbySessionEvent} from "../src/systems/hobbies/domain.js";
+import {hobbyInsights,hobbySessionEvent,resurfaceHobbyMemories} from "../src/systems/hobbies/domain.js";
 import {validateHobbySkill,validateHobbySkillLog,validateHobbyMilestone,validateHobbiesProgressImport,validateHobbyGoal,validateHobbyPlan,hobbyGoalProgress,hobbyPlanProgress,validateHobbyResource,validateHobbyEquipmentLink,validateHobbyJournalEntry} from "../src/systems/hobbies/domain.js";
 import {HOBBY_STATUSES,HOBBY_CATEGORIES,validateHobby,validateHobbySession,hobbyMetrics,hobbiesSummary,validateHobbiesImport} from "../src/systems/hobbies/domain.js";
 assert.deepEqual(HOBBY_STATUSES,["considering","active","paused","archived"]);
@@ -129,3 +129,21 @@ assert.equal(sessionEvent.payload.minutes,45);
 assert.equal(sessionEvent.payload.timezone,"Africa/Cairo");
 assert.throws(()=>hobbySessionEvent({id:"session-123",hobbyId:"h2"},{id:"h1",name:"تصوير"}),/HOBBY_SESSION_EVENT_SOURCE_INVALID/);
 console.log("Hobbies OS Phase 6B Today event contract tests passed.");
+
+const memoryRows=[
+ {id:"m-old-1",entryType:"memory",hobbyId:"h1",localDate:"2024-11-02",title:"معرض قديم",body:"تفاصيل المعرض",created_at:"2024-11-02T10:00:00Z"},
+ {id:"m-old-2",entryType:"memory",hobbyId:"h1",skillId:"sk1",localDate:"2025-08-10",title:"تعلمت الإضاءة",body:"تجربة الإضاءة"},
+ {id:"m-old-3",entryType:"memory",hobbyId:"h2",localDate:"2025-11-02",title:"رحلة موسيقية",body:"تفاصيل"},
+ {id:"m-today",entryType:"memory",hobbyId:"h1",localDate:"2026-11-02",title:"اليوم",body:"لا تعرض ذكرى اليوم نفسه"},
+ {id:"m-future",entryType:"memory",hobbyId:"h1",localDate:"2027-11-02",title:"مستقبل",body:"لا تعرض المستقبل"},
+ {id:"m-deleted",entryType:"memory",hobbyId:"h1",localDate:"2023-11-02",deleted_at:"2024-01-01",title:"محذوف",body:""},
+ {id:"m-archived",entryType:"memory",hobbyId:"h1",localDate:"2022-11-02",archivedAt:"2025-01-01",title:"مؤرشف",body:""},
+ {id:"j-not-memory",entryType:"journal",hobbyId:"h1",localDate:"2021-11-02",title:"يومية",body:""}
+];
+const resurfaced=resurfaceHobbyMemories(memoryRows,"2026-11-02",{hobbyId:"h1",skillIds:["sk1"]});
+assert.deepEqual(resurfaced.onThisDay.map(x=>x.id),["m-old-3","m-old-1"]);
+assert.deepEqual(resurfaced.related.map(x=>x.id),["m-old-2"]);
+assert.equal(new Set([...resurfaced.onThisDay,...resurfaced.related].map(x=>x.id)).size,3);
+assert.deepEqual(resurfaceHobbyMemories(memoryRows,"2026-11-02",{hobbyId:"missing"}).related,[]);
+assert.deepEqual(resurfaceHobbyMemories(memoryRows,"2026-02-29").onThisDay,[]);
+console.log("Hobbies OS Phase 5B-5 memory resurfacing tests passed.");
