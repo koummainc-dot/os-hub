@@ -173,3 +173,46 @@ export function validateSportsImport(value) {
   }
   return { ok: true, value: out };
 }
+
+/** Create a repeatable weekly template. Day 1 is the program start date; subsequent
+ * training days are spread across the week without placing two sessions back-to-back
+ * where possible. Dates are local calendar dates, not UTC timestamps. */
+export function generateWorkoutDays(program, idFactory = makeSportsId) {
+  const checked = validateProgram(program);
+  if (!checked.ok) return checked;
+  const { durationWeeks, daysPerWeek, startDate } = checked.value;
+  const weekdayOffsets = {
+    1: [0], 2: [0, 3], 3: [0, 2, 4], 4: [0, 2, 4, 6],
+    5: [0, 1, 3, 4, 6], 6: [0, 1, 2, 4, 5, 6], 7: [0, 1, 2, 3, 4, 5, 6],
+  }[daysPerWeek];
+  const start = new Date(startDate + "T12:00:00Z");
+  if (!Number.isFinite(start.getTime()) || start.toISOString().slice(0, 10) !== startDate)
+    return { ok: false, error: "تاريخ بداية البرنامج غير صالح." };
+  const days = [];
+  for (let week = 0; week < durationWeeks; week++) {
+    for (let index = 0; index < weekdayOffsets.length; index++) {
+      const date = new Date(start);
+      date.setUTCDate(start.getUTCDate() + week * 7 + weekdayOffsets[index]);
+      days.push({
+        id: idFactory("workout-day"), programId: program.id,
+        weekNumber: week + 1, dayNumber: index + 1,
+        scheduledDate: date.toISOString().slice(0, 10),
+        title: "اليوم " + (index + 1), focus: "",
+        status: "Planned", sortOrder: index + 1,
+      });
+    }
+  }
+  return { ok: true, value: days };
+}
+export function validatePlannedExercise(input, exercise, workoutDay) {
+  if (!workoutDay?.id || !workoutDay?.programId) return { ok: false, error: "يجب اختيار يوم تدريبي صالح." };
+  if (!exercise?.id) return { ok: false, error: "يجب اختيار تمرين من المكتبة." };
+  const sets = Number(input?.targetSets), reps = input?.targetReps === "" || input?.targetReps == null ? null : Number(input.targetReps);
+  const rest = Number(input?.restSeconds ?? 90);
+  if (!Number.isInteger(sets) || sets < 1 || sets > 30) return { ok: false, error: "المجموعات المستهدفة يجب أن تكون من 1 إلى 30." };
+  if (reps != null && (!Number.isInteger(reps) || reps < 1 || reps > 10000)) return { ok: false, error: "التكرارات المستهدفة يجب أن تكون عددًا صحيحًا موجبًا." };
+  if (!Number.isFinite(rest) || rest < 0 || rest > 3600) return { ok: false, error: "وقت الراحة يجب أن يكون بين 0 و3600 ثانية." };
+  const target = { ...input, workoutDayId: workoutDay.id, programId: workoutDay.programId, exerciseId: exercise.id,
+    targetSets: sets, targetReps: reps, restSeconds: rest, exerciseNameSnapshot: exercise.name };
+  return { ok: true, value: target };
+}
