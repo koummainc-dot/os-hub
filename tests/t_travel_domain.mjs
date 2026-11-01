@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {emptyTravelData,normalizeTravelData,validateTrip,tripSpend,packingProgress,getActiveTrip,upcomingTrips,validateRelatedRecord,validateTravelImport,buildTravelExport} from "../src/systems/travel/domain.js";
+import {emptyTravelData,normalizeTravelData,validateTrip,tripSpend,packingProgress,getActiveTrip,upcomingTrips,validateRelatedRecord,validateTravelImport,buildTravelExport,validateFinanceLink,tripBudgetBreakdown} from "../src/systems/travel/domain.js";
 const base=emptyTravelData();
 assert.equal(base.trips.length,0);
 assert.deepEqual(validateTrip({name:"",destination:""}),["اسم الرحلة مطلوب","الوجهة مطلوبة"]);
@@ -37,3 +37,29 @@ assert.equal(safeExport.exported.documents[0].storageNote,"");
 assert.equal(safeExport.exported.memories[0].mediaPath,"");
 assert.equal(buildTravelExport(importable,{includeSensitive:true}).exported.bookings[0].reference,"CONFIDENTIAL");
 console.log("Travel OS import/export safety tests passed");
+
+const budgetData=normalizeTravelData({
+ trips:[{id:"budget-trip",name:"Budget Trip",destination:"Cairo",budget:1000,currency:"EGP"}],
+ bookings:[{id:"stay",tripId:"budget-trip",title:"Hotel",cost:300,currency:"EGP",status:"confirmed"},{id:"cancelled-stay",tripId:"budget-trip",cost:200,currency:"EGP",status:"cancelled"}],
+ itinerary:[{id:"museum",tripId:"budget-trip",title:"Museum",estimatedCost:100,status:"planned"},{id:"tour",tripId:"budget-trip",title:"Tour",estimatedCost:50,status:"planned"}],
+ financeLinks:[{id:"link-hotel",tripId:"budget-trip",sourceType:"booking",sourceId:"stay",financeTransactionId:"tx-hotel",kind:"expense"},{id:"link-refund",tripId:"budget-trip",sourceType:"trip",sourceId:"",financeTransactionId:"tx-refund",kind:"refund"}]
+});
+const financeRows=[
+ {id:"tx-hotel",name:"Hotel paid",base_amount:100,currency:"EGP",status:"Posted",pnl_effect:"Expense"},
+ {id:"tx-refund",name:"Refund",base_amount:20,currency:"EGP",status:"Posted",pnl_effect:"Income"}
+];
+const breakdown=tripBudgetBreakdown("budget-trip",budgetData,financeRows,"EGP");
+assert.equal(breakdown.bookingCommitments,300);
+assert.equal(breakdown.outstandingBookingCommitment,200);
+assert.equal(breakdown.plannedActivities,150);
+assert.equal(breakdown.actualExpensesBase,100);
+assert.equal(breakdown.refundsBase,20);
+assert.equal(breakdown.netActualBase,80);
+assert.equal(breakdown.projectedTotal,430);
+assert.equal(breakdown.remainingBudget,570);
+assert.equal(validateFinanceLink({tripId:"budget-trip",financeTransactionId:"tx-hotel",kind:"expense",sourceType:"booking",sourceId:"stay"},budgetData,financeRows).includes("هذه الحركة المالية مرتبطة بالسفر بالفعل."),true);
+assert.equal(validateFinanceLink({tripId:"budget-trip",financeTransactionId:"tx-refund",kind:"expense",sourceType:"trip"},emptyTravelData(),financeRows).some(e=>e.includes("حركة مصروف")),true);
+const foreignCurrency=tripBudgetBreakdown("budget-trip",budgetData,financeRows,"USD");
+assert.equal(foreignCurrency.requiresFx,true);
+assert.equal(foreignCurrency.actualInTripCurrency,null);
+console.log("Travel OS finance-linked budget tests passed");
