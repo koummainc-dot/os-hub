@@ -47,8 +47,8 @@ as $function$
     'attachmentCount', case when jsonb_typeof(p_data->'attachments')='array'
       then jsonb_array_length(p_data->'attachments') else 0 end,
     'memoryCategory', p_data->'memoryCategory',
-    'isPinned', coalesce((p_data->>'isPinned')::boolean,false),
-    'isFavorite', coalesce((p_data->>'isFavorite')::boolean,false),
+    'isPinned', case when jsonb_typeof(p_data->'isPinned')='boolean' then p_data->'isPinned' else 'false'::jsonb end,
+    'isFavorite', case when jsonb_typeof(p_data->'isFavorite')='boolean' then p_data->'isFavorite' else 'false'::jsonb end,
     'archivedAt', p_data->'archivedAt'
   )
 $function$;
