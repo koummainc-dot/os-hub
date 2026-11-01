@@ -155,3 +155,13 @@ assert.ok(travelDeletionBlocker("destination",{id:"dest"},linkedPlaceData).inclu
 assert.ok(travelDeletionBlocker("place",{id:"place"},linkedPlaceData).includes("تجارب فعلية"));
 assert.equal(travelDeletionBlocker("place",{id:"unlinked"},linkedPlaceData),"");
 console.log("Travel OS deletion integrity tests passed");
+
+
+assert.deepEqual(normalizeTravelData({}).stops,[]);
+assert.deepEqual(normalizeTravelData({}).experiences,[]);
+assert.deepEqual(normalizeTravelData({}).packingTemplates,[]);
+const safeStopsExport=buildTravelExport({schemaVersion:1,trips:[{id:"export-trip",name:"Export"}],stops:[{id:"export-stop",tripId:"export-trip",name:"Aswan",order:1,timeZone:"Africa/Cairo"}],experiences:[{id:"export-experience",tripId:"export-trip",title:"Walk"}],packingTemplates:[{id:"export-template",name:"Light",items:[{item:"Shoes"}]}]});
+assert.equal(validateTravelImport(safeStopsExport.exported).valid,true);
+assert.equal(safeStopsExport.exported.stops[0].name,"Aswan");
+assert.equal(safeStopsExport.exported.experiences[0].title,"Walk");
+console.log("Travel OS new collections import/export tests passed");
