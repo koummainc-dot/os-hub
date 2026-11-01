@@ -45,7 +45,11 @@ as $function$
     'skillId', p_data->'skillId',
     'milestoneId', p_data->'milestoneId',
     'attachmentCount', case when jsonb_typeof(p_data->'attachments')='array'
-      then jsonb_array_length(p_data->'attachments') else 0 end
+      then jsonb_array_length(p_data->'attachments') else 0 end,
+    'memoryCategory', p_data->'memoryCategory',
+    'isPinned', coalesce((p_data->>'isPinned')::boolean,false),
+    'isFavorite', coalesce((p_data->>'isFavorite')::boolean,false),
+    'archivedAt', p_data->'archivedAt'
   )
 $function$;
 
