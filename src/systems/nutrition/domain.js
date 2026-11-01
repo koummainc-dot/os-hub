@@ -109,7 +109,7 @@ export function normalizeSearch(value) {
 }
 export function searchFoods(foods, query) {
   const q=normalizeSearch(query); if(!q) return foods.slice();
-  return foods.filter(f=>[f.name,f.brand,...(f.aliases||[])].some(v=>normalizeSearch(v).includes(q)));
+  return foods.filter(f=>[f.name,f.brand,f.barcode,...(f.aliases||[])].some(v=>normalizeSearch(v).includes(q)));
 }
 export function validateGoal(input) {
   const x=input&&typeof input==="object"?input:{},errors=[];
