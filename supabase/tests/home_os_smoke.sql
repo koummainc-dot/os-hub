@@ -1,4 +1,4 @@
--- Run only against tests/home_os_sql_bootstrap.sql + the three Home OS migrations.
+-- Run only against tests/home_os_sql_bootstrap.sql + the 14 Home OS migrations.
 \set ON_ERROR_STOP on
 insert into public.workspaces(id) values ('10000000-0000-4000-8000-000000000001');
 insert into auth.users(id) values ('20000000-0000-4000-8000-000000000001');
