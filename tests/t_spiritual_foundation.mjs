@@ -54,6 +54,8 @@ assert.equal(validateSpiritualPracticeLog(amLog,multiSlotPractice).ok,true);
 assert.equal(validateSpiritualPracticeLog(pmLog,multiSlotPractice).ok,true);
 assert.equal(getPracticeDaySummary([amLog,pmLog],multiSlotPractice).state,"Maintained");
 assert.equal(getPracticeDaySummary([],multiSlotPractice).state,"Unrecorded");
+const excusedLog=createSpiritualPracticeLog({practiceId:practiceModel.id,date:"2026-11-01",slotKey:"_",status:"Excused"});
+assert.equal(getPracticeDaySummary([excusedLog],practiceModel).state,"Excused");
 assert.match(moduleSource,/createSpiritualPracticeLog/);
 assert.match(moduleSource,/practice_logs/);
 assert.match(moduleSource,/logMode!=="Own"/);
