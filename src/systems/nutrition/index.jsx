@@ -13,7 +13,7 @@ const C={ink:"#172033",muted:"#64748B",line:"#E2E8F0",bg:"#F8FAFC",accent:"#16A3
 const stamp=()=>new Date().toISOString();
 const localDateTime=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
 const uid=(p)=>makeNutritionId(p);
-const seed=()=>{const d=emptyNutritionData();return {...d,foods:[
+const seed=()=>{const d=emptyNutritionData();delete d.schemaVersion;return {...d,foods:[
 {id:"nut-seed-oats",name:"شوفان",brand:"",basisAmount:100,basisUnit:"g",servingAmount:40,servingUnit:"جم",calories:389,proteinG:16.9,carbsG:66.3,fatG:6.9,fiberG:10.6,sugarG:0.9,sodiumMg:2,origin:"demo",verificationLevel:"unverified",status:"active",favorite:true,createdAt:stamp(),updatedAt:stamp()},
 {id:"nut-seed-eggs",name:"بيض كامل",brand:"",basisAmount:100,basisUnit:"g",servingAmount:50,servingUnit:"جم",calories:143,proteinG:12.6,carbsG:0.7,fatG:9.5,fiberG:0,sugarG:0.4,sodiumMg:142,origin:"demo",verificationLevel:"unverified",status:"active",favorite:true,createdAt:stamp(),updatedAt:stamp()},
 {id:"nut-seed-rice",name:"أرز أبيض مطبوخ",brand:"",basisAmount:100,basisUnit:"g",servingAmount:150,servingUnit:"جم",calories:130,proteinG:2.7,carbsG:28.2,fatG:0.3,fiberG:0.4,sugarG:0.1,sodiumMg:1,origin:"demo",verificationLevel:"unverified",status:"active",favorite:false,createdAt:stamp(),updatedAt:stamp()},
