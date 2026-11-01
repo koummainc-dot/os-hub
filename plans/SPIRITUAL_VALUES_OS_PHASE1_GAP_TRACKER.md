@@ -51,7 +51,7 @@ The current interface is a foundation shell and generic record form, not the com
 - Principle drift signals are user-defined and private; never label them as moral violations.
 - Practice type/unit, targets/minimum, flexible frequency, slots, preferred time, Habit link mode, versions, pause/archive/restore lifecycle.
 - P2 partial: typed own-practice log constructor/validator; accepted statuses Done/Partial/Excused only; date/practice/slot validation; deterministic `(practiceId,date,slotKey)` record identity; canonical `_` key for a single slot; multiple configured slots supported; optional actual/duration/note; source and client operation ID.
-- P2 partial: quick logging UI on practice cards, date and slot selection, status/quantity/note, day summary labels Maintained/Partial/Unrecorded; HabitLinked practices are explicitly read-only and never create duplicate logs.
+- P2 partial: quick logging UI on practice cards, date and slot selection, status/quantity/duration/note, day summary labels Maintained/Partial/Excused/Unrecorded; HabitLinked practices are explicitly read-only and never create duplicate logs.
 - P2 contract tests cover date/status/slot validation, completion levels, multiple slots, unrecorded semantics, and Habit-linked rejection. These checks await CI.
 - Duplicate-name, ownership, date, range and state-transition validations.
 
