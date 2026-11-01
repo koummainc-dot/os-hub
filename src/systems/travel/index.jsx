@@ -2,7 +2,7 @@ import React,{useCallback,useEffect,useMemo,useState} from "react";
 import {osSectionLevel} from "../../core/core.js";
 import {supabase} from "../../core/supabase.js";
 import {AccessDenied} from "../../core/ui.jsx";
-import {emptyTravelData,normalizeTravelData,validateTrip,validateRelatedRecord,tripSpend,packingProgress,getActiveTrip,upcomingTrips,validateTravelImport,buildTravelExport,validateFinanceLink,tripBudgetBreakdown,TRIP_STATUS_LABELS,TRAVEL_SECTIONS} from "./domain.js";
+import {emptyTravelData,normalizeTravelData,validateTrip,validateRelatedRecord,tripSpend,packingProgress,getActiveTrip,upcomingTrips,validateTravelImport,buildTravelExport,validateFinanceLink,tripBudgetBreakdown,financeTransactionState,financeTransactionStateLabel,TRIP_STATUS_LABELS,TRAVEL_SECTIONS} from "./domain.js";
 import {buildTravelSeed} from "./demo.js";
 
 const C={accent:"#0891B2",ink:"#172033",muted:"#64748B",line:"#E2E8F0",bg:"#F8FAFC",soft:"#ECFEFF",green:"#047857",amber:"#B45309",red:"#B91C1C"};
@@ -42,14 +42,14 @@ export default function TravelExperiencesOS({api,access,ws,isDemo=false,page="ho
    if(page!=="budget"||isDemo||!ws?.id){setFinanceTransactions([]);setFinanceLoadError("");return;}
    setFinanceLoadError("");
    const [txRes,settingsRes]=await Promise.all([
-    supabase.from("finance_transactions").select("id,name,base_amount,currency,local_date,status,pnl_effect,type").eq("workspace_id",ws.id).eq("status","Posted").in("pnl_effect",["Expense","Income"]).order("local_date",{ascending:false}).limit(500),
+    supabase.from("finance_transactions").select("id,name,base_amount,currency,local_date,status,pnl_effect,type,refund_of_id,reversal_of_id").eq("workspace_id",ws.id).eq("status","Posted").in("pnl_effect",["Expense","Income"]).order("local_date",{ascending:false}).limit(500),
     supabase.from("finance_settings").select("base_currency").eq("workspace_id",ws.id).maybeSingle()
    ]);
    if(!alive)return;
    if(txRes.error){setFinanceTransactions([]);setFinanceLoadError("تعذر قراءة حركات Finance لهذه المساحة؛ لم تُحسب مصروفات فعلية.");return;}
    let rows=txRes.data||[];
    const linkedIds=[...new Set((data.financeLinks||[]).map(link=>link.financeTransactionId).filter(Boolean))];
-   if(linkedIds.length){const linkedRes=await supabase.from("finance_transactions").select("id,name,base_amount,currency,local_date,status,pnl_effect,type").eq("workspace_id",ws.id).in("id",linkedIds);if(!alive)return;if(!linkedRes.error){const byId=new Map([...rows,...(linkedRes.data||[])].map(tx=>[tx.id,tx]));rows=[...byId.values()];}}
+   if(linkedIds.length){const linkedRes=await supabase.from("finance_transactions").select("id,name,base_amount,currency,local_date,status,pnl_effect,type,refund_of_id,reversal_of_id").eq("workspace_id",ws.id).in("id",linkedIds);if(!alive)return;if(!linkedRes.error){const byId=new Map([...rows,...(linkedRes.data||[])].map(tx=>[tx.id,tx]));rows=[...byId.values()];}const reversalRes=await supabase.from("finance_transactions").select("id,name,base_amount,currency,local_date,status,pnl_effect,type,refund_of_id,reversal_of_id").eq("workspace_id",ws.id).in("reversal_of_id",linkedIds);if(!alive)return;if(!reversalRes.error){const byId=new Map([...rows,...(reversalRes.data||[])].map(tx=>[tx.id,tx]));rows=[...byId.values()];}}
    setFinanceTransactions(rows);
    setFinanceBaseCurrency(settingsRes.data?.base_currency||"EGP");
   }
