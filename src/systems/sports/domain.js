@@ -85,7 +85,7 @@ export function validateExerciseSet(set, exercise) {
     if (!Number.isInteger(Number(set.reps)) || Number(set.reps) < 1 || Number(set.reps) > 10000) return { ok: false, error: "أدخل عدد تكرارات صحيحًا." };
     out.reps = Number(set.reps);
   }
-  if (mode === "Weight-Reps" && (!Number.isFinite(Number(set.weightKg)) || Number(set.weightKg) < 0 || Number(set.weightKg) > 2000)) return { ok: false, error: "الوزن يجب أن يكون رقمًا بين 0 و2000 كجم." };
+  if (mode === "Weight-Reps" && (set.weightKg === "" || set.weightKg == null || !Number.isFinite(Number(set.weightKg)) || Number(set.weightKg) < 0 || Number(set.weightKg) > 2000)) return { ok: false, error: "الوزن مطلوب ويجب أن يكون رقمًا بين 0 و2000 كجم." };
   if (["Duration", "Time-Distance"].includes(mode) && (!Number.isFinite(Number(set.durationSeconds)) || Number(set.durationSeconds) <= 0)) return { ok: false, error: "المدة يجب أن تكون أكبر من صفر." };
   if (["Distance", "Time-Distance"].includes(mode) && (!Number.isFinite(Number(set.distanceMeters)) || Number(set.distanceMeters) <= 0)) return { ok: false, error: "المسافة يجب أن تكون أكبر من صفر." };
   if (set.rpe !== "" && set.rpe != null && (!Number.isFinite(Number(set.rpe)) || Number(set.rpe) < 1 || Number(set.rpe) > 10)) return { ok: false, error: "RPE يجب أن يكون بين 1 و10." };
