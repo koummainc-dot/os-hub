@@ -177,8 +177,21 @@ export function isPracticeExpectedOnDate(practice,date,context={}){
  if(practice.active===false||practice.archivedAt)return false;
  const periods=[...(Array.isArray(context.pausePeriods)?context.pausePeriods:[]),...(Array.isArray(practice.pausePeriods)?practice.pausePeriods:[])];
  if(periods.some(p=>p&&isDate(p.startDate)&&isDate(p.endDate)&&p.startDate<=date&&date<=p.endDate))return false;
+ // Explicit per-date schedule overrides have priority over season overlays.
  const overrides=[...(Array.isArray(context.scheduleOverrides)?context.scheduleOverrides:[]),...(Array.isArray(practice.scheduleOverrides)?practice.scheduleOverrides:[])].filter(o=>o&&isDate(o.startDate)&&isDate(o.endDate)&&o.startDate<=date&&date<=o.endDate).sort((a,b)=>String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")));
  if(overrides.length){const mode=overrides[0].mode;if(mode==="Pause"||mode==="NotExpected")return false;if(mode==="Expected")return true;}
+ // Season overrides are derived at read time. They never mutate the base frequency,
+ // so the original schedule automatically resumes outside the season date range.
+ if(Array.isArray(context.seasons)){
+  const seasonOverrides=getSeasonPracticeOverrides(context.seasons,practice.id,date);
+  if(seasonOverrides===null)return null;
+  if(seasonOverrides?.ok===false)return null; // ambiguous overlapping seasons: never guess
+  if(seasonOverrides.length){
+   const mode=seasonOverrides[0].mode;
+   if(mode==="Pause"||mode==="NotExpected")return false;
+   if(mode==="Expected")return true;
+  }
+ }
  const f=practice.frequency||{mode:"Daily"},day=new Date(date+"T00:00:00.000Z");
  if(f.mode==="Daily")return true;
  if(f.mode==="Weekdays")return Array.isArray(f.days)?f.days.includes(day.getUTCDay()):null;
