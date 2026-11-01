@@ -13,6 +13,7 @@ assert.match(migration,/HOBBIES_JOURNAL_ATTACHMENT_ALREADY_QUEUED/);
 assert.match(migration,/cross join lateral jsonb_array_elements/);
 assert.match(migration,/hobbies_journal_cleanup_mark/);
 assert.match(migration,/hobbies_journal_purge_entry/);
+assert.match(migration,/split_part\(v_path,\x27\/\x27,3\), v_path, v_reason/);
 assert.match(migration,/interval '30 days'/);
 assert.match(migration,/after update of data or delete on public\.workspace_records/);
 assert.match(migration,/revoke all on function public\.hobbies_journal_purge_entry/);
