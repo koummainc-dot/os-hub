@@ -11,14 +11,14 @@
 - Updated the foundation migration to allow all ten collections in the owner-scoped private table and mark every collection sensitive with external summaries disabled.
 - Expanded contract tests for event API compatibility and privacy defaults.
 - Added initial typed P1 domain constructors/validators for values, principles, practices, and flexible frequency configurations, plus unit-level contract assertions. This is **domain-layer progress only**; typed forms, repository persistence, migrations for typed fields, and full acceptance coverage remain open.
-- These are repository changes only. They have not yet been confirmed by a successful CI run, authenticated browser test, or production migration.
+- A prior head (`84afe5ca09a3276469148535418b97fefa512eb6`) had successful Verify app and CI runs (tests + production build), as well as Knowledge SQL smoke tests and Finance Family Center Checks. Subsequent validator/test commits were added after those runs, so the current PR head still requires fresh CI. No authenticated browser test or production migration has been completed.
 
 ## Phase 1 acceptance gates — close when possible; defer blocked environment/security work without blocking independent development
 - [x] Correct integration-event API shape.
 - [x] Prevent Spiritual record-save events from serializing private record metadata into browser localStorage.
 - [x] Mark all ten current collections private by default in the domain contract.
 - [x] Expand private-table collection constraint and policy metadata to all ten collections.
-- [ ] Run full CI on the latest PR head and verify every required job. **A prior head passed; rerun required after commits `9a0e9fa` and `6ec17bc`.**
+- [ ] Run full CI on the latest PR head and verify every required job. **A prior head passed; rerun required after later validator/test commits `9a0e9fa`, `6ec17bc`, `ac604e5`, and `f9becd7` (plus this tracker update).**
 - [ ] Run local contract tests and production build in a reproducible environment. **Deferred until a reproducible runtime is available; repository edits alone are not test evidence.**
 - [ ] Verify migration against the actual current Supabase schema in a rollback-only transaction, including policy/constraint idempotency and FK compatibility. **Deferred if safe read/transaction access is unavailable.**
 - [ ] Authenticated multi-user integration test: owner can read/write their own records; another user and workspace collaborator cannot select, mutate, or archive them. **Deferred until two safe test identities and a non-production test environment are available.**
@@ -40,7 +40,7 @@ The current interface is a foundation shell and generic record form, not the com
 - Acceptance tests PT-10, PT-58, PT-59, PT-65 and security cases.
 
 ### P1 — Values, principles, practices and versions
-- [Partial] Typed domain constructors/validators now cover core values, principles, practices, slot constraints, Habit-linked mode consistency, and frequency configuration shapes.
+- [Partial] Typed domain constructors/validators now cover core values, principles, practices, slot constraints, Habit-linked mode consistency, and frequency configuration shapes. Recent hardening validates tag types/lengths, bounded free text, unique/non-empty explicit dates, unique month-day selections, weekly limits, intervals up to 365 days, and required slot count not exceeding configured slots. These assertions are committed but await fresh CI.
 - [Remaining] Real entity-specific persistence/schema and relations from §5.2–5.4; user-controlled ordering; no mandatory moral score.
 - Principle drift signals are user-defined and private; never label them as moral violations.
 - Practice type/unit, targets/minimum, flexible frequency, slots, preferred time, Habit link mode, versions, pause/archive/restore lifecycle.
