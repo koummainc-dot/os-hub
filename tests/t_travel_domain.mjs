@@ -57,6 +57,15 @@ assert.equal(breakdown.refundsBase,20);
 assert.equal(breakdown.netActualBase,80);
 assert.equal(breakdown.projectedTotal,430);
 assert.equal(breakdown.remainingBudget,570);
+const activityLinkedData=normalizeTravelData({
+ trips:[{id:"activity-trip",name:"Activity Trip",destination:"Cairo",budget:500,currency:"EGP"}],
+ itinerary:[{id:"activity-1",tripId:"activity-trip",title:"Museum",estimatedCost:120,status:"planned"}],
+ financeLinks:[{id:"activity-link",tripId:"activity-trip",sourceType:"itinerary",sourceId:"activity-1",financeTransactionId:"tx-activity",kind:"expense"}]
+});
+const activityBreakdown=tripBudgetBreakdown("activity-trip",activityLinkedData,[{id:"tx-activity",base_amount:120,status:"Posted",pnl_effect:"Expense"}],"EGP");
+assert.equal(activityBreakdown.plannedActivities,0);
+assert.equal(activityBreakdown.projectedTotal,120);
+
 assert.equal(validateFinanceLink({tripId:"budget-trip",financeTransactionId:"tx-hotel",kind:"expense",sourceType:"booking",sourceId:"stay"},budgetData,financeRows).includes("هذه الحركة المالية مرتبطة بالسفر بالفعل."),true);
 assert.equal(validateFinanceLink({tripId:"budget-trip",financeTransactionId:"tx-refund",kind:"expense",sourceType:"trip"},emptyTravelData(),financeRows).some(e=>e.includes("حركة مصروف")),true);
 const foreignCurrency=tripBudgetBreakdown("budget-trip",budgetData,financeRows,"USD");
