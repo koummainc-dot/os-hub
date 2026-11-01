@@ -93,7 +93,7 @@ where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 do $
 declare v_count integer; v_actor uuid; v_actions text[];
 begin
-  select count(*), min(actor_id), array_agg(action order by occurred_at)
+  select count(*), (array_agg(actor_id order by occurred_at))[1], array_agg(action order by occurred_at)
     into v_count,v_actor,v_actions
   from public.hobbies_journal_audit_events
   where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and record_id='journal-a';
