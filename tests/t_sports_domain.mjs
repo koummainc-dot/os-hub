@@ -43,4 +43,17 @@ assert.equal(prs.length,1);
 assert.equal(prs[0].value,50.67);
 assert.equal(validateSportsImport({data:{exercises:[{id:"x"}]}}).ok,true);
 assert.equal(validateSportsImport({data:{exercises:[{name:"missing-id"}]}}).ok,false);
+
+import { generateWorkoutDays, validatePlannedExercise } from "../src/systems/sports/domain.js";
+const generated = generateWorkoutDays({id:"p1",name:"3-day plan",durationWeeks:2,daysPerWeek:3,startDate:"2026-11-02"}, prefix => prefix+"-"+Math.random());
+assert.equal(generated.ok, true);
+assert.equal(generated.value.length, 6);
+assert.equal(generated.value[0].scheduledDate, "2026-11-02");
+assert.equal(generated.value[3].weekNumber, 2);
+assert.equal(new Set(generated.value.map(x=>x.id)).size, 6);
+assert.equal(generateWorkoutDays({id:"p",name:"bad",durationWeeks:1,daysPerWeek:3,startDate:"2026-02-31"}).ok, false);
+assert.equal(validatePlannedExercise({targetSets:3,targetReps:10,restSeconds:90},{id:"ex",name:"Squat"},{id:"day",programId:"p"}).ok,true);
+assert.equal(validatePlannedExercise({targetSets:0,targetReps:10},{id:"ex"},{id:"day",programId:"p"}).ok,false);
+console.log("Sports OS scheduling tests passed.");
+
 console.log("Sports OS domain tests passed.");
