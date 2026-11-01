@@ -112,6 +112,7 @@ assert.equal(insightData.recentMinutes,90);
 assert.equal(insightData.previousMinutes,90);
 assert.equal(insightData.minutesChangePercent,0);
 assert.equal(insightData.averageSatisfaction,4);
+assert.equal(hobbyInsights([{id:"h1",status:"active"}],[{hobbyId:"h1",localDate:"2026-11-01",durationMinutes:20,satisfactionRating:null}],[],[],[],"2026-11-01").averageSatisfaction,null);
 assert.equal(insightData.goals[0].current,2);
 assert.equal(hobbyInsights([],[],[],[],[],"2026-11-01").minutesChangePercent,0);
 console.log("Hobbies OS Phase 6 insights tests passed.");
