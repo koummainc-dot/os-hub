@@ -28,3 +28,60 @@ const source=value?.data&&typeof value.data==="object"?value.data:value; if(!sou
 for(const key of ["hobbies","sessions"]){const ids=new Set();for(const row of source[key]){if(!row||typeof row!=="object"||!String(row.id||"").trim())return {ok:false,error:"يوجد سجل بدون معرّف داخل "+key+"."};if(ids.has(row.id))return {ok:false,error:"يوجد معرّف مكرر داخل "+key+"."};ids.add(row.id);}}
 const hobbyIds=new Set(source.hobbies.map(x=>x.id)); if(source.sessions.some(x=>!hobbyIds.has(x.hobbyId)))return {ok:false,error:"توجد جلسة مرتبطة بهواية غير موجودة."};
 return {ok:true,value:{schemaVersion:1,hobbies:source.hobbies,sessions:source.sessions,settings:source.settings||{timezone:"Africa/Cairo",weekStartDay:6}}};}
+
+
+export const HOBBY_SKILL_MEASUREMENT_TYPES = ["descriptive", "number", "level", "checklist"];
+export const HOBBY_SKILL_LEVELS = ["beginner", "novice", "intermediate", "advanced", "expert"];
+export const HOBBY_MILESTONE_TYPES = ["achievement", "first_time", "personal_best", "completion", "recognition", "other"];
+export function validateHobbySkill(input, hobby) {
+  if (!hobby || hobby.status === "archived") return {ok:false,error:"اختر هواية موجودة وغير مؤرشفة."};
+  const name=String(input?.name||"").trim();
+  if (!name || name.length>120) return {ok:false,error:"اسم المهارة مطلوب وبحد أقصى 120 حرفًا."};
+  const measurementType=input.measurementType||"descriptive";
+  if (!HOBBY_SKILL_MEASUREMENT_TYPES.includes(measurementType)) return {ok:false,error:"طريقة قياس المهارة غير صحيحة."};
+  const unit=String(input.unit||"").trim();
+  const parse=(v)=>v===""||v==null?null:Number(v);
+  const currentValue=parse(input.currentValue), targetValue=parse(input.targetValue);
+  if (["number","level"].includes(measurementType)) {
+    for (const [label,value] of [["القيمة الحالية",currentValue],["المستهدف",targetValue]]) if(value!==null&&(!Number.isFinite(value)||value<0)) return {ok:false,error:label+" يجب أن تكون رقمًا موجبًا أو صفرًا."};
+    if(measurementType==="level"&&[currentValue,targetValue].some(v=>v!==null&&!Number.isInteger(v))) return {ok:false,error:"المستوى يجب أن يكون عددًا صحيحًا."};
+    if(currentValue!==null&&targetValue!==null&&targetValue<currentValue) return {ok:false,error:"المستهدف لا يمكن أن يقل عن القيمة الحالية."};
+  }
+  return {ok:true,value:{...input,name,measurementType,unit,currentValue:measurementType==="number"||measurementType==="level"?currentValue:null,targetValue:measurementType==="number"||measurementType==="level"?targetValue:null,description:String(input.description||"").trim()}};
+}
+export function validateHobbySkillLog(input, skill) {
+  if(!skill) return {ok:false,error:"المهارة المرتبطة غير موجودة."};
+  const date=String(input.localDate||"");
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T12:00:00Z"))||new Date(date+"T12:00:00Z").toISOString().slice(0,10)!==date) return {ok:false,error:"تاريخ التقدم غير صالح."};
+  const parse=v=>v===""||v==null?null:Number(v);
+  const previousValue=parse(input.previousValue),newValue=parse(input.newValue);
+  if(skill.measurementType==="number"||skill.measurementType==="level"){
+    if(newValue===null||!Number.isFinite(newValue)||newValue<0) return {ok:false,error:"القيمة الجديدة مطلوبة ويجب أن تكون صفرًا أو أكثر."};
+    if(skill.measurementType==="level"&&!Number.isInteger(newValue)) return {ok:false,error:"المستوى الجديد يجب أن يكون عددًا صحيحًا."};
+    if(previousValue!==null&&(!Number.isFinite(previousValue)||previousValue<0)) return {ok:false,error:"القيمة السابقة غير صحيحة."};
+  }
+  return {ok:true,value:{...input,localDate:date,previousValue,newValue,note:String(input.note||"").trim(),evidenceUrl:String(input.evidenceUrl||"").trim()}};
+}
+export function validateHobbyMilestone(input,hobbies,skills=[]) {
+  const title=String(input?.title||"").trim();
+  if(!title||title.length>160) return {ok:false,error:"عنوان الإنجاز مطلوب وبحد أقصى 160 حرفًا."};
+  if(!hobbies.some(h=>h.id===input.hobbyId)) return {ok:false,error:"الهواية المرتبطة غير موجودة."};
+  if(input.skillId&&!skills.some(s=>s.id===input.skillId&&s.hobbyId===input.hobbyId)) return {ok:false,error:"المهارة المرتبطة لا تتبع هذه الهواية."};
+  if(!HOBBY_MILESTONE_TYPES.includes(input.milestoneType||"achievement")) return {ok:false,error:"نوع الإنجاز غير صحيح."};
+  const date=String(input.achievedAt||"");
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T12:00:00Z"))||new Date(date+"T12:00:00Z").toISOString().slice(0,10)!==date) return {ok:false,error:"تاريخ الإنجاز غير صالح."};
+  return {ok:true,value:{...input,title,achievedAt:date,description:String(input.description||"").trim(),evidenceUrl:String(input.evidenceUrl||"").trim()}};
+}
+export function validateHobbiesProgressImport(value) {
+  const base=validateHobbiesImport(value);
+  if(!base.ok)return base;
+  const source=value?.data&&typeof value.data==="object"?value.data:value;
+  const collections=["skills","skillLogs","milestones"];
+  for(const key of collections) if(source[key]!==undefined&&!Array.isArray(source[key])) return {ok:false,error:"مجموعة "+key+" يجب أن تكون قائمة."};
+  const skills=source.skills||[],logs=source.skillLogs||[],milestones=source.milestones||[];
+  const unique=(rows,key)=>{const ids=new Set();for(const row of rows){if(!row||!String(row.id||"").trim()||ids.has(row.id))return false;ids.add(row.id);}return true;};
+  if(!unique(skills,"id")||!unique(logs,"id")||!unique(milestones,"id"))return {ok:false,error:"يوجد معرّف مفقود أو مكرر في بيانات التقدم."};
+  const hobbyIds=new Set(base.value.hobbies.map(h=>h.id)),skillIds=new Set(skills.map(s=>s.id));
+  if(skills.some(s=>!hobbyIds.has(s.hobbyId))||logs.some(l=>!skillIds.has(l.skillId))||milestones.some(m=>!hobbyIds.has(m.hobbyId)||(m.skillId&&!skillIds.has(m.skillId))))return {ok:false,error:"توجد علاقة غير صحيحة في بيانات المهارات أو الإنجازات."};
+  return {ok:true,value:{...base.value,skills,skillLogs:logs,milestones}};
+}
