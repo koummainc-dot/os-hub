@@ -56,6 +56,13 @@ assert.equal(validateSpiritualPracticeLog(pmLog,multiSlotPractice).ok,true);
 assert.equal(getPracticeDaySummary([amLog,pmLog],multiSlotPractice).state,"Maintained");
 assert.equal(getPracticeDaySummary([],multiSlotPractice).state,"Unrecorded");
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"}},"2026-11-01"),true);
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"},active:false},"2026-11-01"),false);
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"},archivedAt:"2026-10-01"},"2026-11-01"),false);
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"}},"2026-11-02",{pausePeriods:[{startDate:"2026-11-01",endDate:"2026-11-03"}]}),false);
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"}},"2026-11-02",{scheduleOverrides:[{startDate:"2026-11-01",endDate:"2026-11-03",mode:"NotExpected"}]}),false);
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Flexible"}},"2026-11-02",{scheduleOverrides:[{startDate:"2026-11-01",endDate:"2026-11-03",mode:"Expected"}]}),true);
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"}},"2026-11-02",{scheduleOverrides:[{startDate:"2026-11-01",endDate:"2026-11-03",mode:"Unknown"}]}),true);
+
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Weekdays",days:[1,2,3,4,5]}},"2026-11-01"),false);
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Weekdays",days:[0,1,2,3,4,5,6]}},"2026-11-01"),true);
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"EveryNDays",n:2,anchor:"2026-11-01"}},"2026-11-03"),true);
