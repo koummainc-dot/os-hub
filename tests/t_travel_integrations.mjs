@@ -12,6 +12,7 @@ assert.equal(reminder.sourceRecordId,"book-1");
 assert.equal(reminder.deliveryOwner,"notifications");
 assert.equal(reminder.sourceKey,buildTravelReminderReference("ws-1",{id:"booking:book-1",type:"cancellation",date:"2026-12-01",title:"Hotel"}).sourceKey);
 assert.equal(buildTravelReminderReference("ws-1",{id:"booking:book-1",type:"cancellation"}),null);
+assert.equal(buildTravelReminderReference("ws-1",{id:"x",type:"unknown",date:"2026-12-01"}),null);
 
 const calendar=buildTravelCalendarReference("ws-1",{id:"it-1",title:"Museum",date:"2026-12-01",startTime:"09:00",endTime:"10:00"},{timeZone:"Africa/Cairo"});
 assert.equal(calendar.sourceSystem,"travel");
