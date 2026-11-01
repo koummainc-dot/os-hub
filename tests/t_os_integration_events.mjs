@@ -18,7 +18,7 @@ assert.match(sql,/ws_access_level\(p_workspace_id,p_source_system,'main'\) <> 'e
 assert.match(sql,/ws_access_level\(p_workspace_id,'projects','main'\)/);
 assert.match(sql,/ws_access_level\(p_workspace_id,p_source_system,'main'\) not in \('view','edit'\)/);
 assert.match(sql,/pg_column_size\(payload\) <= 16384/);
-assert.match(sql,/revoke all on public\.os_integration_events from anon, authenticated/);
+assert.match(sql,/revoke all on public\.os_integration_events from anon, authenticated/);\nassert.equal((sql.match(/security invoker/g)||[]).length,2);\nassert.doesNotMatch(sql,/security definer/);\nassert.match(sql,/create policy os_integration_events_select/);\nassert.match(sql,/create policy os_integration_events_insert/);\nassert.match(sql,/alter publication supabase_realtime add table public\.os_integration_events/);
 assert.match(client,/os_integration_event_publish/);
 assert.match(client,/os_integration_events_load/);
 assert.match(hobbies,/publishDurableOSEvent/);
