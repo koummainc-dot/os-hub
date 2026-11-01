@@ -64,7 +64,7 @@ export function validateSpiritualPractice(practice){
  for(const key of ["target","minimum"])if(practice[key]!=null&&(!Number.isFinite(Number(practice[key]))||Number(practice[key])<=0))return{ok:false,reason:`invalid-${key}`};
  if(practice.target!=null&&practice.minimum!=null&&Number(practice.minimum)>Number(practice.target))return{ok:false,reason:"minimum-exceeds-target"};
  if(!Array.isArray(practice.tags)||practice.tags.some(tag=>typeof tag!=="string"||tag.trim().length>60))return{ok:false,reason:"invalid-tags"};
- if(typeof practice.slotsRequired!=="string"||!(practice.slotsRequired==="All"||/^AtLeast\\([1-8]\\)$/.test(practice.slotsRequired)))return{ok:false,reason:"invalid-slots-required"};
+ if(typeof practice.slotsRequired!=="string"||!(practice.slotsRequired==="All"||/^AtLeast\([1-8]\)$/.test(practice.slotsRequired)))return{ok:false,reason:"invalid-slots-required"};
  if(!Array.isArray(practice.slots)||practice.slots.length<1||practice.slots.length>8)return{ok:false,reason:"invalid-slots-count"};
  if(practice.slotsRequired!=="All"&&Number(practice.slotsRequired.match(/[1-8]/)?.[0]||0)>practice.slots.length)return{ok:false,reason:"slots-required-exceeds-slots"};
  const keys=new Set();
