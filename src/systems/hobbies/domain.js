@@ -105,7 +105,9 @@ export function validateHobbyGoal(input,hobbies,skills=[]){
  const targetValue=Number(input.targetValue);
  if(!Number.isFinite(targetValue)||targetValue<=0)return {ok:false,error:"قيمة المستهدف يجب أن تكون أكبر من صفر."};
  if(["sessions","minutes","milestones"].includes(targetType)&&!Number.isInteger(targetValue))return {ok:false,error:"المستهدف يجب أن يكون عددًا صحيحًا."};
- if(targetType==="skill_value"&&!skills.some(s=>s.id===input.skillId&&s.hobbyId===input.hobbyId&&["number","level"].includes(s.measurementType)))return {ok:false,error:"اختر مهارة رقمية أو ذات مستوى تابعة لنفس الهواية."};
+ const targetSkill=skills.find(s=>s.id===input.skillId&&s.hobbyId===input.hobbyId);
+ if(targetType==="skill_value"&&(!targetSkill||!["number","level"].includes(targetSkill.measurementType)))return {ok:false,error:"اختر مهارة رقمية أو ذات مستوى تابعة لنفس الهواية."};
+ if(targetType==="skill_value"&&targetSkill.measurementType==="level"&&!Number.isInteger(targetValue))return {ok:false,error:"مستهدف المستوى يجب أن يكون عددًا صحيحًا."};
  if(!validISODate(input.startDate))return {ok:false,error:"تاريخ بداية الهدف غير صالح."};
  if(input.endDate&&(!validISODate(input.endDate)||input.endDate<input.startDate))return {ok:false,error:"تاريخ نهاية الهدف غير صالح أو يسبق البداية."};
  if(!HOBBY_GOAL_STATUSES.includes(input.status||"active"))return {ok:false,error:"حالة الهدف غير صحيحة."};
