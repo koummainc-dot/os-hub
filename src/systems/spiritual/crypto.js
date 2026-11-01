@@ -18,7 +18,9 @@ export async function createSpiritualKeyring(passphrase){
  const dataKey=await crypto.subtle.generateKey({name:"AES-GCM",length:256},true,["encrypt","decrypt"]);
  const rawKey=await crypto.subtle.exportKey("raw",dataKey);
  const wrapped=await crypto.subtle.encrypt({name:"AES-GCM",iv},wrappingKey,rawKey);
- return{key:dataKey,keyring:{version:1,kdf:"PBKDF2-SHA-256",iterations:ITERATIONS,salt:toBase64(salt),wrap_iv:toBase64(iv),wrapped_key:toBase64(wrapped)}};
+ const lockedKey=await crypto.subtle.importKey("raw",rawKey,{name:"AES-GCM"},false,["encrypt","decrypt"]);
+ new Uint8Array(rawKey).fill(0);
+ return{key:lockedKey,keyring:{version:1,kdf:"PBKDF2-SHA-256",iterations:ITERATIONS,salt:toBase64(salt),wrap_iv:toBase64(iv),wrapped_key:toBase64(wrapped)}};
 }
 export async function unlockSpiritualKeyring(passphrase,keyring){
  requireCrypto();
