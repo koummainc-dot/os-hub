@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {validateHobbySkill,validateHobbySkillLog,validateHobbyMilestone,validateHobbiesProgressImport,validateHobbyGoal,validateHobbyPlan,hobbyGoalProgress,hobbyPlanProgress} from "../src/systems/hobbies/domain.js";
+import {validateHobbySkill,validateHobbySkillLog,validateHobbyMilestone,validateHobbiesProgressImport,validateHobbyGoal,validateHobbyPlan,hobbyGoalProgress,hobbyPlanProgress,validateHobbyResource,validateHobbyEquipmentLink,validateHobbiesProgressImport} from "../src/systems/hobbies/domain.js";
 import {HOBBY_STATUSES,HOBBY_CATEGORIES,validateHobby,validateHobbySession,hobbyMetrics,hobbiesSummary,validateHobbiesImport} from "../src/systems/hobbies/domain.js";
 assert.deepEqual(HOBBY_STATUSES,["considering","active","paused","archived"]);
 const hobby={id:"h1",name:"التصوير",categoryId:"creative",status:"active",enjoymentRating:5};
@@ -60,3 +60,21 @@ const phase3Import=validateHobbiesProgressImport({hobbies:[hobby],sessions:[],sk
 assert.equal(phase3Import.ok,true);assert.equal(phase3Import.value.schemaVersion,3);
 assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],skills:[skill],goals:[{...goal,hobbyId:"missing"}]}).ok,false);
 console.log("Hobbies OS Phase 3 goals and plans tests passed.");
+
+const resource={id:"r1",hobbyId:"h1",title:"دليل التصوير",resourceType:"book",status:"in_progress",url:"https://example.com/book",skillId:"sk1",goalId:"g1",rating:5};
+const goalForResource={id:"g1",hobbyId:"h1",title:"هدف",targetType:"sessions",targetValue:5,startDate:"2026-11-01"};
+assert.equal(validateHobbyResource(resource,[hobby],[skill],[goalForResource]).ok,true);
+assert.equal(validateHobbyResource({...resource,url:"javascript:alert(1)"},[hobby],[skill],[goalForResource]).ok,false);
+assert.equal(validateHobbyResource({...resource,rating:6},[hobby],[skill],[goalForResource]).ok,false);
+assert.equal(validateHobbyResource({...resource,skillId:"missing"},[hobby],[skill],[goalForResource]).ok,false);
+assert.equal(validateHobbyResource({...resource,goalId:"missing"},[hobby],[skill],[goalForResource]).ok,false);
+assert.equal(validateHobbyResource({...resource,hobbyId:"missing"},[hobby],[skill],[goalForResource]).ok,false);
+const equipment={id:"e1",hobbyId:"h1",ownerSystem:"home",ownerRecordId:"asset-123",role:"التصوير الخارجي"};
+assert.equal(validateHobbyEquipmentLink(equipment,[hobby]).ok,true);
+assert.equal(validateHobbyEquipmentLink({...equipment,ownerSystem:"finance"},[hobby]).ok,false);
+assert.equal(validateHobbyEquipmentLink({...equipment,ownerRecordId:" "},[hobby]).ok,false);
+const phase4Import=validateHobbiesProgressImport({hobbies:[hobby],sessions:[],skills:[skill],skillLogs:[],milestones:[],goals:[goalForResource],plans:[],resources:[resource],equipmentLinks:[equipment]});
+assert.equal(phase4Import.ok,true);assert.equal(phase4Import.value.schemaVersion,4);
+assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],resources:[{...resource,hobbyId:"missing"}]}).ok,false);
+assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],equipmentLinks:[{...equipment,ownerSystem:"finance"}]}).ok,false);
+console.log("Hobbies OS Phase 4 resources and equipment tests passed.");
