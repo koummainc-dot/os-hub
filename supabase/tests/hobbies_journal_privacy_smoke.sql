@@ -77,4 +77,59 @@ begin
 end $$;
 reset role;
 
-select 'Hobbies Journal private row and Storage isolation tests passed.' as result;
+
+-- Journal audit records are server-authored, metadata-only, append-only, and private.
+set request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+set role authenticated;
+update public.workspace_records
+set data = data || '{"deleted_at":"2026-11-02T10:00:00Z"}'::jsonb
+where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  and system_id='hobbies' and collection='journalEntries' and id='journal-a';
+update public.workspace_records
+set data = data || '{"deleted_at":null}'::jsonb
+where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  and system_id='hobbies' and collection='journalEntries' and id='journal-a';
+
+do $
+declare v_count integer; v_actor uuid; v_actions text[];
+begin
+  select count(*), min(actor_id), array_agg(action order by occurred_at)
+    into v_count,v_actor,v_actions
+  from public.hobbies_journal_audit_events
+  where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and record_id='journal-a';
+  if v_count < 4 then raise exception 'expected create/update/delete/restore audit events, got %',v_count; end if;
+  if v_actor <> '11111111-1111-4111-8111-111111111111'::uuid then raise exception 'audit actor is incorrect'; end if;
+  if not ('created'=any(v_actions) and 'updated'=any(v_actions) and 'deleted'=any(v_actions) and 'restored'=any(v_actions)) then
+    raise exception 'missing expected audit actions: %',v_actions;
+  end if;
+  if exists (
+    select 1 from public.hobbies_journal_audit_events
+    where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+      and record_id='journal-a'
+      and (coalesce(before_state,'{}'::jsonb) ? 'body' or coalesce(after_state,'{}'::jsonb) ? 'body')
+  ) then raise exception 'audit snapshot must not include Journal body'; end if;
+end $;
+reset role;
+
+set request.jwt.claim.sub = '22222222-2222-4222-8222-222222222222';
+set role authenticated;
+do $
+declare v_count integer;
+begin
+  select count(*) into v_count from public.hobbies_journal_audit_events
+  where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and record_id='journal-a';
+  if v_count <> 0 then raise exception 'another member can read private Journal audit events'; end if;
+end $;
+reset role;
+
+do $
+begin
+  begin
+    update public.hobbies_journal_audit_events set action='updated'
+    where record_id='journal-a';
+    raise exception 'audit event mutation unexpectedly succeeded';
+  exception when insufficient_privilege then null;
+  end;
+end $;
+
+select 'Hobbies Journal privacy, Storage isolation, and immutable audit tests passed.' as result;
