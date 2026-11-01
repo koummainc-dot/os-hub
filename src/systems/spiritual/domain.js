@@ -207,7 +207,16 @@ export function isPracticeExpectedOnDate(practice,date,context={}){
     // check deterministic for the runtime's ICU data and never guess on failure.
     const parts=new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn",{day:"numeric",month:"numeric",timeZone:"UTC"}).formatToParts(shifted);
     const hijriDay=Number(parts.find(x=>x.type==="day")?.value);
-    return Number.isInteger(hijriDay)&&hijriDay>=1&&hijriDay<=30?f.days.includes(hijriDay):null;
+    if(!Number.isInteger(hijriDay)||hijriDay<1||hijriDay>30)return null;
+    if(f.days.includes(hijriDay))return true;
+    if(hijriDay===29&&f.days.includes(30)){
+     const next=new Date(shifted.getTime()+86400000);
+     const nextParts=new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn",{day:"numeric",month:"numeric",timeZone:"UTC"}).formatToParts(next);
+     const nextMonth=Number(nextParts.find(x=>x.type==="month")?.value);
+     const currentMonth=Number(parts.find(x=>x.type==="month")?.value);
+     if(Number.isInteger(nextMonth)&&Number.isInteger(currentMonth)&&nextMonth!==currentMonth)return true;
+    }
+    return false;
    }catch{return null;}
   }
   return null;
