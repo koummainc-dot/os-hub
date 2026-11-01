@@ -61,7 +61,7 @@ export default function TravelExperiencesOS({api,access,ws,isDemo=false,page="ho
   return()=>{alive=false;};
  },[page,isDemo,ws?.id,data.financeLinks]);
 
- const persist=useCallback(async next=>{if(!canEdit)return false;setSaving(true);setError("");try{const r=await api.save(next,versionStamp);if(r?.ok===false)throw new Error(r.conflict?"هناك تعديل أحدث على الخادم؛ حدّث البيانات قبل الحفظ.":"تعذر حفظ البيانات.");setData(next);setLoadSource("supabase");setVersionStamp(r?.updatedAt||versionStamp);return true;}catch(e){setError(e.message||"تعذر الحفظ");return false;}finally{setSaving(false);}},[api,canEdit,versionStamp]);
+ const persist=useCallback(async next=>{if(!canEdit)return false;setSaving(true);setError("");try{const r=await api.save(next,versionStamp);if(r?.ok===false)throw new Error(r.conflict?"هناك تعديل أحدث على الخادم؛ حدّث البيانات قبل الحفظ.":"تعذر حفظ البيانات.");setData(next);setLoadSource("supabase");setVersionStamp(r?.updatedAt||versionStamp);return true;}catch(e){setLoadSource("localStorage");setError((e.message||"تعذر الحفظ")+" — قد تحتوي النسخة المحلية على تعديل غير مؤكد الخادم؛ راجع النسخة بعد استعادة الاتصال.");return false;}finally{setSaving(false);}},[api,canEdit,versionStamp]);
  const trips=data.trips;
  const active=getActiveTrip(data,today());
  const upcoming=upcomingTrips(data,today());
