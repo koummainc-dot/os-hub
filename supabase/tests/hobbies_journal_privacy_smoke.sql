@@ -136,3 +136,77 @@ begin
 end $audit$;
 
 select 'Hobbies Journal privacy, Storage isolation, and immutable audit tests passed.' as result;
+
+
+-- Attachment lifecycle: shared references are never queued for deletion.
+set request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+set role authenticated;
+insert into storage.objects(bucket_id,name)
+values ('hobbies-journal-private','11111111-1111-4111-8111-111111111111/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/journal-a/shared.webp');
+insert into public.workspace_records(workspace_id,system_id,collection,id,data)
+values
+ ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','hobbies','journalEntries','journal-b',
+  '{"title":"second ref","attachments":[{"kind":"storage","path":"11111111-1111-4111-8111-111111111111/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/journal-a/shared.webp"}]}');
+update public.workspace_records
+set data = data || '{"attachments":[]}'::jsonb
+where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and system_id='hobbies'
+  and collection='journalEntries' and id='journal-a';
+do $lifecycle$
+begin
+  if exists (select 1 from public.hobbies_journal_attachment_cleanup
+    where object_path like '%/shared.webp') then
+    raise exception 'shared attachment was incorrectly queued';
+  end if;
+end $lifecycle$;
+update public.workspace_records
+set data = data || '{"attachments":[]}'::jsonb
+where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and system_id='hobbies'
+  and collection='journalEntries' and id='journal-b';
+do $lifecycle$
+declare v_id uuid;
+begin
+  select id into v_id from public.hobbies_journal_attachment_cleanup
+  where object_path like '%/shared.webp' and status='pending';
+  if v_id is null then raise exception 'unreferenced attachment was not queued'; end if;
+  if not public.hobbies_journal_cleanup_mark(v_id,true,null) then
+    raise exception 'cleanup queue completion was not recorded';
+  end if;
+  if not exists (select 1 from public.hobbies_journal_attachment_cleanup
+    where id=v_id and status='completed') then
+    raise exception 'cleanup completion status was not persisted';
+  end if;
+end $lifecycle$;
+
+-- Soft deletion and restore must preserve attachments; permanent deletion is retention-gated.
+insert into storage.objects(bucket_id,name)
+values ('hobbies-journal-private','11111111-1111-4111-8111-111111111111/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/journal-c/keep.webp');
+insert into public.workspace_records(workspace_id,system_id,collection,id,data)
+values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','hobbies','journalEntries','journal-c',
+ '{"title":"retained","attachments":[{"kind":"storage","path":"11111111-1111-4111-8111-111111111111/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/journal-c/keep.webp"}]}');
+update public.workspace_records set data=data || jsonb_build_object('deleted_at',now()::text)
+where id='journal-c' and collection='journalEntries';
+update public.workspace_records set data=data || '{"deleted_at":null}'::jsonb
+where id='journal-c' and collection='journalEntries';
+do $lifecycle$
+begin
+  if exists (select 1 from public.hobbies_journal_attachment_cleanup
+    where object_path like '%/keep.webp') then
+    raise exception 'soft delete or restore incorrectly queued an attachment';
+  end if;
+end $lifecycle$;
+update public.workspace_records
+set data=data || jsonb_build_object('deleted_at',(now()-interval '31 days')::text)
+where id='journal-c' and collection='journalEntries';
+select public.hobbies_journal_purge_entry('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','journal-c');
+do $lifecycle$
+begin
+  if exists (select 1 from public.workspace_records where id='journal-c' and collection='journalEntries') then
+    raise exception 'eligible trashed Journal row was not permanently deleted';
+  end if;
+  if not exists (select 1 from public.hobbies_journal_attachment_cleanup
+    where object_path like '%/keep.webp' and status='pending') then
+    raise exception 'permanent deletion did not queue its attachment';
+  end if;
+end $lifecycle$;
+
+select 'Hobbies Journal attachment lifecycle tests passed.' as result;
