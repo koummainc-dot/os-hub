@@ -41,3 +41,24 @@ assert.equal(progressImport.ok,true);
 assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],skills:[{...skill,hobbyId:"missing"}]}).ok,false);
 assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],skills:[{...skill,hobbyId:"h1"}],milestones:[{id:"m2",hobbyId:"h1",skillId:"other"}]}).ok,false);
 console.log("Hobbies OS Phase 2 domain tests passed.");
+
+
+import {validateHobbyGoal,validateHobbyPlan,hobbyGoalProgress,hobbyPlanProgress,validateHobbiesProgressImport} from "../src/systems/hobbies/domain.js";
+const goal={id:"g1",hobbyId:"h1",title:"إنهاء 20 جلسة",targetType:"sessions",targetValue:20,startDate:"2026-10-01",endDate:"2026-12-31",status:"active"};
+assert.equal(validateHobbyGoal(goal,[hobby],[skill]).ok,true);
+assert.equal(validateHobbyGoal({...goal,targetValue:0},[hobby],[skill]).ok,false);
+assert.equal(validateHobbyGoal({...goal,targetType:"skill_value",skillId:"missing"},[hobby],[skill]).ok,false);
+assert.equal(validateHobbyGoal({...goal,endDate:"2026-09-30"},[hobby],[skill]).ok,false);
+assert.equal(validateHobbyGoal({...goal,hobbyId:"missing"},[hobby],[skill]).ok,false);
+const goalProgress=hobbyGoalProgress(goal,{sessions:[{hobbyId:"h1",localDate:"2026-10-15"},{hobbyId:"h1",localDate:"2026-11-01"}]});
+assert.equal(goalProgress.current,2);assert.equal(goalProgress.percent,10);
+const plan={id:"p1",hobbyId:"h1",title:"ممارسة أسبوعية",cadence:"weekly",targetSessions:3,targetMinutes:120,startDate:"2026-11-01"};
+assert.equal(validateHobbyPlan(plan,[hobby]).ok,true);
+assert.equal(validateHobbyPlan({...plan,targetSessions:0,targetMinutes:null},[hobby]).ok,false);
+assert.equal(validateHobbyPlan({...plan,cadence:"daily"},[hobby]).ok,false);
+const planProgress=hobbyPlanProgress(plan,[{hobbyId:"h1",localDate:"2026-11-01",durationMinutes:40},{hobbyId:"h1",localDate:"2026-11-02",durationMinutes:30}],"2026-11-01","2026-11-07");
+assert.equal(planProgress.sessions,2);assert.equal(planProgress.minutes,70);
+const phase3Import=validateHobbiesProgressImport({hobbies:[hobby],sessions:[],skills:[skill],skillLogs:[],milestones:[],goals:[goal],plans:[plan]});
+assert.equal(phase3Import.ok,true);assert.equal(phase3Import.value.schemaVersion,3);
+assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],skills:[skill],goals:[{...goal,hobbyId:"missing"}]}).ok,false);
+console.log("Hobbies OS Phase 3 goals and plans tests passed.");
