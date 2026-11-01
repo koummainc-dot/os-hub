@@ -105,6 +105,8 @@ assert.match(moduleSource,/transitionSeason\(r,"Draft"\)/);
 assert.match(moduleSource,/await saveRow\(ws\.id,"seasons",updated\)/);
 
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"}},"2026-11-02",{scheduleOverrides:[{startDate:"2026-11-01",endDate:"2026-11-03",mode:"Unknown"}]}),true);
+assert.equal(isPracticeExpectedOnDate({...practiceModel,createdAt:"2026-11-02T12:00:00.000Z",frequency:{mode:"Daily"}},"2026-11-01"),false,"practice is not expected before its creation date");
+assert.equal(isPracticeExpectedOnDate({...practiceModel,createdAt:"2026-11-02T12:00:00.000Z",frequency:{mode:"Daily"}},"2026-11-02"),true,"practice becomes eligible on its creation date");
 
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Weekdays",days:[1,2,3,4,5]}},"2026-11-01"),false);
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Weekdays",days:[0,1,2,3,4,5,6]}},"2026-11-01"),true);
