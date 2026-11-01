@@ -34,6 +34,8 @@ create policy spiritual_user_keyrings_delete_own on public.spiritual_user_keyrin
 alter table public.spiritual_private_records
  add column if not exists encrypted_data jsonb null,
  add column if not exists encryption_version integer null check (encryption_version is null or encryption_version=1);
+alter table public.spiritual_practice_logs
+ add column if not exists encrypted_payload jsonb null;
 create index if not exists spiritual_private_records_encrypted_owner_idx
  on public.spiritual_private_records(user_id,workspace_id,collection,updated_at desc)
  where deleted=false and encrypted_data is not null;
