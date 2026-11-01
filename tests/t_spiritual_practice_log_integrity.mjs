@@ -15,8 +15,8 @@ assert.match(sql, /if not exists \([\s\S]*pg_constraint[\s\S]*spiritual_practice
 const ui = await readFile(new URL("../src/systems/spiritual/index.jsx", import.meta.url), "utf8");
 assert.match(ui, /async function archiveRow\(ws,collection,id\)[\s\S]*?supabase\.auth\.getUser\(\)[\s\S]*?if\(privateRow\)request=request\.eq\("user_id",user\.id\)/);
 
-assert.doesNotMatch(ui, /localStorage\\.(?:setItem|getItem)\\([^)]*(?:spiritual|reflection|practice|commitment)/i, "sensitive Spiritual content must not be persisted to browser localStorage by this module");
-assert.doesNotMatch(ui, /console\\.(?:log|info|debug)\\([^)]*(?:rows|record|reflection|practice|commitment|body)/i, "sensitive record payloads must not be written to console logs");
-assert.match(ui, /publishOSEvent\\(\\{type:"spiritual\\.record\\.saved",entityType:"spiritual_record",entityId:row.id,payload:\\{collection\\}\\}/, "integration events must expose only the collection name, not record content");
-assert.doesNotMatch(ui, /payload:\\{[^}]*\\b(?:body|description|note|reflection|data|record)\\s*:/i, "integration event payloads must not contain sensitive content fields");
+assert.doesNotMatch(ui, /localStorage\.(?:setItem|getItem)\([^)]*(?:spiritual|reflection|practice|commitment)/i, "sensitive Spiritual content must not be persisted to browser localStorage by this module");
+assert.doesNotMatch(ui, /console\.(?:log|info|debug)\([^)]*(?:rows|record|reflection|practice|commitment|body)/i, "sensitive record payloads must not be written to console logs");
+assert.match(ui, /publishOSEvent\(\{type:"spiritual\.record\.saved",entityType:"spiritual_record",entityId:row\.id,payload:\{collection\}\}/, "integration events must expose only the collection name, not record content");
+assert.doesNotMatch(ui, /payload:\{[^}]*\b(?:body|description|note|reflection|data|record)\s*:/i, "integration event payloads must not contain sensitive content fields");
 console.log("Spiritual normalized practice-log integrity migration contract passed.");
