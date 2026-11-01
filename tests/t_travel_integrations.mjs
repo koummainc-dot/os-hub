@@ -24,5 +24,5 @@ assert.equal(buildTravelCalendarReference("ws-1",{id:"it-1"}),null);
 assert.deepEqual(getTravelIntegrationStatus({}).map(x=>x.available),[false,false,false]);
 const status=getTravelIntegrationStatus({integrations:{files:{upload(){},getUrl(){},remove(){}},notifications:{upsert(){},cancel(){}},calendar:{upsert(){},remove(){}}}});
 assert.deepEqual(status.map(x=>x.available),[true,true,true]);
-assert.equal(getTravelIntegrationStatus({integrations:{files:{upload(){}}})[0].available,false,"partial file adapter must not be treated as ready");
+assert.equal(getTravelIntegrationStatus({integrations:{files:{upload(){}}}})[0].available,false,"partial file adapter must not be treated as ready");
 console.log("Travel compatibility integration tests passed");
