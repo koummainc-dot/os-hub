@@ -48,19 +48,19 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f tests/home_os_sql_bootstrap.sql
       - name: Apply Home OS migrations
         run: |
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031140000_home_os_phase1_foundation.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031160000_home_os_phase2_operations.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031170000_home_os_operations_snapshot.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031180000_home_os_atomic_purchase_receipts.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031190000_home_os_relational_operations.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031200000_home_os_operations_concurrency.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031210000_home_os_atomic_inventory_movements.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031220000_home_os_inventory_ledger_guard.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031230000_home_os_snapshot_concurrency.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031240000_home_finance_outbox_reader.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031250000_home_today_outbox_reader.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031260000_home_operations_reconciliation_report.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031270000_home_finance_outbox_ack.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031280000_home_os_stock_version_bump.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101113637_home_os_phase1_foundation.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101113640_home_os_phase2_operations.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101113644_home_os_operations_snapshot.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101113647_home_os_atomic_purchase_receipts.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101113653_home_os_relational_operations.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101113656_home_os_operations_concurrency.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101113659_home_os_atomic_inventory_movements.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101113703_home_os_inventory_ledger_guard.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101113707_home_os_snapshot_concurrency.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101113714_home_finance_outbox_reader.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101113720_home_today_outbox_reader.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101113723_home_operations_reconciliation_report.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101113726_home_finance_outbox_ack.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101113730_home_os_stock_version_bump.sql
       - name: Verify Home snapshot, RLS, movement and receipt idempotency
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/home_os_smoke.sql
