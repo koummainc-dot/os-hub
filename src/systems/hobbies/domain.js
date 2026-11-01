@@ -11,7 +11,7 @@ const rating=input.enjoymentRating===""||input.enjoymentRating==null?null:Number
 return {ok:true,value:{...input,name,description:String(input.description||"").trim(),motivation:String(input.motivation||"").trim(),enjoymentRating:rating}};}
 export function validateHobbySession(input,hobby) {
 if(!hobby||hobby.status==="archived")return {ok:false,error:"لا يمكن تسجيل جلسة لهواية غير متاحة."}; const date=String(input.localDate||"");
-if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T12:00:00Z"))||new Date(date+"T12:00:00Z").toISOString().slice(0,10)!==date)return {ok:false,error:"تاريخ الجلسة غير صالح."};
+if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T12:00:00Z"))||new Date(date+"T12:00:00Z").toISOString().slice(0,10)!==date)return {ok:false,error:"تاريخ الجلسة غير صالح."};
 const duration=input.durationMinutes===""||input.durationMinutes==null?null:Number(input.durationMinutes); if(duration!==null&&(!Number.isInteger(duration)||duration<1||duration>1440))return {ok:false,error:"مدة الجلسة يجب أن تكون من دقيقة إلى 24 ساعة."};
 const rating=input.satisfactionRating===""||input.satisfactionRating==null?null:Number(input.satisfactionRating); if(rating!==null&&(!Number.isInteger(rating)||rating<1||rating>5))return {ok:false,error:"تقييم الجلسة يجب أن يكون من 1 إلى 5."};
 return {ok:true,value:{...input,localDate:date,durationMinutes:duration,satisfactionRating:rating,notes:String(input.notes||"").trim()}};}
@@ -52,7 +52,7 @@ export function validateHobbySkill(input, hobby) {
 export function validateHobbySkillLog(input, skill) {
   if(!skill) return {ok:false,error:"المهارة المرتبطة غير موجودة."};
   const date=String(input.localDate||"");
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T12:00:00Z"))||new Date(date+"T12:00:00Z").toISOString().slice(0,10)!==date) return {ok:false,error:"تاريخ التقدم غير صالح."};
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T12:00:00Z"))||new Date(date+"T12:00:00Z").toISOString().slice(0,10)!==date) return {ok:false,error:"تاريخ التقدم غير صالح."};
   const parse=v=>v===""||v==null?null:Number(v);
   const previousValue=parse(input.previousValue),newValue=parse(input.newValue);
   if(skill.measurementType==="number"||skill.measurementType==="level"){
@@ -69,7 +69,7 @@ export function validateHobbyMilestone(input,hobbies,skills=[]) {
   if(input.skillId&&!skills.some(s=>s.id===input.skillId&&s.hobbyId===input.hobbyId)) return {ok:false,error:"المهارة المرتبطة لا تتبع هذه الهواية."};
   if(!HOBBY_MILESTONE_TYPES.includes(input.milestoneType||"achievement")) return {ok:false,error:"نوع الإنجاز غير صحيح."};
   const date=String(input.achievedAt||"");
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T12:00:00Z"))||new Date(date+"T12:00:00Z").toISOString().slice(0,10)!==date) return {ok:false,error:"تاريخ الإنجاز غير صالح."};
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T12:00:00Z"))||new Date(date+"T12:00:00Z").toISOString().slice(0,10)!==date) return {ok:false,error:"تاريخ الإنجاز غير صالح."};
   return {ok:true,value:{...input,title,achievedAt:date,description:String(input.description||"").trim(),evidenceUrl:String(input.evidenceUrl||"").trim()}};
 }
 export function validateHobbiesProgressImport(value) {
@@ -99,7 +99,7 @@ export function validateHobbiesProgressImport(value) {
 export const HOBBY_GOAL_TARGET_TYPES=["sessions","minutes","skill_value","milestones"];
 export const HOBBY_GOAL_STATUSES=["active","completed","paused","cancelled"];
 export const HOBBY_PLAN_CADENCES=["weekly","monthly"];
-const validISODate=value=>{const d=String(value||"");return /^\\d{4}-\\d{2}-\\d{2}$/.test(d)&&!Number.isNaN(Date.parse(d+"T12:00:00Z"))&&new Date(d+"T12:00:00Z").toISOString().slice(0,10)===d;};
+const validISODate=value=>{const d=String(value||"");return /^\d{4}-\d{2}-\d{2}$/.test(d)&&!Number.isNaN(Date.parse(d+"T12:00:00Z"))&&new Date(d+"T12:00:00Z").toISOString().slice(0,10)===d;};
 export function validateHobbyGoal(input,hobbies,skills=[]){
  const title=String(input?.title||"").trim(),hobby=hobbies.find(h=>h.id===input.hobbyId);
  if(!title||title.length>160)return {ok:false,error:"عنوان الهدف مطلوب وبحد أقصى 160 حرفًا."};
