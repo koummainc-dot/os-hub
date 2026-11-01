@@ -10,7 +10,7 @@ import { Projects } from "./screens_b.jsx";
 import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView, DiscoveryView } from "./entities.jsx";
 import { Okrs, Updates, Wins, Reviews, Contacts, Team, Templates, Meetings, Settings } from "./screens_c.jsx";
 import { buildSeed } from "./demo.js";
-import { readOSEvents, subscribeOSEvents, loadDurableOSEvents } from "../integrationEvents.js";
+import { readOSEvents, subscribeOSEvents, loadDurableOSEvents, subscribeDurableOSEvents } from "../integrationEvents.js";
 
 function RisksPage() {
   const [tab, setTab] = useState("risks"); const { data } = useP();
@@ -40,12 +40,16 @@ function Router() {
     const refresh = () => { if (typeof document === "undefined" || document.visibilityState !== "hidden") loadServer(); };
     if (typeof window !== "undefined") window.addEventListener("focus", refresh);
     if (typeof document !== "undefined") document.addEventListener("visibilitychange", refresh);
+    const unsubscribeDurable = subscribeDurableOSEvents(ws?.id, "hobbies", (event) => {
+      setCrossSystemActivity((items) => mergeEvents(items, [event]));
+    });
     const unsubscribe = subscribeOSEvents((event) => {
       setCrossSystemActivity((items) => mergeEvents(items, [event]));
     }, options);
     return () => {
       alive = false;
       unsubscribe();
+      unsubscribeDurable();
       if (typeof window !== "undefined") window.removeEventListener("focus", refresh);
       if (typeof document !== "undefined") document.removeEventListener("visibilitychange", refresh);
     };
