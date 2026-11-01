@@ -62,6 +62,7 @@ assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Dates",
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"MonthDay",calendar:"hijri",days:[1]}},"2026-11-01"),null);
 assert.equal(getPracticeDaySummary([], {...practiceModel,frequency:{mode:"Weekdays",days:[1,2,3,4,5]}},"2026-11-01").state,"NotExpected");
 assert.equal(getPracticeDaySummary([], {...practiceModel,frequency:{mode:"Daily"}},"2026-11-01").state,"Unrecorded");
+assert.equal(getPracticeDaySummary([singleSlotLog],practiceModel,"2026-11-02").state,"Unrecorded");
 
 const excusedLog=createSpiritualPracticeLog({practiceId:practiceModel.id,date:"2026-11-01",slotKey:"_",status:"Excused"});
 assert.equal(getPracticeDaySummary([excusedLog],practiceModel).state,"Excused");
