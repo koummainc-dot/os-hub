@@ -279,7 +279,8 @@ export function validateSpiritualImportantDate(value){
  if(!value||typeof value!=="object"||!String(value.name||"").trim()||value.name.length>120)return{ok:false,reason:"name-required"};
  if(!["gregorian","hijri"].includes(value.calendarSystem)||!["Once","Yearly","Monthly","Weekly"].includes(value.recurrence)||![-1,0,1].includes(value.dayOffset))return{ok:false,reason:"invalid-date-config"};
  if(value.recurrence==="Once"&&!isDate(value.date))return{ok:false,reason:"invalid-date"};
- if(value.recurrence!=="Once"&&(!Number.isInteger(value.month)||value.month<1||value.month>12||!Number.isInteger(value.day)||value.day<1||value.day>(value.calendarSystem==="hijri"?30:31)))return{ok:false,reason:"invalid-date-config"};
+ if(value.recurrence==="Yearly"&&(!Number.isInteger(value.month)||value.month<1||value.month>12||!Number.isInteger(value.day)||value.day<1||value.day>(value.calendarSystem==="hijri"?30:31)))return{ok:false,reason:"invalid-date-config"};
+ if(value.recurrence==="Monthly"&&(!Number.isInteger(value.day)||value.day<1||value.day>31))return{ok:false,reason:"invalid-date-config"};
  if(value.year!=null&&(!Number.isInteger(value.year)||value.year<1||value.year>9999))return{ok:false,reason:"invalid-year"};
  if(value.recurrence==="Weekly"&&(!Number.isInteger(value.weekday)||value.weekday<0||value.weekday>6))return{ok:false,reason:"invalid-weekday"};
  if(!Array.isArray(value.reminderDays)||value.reminderDays.some(n=>!Number.isInteger(n)||n<0||n>365)||new Set(value.reminderDays).size!==value.reminderDays.length)return{ok:false,reason:"invalid-reminders"};
