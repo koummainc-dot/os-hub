@@ -18,7 +18,7 @@
 - [x] Prevent Spiritual record-save events from serializing private record metadata into browser localStorage.
 - [x] Mark all ten current collections private by default in the domain contract.
 - [x] Expand private-table collection constraint and policy metadata to all ten collections.
-- [ ] Run full CI on the latest PR head and verify every required job. **Deferred until CI run is available; do not claim passed.**
+- [ ] Run full CI on the latest PR head and verify every required job. **A prior head passed; rerun required after commits `9a0e9fa` and `6ec17bc`.**
 - [ ] Run local contract tests and production build in a reproducible environment. **Deferred until a reproducible runtime is available; repository edits alone are not test evidence.**
 - [ ] Verify migration against the actual current Supabase schema in a rollback-only transaction, including policy/constraint idempotency and FK compatibility. **Deferred if safe read/transaction access is unavailable.**
 - [ ] Authenticated multi-user integration test: owner can read/write their own records; another user and workspace collaborator cannot select, mutate, or archive them. **Deferred until two safe test identities and a non-production test environment are available.**
