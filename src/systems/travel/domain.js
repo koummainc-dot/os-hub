@@ -184,6 +184,25 @@ export function tripSpend(tripId,data){
   return {budget:breakdown.budget,bookingSpend:breakdown.bookingCommitments,plannedSpend:breakdown.plannedActivities,total:breakdown.bookingCommitments+breakdown.plannedActivities,currency:breakdown.currency};
 }
 export function packingProgress(tripId,data){const rows=(data?.packing||[]).filter(x=>x.tripId===tripId);const packed=rows.filter(x=>x.packed).length;return {total:rows.length,packed,remaining:rows.length-packed,percent:rows.length?Math.round(packed/rows.length*100):0};}
+export function getUpcomingTravelAlerts(data,today=new Date().toISOString().slice(0,10)){
+  const todayMs=Date.parse(today+"T00:00:00Z");
+  const alerts=[];
+  for(const booking of data?.bookings||[]){
+    if(["cancelled","completed"].includes(booking.status)||!booking.cancellationDeadline)continue;
+    const deadlineMs=Date.parse(booking.cancellationDeadline+"T00:00:00Z");
+    if(!Number.isFinite(deadlineMs))continue;
+    const daysUntil=Math.round((deadlineMs-todayMs)/86400000);
+    if(daysUntil<=7)alerts.push({id:"booking:"+booking.id,type:"cancellation",title:booking.title||"حجز",date:booking.cancellationDeadline,daysUntil,level:daysUntil<0?"urgent":daysUntil<=2?"urgent":"warning",tripId:booking.tripId,message:daysUntil<0?"انتهى موعد الإلغاء المحدد":daysUntil===0?"موعد الإلغاء اليوم":"موعد الإلغاء خلال "+daysUntil+" يوم"});
+  }
+  for(const document of data?.documents||[]){
+    if(!document.expiryDate)continue;
+    const expiryMs=Date.parse(document.expiryDate+"T00:00:00Z");
+    if(!Number.isFinite(expiryMs))continue;
+    const daysUntil=Math.round((expiryMs-todayMs)/86400000);
+    if(daysUntil<=30)alerts.push({id:"document:"+document.id,type:"document",title:document.title||"مستند سفر",date:document.expiryDate,daysUntil,level:daysUntil<0?"urgent":daysUntil<=7?"urgent":"warning",tripId:document.tripId,message:daysUntil<0?"انتهت صلاحية المستند":daysUntil===0?"تنتهي الصلاحية اليوم":"تنتهي الصلاحية خلال "+daysUntil+" يوم"});
+  }
+  return alerts.sort((a,b)=>a.daysUntil-b.daysUntil||a.date.localeCompare(b.date));
+}
 export function getActiveTrip(data,today=new Date().toISOString().slice(0,10)){return (data?.trips||[]).filter(t=>t.status!=="cancelled"&&t.status!=="completed"&&t.startDate&&t.endDate&&t.startDate<=today&&t.endDate>=today).sort((a,b)=>a.startDate.localeCompare(b.startDate))[0]||null;}
 export function upcomingTrips(data,today=new Date().toISOString().slice(0,10)){return (data?.trips||[]).filter(t=>!["cancelled","completed","active"].includes(t.status)&&t.startDate>=today).sort((a,b)=>a.startDate.localeCompare(b.startDate));}
 export function validateRelatedRecord(kind,row,data){const errors=[];if(["stops","itinerary","bookings","packing","documents","memories","reviews","experiences"].includes(kind)&&row?.tripId&&!(data.trips||[]).some(t=>t.id===row.tripId))errors.push("الرحلة المرتبطة غير موجودة");if(kind==="itinerary"&&!String(row?.title||"").trim())errors.push("عنوان النشاط مطلوب");if(kind==="stops")errors.push(...validateStop(row));if(kind==="experiences"&&!String(row?.title||"").trim())errors.push("اسم التجربة مطلوب");if(kind==="experiences"&&row?.placeId&&!(data.places||[]).some(x=>x.id===row.placeId))errors.push("المكان المرتبط بالتجربة غير موجود.");if(kind==="bookings"&&!String(row?.title||"").trim())errors.push("اسم الحجز مطلوب");if(kind==="packing"&&!String(row?.item||"").trim())errors.push("اسم العنصر مطلوب");if(kind==="destinations"&&!String(row?.name||"").trim())errors.push("اسم الوجهة مطلوب");if(kind==="places"&&!String(row?.name||"").trim())errors.push("اسم المكان أو التجربة مطلوب");return errors;}
