@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live } from "../../core/records.jsx";
 import { AccessDenied } from "../../core/ui.jsx";
@@ -79,7 +79,6 @@ export default function SportsOS({ api, access, ws, isDemo, demoStore, page="das
   const sessions = useMemo(()=>data.sessions.filter(s=>!s.deleted_at),[data.sessions]);
   const sets = useMemo(()=>data.exerciseSets.filter(s=>!s.deleted_at),[data.exerciseSets]);
   const exercisesById = useMemo(()=>Object.fromEntries(data.exercises.map(x=>[x.id,x])),[data.exercises]);
-  const sessionById = useMemo(()=>Object.fromEntries(sessions.map(x=>[x.id,x])),[sessions]);
   const summary = useMemo(()=>sportsSummary(data,today(settings.timezone)),[data,settings.timezone]);
   const currentSession = sessions.find(s=>s.id===sessionId && s.status==="In Progress") || sessions.find(s=>s.status==="In Progress"&&!s.deleted_at) || null;
   const currentSessionSets = currentSession ? sets.filter(s=>s.sessionId===currentSession.id) : [];
@@ -187,7 +186,7 @@ export default function SportsOS({ api, access, ws, isDemo, demoStore, page="das
       const parsed=JSON.parse(importText),source=parsed.data||parsed;
       if(!source||typeof source!=="object"||!Array.isArray(source.exercises)&&!Array.isArray(source.sessions))throw new Error("الملف لا يبدو نسخة احتياطية من Sports OS.");
       const mapping={exercises:"exercises",programs:"programs",workoutDays:"workoutDays",plannedExercises:"plannedExercises",sessions:"sessions",exerciseSets:"exerciseSets",goals:"goals",measurements:"measurements",recoveryLogs:"recoveryLogs",personalRecords:"personalRecords"};
-      for(const [key,coll] of Object.entries(mapping)) for(const item of Array.isArray(source[key])?source[key]:[]) {
+      for(const key of Object.keys(mapping)) for(const item of Array.isArray(source[key])?source[key]:[]) {
         if(!item?.id) throw new Error("يوجد سجل بدون معرّف في "+key+".");
       }
       for(const [key,coll] of Object.entries(mapping)) for(const item of Array.isArray(source[key])?source[key]:[]) {
