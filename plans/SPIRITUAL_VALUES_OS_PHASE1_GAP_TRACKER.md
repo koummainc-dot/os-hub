@@ -22,7 +22,7 @@
 - [x] Expand private-table collection constraint and policy metadata to all ten collections.
 - [ ] Run full CI on the latest PR head and verify every required job. **The typed UI, adapter and regression-test commits are newer than the last completed CI evidence; inspect the latest runs before acceptance.**
 - [ ] Run local contract tests and production build in a reproducible environment. **Deferred until a reproducible runtime is available; repository edits alone are not test evidence.**
-- [ ] Verify migration against the actual current Supabase schema in a rollback-only transaction, including policy/constraint idempotency and FK compatibility. **Deferred if safe read/transaction access is unavailable.**
+- [ ] Verify both migrations against the actual current Supabase schema in a rollback-only transaction, including policy/constraint idempotency and FK compatibility. **Deferred if safe read/transaction access is unavailable.**
 - [ ] Authenticated multi-user integration test: owner can read/write their own records; another user and workspace collaborator cannot select, mutate, or archive them. **Deferred until two safe test identities and a non-production test environment are available.**
 - [ ] Confirm private records are excluded from global search, Today, Calendar, notifications, admin tooling, analytics, exports, and logs unless an explicit, consented contract allows a minimal derived signal.
 - [ ] Decide and implement encryption-at-rest for sensitive free text. JSONB plus RLS is access control, not field-level encryption; do not claim end-to-end encryption. **Deferred as a security architecture task; do not ship sensitive real data before it is resolved.**
@@ -53,12 +53,17 @@ The current interface is a foundation shell and generic record form, not the com
 - P2 partial: typed own-practice log constructor/validator; accepted statuses Done/Partial/Excused only; date/practice/slot validation; deterministic `(practiceId,date,slotKey)` record identity; canonical `_` key for a single slot; multiple configured slots supported; optional actual/duration/note; source and client operation ID.
 - P2 partial: quick logging UI on practice cards, date and slot selection, status/quantity/duration/note, day summary labels Maintained/Partial/Excused/Unrecorded; HabitLinked practices are explicitly read-only and never create duplicate logs.
 - P2 contract tests cover date/status/slot validation, completion levels, multiple slots, unrecorded semantics, and Habit-linked rejection. These checks await CI.
+- [Partial] Added additive `spiritual_practice_logs` migration with owner/workspace scope, unique `(user_id,practice_id,log_date,slot_key)` and `(user_id,client_op_id)`, RLS, parent-practice ownership checks on insert/update, and an index for owner/date history.
+- [Partial] Practice quick entry now writes to the normalized table and the Daily Log view reads normalized history. The legacy generic `practice_logs` rows are not automatically migrated; a reviewed backfill remains required.
+- [Security hold] Free-text practice notes are not written in plaintext to the new table: ciphertext columns are reserved, and the UI blocks note saving until the approved encryption/key lifecycle is implemented. Existing private generic JSON records are still not field-encrypted; do not use real sensitive content before P0 encryption closes.
 - Duplicate-name, ownership, date, range and state-transition validations.
 
 ### P2 — Practice logs, flexible slots, consistency and continuity
 - [Partial] Own-mode log domain contract and quick-entry UI implemented against the private generic record envelope; multiple slots per day use stable slot keys, with `_` for a single slot. This is not yet normalized `sp_practice_logs` persistence.
 - [Partial] Completion-level derivation (Full/Minimum/Partial/None/Excused) and neutral per-day slot summary implemented; missing rows remain Unrecorded, never Missed.
-- [Remaining] Persist and enforce database uniqueness `(practice_id,date,slot_key)` plus `client_op_id` idempotency at the repository/database layer; multi-slot editing/history UX; configurable day boundary/timezone and pause/expected-day calculations; `TimesPerWeek/TimesPerMonth` and full consistency/continuity calculations.
+- [Partial] Database uniqueness and owner-scoped RLS for normalized practice logs are specified in the additive migration; actual execution against a non-production Supabase environment and two-user RLS tests remain open.
+- [Partial] Daily Log view reads normalized history; legacy generic log backfill, history filters/pagination, multi-slot edit/delete UX, and explicit `client_op_id` retry behavior remain open.
+- [Remaining] Configurable day boundary/timezone and pause/expected-day calculations; `TimesPerWeek/TimesPerMonth` and full consistency/continuity calculations.
 - Multiple occurrences per practice/day using a stable slot key.
 - Expected-day calculation and completion levels; missing log is not Missed.
 - Neutral consistency/continuity metrics are optional, hidden by default, and never replace Habit-owned streaks or Daily Logs.
