@@ -1,6 +1,6 @@
 import React,{useCallback,useEffect,useState} from "react";
 import {supabase} from "../../core/supabase.js";
-import {SPIRITUAL_SECTIONS,SPIRITUAL_COLLECTIONS,SENSITIVE_COLLECTIONS,createSpiritualRecord,validateSpiritualRecord,createSpiritualValue,validateSpiritualValue,createSpiritualPrinciple,validateSpiritualPrinciple,createSpiritualPractice,validateSpiritualPractice,encodeSpiritualTypedRecord,decodeSpiritualTypedRecord,createSpiritualPracticeLog,validateSpiritualPracticeLog,getPracticeDaySummary,isPracticeExpectedOnDate} from "./domain.js";
+import {SPIRITUAL_SECTIONS,SPIRITUAL_COLLECTIONS,SENSITIVE_COLLECTIONS,createSpiritualRecord,validateSpiritualRecord,createSpiritualValue,validateSpiritualValue,createSpiritualPrinciple,validateSpiritualPrinciple,createSpiritualPractice,validateSpiritualPractice,encodeSpiritualTypedRecord,decodeSpiritualTypedRecord,createSpiritualPracticeLog,validateSpiritualPracticeLog,getPracticeDaySummary} from "./domain.js";
 import {publishOSEvent} from "../integrationEvents.js";
 const C={ink:"#172033",muted:"#64748B",line:"#E2E8F0",accent:"#0F766E",soft:"#CCFBF1",white:"#fff",red:"#B91C1C"};
 const PAGE_COLLECTION={values:"values",principles:"principles",practices:"practices",dailylog:"practice_logs",reflections:"reflections",goals:"goals",commitments:"commitments",dates:"important_dates",reviews:"reviews",seasons:"seasons"};
