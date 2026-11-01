@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import assert from "node:assert/strict";
 import {publishOSEvent} from "../src/systems/integrationEvents.js";
-import {SPIRITUAL_COLLECTIONS,SPIRITUAL_SECTIONS,SENSITIVE_COLLECTIONS,createSpiritualRecord,validateSpiritualRecord,canShareSpiritualCollection,createSpiritualValue,validateSpiritualValue,createSpiritualPrinciple,validateSpiritualPrinciple,createSpiritualPractice,validateSpiritualPractice,validateFrequencyConfig} from "../src/systems/spiritual/domain.js";
+import {SPIRITUAL_COLLECTIONS,SPIRITUAL_SECTIONS,SENSITIVE_COLLECTIONS,createSpiritualRecord,validateSpiritualRecord,canShareSpiritualCollection,createSpiritualValue,validateSpiritualValue,createSpiritualPrinciple,validateSpiritualPrinciple,createSpiritualPractice,validateSpiritualPractice,validateFrequencyConfig,encodeSpiritualTypedRecord,decodeSpiritualTypedRecord} from "../src/systems/spiritual/domain.js";
 const core=fs.readFileSync("src/core/core.js","utf8"),moduleSource=fs.readFileSync("src/systems/spiritual/index.jsx","utf8"),sql=fs.readFileSync("supabase/migrations/20261101130000_spiritual_values_foundation.sql","utf8");
 assert.match(core,/id:"spiritual"[\s\S]*?status:"planned"/);
 assert.equal(SPIRITUAL_SECTIONS.length,13);
@@ -67,4 +67,17 @@ assert.match(sql,/collection_sections/);
 assert.match(sql,/spiritual_private_records_collection_check/i);
 assert.match(sql,/\(\x27values\x27,\x27values\x27,true,false\)/i);
 assert.match(moduleSource,/privateRows\?supabase\.from\("spiritual_private_records"\)/);
+
+const encodedValue=encodeSpiritualTypedRecord("values",valueModel);
+assert.equal(encodedValue.ok,true);
+assert.equal(decodeSpiritualTypedRecord("values",encodedValue.record).kind,"typed");
+assert.equal(decodeSpiritualTypedRecord("values",encodedValue.record).data.importance,"Core");
+assert.equal(encodeSpiritualTypedRecord("values",{...valueModel,name:" "}).reason,"name-required");
+const encodedPrinciple=encodeSpiritualTypedRecord("principles",principleModel);
+assert.equal(decodeSpiritualTypedRecord("principles",encodedPrinciple.record).kind,"typed");
+const encodedPractice=encodeSpiritualTypedRecord("practices",practiceModel);
+assert.equal(decodeSpiritualTypedRecord("practices",encodedPractice.record).kind,"typed");
+assert.equal(decodeSpiritualTypedRecord("values",{title:"قديم",body:"نص قديم"}).kind,"legacy");
+assert.equal(decodeSpiritualTypedRecord("values",{title:"تالف",body:"{not-json"}).kind,"legacy");
+assert.equal(decodeSpiritualTypedRecord("principles",encodedValue.record).kind,"legacy");
 console.log("Spiritual OS foundation contracts passed.");
