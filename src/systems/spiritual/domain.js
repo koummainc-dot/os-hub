@@ -39,7 +39,7 @@ export function validateSpiritualPrinciple(principle){
 }
 export function createSpiritualPractice(input={}){
  const slots=Array.isArray(input.slots)&&input.slots.length?input.slots.map((slot,index)=>({key:String(slot.key||`slot-${index+1}`),label:String(slot.label||"").trim(),preferredTime:slot.preferredTime||null})): [{key:"default",label:"الممارسة",preferredTime:null}];
- return {id:input.id||globalThis.crypto?.randomUUID?.()||`spr-${Date.now()}`,name:String(input.name||"").trim(),type:String(input.type||"").trim(),tags:Array.isArray(input.tags)?[...new Set(input.tags.map(String))]:[],kind:PRACTICE_KINDS.has(input.kind)?input.kind:"Done",unit:String(input.unit||""),target:input.target??null,minimum:input.minimum??null,slots,slotsRequired:input.slotsRequired||"All",preferredTime:input.preferredTime||null,reminder:{enabled:input.reminder?.enabled===true,textMode:["Neutral","Name","Why"].includes(input.reminder?.textMode)?input.reminder.textMode:"Neutral"},why:String(input.why||""),habitRef:input.habitRef||null,logMode:input.logMode||"Own",signalKind:input.signalKind||null,active:input.active!==false,archivedAt:input.archivedAt||null,createdAt:input.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+ return {id:input.id||globalThis.crypto?.randomUUID?.()||`spr-${Date.now()}`,name:String(input.name||"").trim(),type:String(input.type||"").trim(),tags:Array.isArray(input.tags)?[...new Set(input.tags.map(String))]:[],kind:PRACTICE_KINDS.has(input.kind)?input.kind:"Done",unit:String(input.unit||""),target:input.target??null,minimum:input.minimum??null,slots,slotsRequired:input.slotsRequired||"All",frequency:input.frequency||{mode:"Daily"},preferredTime:input.preferredTime||null,reminder:{enabled:input.reminder?.enabled===true,textMode:["Neutral","Name","Why"].includes(input.reminder?.textMode)?input.reminder.textMode:"Neutral"},why:String(input.why||""),habitRef:input.habitRef||null,logMode:input.logMode||"Own",signalKind:input.signalKind||null,active:input.active!==false,archivedAt:input.archivedAt||null,createdAt:input.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
 }
 export function validateFrequencyConfig(config){
  if(!config||typeof config!=="object"||Array.isArray(config)||typeof config.mode!=="string")return{ok:false,reason:"invalid-frequency"};
@@ -68,6 +68,7 @@ export function validateSpiritualPractice(practice){
  for(const slot of practice.slots){if(!slot||!String(slot.key||"").trim()||keys.has(slot.key)||!String(slot.label||"").trim())return{ok:false,reason:"invalid-slot"};keys.add(slot.key);if(slot.preferredTime!=null&&!isTime(slot.preferredTime))return{ok:false,reason:"invalid-slot-time"};}
  if(practice.preferredTime!=null&&!isTime(practice.preferredTime))return{ok:false,reason:"invalid-preferred-time"};
  if(practice.logMode==="HabitLinked"&&practice.habitRef?.system!=="habit")return{ok:false,reason:"invalid-habit-reference"};
+ const frequency=validateFrequencyConfig(practice.frequency);if(!frequency.ok)return frequency;
  if(!practice.reminder||typeof practice.reminder.enabled!=="boolean"||!["Neutral","Name","Why"].includes(practice.reminder.textMode))return{ok:false,reason:"invalid-reminder"};
  return{ok:true};
 }
