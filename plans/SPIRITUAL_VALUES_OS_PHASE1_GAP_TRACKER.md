@@ -147,7 +147,8 @@ The current interface is a foundation shell and generic record form, not the com
 
 
 ## Latest continuation — season management UI
-- Added a dedicated Arabic season form in Spiritual & Values OS: name, description, start/end dates, status, optional affected practice, and one override mode (`Pause`, `NotExpected`, `Expected`).
-- The form validates date range and same-practice overlaps against currently loaded season records before saving; the list shows date range, status, and practice effect. Editing preloads the season fields.
-- Seasons continue to use the section's existing private-record persistence path; no new database migration was introduced. This is a first usable UI slice, not full SeasonService completion: multi-practice overrides per season, explicit archive/complete actions, persistence/schema review, E2E tests, and robust cross-user RLS verification remain open.
-- The UI and domain changes were committed on the feature branch. GitHub Actions runs have been queued but have not yet produced a final result; do not treat this change as verified or production-ready until CI and privacy checks complete.
+- Added an Arabic season form in Spiritual & Values OS with name, description, start/end dates, status, and a repeatable list of practice overrides (`Pause`, `NotExpected`, `Expected`). A season can affect multiple distinct practices.
+- Each override row can be added or removed; practices already selected in another row are disabled in the other dropdowns. Empty practice selections are filtered out before domain validation, and the domain validator remains responsible for duplicate IDs and overlapping scheduled/active seasons affecting the same practice.
+- Editing preloads all stored `practiceOverrides`, not just the first. Reset/cancel returns to one empty row. The list view renders each affected practice.
+- Seasons continue to use the existing private-record persistence path; no new database migration was introduced. Explicit archive/complete actions, persistence/schema review, authenticated E2E tests, and robust cross-user RLS verification remain open.
+- Latest code commits: `66c437abfa762e8005bc989659fee94726ddb8e9` (repeatable override UI) and `e245f78a2eb047c2bbff7542ffe8167a1edbb364` (draft state/save/edit/reset alignment). These are implementation changes, not proof of test success. Latest-head CI and privacy checks must be confirmed before acceptance.
