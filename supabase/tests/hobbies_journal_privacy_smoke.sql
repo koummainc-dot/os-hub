@@ -143,6 +143,10 @@ set request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
 set role authenticated;
 insert into storage.objects(bucket_id,name)
 values ('hobbies-journal-private','11111111-1111-4111-8111-111111111111/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/journal-a/shared.webp');
+update public.workspace_records
+set data = data || '{"attachments":[{"kind":"storage","path":"11111111-1111-4111-8111-111111111111/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/journal-a/shared.webp"}]}'::jsonb
+where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and system_id='hobbies'
+  and collection='journalEntries' and id='journal-a';
 insert into public.workspace_records(workspace_id,system_id,collection,id,data)
 values
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','hobbies','journalEntries','journal-b',
