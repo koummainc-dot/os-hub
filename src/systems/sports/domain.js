@@ -204,6 +204,46 @@ export function generateWorkoutDays(program, idFactory = makeSportsId) {
   }
   return { ok: true, value: days };
 }
+export function plannedSetProgress(plannedExercise, sets = []) {
+  const targetSets = Math.max(0, Number(plannedExercise?.targetSets) || 0);
+  const relevant = sets
+    .filter(set => set && !set.deleted_at && set.plannedExerciseId === plannedExercise?.id)
+    .slice()
+    .sort((a, b) => (Number(a.plannedSetNumber) || Number(a.sequence) || 0) - (Number(b.plannedSetNumber) || Number(b.sequence) || 0));
+  const completedSets = Math.min(targetSets, relevant.length);
+  const actualReps = relevant.slice(0, targetSets).reduce((sum, set) => sum + (Number(set.reps) || 0), 0);
+  return {
+    targetSets,
+    loggedSets: relevant.length,
+    completedSets,
+    remainingSets: Math.max(0, targetSets - completedSets),
+    nextSetNumber: relevant.length + 1,
+    targetReps: plannedExercise?.targetReps == null ? null : Number(plannedExercise.targetReps) * targetSets,
+    actualReps,
+    isComplete: targetSets > 0 && completedSets >= targetSets,
+    extraSets: Math.max(0, relevant.length - targetSets),
+  };
+}
+
+export function calculateWorkoutAdherence(plannedExercises = [], sets = []) {
+  const planned = plannedExercises.filter(item => item && !item.deleted_at);
+  const rows = planned.map(item => ({ item, ...plannedSetProgress(item, sets) }));
+  const targetSets = rows.reduce((sum, row) => sum + row.targetSets, 0);
+  const completedSets = rows.reduce((sum, row) => sum + row.completedSets, 0);
+  const targetReps = rows.reduce((sum, row) => sum + (row.targetReps || 0), 0);
+  const actualReps = rows.reduce((sum, row) => sum + row.actualReps, 0);
+  return {
+    plannedExercises: planned.length,
+    exercised: rows.filter(row => row.loggedSets > 0).length,
+    targetSets,
+    completedSets,
+    targetReps,
+    actualReps,
+    percentage: targetSets ? Math.round(completedSets / targetSets * 100) : 0,
+    rows,
+  };
+}
+
 export function validatePlannedExercise(input, exercise, workoutDay) {
   if (!workoutDay?.id || !workoutDay?.programId) return { ok: false, error: "يجب اختيار يوم تدريبي صالح." };
   if (!exercise?.id) return { ok: false, error: "يجب اختيار تمرين من المكتبة." };
