@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {emptyTravelData,normalizeTravelData,validateTrip,tripSpend,packingProgress,getActiveTrip,upcomingTrips,validateRelatedRecord,validateTravelImport,buildTravelExport,validateFinanceLink,tripBudgetBreakdown,financeTransactionState,financeTransactionStateLabel} from "../src/systems/travel/domain.js";
+import {emptyTravelData,normalizeTravelData,validateTrip,tripSpend,packingProgress,getActiveTrip,upcomingTrips,validateRelatedRecord,validateTravelImport,buildTravelExport,validateFinanceLink,tripBudgetBreakdown,financeTransactionState,financeTransactionStateLabel,validateStop,sortTripStops,findItineraryConflicts} from "../src/systems/travel/domain.js";
 const base=emptyTravelData();
 assert.equal(base.trips.length,0);
 assert.deepEqual(validateTrip({name:"",destination:""}),["اسم الرحلة مطلوب","الوجهة مطلوبة"]);
@@ -112,3 +112,24 @@ assert.equal(excludedBreakdown.excludedLinks,3);
 assert.ok(validateFinanceLink({tripId:"excluded-trip",sourceType:"trip",sourceId:"",financeTransactionId:"reversed-tx",kind:"expense"},excludedData,stateRows).some(e=>e.includes("معكوسة")));
 console.log("Travel OS partial payment, refund matching, and reversal tests passed");
 
+
+
+const stopData=normalizeTravelData({trips:[{id:"multi-stop",name:"Multi-stop",destination:"Egypt"}],stops:[
+ {id:"stop-2",tripId:"multi-stop",name:"Luxor",order:2,arrivalDate:"2026-12-03",departureDate:"2026-12-05",timeZone:"Africa/Cairo"},
+ {id:"stop-1",tripId:"multi-stop",name:"Aswan",order:1,arrivalDate:"2026-12-01",departureDate:"2026-12-03",timeZone:"Africa/Cairo"}
+]});
+assert.deepEqual(sortTripStops(stopData.stops,"multi-stop").map(x=>x.id),["stop-1","stop-2"]);
+assert.ok(validateStop({name:"Bad stop",order:0,arrivalDate:"2026-12-05",departureDate:"2026-12-04",timeZone:"Not/AZone"}).length>=3);
+assert.equal(validateStop({name:"Aswan",order:1,arrivalDate:"2026-12-01",departureDate:"2026-12-02",timeZone:"Africa/Cairo"}).length,0);
+const timeConflicts=findItineraryConflicts([
+ {id:"a",tripId:"multi-stop",date:"2026-12-01",startTime:"09:00",endTime:"10:30",title:"Museum"},
+ {id:"b",tripId:"multi-stop",date:"2026-12-01",startTime:"10:00",endTime:"11:00",title:"Tour"},
+ {id:"c",tripId:"other-trip",date:"2026-12-01",startTime:"09:30",endTime:"10:30",title:"Different trip"},
+ {id:"overnight",tripId:"multi-stop",date:"2026-12-01",startTime:"23:00",endTime:"02:00",title:"Night train"},
+ {id:"next-night",tripId:"multi-stop",date:"2026-12-02",startTime:"01:30",endTime:"03:00",title:"Early transfer"}
+]);
+assert.equal(timeConflicts.length,2);
+assert.ok(timeConflicts.some(x=>x.firstId==="a"&&x.secondId==="b"));
+assert.ok(timeConflicts.some(x=>x.firstId==="overnight"&&x.secondId==="next-night"));
+assert.equal(validateTravelImport({...importable,stops:[{id:"bad-stop",tripId:"missing"}]}).valid,false);
+console.log("Travel OS stops and itinerary conflict tests passed");
