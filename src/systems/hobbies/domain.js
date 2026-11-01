@@ -267,7 +267,8 @@ export function hobbyInsights(hobbies=[],sessions=[],goals=[],skills=[],mileston
  * visible to the current workspace member. Does not mutate records or widen access.
  */
 export function resurfaceHobbyMemories(entries=[], asOf, context={}) {
- const date=validISODate(asOf)?asOf:new Date().toISOString().slice(0,10);
+ if(!validISODate(asOf))return {asOf:null,onThisDay:[],related:[]};
+ const date=asOf;
  const active=entries.filter(entry=>entry&&entry.entryType==="memory"&&!entry.deleted_at&&!entry.archivedAt&&validISODate(entry.localDate)&&entry.localDate<date);
  const seen=new Set();
  const unique=(rows,limit=4)=>rows.filter(row=>{if(seen.has(row.id))return false;seen.add(row.id);return true;}).slice(0,limit);
