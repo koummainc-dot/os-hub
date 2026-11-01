@@ -60,7 +60,7 @@ assert.equal(nutritionToday("Africa/Cairo",new Date("2026-11-01T23:30:00Z")),"20
 
 const needs=buildGroceryNeeds({planSlots:[{id:"s1",recipeId:"r1",portions:2,status:"planned"},{id:"s2",recipeId:"r1",portions:1,status:"skipped"}],recipes:[recipe],recipeIngredients:[{recipeId:"r1",foodId:"f1",amount:40}],foods:[food]});
 assert.equal(needs.length,1);
-assert.equal(needs[0].amount,80);
+assert.equal(needs[0].amount,40,"planned portions scale ingredients relative to recipe yield");
 assert.equal(needs[0].sourceSlotIds.length,1);
 
 const validImport=validateNutritionImport({...base,foods:[food],logs:[snapshot]});
