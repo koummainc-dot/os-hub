@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import assert from "node:assert/strict";
 import {publishOSEvent} from "../src/systems/integrationEvents.js";
-import {SPIRITUAL_COLLECTIONS,SPIRITUAL_SECTIONS,SENSITIVE_COLLECTIONS,createSpiritualRecord,validateSpiritualRecord,canShareSpiritualCollection,createSpiritualValue,validateSpiritualValue,createSpiritualPrinciple,validateSpiritualPrinciple,createSpiritualPractice,validateSpiritualPractice,validateFrequencyConfig,encodeSpiritualTypedRecord,decodeSpiritualTypedRecord,createSpiritualPracticeLog,validateSpiritualPracticeLog,getPracticeCompletionLevel,getPracticeDaySummary,isPracticeExpectedOnDate} from "../src/systems/spiritual/domain.js";
+import {SPIRITUAL_COLLECTIONS,SPIRITUAL_SECTIONS,SENSITIVE_COLLECTIONS,createSpiritualRecord,validateSpiritualRecord,canShareSpiritualCollection,createSpiritualValue,validateSpiritualValue,createSpiritualPrinciple,validateSpiritualPrinciple,createSpiritualPractice,validateSpiritualPractice,validateFrequencyConfig,encodeSpiritualTypedRecord,decodeSpiritualTypedRecord,createSpiritualPracticeLog,validateSpiritualPracticeLog,getPracticeCompletionLevel,getPracticeDaySummary,isPracticeExpectedOnDate,createSpiritualSeason,validateSpiritualSeason,getSeasonPracticeOverrides} from "../src/systems/spiritual/domain.js";
 const domainSource=fs.readFileSync("src/systems/spiritual/domain.js","utf8"),core=fs.readFileSync("src/core/core.js","utf8"),moduleSource=fs.readFileSync("src/systems/spiritual/index.jsx","utf8"),sql=fs.readFileSync("supabase/migrations/20261101130000_spiritual_values_foundation.sql","utf8"),practiceSql=fs.readFileSync("supabase/migrations/20261101143000_spiritual_practice_logs.sql","utf8");
 assert.match(core,/id:"spiritual"[\s\S]*?status:"planned"/);
 assert.doesNotMatch(domainSource,/\\\\n/);
@@ -61,6 +61,18 @@ assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"}
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"}},"2026-11-02",{pausePeriods:[{startDate:"2026-11-01",endDate:"2026-11-03"}]}),false);
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"}},"2026-11-02",{scheduleOverrides:[{startDate:"2026-11-01",endDate:"2026-11-03",mode:"NotExpected"}]}),false);
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Flexible"}},"2026-11-02",{scheduleOverrides:[{startDate:"2026-11-01",endDate:"2026-11-03",mode:"Expected"}]}),true);
+const seasonA=createSpiritualSeason({id:"season-a",name:"فترة تركيز",startDate:"2026-11-01",endDate:"2026-11-10",status:"Scheduled",practiceOverrides:[{practiceId:"p1",mode:"Pause"}]});
+assert.equal(validateSpiritualSeason(seasonA).ok,true);
+assert.equal(validateSpiritualSeason({...seasonA,endDate:"2026-10-31"}).reason,"invalid-date-range");
+assert.equal(validateSpiritualSeason({...seasonA,practiceOverrides:[{practiceId:"p1",mode:"Bad"}]}).reason,"invalid-override");
+const seasonConflict=createSpiritualSeason({id:"season-b",name:"فترة أخرى",startDate:"2026-11-05",endDate:"2026-11-15",status:"Active",practiceOverrides:[{practiceId:"p1",mode:"Expected"}]});
+assert.equal(validateSpiritualSeason(seasonConflict,[seasonA]).reason,"season-practice-overlap");
+const seasonNoConflict=createSpiritualSeason({id:"season-c",name:"ممارسة أخرى",startDate:"2026-11-05",endDate:"2026-11-15",status:"Active",practiceOverrides:[{practiceId:"p2",mode:"Expected"}]});
+assert.equal(validateSpiritualSeason(seasonNoConflict,[seasonA]).ok,true);
+assert.deepEqual(getSeasonPracticeOverrides([seasonA],"p1","2026-11-03").map(x=>x.mode),["Pause"]);
+assert.deepEqual(getSeasonPracticeOverrides([seasonA],"p1","2026-11-20"),[]);
+assert.equal(getSeasonPracticeOverrides([seasonA,seasonConflict],"p1","2026-11-06").reason,"season-overlap");
+
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"}},"2026-11-02",{scheduleOverrides:[{startDate:"2026-11-01",endDate:"2026-11-03",mode:"Unknown"}]}),true);
 
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Weekdays",days:[1,2,3,4,5]}},"2026-11-01"),false);
