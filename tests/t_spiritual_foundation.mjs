@@ -82,6 +82,13 @@ const weekdaysPractice={...dailyPractice,frequency:{mode:"Weekdays",days:[1,2,3,
 assert.equal(isPracticeExpectedOnDate(weekdaysPractice,"2026-11-01",{seasons:[seasonExpected]}),true,"season Expected overrides a non-scheduled weekday");
 assert.equal(isPracticeExpectedOnDate(dailyPractice,"2026-11-06",{seasons:[seasonA,seasonConflict]}),null,"overlapping season rules remain unknown instead of guessing");
 assert.equal(isPracticeExpectedOnDate(dailyPractice,"2026-11-03",{seasons:[seasonA],scheduleOverrides:[{startDate:"2026-11-01",endDate:"2026-11-05",mode:"Expected"}]}),true,"explicit date override takes precedence over season override");
+const archivedSeason={...seasonA,status:"Archived"};
+assert.deepEqual(getSeasonPracticeOverrides([archivedSeason],"p1","2026-11-03"),[],"archived seasons must not affect practice schedules");
+assert.match(moduleSource,/const transitionSeason=async/);
+assert.match(moduleSource,/transitionSeason\(r,"Completed"\)/);
+assert.match(moduleSource,/transitionSeason\(r,"Archived"\)/);
+assert.match(moduleSource,/transitionSeason\(r,"Draft"\)/);
+assert.match(moduleSource,/await saveRow\(ws\.id,"seasons",updated\)/);
 
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Daily"}},"2026-11-02",{scheduleOverrides:[{startDate:"2026-11-01",endDate:"2026-11-03",mode:"Unknown"}]}),true);
 
