@@ -144,3 +144,10 @@ The current interface is a foundation shell and generic record form, not the com
 - `Pause` and `NotExpected` return not-expected for the season interval; `Expected` returns expected for that interval. After the season ends, the original base frequency applies automatically.
 - If multiple season rules overlap for the same practice/date, calculation returns `null` (unknown) rather than selecting a rule silently.
 - Added regression assertions for all the above. These tests are committed but have **not yet been executed in a reproducible runtime**, and latest-head CI must be checked before acceptance.
+
+
+## Latest continuation — season management UI
+- Added a dedicated Arabic season form in Spiritual & Values OS: name, description, start/end dates, status, optional affected practice, and one override mode (`Pause`, `NotExpected`, `Expected`).
+- The form validates date range and same-practice overlaps against currently loaded season records before saving; the list shows date range, status, and practice effect. Editing preloads the season fields.
+- Seasons continue to use the section's existing private-record persistence path; no new database migration was introduced. This is a first usable UI slice, not full SeasonService completion: multi-practice overrides per season, explicit archive/complete actions, persistence/schema review, E2E tests, and robust cross-user RLS verification remain open.
+- The UI and domain changes were committed on the feature branch. GitHub Actions runs have been queued but have not yet produced a final result; do not treat this change as verified or production-ready until CI and privacy checks complete.
