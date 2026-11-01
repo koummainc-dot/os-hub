@@ -46,3 +46,5 @@ create function storage.foldername(name text) returns text[] language sql immuta
 $$;
 grant usage on schema storage to authenticated;
 grant select,insert,update,delete on storage.objects to authenticated;
+
+-- Append-only Journal audit table is created by the audit migration.
