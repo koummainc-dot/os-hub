@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {emptyTravelData,normalizeTravelData,validateTrip,tripSpend,packingProgress,getActiveTrip,upcomingTrips,validateRelatedRecord} from "../src/systems/travel/domain.js";
+import {emptyTravelData,normalizeTravelData,validateTrip,tripSpend,packingProgress,getActiveTrip,upcomingTrips,validateRelatedRecord,validateTravelImport,buildTravelExport} from "../src/systems/travel/domain.js";
 const base=emptyTravelData();
 assert.equal(base.trips.length,0);
 assert.deepEqual(validateTrip({name:"",destination:""}),["اسم الرحلة مطلوب","الوجهة مطلوبة"]);
@@ -22,3 +22,17 @@ assert.ok(validateRelatedRecord("itinerary",{title:"",tripId:"active"},data).inc
 assert.ok(validateRelatedRecord("bookings",{title:"Stay",tripId:"missing"},data).includes("الرحلة المرتبطة غير موجودة"));
 assert.equal(normalizeTravelData({trips:"bad"}).trips.length,0);
 console.log("Travel OS domain tests passed");
+
+const importable={schemaVersion:1,trips:[{id:"t1",name:"Trip"}],bookings:[{id:"b1",tripId:"t1",reference:"CONFIDENTIAL"}],documents:[{id:"d1",tripId:"t1",reference:"PASSPORT-REF",storageNote:"private path"}],memories:[{id:"m1",mediaPath:"private/file.jpg"}]};
+assert.equal(validateTravelImport(importable).valid,true);
+assert.equal(validateTravelImport({...importable,bookings:[{id:"b1",tripId:"missing"}]}).valid,false);
+assert.equal(validateTravelImport({...importable,trips:"not-an-array"}).valid,false);
+assert.equal(validateTravelImport({...importable,trips:[{id:"same"},{id:"same"}]}).valid,false);
+const safeExport=buildTravelExport(importable);
+assert.equal(safeExport.redactedFields,4);
+assert.equal(safeExport.exported.bookings[0].reference,"");
+assert.equal(safeExport.exported.documents[0].reference,"");
+assert.equal(safeExport.exported.documents[0].storageNote,"");
+assert.equal(safeExport.exported.memories[0].mediaPath,"");
+assert.equal(buildTravelExport(importable,{includeSensitive:true}).exported.bookings[0].reference,"CONFIDENTIAL");
+console.log("Travel OS import/export safety tests passed");
