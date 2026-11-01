@@ -10,6 +10,7 @@
 - Changed the domain privacy classification so all ten collections are private by default.
 - Updated the foundation migration to allow all ten collections in the owner-scoped private table and mark every collection sensitive with external summaries disabled.
 - Expanded contract tests for event API compatibility and privacy defaults.
+- Added initial typed P1 domain constructors/validators for values, principles, practices, and flexible frequency configurations, plus unit-level contract assertions. This is **domain-layer progress only**; typed forms, repository persistence, migrations for typed fields, and full acceptance coverage remain open.
 - These are repository changes only. They have not yet been confirmed by a successful CI run, authenticated browser test, or production migration.
 
 ## Phase 1 acceptance gates — close when possible; defer blocked environment/security work without blocking independent development
@@ -39,7 +40,8 @@ The current interface is a foundation shell and generic record form, not the com
 - Acceptance tests PT-10, PT-58, PT-59, PT-65 and security cases.
 
 ### P1 — Values, principles, practices and versions
-- Real entity-specific fields and relations from §5.2–5.4; user-controlled ordering; no mandatory moral score.
+- [Partial] Typed domain constructors/validators now cover core values, principles, practices, slot constraints, Habit-linked mode consistency, and frequency configuration shapes.
+- [Remaining] Real entity-specific persistence/schema and relations from §5.2–5.4; user-controlled ordering; no mandatory moral score.
 - Principle drift signals are user-defined and private; never label them as moral violations.
 - Practice type/unit, targets/minimum, flexible frequency, slots, preferred time, Habit link mode, versions, pause/archive/restore lifecycle.
 - Duplicate-name, ownership, date, range and state-transition validations.
