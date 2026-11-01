@@ -10,6 +10,7 @@ const queued = readTravelSyncQueue(storage, "ws-1");
 assert.deepEqual(queued.data, data);
 assert.equal(assessTravelSyncQueue(queued, null, false).state, "waiting-for-server");
 assert.equal(assessTravelSyncQueue(queued, "v1", true).canReplay, true);
+assert.equal(assessTravelSyncQueue({ ...queued, baseUpdatedAt: null }, null, true).state, "manual-recovery-required");
 assert.equal(assessTravelSyncQueue(queued, "v2", true).state, "conflict");
 assert.equal(readTravelSyncQueue(storage, "other-workspace"), null);
 assert.equal(clearTravelSyncQueue(storage, "ws-1"), true);
