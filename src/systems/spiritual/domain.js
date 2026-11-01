@@ -103,6 +103,42 @@ export function decodeSpiritualTypedRecord(collection, record){
 }
 
 
+// P4 season domain contract. Seasons are user-defined schedule overlays, not religious-date presets.
+const SPIRITUAL_SEASON_STATUSES=new Set(["Draft","Scheduled","Active","Completed","Archived"]);
+const SPIRITUAL_SEASON_MODES=new Set(["Pause","NotExpected","Expected"]);
+export function createSpiritualSeason(input={}){
+ const now=new Date().toISOString();
+ return {id:input.id||globalThis.crypto?.randomUUID?.()||`sps-${Date.now()}`,name:String(input.name||"").trim(),description:String(input.description||""),startDate:String(input.startDate||""),endDate:String(input.endDate||""),status:SPIRITUAL_SEASON_STATUSES.has(input.status)?input.status:"Draft",practiceOverrides:Array.isArray(input.practiceOverrides)?input.practiceOverrides.map(x=>({...x})):[],createdAt:input.createdAt||now,updatedAt:now};
+}
+export function validateSpiritualSeason(season,existing=[]){
+ if(!season||typeof season!=="object")return{ok:false,reason:"invalid-record"};
+ if(!String(season.name||"").trim())return{ok:false,reason:"name-required"};
+ if(String(season.name).trim().length>120)return{ok:false,reason:"name-too-long"};
+ if(String(season.description||"").length>4000)return{ok:false,reason:"content-too-long"};
+ if(!isDate(season.startDate)||!isDate(season.endDate)||season.endDate<season.startDate)return{ok:false,reason:"invalid-date-range"};
+ if(!SPIRITUAL_SEASON_STATUSES.has(season.status))return{ok:false,reason:"invalid-status"};
+ if(!Array.isArray(season.practiceOverrides))return{ok:false,reason:"invalid-overrides"};
+ const seen=new Set();
+ for(const item of season.practiceOverrides){
+  if(!item||typeof item.practiceId!=="string"||!item.practiceId.trim()||!SPIRITUAL_SEASON_MODES.has(item.mode))return{ok:false,reason:"invalid-override"};
+  if(seen.has(item.practiceId))return{ok:false,reason:"duplicate-practice-override"};
+  seen.add(item.practiceId);
+ }
+ if(["Scheduled","Active"].includes(season.status)){
+  const overlap=existing.find(other=>other&&other.id!==season.id&&["Scheduled","Active"].includes(other.status)&&other.startDate<=season.endDate&&season.startDate<=other.endDate&&
+   (season.practiceOverrides||[]).some(a=>(other.practiceOverrides||[]).some(b=>a.practiceId===b.practiceId)));
+  if(overlap)return{ok:false,reason:"season-practice-overlap",conflictingSeasonId:overlap.id};
+ }
+ return{ok:true};
+}
+export function getSeasonPracticeOverrides(seasons,practiceId,date){
+ if(!isDate(date))return null;
+ const active=(seasons||[]).filter(s=>s&&["Scheduled","Active"].includes(s.status)&&isDate(s.startDate)&&isDate(s.endDate)&&s.startDate<=date&&date<=s.endDate&&(s.practiceOverrides||[]).some(x=>x.practiceId===practiceId));
+ if(!active.length)return [];
+ if(active.length>1)return {ok:false,reason:"season-overlap"};
+ return active[0].practiceOverrides.filter(x=>x.practiceId===practiceId).map(x=>({...x,startDate:active[0].startDate,endDate:active[0].endDate,updatedAt:active[0].updatedAt||active[0].createdAt||""}));
+}
+
 // P2 practice logs. Missing rows are intentionally "unrecorded", never Missed.
 const PRACTICE_LOG_STATUSES=new Set(["Done","Partial","Excused"]);
 const PRACTICE_LOG_SOURCES=new Set(["Manual","Quick","Import","Proposal"]);
