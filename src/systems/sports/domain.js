@@ -210,18 +210,25 @@ export function plannedSetProgress(plannedExercise, sets = []) {
     .filter(set => set && !set.deleted_at && set.plannedExerciseId === plannedExercise?.id)
     .slice()
     .sort((a, b) => (Number(a.plannedSetNumber) || Number(a.sequence) || 0) - (Number(b.plannedSetNumber) || Number(b.sequence) || 0));
-  const completedSets = Math.min(targetSets, relevant.length);
-  const actualReps = relevant.slice(0, targetSets).reduce((sum, set) => sum + (Number(set.reps) || 0), 0);
+  const targeted = relevant.filter(set => {
+    const number = Number(set.plannedSetNumber);
+    return !Number.isFinite(number) || number <= 0 || number <= targetSets;
+  });
+  const completedSets = Math.min(targetSets, targeted.length);
+  const actualReps = targeted.slice(0, targetSets).reduce((sum, set) => sum + (Number(set.reps) || 0), 0);
+  const completedNumbers = new Set(targeted.map((set, index) => Number(set.plannedSetNumber) || index + 1));
+  let nextSetNumber = 1;
+  while (nextSetNumber <= targetSets && completedNumbers.has(nextSetNumber)) nextSetNumber += 1;
   return {
     targetSets,
     loggedSets: relevant.length,
     completedSets,
     remainingSets: Math.max(0, targetSets - completedSets),
-    nextSetNumber: relevant.length + 1,
+    nextSetNumber,
     targetReps: plannedExercise?.targetReps == null ? null : Number(plannedExercise.targetReps) * targetSets,
     actualReps,
     isComplete: targetSets > 0 && completedSets >= targetSets,
-    extraSets: Math.max(0, relevant.length - targetSets),
+    extraSets: Math.max(0, relevant.length - completedSets),
   };
 }
 
