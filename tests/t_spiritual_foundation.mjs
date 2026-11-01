@@ -65,6 +65,7 @@ const seasonA=createSpiritualSeason({id:"season-a",name:"فترة تركيز",st
 assert.equal(validateSpiritualSeason(seasonA).ok,true);
 assert.equal(validateSpiritualSeason({...seasonA,endDate:"2026-10-31"}).reason,"invalid-date-range");
 assert.equal(validateSpiritualSeason({...seasonA,practiceOverrides:[{practiceId:"p1",mode:"Bad"}]}).reason,"invalid-override");
+assert.equal(validateSpiritualSeason({...seasonA,practiceOverrides:[{practiceId:"p1",mode:"Pause"},{practiceId:"p1",mode:"Expected"}]}).reason,"duplicate-practice-override");
 const seasonConflict=createSpiritualSeason({id:"season-b",name:"فترة أخرى",startDate:"2026-11-05",endDate:"2026-11-15",status:"Active",practiceOverrides:[{practiceId:"p1",mode:"Expected"}]});
 assert.equal(validateSpiritualSeason(seasonConflict,[seasonA]).reason,"season-practice-overlap");
 const seasonNoConflict=createSpiritualSeason({id:"season-c",name:"ممارسة أخرى",startDate:"2026-11-05",endDate:"2026-11-15",status:"Active",practiceOverrides:[{practiceId:"p2",mode:"Expected"}]});
