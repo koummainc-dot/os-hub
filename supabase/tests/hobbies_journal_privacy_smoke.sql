@@ -81,6 +81,9 @@ reset role;
 -- Journal audit records are server-authored, metadata-only, append-only, and private.
 set request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
 set role authenticated;
+update public.workspace_records set data = data || '{"body":"private body text"}'::jsonb
+where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  and system_id='hobbies' and collection='journalEntries' and id='journal-a';
 update public.workspace_records
 set data = data || '{"deleted_at":"2026-11-02T10:00:00Z"}'::jsonb
 where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
@@ -97,7 +100,7 @@ begin
     into v_count,v_actor,v_actions
   from public.hobbies_journal_audit_events
   where workspace_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and record_id='journal-a';
-  if v_count < 4 then raise exception 'expected create/update/delete/restore audit events, got %',v_count; end if;
+  if v_count < 5 then raise exception 'expected create, metadata edit, body-only edit, delete, and restore audit events, got %',v_count; end if;
   if v_actor <> '11111111-1111-4111-8111-111111111111'::uuid then raise exception 'audit actor is incorrect'; end if;
   if not ('created'=any(v_actions) and 'updated'=any(v_actions) and 'deleted'=any(v_actions) and 'restored'=any(v_actions)) then
     raise exception 'missing expected audit actions: %',v_actions;
