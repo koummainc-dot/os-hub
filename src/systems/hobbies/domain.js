@@ -83,5 +83,8 @@ export function validateHobbiesProgressImport(value) {
   if(!unique(skills,"id")||!unique(logs,"id")||!unique(milestones,"id"))return {ok:false,error:"يوجد معرّف مفقود أو مكرر في بيانات التقدم."};
   const hobbyIds=new Set(base.value.hobbies.map(h=>h.id)),skillIds=new Set(skills.map(s=>s.id));
   if(skills.some(s=>!hobbyIds.has(s.hobbyId))||logs.some(l=>!skillIds.has(l.skillId))||milestones.some(m=>!hobbyIds.has(m.hobbyId)||(m.skillId&&!skillIds.has(m.skillId))))return {ok:false,error:"توجد علاقة غير صحيحة في بيانات المهارات أو الإنجازات."};
-  const skillById=new Map(skills.map(s=>[s.id,s]));\n  if(logs.some(l=>!skillById.has(l.skillId)))return {ok:false,error:"يوجد سجل تقدم لمهارة غير موجودة."};\n  if(milestones.some(m=>m.skillId&&(!skillById.has(m.skillId)||skillById.get(m.skillId).hobbyId!==m.hobbyId)))return {ok:false,error:"المهارة المرتبطة بالإنجاز لا تتبع الهواية المحددة."};\n  return {ok:true,value:{...base.value,schemaVersion:2,skills,skillLogs:logs,milestones}};
+  const skillById=new Map(skills.map(s=>[s.id,s]));
+  if(logs.some(l=>!skillById.has(l.skillId)))return {ok:false,error:"يوجد سجل تقدم لمهارة غير موجودة."};
+  if(milestones.some(m=>m.skillId&&(!skillById.has(m.skillId)||skillById.get(m.skillId).hobbyId!==m.hobbyId)))return {ok:false,error:"المهارة المرتبطة بالإنجاز لا تتبع الهواية المحددة."};
+  return {ok:true,value:{...base.value,schemaVersion:2,skills,skillLogs:logs,milestones}};
 }
