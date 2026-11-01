@@ -34,7 +34,7 @@ const OS_SYSTEMS=[
 {id:"finance",group:"money",scope:"personal",icon:"💰",color:"#10B981",name:"Finance OS",title:"المال",status:"live",phase:"المرحلة 1 · الأساس المالي",sensitive:true,plan:"Finance_OS_v4.2_Full_Specification_AR.md",
  desc:"الحسابات والحركات والميزانيات والأصول والديون والأهداف المالية.",
  sections:osSec("dashboard:لوحة القيادة:⌂|inbox:الوارد:📥|transactions:الحركات:🧾|accounts:الحسابات:🏦|categories:التصنيفات:🗂️|budgets:الميزانيات:📊|assets:الأصول:📈|debts:الديون والأقساط:💳|goals:الأهداف المالية:🎯|recurring:المتكرر والاشتراكات:🔁|projects:المشاريع المالية:📁|networth:صافي الثروة:💎|fx:أسعار الصرف:💱|reports:التقارير:📑|family:مركز مصاريف الأسرة:👪|family_sensitive:بيانات العائلة الحساسة:🔒|settings:الإعدادات والأمان:🔐")},
-{id:"home",group:"life",scope:"shared",icon:"🏠",color:"#F97316",name:"Home OS",title:"إدارة البيت",status:"planned",phase:"المرحلة 6",sensitive:false,plan:"Home_OS_v4_Unified_Master_Plan.md",
+{id:"home",group:"life",scope:"shared",icon:"🏠",color:"#F97316",name:"Home OS",title:"إدارة البيت",status:"live",phase:"المرحلة 1 · إدارة المنزل والمخزون والعمليات",sensitive:false,plan:"Home_OS_v4_Unified_Master_Plan.md",
  desc:"الغرف والمخزون المنزلي ومهام البيت والصيانة والمشتريات.",
  sections:osSec("dashboard:الرئيسية:⌂|rooms:الغرف:🚪|inventory:المخزون:📦|tasks:المهام والجدول:✅|maintenance:الصيانة:🔧|shopping:المشتريات:🛒|reports:التقارير:📑|settings:الإعدادات:⚙️")},
 {id:"inventory",group:"money",scope:"shared",icon:"🧳",color:"#A16207",name:"Personal Inventory OS",title:"الممتلكات الشخصية",status:"live",phase:"المرحلة 7 · نسخة أولية",sensitive:false,plan:"PERSONAL_INVENTORY_OS_UNIFIED_MASTER_PLAN_v4.md",
@@ -42,10 +42,10 @@ const OS_SYSTEMS=[
  sections:osSec("home:الرئيسية:⌂|items:الأصناف:📦|categories:التصنيفات:🗂️|places:الأماكن:📍|warranty:الضمان:🛡️|replacement:الاستبدال:♻️|documents:المستندات:📄|loans:الإعارات:🤝|history:التاريخ:🕘|audit:الجرد:☑️|collections:المجموعات:🎒|maintenance:الصيانة:🔧|archive:الأرشيف:🗄️|settings:الإعدادات:⚙️")},
 {id:"shopping",group:"money",scope:"shared",icon:"🛒",color:"#E11D48",name:"Shopping & Wishlist OS",title:"التسوق وقوائم الرغبات",status:"live",phase:"المرحلة 1 · النظام الأساسي",sensitive:false,plan:"PERSONAL_SHOPPING_WISHLIST_OS_UNIFIED_MASTER_PLAN_v4.md",
  desc:"إدارة المنتجات والرغبات والمشتريات البسيطة والمخططة والمقارنة والأسعار والعروض والمشتريات الفعلية والمرتجعات والهدايا.",
- sections:osSec("home:الرئيسية:⌂|inbox:الوارد:📥|wishlist:الرغبات:⭐|products:المنتجات:📦|planner:خطط الشراء:🗓️|compare:المقارنة:⚖️|offers:العروض والمتاجر:🏷️|prices:تاريخ الأسعار:📉|purchases:مشترياتي:🧾|ownership:الملكية:🔗|returns:الضمان والمرتجعات:↩️|reviews:المراجعات:✍️|gifts:الهدايا:🎁|lists:التصنيفات:🗂️|settings:الإعدادات:⚙️")},{id:"nutrition",group:"life",scope:"personal",icon:"🍽️",color:"#22C55E",name:"Nutrition OS",title:"التغذية",status:"live",phase:"المرحلة 9 · النواة التشغيلية",sensitive:true,plan:"NUTRITION_OS_UNIFIED_MASTER_PLAN_v4.md",
+ sections:osSec("home:الرئيسية:⌂|inbox:الوارد:📥|wishlist:الرغبات:⭐|products:المنتجات:📦|planner:خطط الشراء:🗓️|compare:المقارنة:⚖️|offers:العروض والمتاجر:🏷️|prices:تاريخ الأسعار:📉|decisions:قرارات الشراء:🧠|reports:التقارير:📊|purchases:مشترياتي:🧾|ownership:الملكية:🔗|returns:الضمان والمرتجعات:↩️|reviews:المراجعات:✍️|gifts:الهدايا:🎁|lists:التصنيفات:🗂️|settings:الإعدادات:⚙️")},{id:"nutrition",group:"life",scope:"personal",icon:"🍽️",color:"#22C55E",name:"Nutrition OS",title:"التغذية",status:"live",phase:"المرحلة 9 · النواة التشغيلية",sensitive:true,plan:"NUTRITION_OS_UNIFIED_MASTER_PLAN_v4.md",
  desc:"تسجيل الأكل والماء والأغذية والوصفات والخطط والأهداف الغذائية.",
  sections:osSec("today:اليوم:📅|log:سجل الأكل:📒|foods:الأغذية:🥑|recipes:الوصفات:🍳|batches:الدفعات:🥘|goals:الأهداف:🎯|water:الماء:💧|plan:الخطة:🗓️|grocery:البقالة:🛒|analytics:التحليلات:📊|review:المراجعة الأسبوعية:🔁|supplements:المكملات:💊|windows:النوافذ والتذكيرات:⏰|import:الاستيراد:⬆️|settings:الإعدادات:⚙️")},
-{id:"sports",group:"life",scope:"personal",icon:"🏋️",color:"#EF4444",name:"Sports OS",title:"الرياضة",status:"planned",phase:"المرحلة 10 · نواة التدريب",sensitive:false,plan:"Sports_OS_v4_Unified_Master_Plan.md",
+{id:"sports",group:"life",scope:"personal",icon:"🏋️",color:"#EF4444",name:"Sports OS",title:"الرياضة",status:"live",phase:"المرحلة 10 · نواة التدريب",sensitive:false,plan:"Sports_OS_v4_Unified_Master_Plan.md",
  desc:"مكتبة التمارين وتسجيل الجلسات والمجموعات والبرامج والأهداف والتقدم والتعافي وقياسات الجسم.",
  sections:osSec("dashboard:الرئيسية:⌂|workout:تمرين اليوم:🏃|programs:البرامج:📋|exercises:التمارين:🦾|history:السجل:🕘|progress:التقدم:📈|goals:الأهداف:🎯|recovery:التعافي:😴|measurements:القياسات:📏|settings:الإعدادات:⚙️")},
 {id:"relationships",group:"life",scope:"personal",icon:"👥",color:"#EC4899",name:"Relationships OS",title:"العلاقات",status:"live",phase:"المرحلة 11 · نسخة أولية",sensitive:true,plan:"docs/RELATIONSHIPS_OS_PHASE1.md",
@@ -96,7 +96,7 @@ function osAccessEntries(access){
 // ── Data API (per workspace · system · part) ──────────────────────────
 function osLocalKey(wsId,sysId,part){return "os_cache_"+wsId+"_"+sysId+"_"+part;}
 function osMakeApi(wsId,systemId,part){
-  part=part||"main"; const lk=osLocalKey(wsId,systemId,part); let uidCache=null;
+  part=part||"main"; const lk=osLocalKey(wsId,systemId,part); let uidCache=null; let homeOpsVersion=null; let homeVersion=null;
   const readLocal=(err)=>{try{const ls=localStorage.getItem(lk);if(ls)return{data:JSON.parse(ls),source:"localStorage",updatedAt:null,error:err||null};}catch(e){}return{data:null,source:"unavailable",updatedAt:null,error:err||null};};
   return {
     workspaceId: wsId,
@@ -119,6 +119,94 @@ function osMakeApi(wsId,systemId,part){
         }
         return {available:true,ok:true,updatedAt:data||null};
       } catch(error) { return {available:true,ok:false,error}; }
+    },
+    async loadNormalizedHome(){
+      try{
+        const {data,error}=await supabase.rpc("home_load_snapshot_v2",{p_workspace_id:wsId});
+        if(error){
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_load_snapshot_v2.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,error};
+        }
+        homeVersion=Number.isInteger(Number(data?._version))?Number(data._version):0;
+        return {available:true,data,source:"normalized",version:homeVersion};
+      }catch(error){return {available:true,error};}
+    },
+    async saveNormalizedHome(snapshot){
+      try{
+        const expectedVersion=Number.isInteger(homeVersion)?homeVersion:Number(snapshot?._version??0);
+        const {data,error}=await supabase.rpc("home_save_snapshot_v2",{
+          p_workspace_id:wsId,
+          p_snapshot:snapshot,
+          p_expected_version:expectedVersion
+        });
+        if(error){
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_save_snapshot_v2.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,ok:false,conflict:error.code==="40001"||/HOME_SNAPSHOT_CONFLICT/.test(error.message||""),error};
+        }
+        homeVersion=Number.isInteger(Number(data?.version))?Number(data.version):expectedVersion+1;
+        return {available:true,ok:true,updatedAt:data?.updatedAt||null,version:homeVersion};
+      }catch(error){return {available:true,ok:false,error};}
+    },
+    async loadHomeOperations(){
+      try{
+        const {data,error}=await supabase.rpc("home_operations_load_v2",{p_workspace_id:wsId});
+        if(error){
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_operations_load_v2.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,error};
+        }
+        homeOpsVersion=Number.isInteger(Number(data?._version))?Number(data._version):0;
+        return {available:true,data,source:"normalized",version:homeOpsVersion};
+      }catch(error){return {available:true,error};}
+    },
+    async saveHomeOperations(snapshot){
+      try{
+        const expectedVersion=Number.isInteger(homeOpsVersion)?homeOpsVersion:Number(snapshot?._version??0);
+        const {data,error}=await supabase.rpc("home_operations_save_v2",{
+          p_workspace_id:wsId,
+          p_data:snapshot,
+          p_expected_version:expectedVersion
+        });
+        if(error){
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_operations_save_v2.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,ok:false,conflict:error.code==="40001"||/HOME_OPERATIONS_CONFLICT/.test(error.message||""),error};
+        }
+        homeOpsVersion=Number.isInteger(Number(data?.version))?Number(data.version):expectedVersion+1;
+        return {available:true,ok:true,updatedAt:data?.updatedAt||null,version:homeOpsVersion};
+      }catch(error){return {available:true,ok:false,error};}
+    },
+    async recordHomePurchaseReceipt(requestId, lines, idempotencyKey){
+      try{
+        const {data,error}=await supabase.rpc("home_record_purchase_receipt",{
+          p_workspace_id:wsId,
+          p_request_id:requestId,
+          p_lines:lines,
+          p_idempotency_key:idempotencyKey
+        });
+        if(error){
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_record_purchase_receipt.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,ok:false,error};
+        }
+        return {available:true,ok:true,data};
+      }catch(error){return {available:true,ok:false,error};}
+    },
+    async recordHomeInventoryMovement(itemId, movement){
+      try{
+        const {data,error}=await supabase.rpc("home_record_inventory_movement",{
+          p_workspace_id:wsId,
+          p_item_id:itemId,
+          p_movement_type:movement.type,
+          p_quantity:movement.quantity,
+          p_idempotency_key:movement.idempotencyKey,
+          p_note:movement.note||"",
+          p_to_room_id:movement.toRoomId||null,
+          p_occurred_at:movement.occurredAt||new Date().toISOString()
+        });
+        if(error){
+          if(["PGRST202","42883"].includes(error.code)||/function .*home_record_inventory_movement.*(not found|does not exist)|could not find the function/i.test(error.message||"")) return {available:false,error};
+          return {available:true,ok:false,error};
+        }
+        return {available:true,ok:true,data};
+      }catch(error){return {available:true,ok:false,error};}
     },
     async load(){
       try{
