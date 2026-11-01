@@ -19,10 +19,10 @@ create table if not exists public.spiritual_collection_policy (
  created_at timestamptz not null default now()
 );
 insert into public.spiritual_collection_policy(collection,section_id,sensitive,allow_external_summary) values
- ('values','values',false,true),('principles','principles',false,true),('practices','practices',false,true),
+ ('values','values',true,false),('principles','principles',true,false),('practices','practices',true,false),
  ('practice_logs','dailylog',true,false),('reflections','reflections',true,false),
- ('goals','goals',false,true),('commitments','commitments',true,false),
- ('important_dates','dates',false,true),('reviews','reviews',true,false),('seasons','seasons',false,true)
+ ('goals','goals',true,false),('commitments','commitments',true,false),
+ ('important_dates','dates',true,false),('reviews','reviews',true,false),('seasons','seasons',true,false)
 on conflict(collection) do update set section_id=excluded.section_id,sensitive=excluded.sensitive,allow_external_summary=excluded.allow_external_summary;
 alter table public.spiritual_collection_policy enable row level security;
 revoke all on public.spiritual_collection_policy from public, anon, authenticated;
@@ -34,13 +34,18 @@ create table if not exists public.spiritual_private_records (
  user_id uuid not null references auth.users(id) on delete cascade,
  workspace_id uuid not null references public.workspaces(id) on delete cascade,
  id text not null,
- collection text not null check (collection in ('practice_logs','reflections','commitments','reviews')),
+ collection text not null check (collection in ('values','principles','practices','practice_logs','reflections','goals','commitments','important_dates','reviews','seasons')),
  data jsonb not null default '{}'::jsonb,
  deleted boolean not null default false,
  created_at timestamptz not null default now(),
  updated_at timestamptz not null default now(),
  primary key (user_id, id)
 );
+-- Keep upgrades safe if this migration was previously applied in a development environment.
+alter table public.spiritual_private_records drop constraint if exists spiritual_private_records_collection_check;
+alter table public.spiritual_private_records add constraint spiritual_private_records_collection_check
+ check (collection in ('values','principles','practices','practice_logs','reflections','goals','commitments','important_dates','reviews','seasons'));
+
 create index if not exists spiritual_private_records_workspace_collection_updated_idx
  on public.spiritual_private_records(workspace_id, collection, updated_at desc)
  where deleted = false;
