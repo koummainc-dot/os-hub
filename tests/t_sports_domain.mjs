@@ -15,6 +15,11 @@ assert.equal(validateProgram({name:"Plan",durationWeeks:0,daysPerWeek:3,startDat
 const exercise = {id:"ex-1",name:"Bench press",trackingMode:"Weight-Reps"};
 assert.equal(validateExerciseSet({reps:8,weightKg:"",rpe:""},exercise).ok, false);
 assert.equal(validateExerciseSet({reps:8,weightKg:"40",rpe:"8"},exercise).ok, true);
+const cardio = {id:"run",name:"Run",trackingMode:"Time-Distance"};
+const cardioSet = validateExerciseSet({reps:"10",weightKg:"",durationSeconds:"360",distanceMeters:"1000",rpe:""},cardio);
+assert.equal(cardioSet.ok,true);
+assert.equal(cardioSet.value.reps,null);
+assert.equal(cardioSet.value.weightKg,null);
 assert.equal(estimateOneRepMax(60,5),70);
 assert.equal(estimateOneRepMax(60,20),null);
 const session = {id:"s-1",status:"Completed",startedAt:"2026-11-01T10:00:00.000Z",endedAt:"2026-11-01T10:30:00.000Z",localDate:"2026-11-01"};
