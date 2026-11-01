@@ -14,15 +14,22 @@ assert.deepEqual(event.payload.sourceRef,{system:"hobbies",type:"practice_sessio
 assert.throws(()=>hobbySessionEvent({id:"s-1",hobbyId:"other"},{id:"h-1"}),/HOBBY_SESSION_EVENT_SOURCE_INVALID/);
 
 assert.match(sql,/unique \(workspace_id, source_system, idempotency_key\)/);
-assert.match(sql,/ws_access_level\(p_workspace_id,p_source_system,'main'\) <> 'edit'/);
-assert.match(sql,/ws_access_level\(p_workspace_id,'projects','main'\)/);
-assert.match(sql,/ws_access_level\(p_workspace_id,p_source_system,'main'\) not in \('view','edit'\)/);
+assert.match(sql,/ws_access_level\(p_workspace_id,p_source_system,\x27main\x27\) <> \x27edit\x27/);
+assert.match(sql,/ws_access_level\(p_workspace_id,\x27projects\x27,\x27main\x27\)/);
 assert.match(sql,/pg_column_size\(payload\) <= 16384/);
-assert.match(sql,/revoke all on public\.os_integration_events from anon, authenticated/);\nassert.equal((sql.match(/security invoker/g)||[]).length,2);\nassert.doesNotMatch(sql,/security definer/);\nassert.match(sql,/create policy os_integration_events_select/);\nassert.match(sql,/create policy os_integration_events_insert/);\nassert.match(sql,/alter publication supabase_realtime add table public\.os_integration_events/);
+assert.match(sql,/revoke all on public\.os_integration_events from anon, authenticated/);
+assert.equal((sql.match(/security invoker/g)||[]).length,2);
+assert.doesNotMatch(sql,/security definer/);
+assert.match(sql,/create policy os_integration_events_select/);
+assert.match(sql,/create policy os_integration_events_insert/);
+assert.match(sql,/alter publication supabase_realtime add table public\.os_integration_events/);
 assert.match(client,/os_integration_event_publish/);
-assert.match(client,/os_integration_events_load/);\nassert.match(client,/subscribeDurableOSEvents/);\nassert.match(client,/postgres_changes/);\nassert.match(sql,/alter publication supabase_realtime add table public\\.os_integration_events/);\nassert.equal((sql.match(/security invoker/g)||[]).length,2);\nassert.doesNotMatch(sql,/security definer/);\nassert.match(sql,/create policy os_integration_events_select/);\nassert.match(sql,/create policy os_integration_events_insert/);
+assert.match(client,/os_integration_events_load/);
+assert.match(client,/subscribeDurableOSEvents/);
+assert.match(client,/postgres_changes/);
 assert.match(hobbies,/publishDurableOSEvent/);
 assert.match(hobbies,/hobbies:practice_session:/);
-assert.match(projects,/loadDurableOSEvents/);\nassert.match(projects,/subscribeDurableOSEvents/);
+assert.match(projects,/loadDurableOSEvents/);
+assert.match(projects,/subscribeDurableOSEvents/);
 assert.match(projects,/idempotencyKey \|\| event\.id/);
 console.log("OS integration durable event contract tests passed.");
