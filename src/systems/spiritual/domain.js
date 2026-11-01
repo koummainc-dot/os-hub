@@ -71,3 +71,29 @@ export function validateSpiritualPractice(practice){
  if(!practice.reminder||typeof practice.reminder.enabled!=="boolean"||!["Neutral","Name","Why"].includes(practice.reminder.textMode))return{ok:false,reason:"invalid-reminder"};
  return{ok:true};
 }
+
+
+// Compatibility adapter: keep the existing owner-scoped row envelope while
+// preserving typed payloads in a versioned body. Legacy rows remain readable.
+export function encodeSpiritualTypedRecord(collection, model){
+ let kind=collection, valid;
+ if(collection==="values")valid=validateSpiritualValue(model);
+ else if(collection==="principles")valid=validateSpiritualPrinciple(model);
+ else if(collection==="practices")valid=validateSpiritualPractice(model);
+ else return{ok:false,reason:"unsupported-typed-collection"};
+ if(!valid.ok)return valid;
+ const title=collection==="values"?model.name:collection==="practices"?model.name:model.title;
+ const description=collection==="values"?model.description:collection==="principles"?model.statement:model.why;
+ return{ok:true,record:{id:model.id,title,description,body:JSON.stringify({schema:"spiritual.typed.v1",kind,data:model}),status:model.active===false?"archived":"active",collection,createdAt:model.createdAt,updatedAt:model.updatedAt}};
+}
+export function decodeSpiritualTypedRecord(collection, record){
+ if(!record||typeof record!=="object")return{kind:"legacy",data:null};
+ try{
+  const parsed=JSON.parse(record.body||"");
+  if(parsed?.schema!=="spiritual.typed.v1"||parsed.kind!==collection||!parsed.data||typeof parsed.data!=="object")return{kind:"legacy",data:null};
+  const validators={values:validateSpiritualValue,principles:validateSpiritualPrinciple,practices:validateSpiritualPractice};
+  const validator=validators[collection];
+  if(!validator||!validator(parsed.data).ok)return{kind:"legacy",data:null};
+  return{kind:"typed",data:parsed.data};
+ }catch{return{kind:"legacy",data:null};}
+}
