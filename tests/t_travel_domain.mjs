@@ -120,7 +120,8 @@ const stopData=normalizeTravelData({trips:[{id:"multi-stop",name:"Multi-stop",de
 ]});
 assert.deepEqual(sortTripStops(stopData.stops,"multi-stop").map(x=>x.id),["stop-1","stop-2"]);
 assert.ok(validateStop({name:"Bad stop",order:0,arrivalDate:"2026-12-05",departureDate:"2026-12-04",timeZone:"Not/AZone"}).length>=3);
-assert.equal(validateStop({name:"Aswan",order:1,arrivalDate:"2026-12-01",departureDate:"2026-12-02",timeZone:"Africa/Cairo"}).length,0);
+assert.equal(validateStop({tripId:"multi-stop",name:"Aswan",order:1,arrivalDate:"2026-12-01",departureDate:"2026-12-02",timeZone:"Africa/Cairo"}).length,0);
+assert.ok(validateStop({name:"Orphan stop",order:1}).some(e=>e.includes("اربط المحطة")));
 const timeConflicts=findItineraryConflicts([
  {id:"a",tripId:"multi-stop",date:"2026-12-01",startTime:"09:00",endTime:"10:30",title:"Museum"},
  {id:"b",tripId:"multi-stop",date:"2026-12-01",startTime:"10:00",endTime:"11:00",title:"Tour"},
