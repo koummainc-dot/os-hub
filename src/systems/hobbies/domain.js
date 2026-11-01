@@ -86,7 +86,9 @@ export function validateHobbiesProgressImport(value) {
   const skillById=new Map(skills.map(s=>[s.id,s]));
   if(logs.some(l=>!skillById.has(l.skillId)))return {ok:false,error:"يوجد سجل تقدم لمهارة غير موجودة."};
   if(milestones.some(m=>m.skillId&&(!skillById.has(m.skillId)||skillById.get(m.skillId).hobbyId!==m.hobbyId)))return {ok:false,error:"المهارة المرتبطة بالإنجاز لا تتبع الهواية المحددة."};
-  return {ok:true,value:{...base.value,schemaVersion:2,skills,skillLogs:logs,milestones}};
+  if(goals.some(g=>!hobbyIds.has(g.hobbyId)||(g.skillId&&(!skillById.has(g.skillId)||skillById.get(g.skillId).hobbyId!==g.hobbyId))))return {ok:false,error:"يوجد هدف مرتبط بهواية أو مهارة غير صحيحة."};
+  if(plans.some(p=>!hobbyIds.has(p.hobbyId)))return {ok:false,error:"توجد خطة مرتبطة بهواية غير موجودة."};
+  return {ok:true,value:{...base.value,schemaVersion:3,skills,skillLogs:logs,milestones,goals,plans}};
 }
 
 
