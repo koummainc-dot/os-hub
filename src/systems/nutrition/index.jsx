@@ -159,13 +159,17 @@ export default function NutritionOS({ ws, access, isDemo = false, api, page = "t
       let mealId=null;
       let mealsAfter=meals;
       if (logForm.meal_type_id) {
-        const mealType=mealTypes.find(x=>x.id===logForm.meal_type_id);
-        if (isDemo) {
-          const meal={id:uid(),workspace_id:ws?.id,local_date:selectedDate,meal_type_id:logForm.meal_type_id,name:mealType?.label_ar||"",time_at:new Date(logForm.logged_at).toISOString(),tz:settings.timezone||"Africa/Cairo",status:"Open"};
-          mealId=meal.id; mealsAfter=[...meals,meal]; setMeals(mealsAfter);
-        } else {
-          const {data:meal,error:me}=await supabase.from("nutrition_meals").insert({workspace_id:ws.id,local_date:selectedDate,meal_type_id:logForm.meal_type_id,name:mealType?.label_ar||null,time_at:new Date(logForm.logged_at).toISOString(),tz:settings.timezone||"Africa/Cairo"}).select("*").single();
-          if(me) throw me; mealId=meal.id; mealsAfter=[...meals,meal]; setMeals(mealsAfter);
+        const existingMeal=meals.find(m=>m.meal_type_id===logForm.meal_type_id && m.local_date===selectedDate && m.status!=="Skipped");
+        if (existingMeal) mealId=existingMeal.id;
+        else {
+          const mealType=mealTypes.find(x=>x.id===logForm.meal_type_id);
+          if (isDemo) {
+            const meal={id:uid(),workspace_id:ws?.id,local_date:selectedDate,meal_type_id:logForm.meal_type_id,name:mealType?.label_ar||"",time_at:new Date(logForm.logged_at).toISOString(),tz:settings.timezone||"Africa/Cairo",status:"Open"};
+            mealId=meal.id; mealsAfter=[...meals,meal]; setMeals(mealsAfter);
+          } else {
+            const {data:meal,error:me}=await supabase.from("nutrition_meals").insert({workspace_id:ws.id,local_date:selectedDate,meal_type_id:logForm.meal_type_id,name:mealType?.label_ar||null,time_at:new Date(logForm.logged_at).toISOString(),tz:settings.timezone||"Africa/Cairo"}).select("*").single();
+            if(me) throw me; mealId=meal.id; mealsAfter=[...meals,meal]; setMeals(mealsAfter);
+          }
         }
       }
       const row = { id:uid(), workspace_id:ws?.id, food_id:food.id, meal_id:mealId, logged_at:new Date(logForm.logged_at).toISOString(), local_date:selectedDate, tz:settings.timezone||"Africa/Cairo", entry_kind:"Food", display_name:food.name, food_version:food.version||1, quantity:qty, unit_code:logForm.unit_code, quantity_base:baseQty, calories_kcal:Number((snap("calories_kcal")||0).toFixed(2)), protein_g:snap("protein_g")===null?null:Number(snap("protein_g").toFixed(2)), carbs_g:snap("carbs_g")===null?null:Number(snap("carbs_g").toFixed(2)), fat_g:snap("fat_g")===null?null:Number(snap("fat_g").toFixed(2)), fiber_g:snap("fiber_g")===null?null:Number(snap("fiber_g").toFixed(2)), sugar_g:snap("sugar_g")===null?null:Number(snap("sugar_g").toFixed(2)), sodium_mg:snap("sodium_mg")===null?null:Number(snap("sodium_mg").toFixed(2)), micronutrients_snapshot:food.micronutrients||{}, snapshot_basis:{basis_type:food.basis_type,basis_qty:food.basis_qty,per_values:{calories_kcal:food.calories_kcal,protein_g:food.protein_g,carbs_g:food.carbs_g,fat_g:food.fat_g},source_kind:food.origin,source_version:food.version||1,density:food.density_g_per_ml,state:food.state,rounding_ver:1}, confidence:"Exact", source:"Manual", client_op_id:uid() };
