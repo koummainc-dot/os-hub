@@ -110,7 +110,12 @@ assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Weekday
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Weekdays",days:[0,1,2,3,4,5,6]}},"2026-11-01"),true);
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"EveryNDays",n:2,anchor:"2026-11-01"}},"2026-11-03"),true);
 assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"Dates",dates:["2026-11-01"]}},"2026-11-02"),false);
-assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"MonthDay",calendar:"hijri",days:[1]}},"2026-11-01"),null);
+const hijriParts=date=>new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn",{day:"numeric",month:"numeric",timeZone:"UTC"}).formatToParts(new Date(date+"T00:00:00.000Z"));
+const hijriDayOnDate=Number(hijriParts("2026-11-01").find(x=>x.type==="day")?.value);
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"MonthDay",calendar:"hijri",days:[hijriDayOnDate]}},"2026-11-01"),true,"Hijri MonthDay uses the documented Umm al-Qura calendar");
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"MonthDay",calendar:"hijri",days:[hijriDayOnDate===30?29:30]}},"2026-11-01"),false,"Hijri recurrence does not match a different lunar day");
+assert.equal(isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"MonthDay",calendar:"hijri",days:[hijriDayOnDate],day_offset:1}},"2026-11-01"),isPracticeExpectedOnDate({...practiceModel,frequency:{mode:"MonthDay",calendar:"hijri",days:[Number(hijriParts("2026-10-31").find(x=>x.type==="day")?.value)]}},"2026-11-01"),"Hijri day_offset shifts the comparison date");
+
 assert.equal(getPracticeDaySummary([], {...practiceModel,frequency:{mode:"Weekdays",days:[1,2,3,4,5]}},"2026-11-01").state,"NotExpected");
 assert.equal(getPracticeDaySummary([], {...practiceModel,frequency:{mode:"Daily"}},"2026-11-01").state,"Unrecorded");
 assert.equal(getPracticeDaySummary([singleSlotLog],practiceModel,"2026-11-02").state,"Unrecorded");
