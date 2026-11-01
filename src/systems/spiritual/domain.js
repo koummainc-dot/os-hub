@@ -201,12 +201,13 @@ export function isPracticeExpectedOnDate(practice,date,context={}){
  // Count-based and flexible schedules do not identify a specific expected day.
  return null;
 }
-export function getPracticeDaySummary(logs,practice,date){
+export function getPracticeDaySummary(logs,practice,date,context={}){
  const own=(logs||[]).filter(x=>x.practiceId===practice?.id&&(!date||x.date===date));
  const levels=own.map(x=>getPracticeCompletionLevel(x,practice));
  const maintained=levels.filter(x=>x==="Full"||x==="Minimum").length;
  const partial=levels.filter(x=>x==="Partial").length;
  const required=practice?.slotsRequired==="All"?(practice?.slots?.length||1):Number(String(practice?.slotsRequired||"AtLeast(1)").match(/[1-8]/)?.[0]||1);
- const completed=maintained;
- return{logged:own.length,maintainedSlots:maintained,partialSlots:partial,requiredSlots:required,state:own.length&&levels.every(x=>x==="Excused")?"Excused":maintained>=required?"Maintained":maintained+partial>0?"Partial":"Unrecorded"};
+ const expected=date?isPracticeExpectedOnDate(practice,date,context):null;
+ const state=own.length&&levels.every(x=>x==="Excused")?"Excused":maintained>=required?"Maintained":maintained+partial>0?"Partial":expected===false?"NotExpected":"Unrecorded";
+ return{logged:own.length,maintainedSlots:maintained,partialSlots:partial,requiredSlots:required,state};
 }
