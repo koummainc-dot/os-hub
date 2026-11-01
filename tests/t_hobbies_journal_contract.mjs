@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 
 const migration=readFileSync(new URL("../supabase/migrations/20261102103000_hobbies_journal_private_visibility.sql",import.meta.url),"utf8");
 const ui=readFileSync(new URL("../src/systems/hobbies/index.jsx",import.meta.url),"utf8");
-const storage=readFileSync(new URL("../supabase/migrations/20261102110000_hobbies_journal_private_storage.sql",import.meta.url),"utf8");
+const storage=readFileSync(new URL("../supabase/migrations/20261102110000_hobbies_journal_private_storage.sql",import.meta.url),"utf8");\nconst workflow=readFileSync(new URL("../.github/workflows/hobbies-journal-sql-smoke.yml",import.meta.url),"utf8");\nconst smoke=readFileSync(new URL("../supabase/tests/hobbies_journal_privacy_smoke.sql",import.meta.url),"utf8");
 const records=readFileSync(new URL("../src/core/records.jsx",import.meta.url),"utf8");
 
 assert.match(migration,/new\.system_id <> 'hobbies' or new\.collection <> 'journalEntries'/);
