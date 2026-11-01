@@ -64,6 +64,8 @@ begin
     raise exception 'HOBBIES_JOURNAL_CLEANUP_FORBIDDEN' using errcode='42501';
   end if;
 
+  perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text || ':' || p_object_path, 0));
+
   -- Never queue a file while any Journal row (including trashed rows) still references it.
   if exists (
     select 1
@@ -107,6 +109,7 @@ begin
     from jsonb_array_elements(coalesce(new.data->'attachments','[]'::jsonb)) a
     where a->>'kind' = 'storage'
   loop
+    perform pg_advisory_xact_lock(hashtextextended(new.workspace_id::text || ':' || v_path, 0));
     if exists (
       select 1 from public.hobbies_journal_attachment_cleanup q
       where q.workspace_id = new.workspace_id
