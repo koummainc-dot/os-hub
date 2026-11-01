@@ -218,3 +218,5 @@ The current interface is a foundation shell and generic record form, not the com
 - Deletion requires explicit confirmation and filters by authenticated `user_id`, workspace, and log ID; the database's existing owner RLS delete policy remains the final authorization boundary.
 - Demo mode mirrors the same edit/delete behavior in in-memory demo records.
 - This is code-only progress. No tests were run or requested, no database branch was created, and no migrations were applied.
+
+- Privacy settings now explicitly distinguish RLS authorization from encryption, warn users that database content is not encrypted by RLS, and disclose that private text and full private-data export/import remain unavailable pending a real key-management design.
