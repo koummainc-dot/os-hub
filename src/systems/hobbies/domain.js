@@ -260,3 +260,25 @@ export function hobbyInsights(hobbies=[],sessions=[],goals=[],skills=[],mileston
   topHobbies:hobbyRows.slice(0,5),goals:goalRows
  };
 }
+
+
+/**
+ * Deterministic, privacy-preserving resurfacing from Journal records already
+ * visible to the current workspace member. Does not mutate records or widen access.
+ */
+export function resurfaceHobbyMemories(entries=[], asOf, context={}) {
+ const date=validISODate(asOf)?asOf:new Date().toISOString().slice(0,10);
+ const active=entries.filter(entry=>entry&&entry.entryType==="memory"&&!entry.deleted_at&&!entry.archivedAt&&validISODate(entry.localDate)&&entry.localDate<date);
+ const seen=new Set();
+ const unique=(rows,limit=4)=>rows.filter(row=>{if(seen.has(row.id))return false;seen.add(row.id);return true;}).slice(0,limit);
+ const monthDay=date.slice(5);
+ const onThisDay=unique(active.filter(entry=>entry.localDate.slice(5)===monthDay)
+  .sort((a,b)=>b.localDate.localeCompare(a.localDate)||(b.created_at||"").localeCompare(a.created_at||"")),4);
+ const hobbyId=context.hobbyId||null, skillIds=new Set(context.skillIds||[]), milestoneIds=new Set(context.milestoneIds||[]);
+ const related=unique(active.filter(entry=>
+   (hobbyId&&entry.hobbyId===hobbyId)||
+   (entry.skillId&&skillIds.has(entry.skillId))||
+   (entry.milestoneId&&milestoneIds.has(entry.milestoneId)))
+  .sort((a,b)=>b.localDate.localeCompare(a.localDate)||(b.created_at||"").localeCompare(a.created_at||"")),4);
+ return {asOf:date,onThisDay,related};
+}
