@@ -75,7 +75,7 @@ assert.equal(validateHobbyEquipmentLink(equipment,[hobby]).ok,true);
 assert.equal(validateHobbyEquipmentLink({...equipment,ownerSystem:"finance"},[hobby]).ok,false);
 assert.equal(validateHobbyEquipmentLink({...equipment,ownerRecordId:" "},[hobby]).ok,false);
 const phase4Import=validateHobbiesProgressImport({hobbies:[hobby],sessions:[],skills:[skill],skillLogs:[],milestones:[],goals:[goalForResource],plans:[],resources:[resource],equipmentLinks:[equipment]});
-assert.equal(phase4Import.ok,true);assert.equal(phase4Import.value.schemaVersion,4);
+assert.equal(phase4Import.ok,true);assert.equal(phase4Import.value.schemaVersion,5);
 assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],resources:[{...resource,hobbyId:"missing"}]}).ok,false);
 assert.equal(validateHobbiesProgressImport({hobbies:[hobby],sessions:[],equipmentLinks:[{...equipment,ownerSystem:"finance"}]}).ok,false);
 console.log("Hobbies OS Phase 4 resources and equipment tests passed.");
