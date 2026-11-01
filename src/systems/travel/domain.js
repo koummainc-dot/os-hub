@@ -115,7 +115,8 @@ export function tripBudgetBreakdown(tripId,data,financeTransactions=[],financeBa
   const actualInTripCurrency=currency===financeBaseCurrency?netActual:null;
   const projectedTotal=outstandingBookingCommitment+plannedActivities+(actualInTripCurrency==null?0:Math.max(0,actualInTripCurrency));
   const remainingBudget=budget==null?null:budget-projectedTotal;
-  const unresolvedLinks=links.filter(link=>!txById.has(link.financeTransactionId)).length;\n  return {budget,currency,bookingCommitments:bookingCommitmentInTripCurrency,outstandingBookingCommitment,plannedActivities,actualExpensesBase:actualExpenses,refundsBase:refunds,netActualBase:netActual,financeBaseCurrency,actualInTripCurrency,projectedTotal,remainingBudget,hasFinanceLinks:links.length>0,financeLinkCount:links.length,unresolvedLinks,requiresFx:currency!==financeBaseCurrency&&links.length>0};
+  const unresolvedLinks=links.filter(link=>!txById.has(link.financeTransactionId)).length;
+  return {budget,currency,bookingCommitments:bookingCommitmentInTripCurrency,outstandingBookingCommitment,plannedActivities,actualExpensesBase:actualExpenses,refundsBase:refunds,netActualBase:netActual,financeBaseCurrency,actualInTripCurrency,projectedTotal,remainingBudget,hasFinanceLinks:links.length>0,financeLinkCount:links.length,unresolvedLinks,requiresFx:currency!==financeBaseCurrency&&links.length>0};
 }
 export function tripSpend(tripId,data){
   const trip=(data?.trips||[]).find(x=>x.id===tripId);
