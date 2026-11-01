@@ -18,7 +18,7 @@ const metrics=hobbyMetrics("h1",[hobby],sessions);
 assert.equal(metrics.sessionCount,2);assert.equal(metrics.totalMinutes,75);assert.equal(metrics.totalHours,1.3);assert.equal(metrics.practiceDays,2);
 const summary=hobbiesSummary([hobby,{id:"h2",status:"considering"}],sessions,"2026-11-01");
 assert.equal(summary.activeCount,1);assert.equal(summary.consideringCount,1);assert.equal(summary.weekSessions,3);assert.equal(summary.weekMinutes,95);
-assert.equal(validateHobbiesImport({hobbies:[hobby],sessions}).ok,true);
+assert.equal(validateHobbiesImport({hobbies:[hobby,{id:"h2",name:"موسيقى",categoryId:"music",status:"active"}],sessions}).ok,true);
 assert.equal(validateHobbiesImport({hobbies:[hobby],sessions:[{id:"s",hobbyId:"missing"}]}).ok,false);
 assert.equal(validateHobbiesImport({hobbies:[{name:"no id"}],sessions:[]}).ok,false);
 assert.equal(HOBBY_CATEGORIES.length>=8,true);
