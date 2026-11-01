@@ -136,8 +136,13 @@ export function getPracticeCompletionLevel(log,practice){
  }
  return log.status==="Done"?"Full":"Partial";
 }
-export function isPracticeExpectedOnDate(practice,date){
+export function isPracticeExpectedOnDate(practice,date,context={}){
  if(!practice||!isDate(date))return null;
+ if(practice.active===false||practice.archivedAt)return false;
+ const periods=[...(Array.isArray(context.pausePeriods)?context.pausePeriods:[]),...(Array.isArray(practice.pausePeriods)?practice.pausePeriods:[])];
+ if(periods.some(p=>p&&isDate(p.startDate)&&isDate(p.endDate)&&p.startDate<=date&&date<=p.endDate))return false;
+ const overrides=[...(Array.isArray(context.scheduleOverrides)?context.scheduleOverrides:[]),...(Array.isArray(practice.scheduleOverrides)?practice.scheduleOverrides:[])].filter(o=>o&&isDate(o.startDate)&&isDate(o.endDate)&&o.startDate<=date&&date<=o.endDate).sort((a,b)=>String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")));
+ if(overrides.length){const mode=overrides[0].mode;if(mode==="Pause"||mode==="NotExpected")return false;if(mode==="Expected")return true;}
  const f=practice.frequency||{mode:"Daily"},day=new Date(date+"T00:00:00.000Z");
  if(f.mode==="Daily")return true;
  if(f.mode==="Weekdays")return Array.isArray(f.days)?f.days.includes(day.getUTCDay()):null;
