@@ -231,3 +231,5 @@ The current interface is a foundation shell and generic record form, not the com
 - Added encrypted backup export/import for the two private stores. The complete backup bundle (including row envelopes and keyring metadata) is itself encrypted with the unlocked data key; export refuses to run while legacy plaintext/unmigrated rows remain. Restore is intentionally limited to the same authenticated user and same keyring, and merges/upserts by stable row keys.
 - Added a two-step, phrase-confirmed permanent wipe for the user's Spiritual practice logs, private records, and keyring. The UI clears the in-memory key after the deletion sequence. This is scoped to the authenticated user's rows and depends on the new tables/migrations and their RLS policies.
 - Backup/restore and wipe were implemented as application code only; no tests, database changes, migrations, or production operations were run. Cross-account recovery, key rotation, and robust transactional wipe/restore are still open.
+
+- Locked-state navigation now tells the user explicitly to unlock the encryption key in Settings instead of showing a generic load failure.
