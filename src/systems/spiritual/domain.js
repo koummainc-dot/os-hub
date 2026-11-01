@@ -113,7 +113,7 @@ export function validateSpiritualPracticeLog(log,practice){
  if(log.practiceId!==practice.id)return{ok:false,reason:"practice-mismatch"};
  if(!isDate(log.date))return{ok:false,reason:"invalid-date"};
  const slots=Array.isArray(practice.slots)?practice.slots:[];
- if(!slots.some(s=>s.key===log.slotKey)||(!slots.length&&log.slotKey!=="_"))return{ok:false,reason:"invalid-slot"};
+ if(!(slots.length===1&&log.slotKey==="_")&&!slots.some(s=>s.key===log.slotKey))return{ok:false,reason:"invalid-slot"};
  if(!PRACTICE_LOG_STATUSES.has(log.status))return{ok:false,reason:"invalid-status"};
  if(log.actual!=null&&(!Number.isFinite(Number(log.actual))||Number(log.actual)<0))return{ok:false,reason:"invalid-actual"};
  if(log.durationMin!=null&&(!Number.isInteger(Number(log.durationMin))||Number(log.durationMin)<0||Number(log.durationMin)>1440))return{ok:false,reason:"invalid-duration"};
