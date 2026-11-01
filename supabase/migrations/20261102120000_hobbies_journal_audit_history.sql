@@ -83,7 +83,10 @@ begin
     elsif coalesce(old.data->>'deleted_at','') <> ''
        and coalesce(new.data->>'deleted_at','') = '' then
       v_action := 'restored';
-    elsif v_before is distinct from v_after then
+    elsif (old.data - 'updated_at' - 'created_at' - 'deleted_at' - 'deleted_by')
+       is distinct from (new.data - 'updated_at' - 'created_at' - 'deleted_at' - 'deleted_by') then
+      -- Record that an edit occurred even when only the private body changed;
+      -- the body itself is deliberately omitted from the audit snapshot.
       v_action := 'updated';
     else
       return new;
