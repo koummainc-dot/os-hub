@@ -13,7 +13,7 @@ import {
 
 const C={ink:"#172033",muted:"#64748B",line:"#E2E8F0",bg:"#F8FAFC",accent:"#16A34A",soft:"#F0FDF4",green:"#047857",amber:"#B45309",red:"#B91C1C",white:"#FFFFFF"};
 const stamp=()=>new Date().toISOString();
-const localDateTime=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
+const localDateTime=(input=new Date())=>{const d=input instanceof Date?input:new Date(input);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
 const uid=(p)=>makeNutritionId(p);
 const seed=()=>{const d=emptyNutritionData();delete d.schemaVersion;return {...d,foods:[
 {id:"nut-seed-oats",name:"شوفان",brand:"",basisAmount:100,basisUnit:"g",servingAmount:40,servingUnit:"جم",calories:389,proteinG:16.9,carbsG:66.3,fatG:6.9,fiberG:10.6,sugarG:0.9,sodiumMg:2,origin:"demo",verificationLevel:"unverified",status:"active",favorite:true,createdAt:stamp(),updatedAt:stamp()},
