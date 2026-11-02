@@ -75,7 +75,7 @@ console.log("Hobbies Journal privacy, editing, search, private storage, immutabl
 
 const domain=readFileSync(new URL("../src/systems/hobbies/domain.js",import.meta.url),"utf8");
 assert.match(ui,/resurfaceHobbyMemories/);
-assert.match(ui,/const inspectImport=payload/);
+assert.match(ui,/const inspectImport=async payload/);
 assert.match(ui,/habitAchievementRecords/);
 assert.match(ui,/إصدار الملف غير مدعوم/);
 assert.match(ui,/سيتم تخطي/);
