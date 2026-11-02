@@ -42,7 +42,7 @@ assert.equal(habitStreak(scheduledHabit, streakLogs, "2026-11-02"), 2); // weeke
 assert.deepEqual(habitAdherence(scheduledHabit, streakLogs, "2026-11-01", "2026-11-07"), {
   expectedDays: 3, completedDays: 2, rate: 67
 });
-const pausedHabit = { ...scheduledHabit, pausePeriods: [{ startDate: "2026-11-04", endDate: "2026-11-05" }] };
+const pausedHabit = { ...scheduledHabit, pausePeriods: [{ startDate: "2026-11-04", endDate: "2026-11-06" }] };
 assert.deepEqual(habitAdherence(pausedHabit, streakLogs, "2026-11-01", "2026-11-07"), {
   expectedDays: 1, completedDays: 1, rate: 100
 });
