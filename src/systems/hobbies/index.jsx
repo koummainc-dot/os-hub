@@ -131,7 +131,7 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
   checkRefs("habitReminders",r=>has("habits",r.habitId),"تذكير يشير إلى عادة غير موجودة");
   const existingById=Object.fromEntries(importCollections.map(key=>[key,new Map(currentCollectionRows(key).map(row=>[row.id,row]))]));
   const importedById=Object.fromEntries(importCollections.map(key=>[key,new Map(sourceRows[key].map(row=>[row.id,row]))]));
-  const habitById=id=>importedById.habits.get(id)||existingById.habits.get(id);
+  const habitById=id=>{const row=importedById.habits.get(id)||existingById.habits.get(id);return row?.status==="archived"?{...row,status:"active"}:row;};
   const hobbyById=id=>{const row=importedById.hobbies.get(id)||existingById.hobbies.get(id);return row?.status==="archived"?{...row,status:"active"}:row;};
   const bookById=id=>importedById.books.get(id)||existingById.books.get(id);
   const skillById=id=>importedById.skills.get(id)||existingById.skills.get(id);
@@ -147,13 +147,13 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
   sourceRows.equipmentLinks.forEach((row,i)=>{const v=validateHobbyEquipmentLink(row,validationHobbies);if(!row?.deleted_at&&!v.ok)errors.push("ربط معدة غير صالح في السجل "+(i+1)+": "+v.error);});
   sourceRows.habits.forEach((row,i)=>{if(!row?.deleted_at&&!validateHabit(row).ok)errors.push("عادة غير صالحة في السجل "+(i+1)+": "+validateHabit(row).error);});
   sourceRows.habitLogs.forEach((row,i)=>{const v=validateHabitLog(row,habitById(row?.habitId));if(!row?.deleted_at&&!v.ok)errors.push("سجل عادة غير صالح في السجل "+(i+1)+": "+v.error);});
-  sourceRows.relapses.forEach((row,i)=>{const v=validateRelapse(row,sourceRows.habits.concat(currentCollectionRows("habits")));if(!row?.deleted_at&&!v.ok)errors.push("حدث تعافٍ غير صالح في السجل "+(i+1)+": "+v.error);});
+  sourceRows.relapses.forEach((row,i)=>{const v=validateRelapse(row,sourceRows.habits.concat(currentCollectionRows("habits")).map(h=>h?.status==="archived"?{...h,status:"active"}:h));if(!row?.deleted_at&&!v.ok)errors.push("حدث تعافٍ غير صالح في السجل "+(i+1)+": "+v.error);});
   sourceRows.books.forEach((row,i)=>{const v=validateBook(row);if(!row?.deleted_at&&!v.ok)errors.push("كتاب غير صالح في السجل "+(i+1)+": "+v.error);});
-  sourceRows.readingSessions.forEach((row,i)=>{const v=validateReadingSession(row,sourceRows.books.concat(currentCollectionRows("books")));if(!row?.deleted_at&&!v.ok)errors.push("جلسة قراءة غير صالحة في السجل "+(i+1)+": "+v.error);});
-  sourceRows.weeklyFocus.forEach((row,i)=>{const v=validateWeeklyFocus(row,sourceRows.habits.concat(currentCollectionRows("habits")));if(!row?.deleted_at&&!v.ok)errors.push("تركيز أسبوعي غير صالح في السجل "+(i+1)+": "+v.error);});
-  sourceRows.habitReminders.forEach((row,i)=>{const v=validateHabitReminder(row,sourceRows.habits.concat(currentCollectionRows("habits")));if(!row?.deleted_at&&!v.ok)errors.push("تذكير غير صالح في السجل "+(i+1)+": "+v.error);});
+  sourceRows.readingSessions.forEach((row,i)=>{const v=validateReadingSession(row,sourceRows.books.concat(currentCollectionRows("books")).map(b=>b?.status==="abandoned"?{...b,status:"reading"}:b));if(!row?.deleted_at&&!v.ok)errors.push("جلسة قراءة غير صالحة في السجل "+(i+1)+": "+v.error);});
+  sourceRows.weeklyFocus.forEach((row,i)=>{const v=validateWeeklyFocus(row,sourceRows.habits.concat(currentCollectionRows("habits")).map(h=>h?.status==="archived"?{...h,status:"active"}:h));if(!row?.deleted_at&&!v.ok)errors.push("تركيز أسبوعي غير صالح في السجل "+(i+1)+": "+v.error);});
+  sourceRows.habitReminders.forEach((row,i)=>{const v=validateHabitReminder(row,sourceRows.habits.concat(currentCollectionRows("habits")).map(h=>h?.status==="archived"?{...h,status:"active"}:h));if(!row?.deleted_at&&!v.ok)errors.push("تذكير غير صالح في السجل "+(i+1)+": "+v.error);});
   sourceRows.sessions.forEach((row,i)=>{const v=validateHobbySession(row,hobbyById(row?.hobbyId),{habits:sourceRows.habits.concat(currentCollectionRows("habits")),goals:sourceRows.goals.concat(currentCollectionRows("goals")),skills:sourceRows.skills.concat(currentCollectionRows("skills"))});if(!row?.deleted_at&&!v.ok)errors.push("جلسة هواية غير صالحة في السجل "+(i+1)+": "+v.error);});
-  sourceRows.journalEntries.forEach((row,i)=>{const v=validateHobbyJournalEntry(row,sourceRows.hobbies.concat(currentCollectionRows("hobbies")),sourceRows.sessions.concat(currentCollectionRows("sessions")),sourceRows.skills.concat(currentCollectionRows("skills")),sourceRows.milestones.concat(currentCollectionRows("milestones")),sourceRows.habits.concat(currentCollectionRows("habits")));if(!row?.deleted_at&&!v.ok)errors.push("يومية غير صالحة في السجل "+(i+1)+": "+v.error);});
+  sourceRows.journalEntries.forEach((row,i)=>{const v=validateHobbyJournalEntry(row,validationHobbies,sourceRows.sessions.concat(currentCollectionRows("sessions")),sourceRows.skills.concat(currentCollectionRows("skills")),sourceRows.milestones.concat(currentCollectionRows("milestones")),sourceRows.habits.concat(currentCollectionRows("habits")));if(!row?.deleted_at&&!v.ok)errors.push("يومية غير صالحة في السجل "+(i+1)+": "+v.error);});
   if(errors.length)return {ok:false,errors:[...new Set(errors)].slice(0,30),warnings,counts,ops:[]};
   const ops=[];
   let currentUserId=null;
