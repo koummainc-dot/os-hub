@@ -53,16 +53,20 @@ alter table public.spiritual_private_records enable row level security;
 revoke all on public.spiritual_private_records from public, anon;
 grant select, insert, update, delete on public.spiritual_private_records to authenticated;
 
+drop policy if exists spiritual_private_records_select_own on public.spiritual_private_records;
 create policy spiritual_private_records_select_own
  on public.spiritual_private_records for select to authenticated
  using (user_id = (select auth.uid()));
+drop policy if exists spiritual_private_records_insert_own on public.spiritual_private_records;
 create policy spiritual_private_records_insert_own
  on public.spiritual_private_records for insert to authenticated
  with check (user_id = (select auth.uid()));
+drop policy if exists spiritual_private_records_update_own on public.spiritual_private_records;
 create policy spiritual_private_records_update_own
  on public.spiritual_private_records for update to authenticated
  using (user_id = (select auth.uid()))
  with check (user_id = (select auth.uid()));
+drop policy if exists spiritual_private_records_delete_own on public.spiritual_private_records;
 create policy spiritual_private_records_delete_own
  on public.spiritual_private_records for delete to authenticated
  using (user_id = (select auth.uid()));
