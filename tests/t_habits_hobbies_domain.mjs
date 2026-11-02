@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { validateHabit, validateHabitLog, habitSummary, isHabitScheduledOn, habitStreak, habitAdherence, validateRelapse, daysSinceLastLapse, relapseSummary, validateBook, validateReadingSession, readingSummary, validateWeeklyFocus, weeklyFocusProgress, habitAchievements } from "../src/systems/hobbies/habit-domain.js";
+import { validateHabit, validateHabitLog, habitSummary, isHabitScheduledOn, habitStreak, habitAdherence, validateRelapse, daysSinceLastLapse, relapseSummary, validateBook, validateReadingSession, readingSummary, validateWeeklyFocus, weeklyFocusProgress, habitAchievements, validateHabitReminder, isHabitReminderDue } from "../src/systems/hobbies/habit-domain.js";
 
 const habit = { id: "h1", name: "قراءة", type: "build", status: "active", trackingType: "quantity", target: 10, unit: "صفحة", scheduleDays: [0,1,2,3,4,5,6] };
 assert.equal(validateHabit(habit).ok, true);
@@ -110,5 +110,16 @@ assert.equal(badges.find(b => b.id === "first-habit").earned, true);
 assert.equal(badges.find(b => b.id === "first-log").earned, true);
 assert.equal(badges.find(b => b.id === "first-book").earned, true);
 assert.equal(badges.find(b => b.id === "five-reading-sessions").earned, false);
+
+
+const reminder = validateHabitReminder({ habitId: "fh1", time: "08:30", daysOfWeek: [0,1,2,3,4,5,6], action: "snooze", snoozeMinutes: 10 }, focusHabits);
+assert.equal(reminder.ok, true);
+assert.equal(validateHabitReminder({ habitId: "fh1", time: "25:99", daysOfWeek: [1] }, focusHabits).ok, false);
+assert.equal(validateHabitReminder({ habitId: "fh1", time: "08:30", daysOfWeek: [] }, focusHabits).ok, false);
+assert.equal(validateHabitReminder({ habitId: "fh1", time: "08:30", daysOfWeek: [1], snoozeMinutes: 2 }, focusHabits).ok, false);
+assert.equal(isHabitReminderDue({ ...reminder.value, lastFiredLocalDate: null }, "2026-11-02", "09:00"), true);
+assert.equal(isHabitReminderDue({ ...reminder.value, lastFiredLocalDate: "2026-11-02" }, "2026-11-02", "09:00"), false);
+assert.equal(isHabitReminderDue({ ...reminder.value, time: "10:30" }, "2026-11-02", "09:00"), false);
+assert.equal(isHabitReminderDue({ ...reminder.value, snoozedUntil: "2026-11-02T10:00:00Z" }, "2026-11-02", "09:00", "2026-11-02T09:00:00Z"), false);
 
 console.log("Unified Habits & Hobbies domain tests passed.");
