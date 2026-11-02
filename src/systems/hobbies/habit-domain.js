@@ -26,7 +26,7 @@ export function validateHabit(input) {
 export function validateHabitLog(input, habit) {
   if (!habit || habit.status === "archived") return { ok: false, error: "العادة غير متاحة للتسجيل." };
   const date = String(input?.localDate || "");
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || Number.isNaN(Date.parse(date + "T12:00:00Z")) || new Date(date + "T12:00:00Z").toISOString().slice(0,10) !== date) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date + "T12:00:00Z")) || new Date(date + "T12:00:00Z").toISOString().slice(0,10) !== date) {
     return { ok: false, error: "تاريخ السجل غير صالح." };
   }
   const status = String(input?.status || "done");
