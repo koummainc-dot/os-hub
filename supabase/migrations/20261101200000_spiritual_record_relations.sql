@@ -94,7 +94,7 @@ returns void
 language plpgsql
 security invoker
 set search_path = ''
-as $
+as $$
 declare
   v_user_id uuid := auth.uid();
 begin
@@ -105,7 +105,7 @@ begin
   delete from public.spiritual_private_records where user_id=v_user_id;
   delete from public.spiritual_user_keyrings where user_id=v_user_id;
 end;
-$;
+$$;
 revoke all on function public.spiritual_wipe_my_data() from public,anon;
 grant execute on function public.spiritual_wipe_my_data() to authenticated;
 
