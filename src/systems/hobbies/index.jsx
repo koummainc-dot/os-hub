@@ -1,4 +1,4 @@
-import React,{useMemo,useState} from "react";
+import React,{useEffect,useMemo,useState} from "react";
 import {osSectionLevel} from "../../core/core.js";
 import {supabase} from "../../core/supabase.js";
 import {useRecordStore,arr,live,uid} from "../../core/records.jsx";
@@ -195,7 +195,9 @@ function HabitLogView({habits,habitLogs,habitStats,habitLogDraft,setHabitLogDraf
 
 
 function HabitRemindersView({reminders,habits,draft,setDraft,saveReminder,editingId,setEditingId,editReminder,removeReminder,toggleReminder,onAction,canEdit,busy}) {
- const now=new Date();
+ const [clock,setClock]=useState(Date.now());
+ useEffect(()=>{const timer=setInterval(()=>setClock(Date.now()),30000);return()=>clearInterval(timer);},[]);
+ const now=new Date(clock);
  const localTime=new Intl.DateTimeFormat("en-GB",{timeZone:"Africa/Cairo",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(now);
  const nowIso=now.toISOString();
  const due=reminders.filter(r=>isHabitReminderDue(r,today(),localTime,nowIso)&&habits.some(h=>h.id===r.habitId&&!h.deleted_at));
