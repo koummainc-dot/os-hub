@@ -1,0 +1,55 @@
+name: Hobbies Journal SQL privacy tests
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/*hobbies_journal*"
+      - "supabase/tests/hobbies_journal_privacy_smoke.sql"
+      - "tests/hobbies_journal_sql_bootstrap.sql"
+      - ".github/workflows/hobbies-journal-sql-smoke.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/*hobbies_journal*"
+      - "supabase/tests/hobbies_journal_privacy_smoke.sql"
+      - "tests/hobbies_journal_sql_bootstrap.sql"
+      - ".github/workflows/hobbies-journal-sql-smoke.yml"
+
+jobs:
+  hobbies-journal-postgres-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hobbies_journal_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hobbies_journal_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: hobbies_journal_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Bootstrap disposable Hobbies Journal schema
+        run: psql -v ON_ERROR_STOP=1 -f tests/hobbies_journal_sql_bootstrap.sql
+      - name: Apply Journal row privacy migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261102103000_hobbies_journal_private_visibility.sql
+      - name: Apply Journal private storage migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261102110000_hobbies_journal_private_storage.sql
+      - name: Apply Journal immutable audit migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261102120000_hobbies_journal_audit_history.sql
+      - name: Apply Journal attachment lifecycle migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261102130000_hobbies_journal_attachment_lifecycle.sql
+      - name: Verify private rows, attachments, audit history, retention, and cleanup queue
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/hobbies_journal_privacy_smoke.sql

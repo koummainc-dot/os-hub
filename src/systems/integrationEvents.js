@@ -1,3 +1,5 @@
+import { supabase } from "../core/supabase.js";
+
 const EVENT_KEY = "os-hub:integration-events:v1";
 const EVENT_NAME = "os-hub:integration-event";
 const MAX_EVENTS = 500;
@@ -105,3 +107,79 @@ export function subscribeToStoredOSEvents(handler, options = {}) {
 }
 
 export const OS_INTEGRATION_EVENT_NAME = EVENT_NAME;
+
+
+/**
+ * Persist an integration event through the authenticated server RPC.
+ * The browser event is emitted only after the server confirms the durable write.
+ */
+export async function publishDurableOSEvent(event, workspaceId, sourceSystem, idempotencyKey) {
+  if (!event?.type || !workspaceId || !sourceSystem || !idempotencyKey) {
+    return { ok: false, reason: "invalid-event" };
+  }
+  try {
+    const { data, error } = await supabase.rpc("os_integration_event_publish", {
+      p_workspace_id: String(workspaceId),
+      p_source_system: String(sourceSystem),
+      p_event_type: String(event.type),
+      p_entity_type: String(event.entityType || "record"),
+      p_entity_id: String(event.entityId || ""),
+      p_idempotency_key: String(idempotencyKey),
+      p_occurred_at: event.occurredAt || new Date().toISOString(),
+      p_payload: event.payload && typeof event.payload === "object" ? event.payload : {},
+    });
+    if (error) throw error;
+    const durable = data && typeof data === "object" ? data : null;
+    if (!(durable?.accepted === true || durable?.duplicate === true) || durable?.idempotencyKey !== String(idempotencyKey)) return { ok: false, reason: "invalid-server-response" };
+    const local = publishOSEvent({ ...event, idempotencyKey: durable.idempotencyKey }, workspaceId, sourceSystem);
+    return { ok: true, event: { ...durable, ...local, id: local.id, idempotencyKey: durable.idempotencyKey }, source: "server", duplicate: durable.duplicate === true };
+  } catch (error) {
+    return { ok: false, reason: "server-write-failed", error };
+  }
+}
+
+/** Load durable integration events; the RPC checks both Projects and source-system read access. */
+export async function loadDurableOSEvents(workspaceId, sourceSystem = "hobbies", limit = 20) {
+  if (!workspaceId) return { ok: false, events: [], reason: "workspace-required" };
+  try {
+    const { data, error } = await supabase.rpc("os_integration_events_load", {
+      p_workspace_id: String(workspaceId),
+      p_source_system: String(sourceSystem),
+      p_limit: Math.max(1, Math.min(100, Number(limit) || 20)),
+    });
+    if (error) throw error;
+    return { ok: true, events: Array.isArray(data) ? data : [] };
+  } catch (error) {
+    return { ok: false, events: [], reason: "server-read-failed", error };
+  }
+}
+
+
+/** Subscribe to permission-filtered durable events for one workspace/source. */
+export function subscribeDurableOSEvents(workspaceId, sourceSystem = "hobbies", handler) {
+  if (!workspaceId || typeof handler !== "function" || typeof supabase?.channel !== "function") return () => {};
+  const channel = supabase
+    .channel(`os-integration-events:${workspaceId}:${sourceSystem}`)
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "os_integration_events",
+      filter: `workspace_id=eq.${String(workspaceId)}`,
+    }, (change) => {
+      const row = change?.new;
+      if (!row || row.source_system !== sourceSystem) return;
+      handler({
+        id: row.id,
+        workspaceId: row.workspace_id,
+        source: row.source_system,
+        type: row.event_type,
+        entityType: row.entity_type,
+        entityId: row.entity_id,
+        idempotencyKey: row.idempotency_key,
+        occurredAt: row.occurred_at,
+        payload: row.payload || {},
+      });
+    })
+    .subscribe();
+  return () => { supabase.removeChannel(channel); };
+}

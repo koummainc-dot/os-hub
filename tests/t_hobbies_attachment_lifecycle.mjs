@@ -1,0 +1,33 @@
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+
+const migration=readFileSync(new URL("../supabase/migrations/20261102130000_hobbies_journal_attachment_lifecycle.sql",import.meta.url),"utf8");
+const ui=readFileSync(new URL("../src/systems/hobbies/index.jsx",import.meta.url),"utf8");
+const workflow=readFileSync(new URL("../.github/workflows/hobbies-journal-sql-smoke.yml",import.meta.url),"utf8");
+const smoke=readFileSync(new URL("../supabase/tests/hobbies_journal_privacy_smoke.sql",import.meta.url),"utf8");
+
+assert.match(migration,/hobbies_journal_attachment_cleanup/);
+assert.match(migration,/owner_id = \(select auth\.uid\(\)\)/);
+assert.match(migration,/hobbies_journal_enqueue_attachment_cleanup/);
+assert.match(migration,/HOBBIES_JOURNAL_ATTACHMENT_ALREADY_QUEUED/);
+assert.match(migration,/cross join lateral jsonb_array_elements/);
+assert.match(migration,/hobbies_journal_cleanup_mark/);
+assert.match(migration,/hobbies_journal_purge_entry/);
+assert.match(migration,/split_part\(v_path,\x27\/\x27,3\), v_path, v_reason/);
+assert.match(migration,/interval '30 days'/);
+assert.match(migration,/after update of data or delete on public\.workspace_records/);
+assert.match(migration,/revoke all on function public\.hobbies_journal_purge_entry/);
+assert.match(migration,/grant execute on function public\.hobbies_journal_purge_entry\(uuid,text\) to authenticated/);
+assert.doesNotMatch(migration,/delete\s+from\s+storage\.objects/i);
+assert.match(ui,/hobbies_journal_enqueue_attachment_cleanup/);
+assert.match(ui,/hobbies_journal_cleanup_mark/);
+assert.match(ui,/hobbies_journal_purge_entry/);
+assert.match(ui,/تنظيف المرفقات المعلقة/);
+assert.match(ui,/حذف نهائي/);
+assert.match(ui,/30 يومًا/);
+assert.doesNotMatch(ui,/storage\.from\("hobbies-journal-private"\)\.remove\(removedPaths\)/);
+assert.match(workflow,/20261102130000_hobbies_journal_attachment_lifecycle\.sql/);
+assert.match(smoke,/shared attachment was incorrectly queued/);
+assert.match(smoke,/soft delete or restore incorrectly queued an attachment/);
+assert.match(smoke,/permanent deletion did not queue its attachment/);
+console.log("Hobbies Journal attachment lifecycle contract tests passed.");
