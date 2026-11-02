@@ -140,8 +140,9 @@ export function validateHobbyPlan(input,hobbies){
 }
 export function hobbyGoalProgress(goal,{sessions=[],skills=[],milestones=[]}={}){
  let current=0;
- if(goal.targetType==="sessions")current=sessions.filter(s=>s.hobbyId===goal.hobbyId&&!s.deleted_at&&s.localDate>=goal.startDate&&(!goal.endDate||s.localDate<=goal.endDate)).length;
- if(goal.targetType==="minutes")current=sessions.filter(s=>s.hobbyId===goal.hobbyId&&!s.deleted_at&&s.localDate>=goal.startDate&&(!goal.endDate||s.localDate<=goal.endDate)).reduce((n,s)=>n+(Number(s.durationMinutes)||0),0);
+ const relevantSessions=sessions.filter(s=>s.hobbyId===goal.hobbyId&&!s.deleted_at&&s.localDate>=goal.startDate&&(!goal.endDate||s.localDate<=goal.endDate)&&(!s.goalId||s.goalId===goal.id));
+ if(goal.targetType==="sessions")current=relevantSessions.length;
+ if(goal.targetType==="minutes")current=relevantSessions.reduce((n,s)=>n+(Number(s.durationMinutes)||0),0);
  if(goal.targetType==="skill_value")current=Number(skills.find(s=>s.id===goal.skillId)?.currentValue)||0;
  if(goal.targetType==="milestones")current=milestones.filter(m=>m.hobbyId===goal.hobbyId&&!m.deleted_at&&m.achievedAt>=goal.startDate&&(!goal.endDate||m.achievedAt<=goal.endDate)).length;
  return {current,target:goal.targetValue,percent:Math.min(100,Math.round(current/goal.targetValue*100)),remaining:Math.max(0,goal.targetValue-current),reached:current>=goal.targetValue};
