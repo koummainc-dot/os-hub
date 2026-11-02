@@ -132,9 +132,19 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
   const existingById=Object.fromEntries(importCollections.map(key=>[key,new Map(currentCollectionRows(key).map(row=>[row.id,row]))]));
   const importedById=Object.fromEntries(importCollections.map(key=>[key,new Map(sourceRows[key].map(row=>[row.id,row]))]));
   const habitById=id=>importedById.habits.get(id)||existingById.habits.get(id);
-  const hobbyById=id=>importedById.hobbies.get(id)||existingById.hobbies.get(id);
+  const hobbyById=id=>{const row=importedById.hobbies.get(id)||existingById.hobbies.get(id);return row?.status==="archived"?{...row,status:"active"}:row;};
   const bookById=id=>importedById.books.get(id)||existingById.books.get(id);
   const skillById=id=>importedById.skills.get(id)||existingById.skills.get(id);
+  sourceRows.hobbies.forEach((row,i)=>{const v=validateHobby(row);if(!row?.deleted_at&&!v.ok)errors.push("هواية غير صالحة في السجل "+(i+1)+": "+v.error);});
+  const validationHobbies=sourceRows.hobbies.concat(currentCollectionRows("hobbies")).map(row=>row?.status==="archived"?{...row,status:"active"}:row);
+  const validationSkills=sourceRows.skills.concat(currentCollectionRows("skills"));
+  sourceRows.skills.forEach((row,i)=>{const v=validateHobbySkill(row,hobbyById(row?.hobbyId));if(!row?.deleted_at&&!v.ok)errors.push("مهارة غير صالحة في السجل "+(i+1)+": "+v.error);});
+  sourceRows.skillLogs.forEach((row,i)=>{const v=validateHobbySkillLog(row,skillById(row?.skillId));if(!row?.deleted_at&&!v.ok)errors.push("سجل تقدم مهارة غير صالح في السجل "+(i+1)+": "+v.error);});
+  sourceRows.milestones.forEach((row,i)=>{const v=validateHobbyMilestone(row,validationHobbies,validationSkills);if(!row?.deleted_at&&!v.ok)errors.push("إنجاز غير صالح في السجل "+(i+1)+": "+v.error);});
+  sourceRows.goals.forEach((row,i)=>{const v=validateHobbyGoal(row,validationHobbies,validationSkills);if(!row?.deleted_at&&!v.ok)errors.push("هدف غير صالح في السجل "+(i+1)+": "+v.error);});
+  sourceRows.plans.forEach((row,i)=>{const v=validateHobbyPlan(row,validationHobbies);if(!row?.deleted_at&&!v.ok)errors.push("خطة غير صالحة في السجل "+(i+1)+": "+v.error);});
+  sourceRows.resources.forEach((row,i)=>{const v=validateHobbyResource(row,validationHobbies,validationSkills,sourceRows.goals.concat(currentCollectionRows("goals")));if(!row?.deleted_at&&!v.ok)errors.push("مورد غير صالح في السجل "+(i+1)+": "+v.error);});
+  sourceRows.equipmentLinks.forEach((row,i)=>{const v=validateHobbyEquipmentLink(row,validationHobbies);if(!row?.deleted_at&&!v.ok)errors.push("ربط معدة غير صالح في السجل "+(i+1)+": "+v.error);});
   sourceRows.habits.forEach((row,i)=>{if(!row?.deleted_at&&!validateHabit(row).ok)errors.push("عادة غير صالحة في السجل "+(i+1)+": "+validateHabit(row).error);});
   sourceRows.habitLogs.forEach((row,i)=>{const v=validateHabitLog(row,habitById(row?.habitId));if(!row?.deleted_at&&!v.ok)errors.push("سجل عادة غير صالح في السجل "+(i+1)+": "+v.error);});
   sourceRows.relapses.forEach((row,i)=>{const v=validateRelapse(row,sourceRows.habits.concat(currentCollectionRows("habits")));if(!row?.deleted_at&&!v.ok)errors.push("حدث تعافٍ غير صالح في السجل "+(i+1)+": "+v.error);});
@@ -146,16 +156,17 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
   sourceRows.journalEntries.forEach((row,i)=>{const v=validateHobbyJournalEntry(row,sourceRows.hobbies.concat(currentCollectionRows("hobbies")),sourceRows.sessions.concat(currentCollectionRows("sessions")),sourceRows.skills.concat(currentCollectionRows("skills")),sourceRows.milestones.concat(currentCollectionRows("milestones")),sourceRows.habits.concat(currentCollectionRows("habits")));if(!row?.deleted_at&&!v.ok)errors.push("يومية غير صالحة في السجل "+(i+1)+": "+v.error);});
   if(errors.length)return {ok:false,errors:[...new Set(errors)].slice(0,30),warnings,counts,ops:[]};
   const ops=[];
+  let currentUserId=null;
+  const needsUser=importCollections.some(key=>sourceRows[key].some(row=>row?.id&&!existingById[key].has(row.id))&&(privateImportCollections.has(key)||sourceRows[key].some(row=>Array.isArray(row?._vis))));
+  if(needsUser&&!isDemo){const {data,error}=await supabase.auth.getUser();if(error||!data?.user?.id)return {ok:false,errors:["تعذر التحقق من المستخدم الحالي؛ لم تُستورد أي بيانات."],warnings,counts,ops:[]};currentUserId=data.user.id;}
   for(const key of importCollections){
    for(const row of sourceRows[key]){
     if(existingById[key].has(row.id))continue;
     const rec={...row};
     if(privateImportCollections.has(key)){
      if(isDemo)delete rec._vis;
-     else {const {data,error}=await supabase.auth.getUser();if(error||!data?.user?.id)return {ok:false,errors:["تعذر التحقق من المستخدم الحالي؛ لم تُستورد أي بيانات."],warnings,counts,ops:[]};rec._vis=[data.user.id];}
-    }else if(Array.isArray(rec._vis)&&!isDemo){
-     const {data,error}=await supabase.auth.getUser();if(error||!data?.user?.id)return {ok:false,errors:["تعذر التحقق من المستخدم الحالي؛ لم تُستورد أي بيانات."],warnings,counts,ops:[]};rec._vis=rec._vis.includes(data.user.id)?[data.user.id]:[data.user.id];
-    }
+     else rec._vis=[currentUserId];
+    }else if(Array.isArray(rec._vis)&&!isDemo){rec._vis=[currentUserId];}
     ops.push({coll:key,rec});
    }
   }
