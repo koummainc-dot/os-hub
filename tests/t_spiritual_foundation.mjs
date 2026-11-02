@@ -42,7 +42,7 @@ const principleModel=createSpiritualPrinciple({title:"الرفق",statement:"ا�
 assert.equal(validateSpiritualPrinciple(principleModel).ok,true);
 assert.equal(validateSpiritualPrinciple({...principleModel,title:""}).reason,"title-required");
 assert.equal(validateSpiritualPrinciple({...principleModel,statement:"x".repeat(4001)}).reason,"content-too-long");
-const practiceModel=createSpiritualPractice({name:"قراءة",kind:"Quantity",target:10,minimum:2,slots:[{key:"morning",label:"الصباح",preferredTime:"08:30"}]});
+const practiceModel=createSpiritualPractice({name:"قراءة",kind:"Quantity",target:10,minimum:2,createdAt:"2026-10-01T00:00:00.000Z",slots:[{key:"morning",label:"الصباح",preferredTime:"08:30"}]});
 assert.equal(validateSpiritualPractice(practiceModel).ok,true);
 assert.equal(validateSpiritualPractice({...practiceModel,minimum:11}).reason,"minimum-exceeds-target");
 assert.equal(validateSpiritualPractice({...practiceModel,slots:[{key:"x",label:"A"},{key:"x",label:"B"}]}).reason,"invalid-slot");
