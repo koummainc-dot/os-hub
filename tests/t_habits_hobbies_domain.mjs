@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { validateHabit, validateHabitLog, habitSummary, isHabitScheduledOn, habitStreak, habitAdherence, validateRelapse, daysSinceLastLapse, relapseSummary, validateBook, validateReadingSession, readingSummary } from "../src/systems/hobbies/habit-domain.js";
+import { validateHabit, validateHabitLog, habitSummary, isHabitScheduledOn, habitStreak, habitAdherence, validateRelapse, daysSinceLastLapse, relapseSummary, validateBook, validateReadingSession, readingSummary, validateWeeklyFocus, weeklyFocusProgress, habitAchievements } from "../src/systems/hobbies/habit-domain.js";
 
 const habit = { id: "h1", name: "قراءة", type: "build", status: "active", trackingType: "quantity", target: 10, unit: "صفحة", scheduleDays: [0,1,2,3,4,5,6] };
 assert.equal(validateHabit(habit).ok, true);
@@ -79,5 +79,36 @@ assert.deepEqual(readingSummary("book-1", [
   { id: "rs2", bookId: "book-1", durationMinutes: 20, pagesRead: 5 },
   { id: "rs3", bookId: "book-1", durationMinutes: 99, pagesRead: 99, deleted_at: "2026-11-02T00:00:00Z" }
 ]), { sessionCount: 2, totalMinutes: 50, totalPages: 13 });
+
+
+const focusHabits = [
+  { id: "fh1", name: "قراءة", status: "active", trackingType: "check", scheduleDays: [0,1,2,3,4,5,6], created_at: "2026-11-01T00:00:00Z" },
+  { id: "fh2", name: "رياضة", status: "active", trackingType: "check", scheduleDays: [0,2,4], created_at: "2026-11-01T00:00:00Z" }
+];
+const focus = validateWeeklyFocus({ title: "أسبوع متوازن", startDate: "2026-11-01", endDate: "2026-11-07", habitIds: ["fh1", "fh2"], notes: "" }, focusHabits);
+assert.equal(focus.ok, true);
+assert.equal(validateWeeklyFocus({ title: "", startDate: "2026-11-01", endDate: "2026-11-07", habitIds: [] }, focusHabits).ok, false);
+assert.equal(validateWeeklyFocus({ title: "تركيز", startDate: "2026-11-08", endDate: "2026-11-07", habitIds: [] }, focusHabits).ok, false);
+assert.equal(validateWeeklyFocus({ title: "تركيز", startDate: "2026-11-01", endDate: "2026-11-07", habitIds: ["unknown"] }, focusHabits).ok, false);
+const focusMetrics = weeklyFocusProgress(focus.value, [
+  { id: "fl1", habitId: "fh1", localDate: "2026-11-01", status: "done" },
+  { id: "fl2", habitId: "fh1", localDate: "2026-11-02", status: "partial" },
+  { id: "fl3", habitId: "fh2", localDate: "2026-11-02", status: "done" },
+  { id: "fl4", habitId: "fh1", localDate: "2026-11-02", status: "done", deleted_at: "2026-11-02T12:00:00Z" }
+], focusHabits);
+assert.equal(focusMetrics.habitCount, 2);
+assert.equal(focusMetrics.logCount, 3);
+assert.equal(focusMetrics.done, 2);
+assert.equal(focusMetrics.partial, 1);
+const badges = habitAchievements(focusHabits, [
+  { id: "al1", habitId: "fh1", localDate: "2026-11-01", status: "done" },
+  { id: "al2", habitId: "fh1", localDate: "2026-11-02", status: "done" }
+], [], [{ id: "book1", status: "completed" }], [
+  { id: "read1", bookId: "book1", localDate: "2026-11-01" }
+], "2026-11-02");
+assert.equal(badges.find(b => b.id === "first-habit").earned, true);
+assert.equal(badges.find(b => b.id === "first-log").earned, true);
+assert.equal(badges.find(b => b.id === "first-book").earned, true);
+assert.equal(badges.find(b => b.id === "five-reading-sessions").earned, false);
 
 console.log("Unified Habits & Hobbies domain tests passed.");
