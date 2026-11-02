@@ -62,28 +62,57 @@ export function isHabitScheduledOn(habit, date) {
   return days.includes(utcDate(date).getUTCDay());
 }
 
+const habitLogDates = (habit, logs, asOfDate = "9999-12-31") => {
+  const relevant = (logs || []).filter(log => !log.deleted_at && log.habitId === habit?.id && validDate(log.localDate) && log.localDate <= asOfDate);
+  return {
+    completed: new Set(relevant.filter(log => log.status === "done").map(log => log.localDate)),
+    vacation: new Set(relevant.filter(log => log.status === "vacation").map(log => log.localDate)),
+    dates: relevant.map(log => log.localDate).sort()
+  };
+};
+
 export function habitStreak(habit, logs, asOfDate) {
   if (!validDate(asOfDate) || !habit) return 0;
-  const completed = new Set((logs || []).filter(log => !log.deleted_at && log.habitId === habit.id && ["done"].includes(log.status)).map(log => log.localDate));
+  const { completed, vacation } = habitLogDates(habit, logs, asOfDate);
   let cursor = asOfDate;
-  if (isHabitScheduledOn(habit, cursor) && !completed.has(cursor)) cursor = shiftDate(cursor, -1);
+  if (isHabitScheduledOn(habit, cursor) && !completed.has(cursor) && !vacation.has(cursor)) cursor = shiftDate(cursor, -1);
   let streak = 0;
   for (let guard = 0; guard < 400; guard++, cursor = shiftDate(cursor, -1)) {
     if (!isHabitScheduledOn(habit, cursor)) continue;
+    if (vacation.has(cursor) && !completed.has(cursor)) continue;
     if (!completed.has(cursor)) break;
     streak++;
   }
   return streak;
 }
 
+export function longestHabitStreak(habit, logs, asOfDate = "9999-12-31") {
+  if (!habit) return 0;
+  const { completed, vacation, dates } = habitLogDates(habit, logs, asOfDate);
+  if (!dates.length) return 0;
+  let cursor = dates[0], end = dates.at(-1), current = 0, best = 0, guard = 0;
+  while (cursor <= end && guard++ < 10000) {
+    if (isHabitScheduledOn(habit, cursor)) {
+      if (completed.has(cursor)) {
+        current++;
+        best = Math.max(best, current);
+      } else if (!vacation.has(cursor)) {
+        current = 0;
+      }
+    }
+    cursor = shiftDate(cursor, 1);
+  }
+  return best;
+}
+
 export function habitAdherence(habit, logs, fromDate, toDate) {
   if (!validDate(fromDate) || !validDate(toDate) || fromDate > toDate) {
     return { expectedDays: 0, completedDays: 0, rate: null };
   }
-  const completed = new Set((logs || []).filter(log => !log.deleted_at && log.habitId === habit.id && log.status === "done").map(log => log.localDate));
+  const { completed, vacation } = habitLogDates(habit, logs, toDate);
   let expectedDays = 0, completedDays = 0;
   for (let cursor = fromDate, guard = 0; cursor <= toDate && guard < 4000; cursor = shiftDate(cursor, 1), guard++) {
-    if (!isHabitScheduledOn(habit, cursor)) continue;
+    if (!isHabitScheduledOn(habit, cursor) || (vacation.has(cursor) && !completed.has(cursor))) continue;
     expectedDays++;
     if (completed.has(cursor)) completedDays++;
   }
@@ -260,7 +289,7 @@ export function habitAchievements(habits, logs, relapses, books, readingSessions
   add("first-log", "أول خطوة", "سجّلت أول إنجاز لعادة.", doneLogs.length > 0, doneLogs.length > 0 ? 1 : 0, 1, "👣");
   add("ten-logs", "عشر خطوات", "أكملت 10 تسجيلات عادات.", doneLogs.length >= 10, doneLogs.length, 10, "🔟");
   add("fifty-logs", "ثبات يتراكم", "أكملت 50 تسجيلًا للعادات.", doneLogs.length >= 50, doneLogs.length, 50, "🧱");
-  const bestStreak = safeHabits.reduce((max, habit) => Math.max(max, habitStreak(habit, safeLogs, asOfDate)), 0);
+  const bestStreak = safeHabits.reduce((max, habit) => Math.max(max, longestHabitStreak(habit, safeLogs, asOfDate)), 0);
   add("seven-streak", "أسبوع من الثبات", "حققت سلسلة من 7 أيام مجدولة متتالية.", bestStreak >= 7, bestStreak, 7, "🔥");
   add("thirty-streak", "شهر من الالتزام", "حققت سلسلة من 30 يومًا مجدولًا متتاليًا.", bestStreak >= 30, bestStreak, 30, "🏅");
   const completedBooks = safeBooks.filter(b => b.status === "completed").length;
