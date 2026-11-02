@@ -36,7 +36,7 @@ assert.match(ui,/journalTypeFilter/);
 assert.match(ui,/journalMoodFilter/);
 assert.match(ui,/journalFromDate/);
 assert.match(ui,/makeJournalPrivate/);
-assert.match(ui,/schemaVersion:6/);
+assert.match(ui,/schemaVersion:7/);
 assert.match(ui,/habits:arr\(store\.recs,"habits"\)/);
 assert.match(ui,/habitLogs:arr\(store\.recs,"habitLogs"\)/);
 assert.match(ui,/relapses:arr\(store\.recs,"relapses"\)/);
@@ -76,6 +76,8 @@ console.log("Hobbies Journal privacy, editing, search, private storage, immutabl
 const domain=readFileSync(new URL("../src/systems/hobbies/domain.js",import.meta.url),"utf8");
 assert.match(ui,/resurfaceHobbyMemories/);
 assert.match(ui,/const inspectImport=payload/);
+assert.match(ui,/habitAchievementRecords/);
+assert.match(ui,/Persist earned habit achievements/);
 assert.match(ui,/إصدار الملف غير مدعوم/);
 assert.match(ui,/سيتم تخطي/);
 assert.match(ui,/تأكيد استيراد/);
