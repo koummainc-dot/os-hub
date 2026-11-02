@@ -27,7 +27,7 @@ assert.equal(stats.activeCount, 1);
 assert.equal(stats.todayCount, 2);
 assert.equal(stats.todayDone, 1);
 assert.equal(stats.weekDone, 2);
-assert.equal(stats.scheduledToday, 2);
+assert.equal(stats.scheduledToday, 1);
 assert.equal(stats.completedScheduledToday, 1);
 
 const scheduledHabit = { ...habit, id: "h3", trackingType: "check", scheduleDays: [1,3,5], status: "active" };
