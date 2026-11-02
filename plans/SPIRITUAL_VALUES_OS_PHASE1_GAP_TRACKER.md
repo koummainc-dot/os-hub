@@ -254,3 +254,9 @@ The current interface is a foundation shell and generic record form, not the com
 - These results verify the latest repository CI workflows only. They do **not** prove that migrations execute successfully against the current Supabase schema, nor do they prove two-user RLS isolation, authenticated browser CRUD, key recovery, or complete offline-sync behavior.
 - Release status remains **blocked / not accepted for production**. No merge, production deployment, or production database migration was performed. Required next gates remain isolated migration apply/rollback validation, authenticated multi-user privacy testing, and completion of the remaining P0–P8 scope.
 
+## Verification update — 2026-11-02 (policy idempotency hardening)
+- The four GitHub Actions workflows passed on commit `23b25700e1cb661182e43be19ff5763c2eb8471a`: CI, Verify app, Finance Family Center Checks, and Knowledge SQL smoke tests.
+- Static review found the foundation migration `20261101130000_spiritual_values_foundation.sql` recreated the four owner-scoped RLS policies without first dropping policies of the same names. This conflicted with the migration's development-upgrade-safety intent and could fail if the policies already existed from a partial/manual development apply.
+- Added `drop policy if exists` before recreating each of the four policies (select/insert/update/delete). This is a migration-file hardening change only; it has **not** been applied to any database.
+- New commit: `5157321170af865432cb339442d0b9c2dc2dd5d4`. CI must be rechecked on this exact head before treating the change as verified.
+- Still blocked: actual migration apply/rollback on an isolated non-production database, two-user RLS tests, browser CRUD, key recovery/rotation validation, conflict-resolution UX, and remaining P0–P8 scope. Do not merge/deploy or run this against production.
