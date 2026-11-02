@@ -91,7 +91,7 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
  const importCollections=["hobbies","sessions","skills","skillLogs","milestones","goals","plans","resources","equipmentLinks","journalEntries","habits","habitLogs","relapses","books","readingSessions","weeklyFocus","habitReminders"];
  const privateImportCollections=new Set(["journalEntries","habits","habitLogs","relapses","books","readingSessions","weeklyFocus","habitReminders"]);
  const currentCollectionRows=key=>arr(store.recs,key);
- const inspectImport=payload=>{
+ const inspectImport=async payload=>{
   const source=payload?.data&&typeof payload.data==="object"?payload.data:payload;
   const errors=[],warnings=[],counts={};
   if(!source||typeof source!=="object"||Array.isArray(source)){return {ok:false,errors:["ملف JSON يجب أن يحتوي على كائن بيانات."],warnings:[],counts:{},ops:[]};}
