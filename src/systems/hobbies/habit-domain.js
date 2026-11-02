@@ -256,17 +256,17 @@ export function habitAchievements(habits, logs, relapses, books, readingSessions
   const doneLogs = safeLogs.filter(l => l.status === "done");
   const result = [];
   const add = (id, title, description, earned, progress, target, icon) => result.push({ id, title, description, earned, progress: Math.min(progress, target), target, icon, percent: Math.min(100, Math.round(progress / target * 100)) });
-  add("first-habit", "بداية جديدة", "أنشأت أول عادة في نظامك.", safeHabits.length > 0 ? 1 : 0, safeHabits.length > 0 ? 1 : 0, 1, "🌱");
-  add("first-log", "أول خطوة", "سجّلت أول إنجاز لعادة.", doneLogs.length > 0 ? 1 : 0, doneLogs.length > 0 ? 1 : 0, 1, "👣");
-  add("ten-logs", "عشر خطوات", "أكملت 10 تسجيلات عادات.", doneLogs.length >= 10 ? 1 : 0, doneLogs.length, 10, "🔟");
-  add("fifty-logs", "ثبات يتراكم", "أكملت 50 تسجيلًا للعادات.", doneLogs.length >= 50 ? 1 : 0, doneLogs.length, 50, "🧱");
+  add("first-habit", "بداية جديدة", "أنشأت أول عادة في نظامك.", safeHabits.length > 0, safeHabits.length > 0 ? 1 : 0, 1, "🌱");
+  add("first-log", "أول خطوة", "سجّلت أول إنجاز لعادة.", doneLogs.length > 0, doneLogs.length > 0 ? 1 : 0, 1, "👣");
+  add("ten-logs", "عشر خطوات", "أكملت 10 تسجيلات عادات.", doneLogs.length >= 10, doneLogs.length, 10, "🔟");
+  add("fifty-logs", "ثبات يتراكم", "أكملت 50 تسجيلًا للعادات.", doneLogs.length >= 50, doneLogs.length, 50, "🧱");
   const bestStreak = safeHabits.reduce((max, habit) => Math.max(max, habitStreak(habit, safeLogs, asOfDate)), 0);
-  add("seven-streak", "أسبوع من الثبات", "حققت سلسلة من 7 أيام مجدولة متتالية.", bestStreak >= 7 ? 1 : 0, bestStreak, 7, "🔥");
-  add("thirty-streak", "شهر من الالتزام", "حققت سلسلة من 30 يومًا مجدولًا متتاليًا.", bestStreak >= 30 ? 1 : 0, bestStreak, 30, "🏅");
+  add("seven-streak", "أسبوع من الثبات", "حققت سلسلة من 7 أيام مجدولة متتالية.", bestStreak >= 7, bestStreak, 7, "🔥");
+  add("thirty-streak", "شهر من الالتزام", "حققت سلسلة من 30 يومًا مجدولًا متتاليًا.", bestStreak >= 30, bestStreak, 30, "🏅");
   const completedBooks = safeBooks.filter(b => b.status === "completed").length;
-  add("first-book", "قارئ مستمر", "أكملت قراءة كتاب.", completedBooks > 0 ? 1 : 0, completedBooks, 1, "📚");
-  add("five-reading-sessions", "وقت للمعرفة", "سجلت 5 جلسات قراءة.", safeReading.length >= 5 ? 1 : 0, safeReading.length, 5, "📖");
+  add("first-book", "قارئ مستمر", "أكملت قراءة كتاب.", completedBooks > 0, completedBooks, 1, "📚");
+  add("five-reading-sessions", "وقت للمعرفة", "سجلت 5 جلسات قراءة.", safeReading.length >= 5, safeReading.length, 5, "📖");
   const recoveryEvents = safeRelapses.length;
-  add("recovery-reflection", "وعي بالتعافي", "سجلت رغبة أو تعثرًا مع توثيق المحفز.", recoveryEvents > 0 ? 1 : 0, recoveryEvents > 0 ? 1 : 0, 1, "🛟");
+  add("recovery-reflection", "وعي بالتعافي", "سجلت رغبة أو تعثرًا مع توثيق المحفز.", recoveryEvents > 0, recoveryEvents > 0 ? 1 : 0, 1, "🛟");
   return result;
 }
