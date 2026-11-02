@@ -2,8 +2,10 @@ import { createClient } from "@supabase/supabase-js";
 
 // Public values (the anon/publishable key is designed to be public — Row Level Security protects the data).
 // Override with VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY (env or Vercel). Defaults = the os-hub project (public values).
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://cvcngvlickozahecgmij.supabase.co";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_RTiy_YaiFQxF1TEQrZEvPA_gH5voyd3";
+// Vite provides import.meta.env in the browser/build; Node-based contract tests do not.
+const runtimeEnv = import.meta.env || {};
+const SUPABASE_URL = runtimeEnv.VITE_SUPABASE_URL || "https://cvcngvlickozahecgmij.supabase.co";
+const SUPABASE_ANON_KEY = runtimeEnv.VITE_SUPABASE_ANON_KEY || "sb_publishable_RTiy_YaiFQxF1TEQrZEvPA_gH5voyd3";
 
 export let SUPABASE_SDK_FAILED = false;
 export let supabase;
