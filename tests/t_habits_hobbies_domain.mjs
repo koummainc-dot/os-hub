@@ -60,6 +60,7 @@ assert.deepEqual(habitAdherence(vacationHabit, vacationLogs, "2026-11-01", "2026
   expectedDays: 2, completedDays: 2, rate: 100
 });
 assert.equal(longestHabitStreak(vacationHabit, vacationLogs, "2026-11-04"), 2); // historical maximum survives a later miss
+assert.equal(longestHabitStreak({ ...vacationHabit, status: "archived" }, vacationLogs, "2026-11-04"), 2);
 
 const avoidanceHabit = { id: "avoid-1", name: "عدم التدخين", type: "avoid", status: "active", trackingType: "check", scheduleDays: [0,1,2,3,4,5,6] };
 const lapse = validateRelapse({ habitId: "avoid-1", localDate: "2026-10-30", eventType: "lapse", trigger: "ضغط العمل", intensity: 4, response: "خرجت للمشي", lesson: "أحتاج استراحة مبكرة", recoveryPlan: "أجهز بديلًا قبل الموقف" }, [avoidanceHabit]);
