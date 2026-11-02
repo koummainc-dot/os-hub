@@ -9,12 +9,16 @@ const name=String(input?.name||"").trim(); if(!name)return {ok:false,error:"اس
 if(!HOBBY_STATUSES.includes(input.status))return {ok:false,error:"حالة الهواية غير صحيحة."}; if(!HOBBY_CATEGORIES.some(x=>x.id===input.categoryId))return {ok:false,error:"اختر تصنيفًا صحيحًا."};
 const rating=input.enjoymentRating===""||input.enjoymentRating==null?null:Number(input.enjoymentRating); if(rating!==null&&(!Number.isInteger(rating)||rating<1||rating>5))return {ok:false,error:"تقييم الاستمتاع يجب أن يكون من 1 إلى 5."};
 return {ok:true,value:{...input,name,description:String(input.description||"").trim(),motivation:String(input.motivation||"").trim(),enjoymentRating:rating}};}
-export function validateHobbySession(input,hobby) {
+export function validateHobbySession(input,hobby,related={}) {
 if(!hobby||hobby.status==="archived")return {ok:false,error:"لا يمكن تسجيل جلسة لهواية غير متاحة."}; const date=String(input.localDate||"");
 if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T12:00:00Z"))||new Date(date+"T12:00:00Z").toISOString().slice(0,10)!==date)return {ok:false,error:"تاريخ الجلسة غير صالح."};
 const duration=input.durationMinutes===""||input.durationMinutes==null?null:Number(input.durationMinutes); if(duration!==null&&(!Number.isInteger(duration)||duration<1||duration>1440))return {ok:false,error:"مدة الجلسة يجب أن تكون من دقيقة إلى 24 ساعة."};
 const rating=input.satisfactionRating===""||input.satisfactionRating==null?null:Number(input.satisfactionRating); if(rating!==null&&(!Number.isInteger(rating)||rating<1||rating>5))return {ok:false,error:"تقييم الجلسة يجب أن يكون من 1 إلى 5."};
-return {ok:true,value:{...input,localDate:date,durationMinutes:duration,satisfactionRating:rating,notes:String(input.notes||"").trim()}};}
+const habitId=String(input.habitId||"").trim()||null,goalId=String(input.goalId||"").trim()||null,skillId=String(input.skillId||"").trim()||null;
+if(habitId&&!((related.habits||[]).some(h=>h.id===habitId&&!h.deleted_at&&h.status!=="archived")))return {ok:false,error:"العادة المرتبطة غير متاحة."};
+if(goalId&&!((related.goals||[]).some(g=>g.id===goalId&&g.hobbyId===hobby.id&&!g.deleted_at)))return {ok:false,error:"الهدف المرتبط لا يتبع هذه الهواية."};
+if(skillId&&!((related.skills||[]).some(s=>s.id===skillId&&s.hobbyId===hobby.id&&!s.deleted_at)))return {ok:false,error:"المهارة المرتبطة لا تتبع هذه الهواية."};
+return {ok:true,value:{...input,habitId,goalId,skillId,localDate:date,durationMinutes:duration,satisfactionRating:rating,notes:String(input.notes||"").trim()}};}
 export function hobbyMetrics(hobbyId,hobbies,sessions) {
 const hobby=hobbies.find(x=>x.id===hobbyId); const rows=sessions.filter(x=>x.hobbyId===hobbyId&&!x.deleted_at); const minutes=rows.reduce((n,x)=>n+(Number(x.durationMinutes)||0),0);
 const dates=new Set(rows.map(x=>x.localDate)); const last=rows.map(x=>x.localDate).sort().slice(-1)[0]||null;
