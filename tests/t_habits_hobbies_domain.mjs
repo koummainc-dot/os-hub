@@ -121,5 +121,6 @@ assert.equal(isHabitReminderDue({ ...reminder.value, lastFiredLocalDate: null },
 assert.equal(isHabitReminderDue({ ...reminder.value, lastFiredLocalDate: "2026-11-02" }, "2026-11-02", "09:00"), false);
 assert.equal(isHabitReminderDue({ ...reminder.value, time: "10:30" }, "2026-11-02", "09:00"), false);
 assert.equal(isHabitReminderDue({ ...reminder.value, snoozedUntil: "2026-11-02T10:00:00Z" }, "2026-11-02", "09:00", "2026-11-02T09:00:00Z"), false);
+assert.equal(isHabitReminderDue({ ...reminder.value, lastFiredLocalDate: "2026-11-02", snoozedUntil: "2026-11-02T10:00:00Z" }, "2026-11-02", "09:00", "2026-11-02T10:01:00Z"), true);
 
 console.log("Unified Habits & Hobbies domain tests passed.");
