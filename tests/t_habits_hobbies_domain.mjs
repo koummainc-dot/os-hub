@@ -11,6 +11,8 @@ assert.deepEqual(validateHabit({ ...habit, scheduleDays: [5,1,5] }).value.schedu
 assert.equal(validateHabitLog({ localDate: "2026-11-02", status: "done", amount: 12 }, habit).ok, true);
 assert.equal(validateHabitLog({ localDate: "2026-11-02", status: "done", amount: 12, occurrenceKey: "morning" }, habit).value.occurrenceKey, "morning");
 assert.equal(validateHabitLog({ localDate: "2026-02-31", status: "done", amount: 12 }, habit).ok, false);
+assert.equal(validateHabitLog({ localDate: "2024-02-29", status: "done", amount: 12 }, habit).ok, true); // valid leap day
+assert.equal(validateHabitLog({ localDate: "2025-02-29", status: "done", amount: 12 }, habit).ok, false); // invalid non-leap day
 assert.equal(validateHabitLog({ localDate: "2026-11-02", status: "done", amount: -1 }, habit).ok, false);
 assert.equal(validateHabitLog({ localDate: "2026-11-02", status: "partial", amount: "" }, habit).ok, false);
 assert.equal(validateHabitLog({ localDate: "2026-11-02", status: "done" }, { ...habit, status: "archived" }).ok, false);
@@ -33,6 +35,10 @@ assert.equal(stats.completedScheduledToday, 1);
 const scheduledHabit = { ...habit, id: "h3", trackingType: "check", scheduleDays: [1,3,5], status: "active" };
 assert.equal(isHabitScheduledOn(scheduledHabit, "2026-11-02"), true); // Monday
 assert.equal(isHabitScheduledOn(scheduledHabit, "2026-11-01"), false); // Sunday
+const previousTZ=process.env.TZ;
+process.env.TZ="America/Los_Angeles";
+assert.equal(isHabitScheduledOn(scheduledHabit, "2026-11-02"), true); // ISO local-date semantics stay stable outside Cairo
+process.env.TZ=previousTZ;
 const streakLogs = [
   { id: "s1", habitId: "h3", localDate: "2026-10-30", status: "done" }, // Friday
   { id: "s2", habitId: "h3", localDate: "2026-11-02", status: "done" }, // Monday
