@@ -2,7 +2,6 @@ export const HABIT_STATUSES = ["active", "paused", "archived"];
 export const HABIT_TYPES = ["build", "maintain", "avoid"];
 export const HABIT_TRACKING_TYPES = ["check", "quantity", "duration"];
 
-const DAY_MS = 86400000;
 const validDate = date => {
   const value = String(date || "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
