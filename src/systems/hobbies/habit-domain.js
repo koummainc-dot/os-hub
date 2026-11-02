@@ -156,3 +156,49 @@ export function relapseSummary(habitId, events, asOfDate) {
     lapsesRecorded30d: recent.filter(event => event.eventType === "lapse").length
   };
 }
+
+export const BOOK_STATUSES = ["planned", "reading", "paused", "completed", "abandoned"];
+
+export function validateBook(input) {
+  const title = String(input?.title || "").trim();
+  if (!title) return { ok: false, error: "عنوان الكتاب مطلوب." };
+  if (title.length > 200) return { ok: false, error: "عنوان الكتاب يجب ألا يتجاوز 200 حرف." };
+  const status = input?.status || "planned";
+  if (!BOOK_STATUSES.includes(status)) return { ok: false, error: "حالة الكتاب غير صحيحة." };
+  const totalPages = input?.totalPages == null || input.totalPages === "" ? null : Number(input.totalPages);
+  const currentPage = input?.currentPage == null || input.currentPage === "" ? 0 : Number(input.currentPage);
+  if (totalPages !== null && (!Number.isInteger(totalPages) || totalPages < 1)) return { ok: false, error: "عدد الصفحات يجب أن يكون عددًا صحيحًا موجبًا." };
+  if (!Number.isInteger(currentPage) || currentPage < 0 || (totalPages !== null && currentPage > totalPages)) {
+    return { ok: false, error: "الصفحة الحالية غير صالحة أو تتجاوز إجمالي الصفحات." };
+  }
+  const rating = input?.rating == null || input.rating === "" ? null : Number(input.rating);
+  if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) return { ok: false, error: "التقييم يجب أن يكون من 1 إلى 5." };
+  const startedAt = input?.startedAt || null;
+  const completedAt = input?.completedAt || null;
+  if (startedAt && !validDate(startedAt)) return { ok: false, error: "تاريخ بداية القراءة غير صالح." };
+  if (completedAt && !validDate(completedAt)) return { ok: false, error: "تاريخ إكمال الكتاب غير صالح." };
+  if (startedAt && completedAt && completedAt < startedAt) return { ok: false, error: "تاريخ الإكمال لا يمكن أن يسبق تاريخ البداية." };
+  return { ok: true, value: { ...input, title, status, author: String(input?.author || "").trim(), totalPages, currentPage, rating, startedAt, completedAt, notes: String(input?.notes || "").trim() } };
+}
+
+export function validateReadingSession(input, books) {
+  const book = (books || []).find(item => item.id === input?.bookId && !item.deleted_at && item.status !== "abandoned");
+  if (!book) return { ok: false, error: "اختر كتابًا متاحًا لتسجيل جلسة القراءة." };
+  const localDate = String(input?.localDate || "");
+  if (!validDate(localDate)) return { ok: false, error: "تاريخ جلسة القراءة غير صالح." };
+  const durationMinutes = input?.durationMinutes == null || input.durationMinutes === "" ? 0 : Number(input.durationMinutes);
+  const pagesRead = input?.pagesRead == null || input.pagesRead === "" ? 0 : Number(input.pagesRead);
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 0 || durationMinutes > 1440) return { ok: false, error: "مدة القراءة يجب أن تكون من 0 إلى 1440 دقيقة." };
+  if (!Number.isInteger(pagesRead) || pagesRead < 0 || pagesRead > 10000) return { ok: false, error: "عدد الصفحات يجب أن يكون عددًا صحيحًا بين 0 و10000." };
+  if (durationMinutes === 0 && pagesRead === 0) return { ok: false, error: "أدخل مدة القراءة أو عدد الصفحات على الأقل." };
+  return { ok: true, value: { ...input, localDate, durationMinutes, pagesRead, note: String(input?.note || "").trim() } };
+}
+
+export function readingSummary(bookId, sessions) {
+  const rows = (sessions || []).filter(session => !session.deleted_at && session.bookId === bookId);
+  return {
+    sessionCount: rows.length,
+    totalMinutes: rows.reduce((sum, row) => sum + (Number(row.durationMinutes) || 0), 0),
+    totalPages: rows.reduce((sum, row) => sum + (Number(row.pagesRead) || 0), 0)
+  };
+}
