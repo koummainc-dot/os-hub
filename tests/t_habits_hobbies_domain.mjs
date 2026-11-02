@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { validateHabit, validateHabitLog, habitSummary, isHabitScheduledOn, habitStreak, habitAdherence, validateRelapse, daysSinceLastLapse, relapseSummary } from "../src/systems/hobbies/habit-domain.js";
+import { validateHabit, validateHabitLog, habitSummary, isHabitScheduledOn, habitStreak, habitAdherence, validateRelapse, daysSinceLastLapse, relapseSummary, validateBook, validateReadingSession, readingSummary } from "../src/systems/hobbies/habit-domain.js";
 
 const habit = { id: "h1", name: "قراءة", type: "build", status: "active", trackingType: "quantity", target: 10, unit: "صفحة", scheduleDays: [0,1,2,3,4,5,6] };
 assert.equal(validateHabit(habit).ok, true);
@@ -63,5 +63,21 @@ assert.equal(daysSinceLastLapse("avoid-1", recoveryEvents, "2026-11-02"), 3);
 assert.deepEqual(relapseSummary("avoid-1", recoveryEvents, "2026-11-02"), {
   daysSinceLastLapse: 3, urgesRecorded30d: 1, lapsesRecorded30d: 1
 });
+
+
+const book = { id: "book-1", title: "العادات الذرية", author: "جيمس كلير", status: "reading", totalPages: 300, currentPage: 80, rating: 5 };
+assert.equal(validateBook(book).ok, true);
+assert.equal(validateBook({ ...book, title: " " }).ok, false);
+assert.equal(validateBook({ ...book, currentPage: 301 }).ok, false);
+assert.equal(validateBook({ ...book, rating: 6 }).ok, false);
+const session1 = validateReadingSession({ bookId: "book-1", localDate: "2026-11-02", durationMinutes: 30, pagesRead: 8, note: "قراءة صباحية" }, [book]);
+assert.equal(session1.ok, true);
+assert.equal(validateReadingSession({ bookId: "book-1", localDate: "2026-11-02", durationMinutes: 0, pagesRead: 0 }, [book]).ok, false);
+assert.equal(validateReadingSession({ bookId: "missing", localDate: "2026-11-02", durationMinutes: 20, pagesRead: 1 }, [book]).ok, false);
+assert.deepEqual(readingSummary("book-1", [
+  { id: "rs1", bookId: "book-1", durationMinutes: 30, pagesRead: 8 },
+  { id: "rs2", bookId: "book-1", durationMinutes: 20, pagesRead: 5 },
+  { id: "rs3", bookId: "book-1", durationMinutes: 99, pagesRead: 99, deleted_at: "2026-11-02T00:00:00Z" }
+]), { sessionCount: 2, totalMinutes: 50, totalPages: 13 });
 
 console.log("Unified Habits & Hobbies domain tests passed.");
