@@ -86,13 +86,20 @@ export function habitStreak(habit, logs, asOfDate) {
   return streak;
 }
 
+const isHabitHistoricallyScheduledOn = (habit, date) => {
+  if (!habit || !validDate(date) || pauseContains(habit, date)) return false;
+  if (habit.status === "paused" && habit.pausedAt && date >= habit.pausedAt) return false;
+  const days = Array.isArray(habit.scheduleDays) && habit.scheduleDays.length ? habit.scheduleDays : [0,1,2,3,4,5,6];
+  return days.includes(utcDate(date).getUTCDay());
+};
+
 export function longestHabitStreak(habit, logs, asOfDate = "9999-12-31") {
   if (!habit) return 0;
   const { completed, vacation, dates } = habitLogDates(habit, logs, asOfDate);
   if (!dates.length) return 0;
   let cursor = dates[0], end = dates.at(-1), current = 0, best = 0, guard = 0;
   while (cursor <= end && guard++ < 10000) {
-    if (isHabitScheduledOn(habit, cursor)) {
+    if (isHabitHistoricallyScheduledOn(habit, cursor)) {
       if (completed.has(cursor)) {
         current++;
         best = Math.max(best, current);
