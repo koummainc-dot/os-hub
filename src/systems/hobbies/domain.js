@@ -183,7 +183,7 @@ export function validateHobbyEquipmentLink(input,hobbies){
 
 export const HOBBY_JOURNAL_TYPES=["journal","memory"];
 export const HOBBY_JOURNAL_MOODS=["great","good","neutral","difficult","proud","inspired"];
-export function validateHobbyJournalEntry(input,hobbies,sessions=[],skills=[],milestones=[]){
+export function validateHobbyJournalEntry(input,hobbies,sessions=[],skills=[],milestones=[],habits=[]){
  const title=String(input?.title||"").trim(),body=String(input?.body||"").trim(),hobby=hobbies.find(h=>h.id===input.hobbyId);
  if(!hobby||hobby.status==="archived")return {ok:false,error:"اختر هواية موجودة وغير مؤرشفة."};
  if(!title||title.length>180)return {ok:false,error:"عنوان اليومية مطلوب وبحد أقصى 180 حرفًا."};
@@ -194,11 +194,12 @@ export function validateHobbyJournalEntry(input,hobbies,sessions=[],skills=[],mi
  if(input.sessionId&&!sessions.some(s=>s.id===input.sessionId&&s.hobbyId===input.hobbyId))return {ok:false,error:"جلسة الممارسة المرتبطة لا تتبع هذه الهواية."};
  if(input.skillId&&!skills.some(s=>s.id===input.skillId&&s.hobbyId===input.hobbyId))return {ok:false,error:"المهارة المرتبطة لا تتبع هذه الهواية."};
  if(input.milestoneId&&!milestones.some(m=>m.id===input.milestoneId&&m.hobbyId===input.hobbyId))return {ok:false,error:"الإنجاز المرتبط لا يتبع هذه الهواية."};
+ if(input.habitId&&!habits.some(h=>h.id===input.habitId&&!h.deleted_at&&h.status!=="archived"))return {ok:false,error:"العادة المرتبطة غير متاحة أو مؤرشفة."};
  const tags=Array.isArray(input.tags)?input.tags.map(x=>String(x).trim()).filter(Boolean).slice(0,10):String(input.tags||"").split(",").map(x=>x.trim()).filter(Boolean).slice(0,10);
  if(tags.some(t=>t.length>30))return {ok:false,error:"كل وسم يجب ألا يتجاوز 30 حرفًا."};
  const attachments=Array.isArray(input.attachments)?input.attachments:[];if(attachments.length>8)return {ok:false,error:"يمكن إضافة 8 روابط مرفقات كحد أقصى."};
  for(const value of attachments){if(value&&typeof value==="object"){if(value.kind!=="storage"||typeof value.path!=="string"||value.path.startsWith("/")||value.path.split("/").includes("..")||String(value.name||"").length>200||!Number.isFinite(Number(value.size))||Number(value.size)>10*1024*1024||!["image/jpeg","image/png","image/webp","application/pdf"].includes(value.mimeType))return {ok:false,error:"بيانات المرفق المخزن غير صالحة."};continue;}try{const u=new URL(String(value));if(!["https:","http:"].includes(u.protocol)||String(value).length>2048)throw new Error();}catch{return {ok:false,error:"روابط المرفقات يجب أن تكون http أو https وبحد أقصى 2048 حرفًا."};}}
- return {ok:true,value:{...input,title,body,entryType,localDate,mood:input.mood||null,sessionId:input.sessionId||null,skillId:input.skillId||null,milestoneId:input.milestoneId||null,tags,attachments,privacy:"private"}};
+ return {ok:true,value:{...input,title,body,entryType,localDate,mood:input.mood||null,sessionId:input.sessionId||null,skillId:input.skillId||null,milestoneId:input.milestoneId||null,habitId:input.habitId||null,tags,attachments,privacy:"private"}};
 }
 
 
