@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { validateHabit, validateHabitLog, habitSummary, isHabitScheduledOn, habitStreak, habitAdherence, validateRelapse, daysSinceLastLapse, relapseSummary, validateBook, validateReadingSession, readingSummary, validateWeeklyFocus, weeklyFocusProgress, habitAchievements, validateHabitReminder, isHabitReminderDue } from "../src/systems/hobbies/habit-domain.js";
+import { validateHabit, validateHabitLog, habitSummary, isHabitScheduledOn, habitStreak, longestHabitStreak, habitAdherence, validateRelapse, daysSinceLastLapse, relapseSummary, validateBook, validateReadingSession, readingSummary, validateWeeklyFocus, weeklyFocusProgress, habitAchievements, validateHabitReminder, isHabitReminderDue } from "../src/systems/hobbies/habit-domain.js";
 
 const habit = { id: "h1", name: "قراءة", type: "build", status: "active", trackingType: "quantity", target: 10, unit: "صفحة", scheduleDays: [0,1,2,3,4,5,6] };
 assert.equal(validateHabit(habit).ok, true);
@@ -47,6 +47,19 @@ const pausedHabit = { ...scheduledHabit, pausePeriods: [{ startDate: "2026-11-04
 assert.deepEqual(habitAdherence(pausedHabit, streakLogs, "2026-11-01", "2026-11-07"), {
   expectedDays: 1, completedDays: 1, rate: 100
 });
+
+const vacationHabit = { ...scheduledHabit, id: "vacation-habit", scheduleDays: [0,1,2,3,4,5,6] };
+const vacationLogs = [
+  { id: "v1", habitId: "vacation-habit", localDate: "2026-11-01", status: "done" },
+  { id: "v2", habitId: "vacation-habit", localDate: "2026-11-02", status: "vacation" },
+  { id: "v3", habitId: "vacation-habit", localDate: "2026-11-03", status: "done" },
+  { id: "v4", habitId: "vacation-habit", localDate: "2026-11-04", status: "skipped" }
+];
+assert.equal(habitStreak(vacationHabit, vacationLogs, "2026-11-03"), 2); // vacation is neutral
+assert.deepEqual(habitAdherence(vacationHabit, vacationLogs, "2026-11-01", "2026-11-03"), {
+  expectedDays: 2, completedDays: 2, rate: 100
+});
+assert.equal(longestHabitStreak(vacationHabit, vacationLogs, "2026-11-04"), 2); // historical maximum survives a later miss
 
 const avoidanceHabit = { id: "avoid-1", name: "عدم التدخين", type: "avoid", status: "active", trackingType: "check", scheduleDays: [0,1,2,3,4,5,6] };
 const lapse = validateRelapse({ habitId: "avoid-1", localDate: "2026-10-30", eventType: "lapse", trigger: "ضغط العمل", intensity: 4, response: "خرجت للمشي", lesson: "أحتاج استراحة مبكرة", recoveryPlan: "أجهز بديلًا قبل الموقف" }, [avoidanceHabit]);
