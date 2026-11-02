@@ -270,3 +270,33 @@ export function habitAchievements(habits, logs, relapses, books, readingSessions
   add("recovery-reflection", "وعي بالتعافي", "سجلت رغبة أو تعثرًا مع توثيق المحفز.", recoveryEvents > 0, recoveryEvents > 0 ? 1 : 0, 1, "🛟");
   return result;
 }
+
+
+export const HABIT_REMINDER_ACTIONS = ["done", "skip", "snooze", "open"];
+
+export function validateHabitReminder(input, habits) {
+  const habit = (habits || []).find(item => item.id === input?.habitId && !item.deleted_at && item.status !== "archived");
+  if (!habit) return { ok: false, error: "اختر عادة متاحة للتذكير." };
+  const time = String(input?.time || "");
+  if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time)) return { ok: false, error: "أدخل وقتًا صحيحًا بصيغة 24 ساعة." };
+  const daysOfWeek = [...new Set((Array.isArray(input?.daysOfWeek) ? input.daysOfWeek : []).map(Number))].sort((a,b)=>a-b);
+  if (!daysOfWeek.length || daysOfWeek.some(day => !Number.isInteger(day) || day < 0 || day > 6)) {
+    return { ok: false, error: "اختر يومًا واحدًا على الأقل للتذكير." };
+  }
+  const action = input?.action || "open";
+  if (!HABIT_REMINDER_ACTIONS.includes(action)) return { ok: false, error: "إجراء التذكير غير صحيح." };
+  const label = String(input?.label || "").trim();
+  if (label.length > 120) return { ok: false, error: "عنوان التذكير يجب ألا يتجاوز 120 حرفًا." };
+  const snoozeMinutes = input?.snoozeMinutes == null || input.snoozeMinutes === "" ? 10 : Number(input.snoozeMinutes);
+  if (!Number.isInteger(snoozeMinutes) || snoozeMinutes < 5 || snoozeMinutes > 180) return { ok: false, error: "مدة التأجيل يجب أن تكون من 5 إلى 180 دقيقة." };
+  return { ok: true, value: { ...input, habitId: habit.id, time, daysOfWeek, action, label, enabled: input?.enabled !== false, snoozeMinutes } };
+}
+
+export function isHabitReminderDue(reminder, date, time, nowIso = null) {
+  if (!reminder || reminder.deleted_at || reminder.enabled === false || !validDate(date) || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(time || ""))) return false;
+  if (!(reminder.daysOfWeek || []).includes(utcDate(date).getUTCDay())) return false;
+  if (String(reminder.time || "") > time) return false;
+  if (reminder.lastFiredLocalDate === date) return false;
+  if (reminder.snoozedUntil && nowIso && new Date(reminder.snoozedUntil).getTime() > new Date(nowIso).getTime()) return false;
+  return true;
+}
