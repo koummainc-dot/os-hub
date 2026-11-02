@@ -64,7 +64,7 @@ export function isHabitScheduledOn(habit, date) {
 
 export function habitStreak(habit, logs, asOfDate) {
   if (!validDate(asOfDate) || !habit) return 0;
-  const completed = new Set((logs || []).filter(log => !log.deleted_at && ["done"].includes(log.status)).map(log => log.localDate));
+  const completed = new Set((logs || []).filter(log => !log.deleted_at && log.habitId === habit.id && ["done"].includes(log.status)).map(log => log.localDate));
   let cursor = asOfDate;
   if (isHabitScheduledOn(habit, cursor) && !completed.has(cursor)) cursor = shiftDate(cursor, -1);
   let streak = 0;
@@ -80,7 +80,7 @@ export function habitAdherence(habit, logs, fromDate, toDate) {
   if (!validDate(fromDate) || !validDate(toDate) || fromDate > toDate) {
     return { expectedDays: 0, completedDays: 0, rate: null };
   }
-  const completed = new Set((logs || []).filter(log => !log.deleted_at && log.status === "done").map(log => log.localDate));
+  const completed = new Set((logs || []).filter(log => !log.deleted_at && log.habitId === habit.id && log.status === "done").map(log => log.localDate));
   let expectedDays = 0, completedDays = 0;
   for (let cursor = fromDate, guard = 0; cursor <= toDate && guard < 4000; cursor = shiftDate(cursor, 1), guard++) {
     if (!isHabitScheduledOn(habit, cursor)) continue;
