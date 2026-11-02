@@ -33,6 +33,15 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
  const books=useMemo(()=>live(arr(store.recs,"books")), [store.recs]);
  const readingSessions=useMemo(()=>live(arr(store.recs,"readingSessions")), [store.recs]);
  const weeklyFocusRecords=useMemo(()=>live(arr(store.recs,"weeklyFocus")), [store.recs]);
+ const trashItems=useMemo(()=>{const allHabits=arr(store.recs,"habits"),allBooks=arr(store.recs,"books");const defs=[
+  ["habits","عادة",r=>r.name||"عادة",r=>"حُذفت في "+String(r.deleted_at||"").slice(0,10)],
+  ["habitLogs","سجل عادة",r=>"سجل "+(allHabits.find(h=>h.id===r.habitId)?.name||"عادة"),r=>(r.localDate||"")+" · "+(r.status||"")],
+  ["relapses","حدث تعافٍ",r=>"تعافٍ · "+(allHabits.find(h=>h.id===r.habitId)?.name||r.trigger||"حدث"),r=>(r.localDate||"")+" · "+(r.eventType==="urge"?"رغبة":"تعثر")],
+  ["books","كتاب",r=>r.title||"كتاب",r=>"حالة الكتاب: "+(r.status||"")],
+  ["readingSessions","جلسة قراءة",r=>"قراءة · "+(allBooks.find(b=>b.id===r.bookId)?.title||"كتاب"),r=>(r.localDate||"")+" · "+(r.durationMinutes||0)+" دقيقة"],
+  ["weeklyFocus","تركيز أسبوعي",r=>r.title||"تركيز أسبوعي",r=>(r.startDate||"")+" — "+(r.endDate||"")],
+  ["habitReminders","تذكير",r=>r.label||(allHabits.find(h=>h.id===r.habitId)?.name||"تذكير"),r=>(r.time||"")+" · "+(r.enabled===false?"متوقف":"مفعّل")]
+ ];return defs.flatMap(([collection,kind,title,detail])=>arr(store.recs,collection).filter(r=>r.deleted_at).map(r=>({...r,collection,kind,trashTitle:title(r),trashDetail:detail(r)}))).sort((a,b)=>(b.deleted_at||"").localeCompare(a.deleted_at||""));},[store.recs]);
  const habitReminders=useMemo(()=>live(arr(store.recs,"habitReminders")), [store.recs]);
  const latestPractice=useMemo(()=>sessions.filter(x=>!x.deleted_at).slice().sort((a,b)=>(b.localDate||"").localeCompare(a.localDate||"")||(b.created_at||"").localeCompare(a.created_at||""))[0]||null,[sessions]);
  const resurfacedMemories=useMemo(()=>{const hobbyId=latestPractice?.hobbyId||null;return resurfaceHobbyMemories(journalEntries,today(),{hobbyId,skillIds:skills.filter(x=>x.hobbyId===hobbyId).map(x=>x.id),milestoneIds:milestones.filter(x=>x.hobbyId===hobbyId).map(x=>x.id)});},[journalEntries,latestPractice,skills,milestones]);
@@ -99,6 +108,7 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
  const removeHabitReminder=async r=>{if(!canEdit||!window.confirm("نقل التذكير إلى سلة المحذوفات؟"))return;try{const saved=await store.api.softDelete("habitReminders",r.id);if(!saved)throw new Error("تعذر حذف التذكير.");shell?.toast?.("تم نقل التذكير إلى سلة المحذوفات.");}catch(err){setError(err.message||"تعذر حذف التذكير.");}};
  const toggleHabitReminder=async r=>{try{const saved=await store.api.put("habitReminders",{...r,enabled:r.enabled===false,updated_at:stamp()});if(!saved)throw new Error("تعذر تغيير حالة التذكير.");}catch(err){setError(err.message||"تعذر تغيير حالة التذكير.");}};
  const handleReminderAction=async(r,action)=>{const habit=habits.find(h=>h.id===r.habitId&&!h.deleted_at);if(!habit){setError("العادة المرتبطة بالتذكير غير متاحة.");return;}if(action==="open"){await store.api.put("habitReminders",{...r,lastFiredLocalDate:today(),lastFiredAt:stamp(),snoozedUntil:null,updated_at:stamp()});editHabit(habit);return;}if(action==="snooze"){const snoozedUntil=new Date(Date.now()+(Number(r.snoozeMinutes)||10)*60000).toISOString();await store.api.put("habitReminders",{...r,lastFiredLocalDate:today(),lastFiredAt:stamp(),snoozedUntil,updated_at:stamp()});shell?.toast?.("تم تأجيل التذكير.");return;}if(action==="done"&&habit.trackingType!=="check"){await store.api.put("habitReminders",{...r,lastFiredLocalDate:today(),lastFiredAt:stamp(),snoozedUntil:null,updated_at:stamp()});setHabitLogDraft({habitId:habit.id,localDate:today(),status:"done",amount:"",note:"تم فتح التسجيل من التذكير"});setPage("habit-log");shell?.toast?.("أدخل الكمية أو المدة الفعلية لإكمال التسجيل.");return;}let visibility={};if(!isDemo){const {data,error}=await supabase.auth.getUser();if(error||!data?.user?.id){setError("تعذر التحقق من المستخدم؛ لم يتم تسجيل الاستجابة.");return;}visibility._vis=[data.user.id];}const log={...visibility,id:makeHobbyId("habit-log"),occurrenceKey:makeHobbyId("occurrence"),habitId:habit.id,localDate:today(),status:action==="done"?"done":"skipped",amount:null,note:action==="done"?"تم الإنجاز من التذكير":"تم تخطي العادة من التذكير",created_at:stamp(),updated_at:stamp()};const savedLog=await store.api.put("habitLogs",log);if(!savedLog){setError("تعذر حفظ استجابة التذكير.");return;}await store.api.put("habitReminders",{...r,lastFiredLocalDate:today(),lastFiredAt:stamp(),snoozedUntil:null,updated_at:stamp()});shell?.toast?.(action==="done"?"تم تسجيل العادة من التذكير.":"تم تسجيل تخطي العادة.");};
+ const restoreTrashItem=async item=>{if(!canEdit)return;try{const restored=await store.api.restore(item.collection,item.id);if(!restored)throw new Error("تعذرت استعادة السجل.");shell?.toast?.("تمت استعادة السجل.");}catch(err){setError(err.message||"تعذرت الاستعادة.");}};
  const editHobby=h=>{setEditing(h.id);setDraft({name:h.name,categoryId:h.categoryId,status:h.status,description:h.description||"",motivation:h.motivation||"",enjoymentRating:h.enjoymentRating??""});setPage("hobbies");};
  const saveSkill=async e=>{e.preventDefault();setError("");const hobby=hobbies.find(h=>h.id===skillDraft.hobbyId);const checked=validateHobbySkill({...skillDraft,id:makeHobbyId("skill"),created_at:stamp(),updated_at:stamp()},hobby);if(!checked.ok){setError(checked.error);return;}setBusy(true);try{const saved=await store.api.put("skills",checked.value);if(!saved)throw new Error("لم يتم حفظ المهارة.");setSkillDraft({hobbyId:skillDraft.hobbyId,name:"",measurementType:"descriptive",unit:"",currentValue:"",targetValue:"",description:""});shell?.toast?.("تمت إضافة المهارة.");}catch(err){setError(err.message||"تعذر حفظ المهارة.");}finally{setBusy(false);}};
  const saveSkillLog=async e=>{e.preventDefault();setError("");const skill=skills.find(s=>s.id===logDraft.skillId);const checked=validateHobbySkillLog(logDraft,skill);if(!checked.ok){setError(checked.error);return;}const row={...checked.value,id:makeHobbyId("skill-log"),created_at:stamp(),updated_at:stamp()};setBusy(true);try{const saved=await store.api.put("skillLogs",row);if(!saved)throw new Error("لم يتم حفظ سجل التقدم.");if(skill.measurementType==="number"||skill.measurementType==="level")await store.api.put("skills",{...skill,currentValue:checked.value.newValue,updated_at:stamp()});setLogDraft({...logDraft,localDate:today(),previousValue:checked.value.newValue,newValue:"",note:"",evidenceUrl:""});shell?.toast?.("تم تسجيل التقدم.");}catch(err){setError(err.message||"تعذر تسجيل التقدم.");}finally{setBusy(false);}};
@@ -128,6 +138,7 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
  <nav style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:16}}>{HOBBY_SECTIONS.map(s=><button key={s.id} onClick={()=>setPage(s.id)} style={{border:"1px solid "+(page===s.id?C.accent:C.line),background:page===s.id?C.soft:"#fff",color:page===s.id?C.accent:C.muted,borderRadius:10,padding:"9px 12px",font:"inherit",fontSize:12,fontWeight:750}}>{s.icon} {s.label}</button>)}</nav>
  {error&&<div style={{background:"#FEF2F2",color:"#B91C1C",padding:11,borderRadius:9,marginBottom:12,fontSize:12}}>{error}</div>}
  {page==="habit-library"&&<HabitLibraryView habits={habits} habitDraft={habitDraft} setHabitDraft={setHabitDraft} saveHabit={saveHabit} habitEditingId={habitEditingId} setHabitEditingId={setHabitEditingId} editHabit={editHabit} canEdit={canEdit} busy={busy} setHabitLogDraft={setHabitLogDraft} setPage={setPage} habitLogs={habitLogs}/>}
+ {page==="trash"&&<UnifiedTrashView items={trashItems} onRestore={restoreTrashItem} canEdit={canEdit}/>}
  {page==="reminders"&&<HabitRemindersView reminders={habitReminders} habits={habits} draft={reminderDraft} setDraft={setReminderDraft} saveReminder={saveHabitReminder} editingId={reminderEditingId} setEditingId={setReminderEditingId} editReminder={editHabitReminder} removeReminder={removeHabitReminder} toggleReminder={toggleHabitReminder} onAction={handleReminderAction} canEdit={canEdit} busy={busy}/>}
  {page==="weekly-focus"&&<WeeklyFocusView focuses={weeklyFocusRecords} habits={habits} logs={habitLogs} draft={focusDraft} setDraft={setFocusDraft} saveFocus={saveWeeklyFocus} editingId={focusEditingId} setEditingId={setFocusEditingId} editFocus={editWeeklyFocus} removeFocus={removeWeeklyFocus} canEdit={canEdit} busy={busy}/>}
  {page==="achievements"&&<HabitAchievementsView badges={achievementBadges}/>}
@@ -193,6 +204,18 @@ function HabitLogView({habits,habitLogs,habitStats,habitLogDraft,setHabitLogDraf
 
 
 
+
+
+function UnifiedTrashView({items,onRestore,canEdit}) {
+ return <Panel title="المحذوفات — العادات والقراءة">
+  <p style={{fontSize:12,color:C.muted,lineHeight:1.8}}>تظهر هنا السجلات المحذوفة حذفًا منطقيًا من العادات وسجلها والتعافي والكتب وجلسات القراءة والتركيز الأسبوعي والتذكيرات. الاستعادة تعيد السجل إلى مكانه الأصلي وتحافظ على بياناته وقيود خصوصيته. لا يوجد حذف نهائي من هذه الشاشة.</p>
+  {items.map(item=><article key={item.collection+":"+item.id} style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",padding:"11px 0",borderTop:"1px solid "+C.line,flexWrap:"wrap"}}>
+   <div><b style={{fontSize:13}}>{item.trashTitle}</b><div style={{fontSize:11,color:C.muted,marginTop:4}}>{item.kind} · {item.trashDetail} · حذف: {String(item.deleted_at||"").slice(0,10)}</div></div>
+   {canEdit&&<Btn type="button" onClick={()=>onRestore(item)}>استعادة</Btn>}
+  </article>)}
+  {!items.length&&<p style={{fontSize:12,color:C.muted}}>سلة المحذوفات فارغة.</p>}
+ </Panel>;
+}
 
 function HabitRemindersView({reminders,habits,draft,setDraft,saveReminder,editingId,setEditingId,editReminder,removeReminder,toggleReminder,onAction,canEdit,busy}) {
  const [clock,setClock]=useState(Date.now());
