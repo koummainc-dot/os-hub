@@ -5,9 +5,9 @@ begin;
 create table if not exists public.spiritual_record_relations (
   user_id uuid not null references auth.users(id) on delete cascade,
   workspace_id uuid not null,
-  source_id uuid not null,
+  source_id text not null,
   source_collection text not null,
-  target_id uuid not null,
+  target_id text not null,
   target_collection text not null,
   relation_type text not null check (relation_type in (
     'principle_value','practice_value','goal_practice',
@@ -50,7 +50,7 @@ create policy spiritual_record_relations_delete_own on public.spiritual_record_r
 create or replace function public.spiritual_replace_record_relations(
   p_workspace_id uuid,
   p_source_collection text,
-  p_source_id uuid,
+  p_source_id text,
   p_relations jsonb default '[]'::jsonb
 ) returns void
 language plpgsql
@@ -81,10 +81,10 @@ begin
   select v_user_id,p_workspace_id,p_source_id,p_source_collection,
          x.target_id,x.target_collection,x.relation_type
   from jsonb_to_recordset(coalesce(p_relations,'[]'::jsonb))
-    as x(target_id uuid,target_collection text,relation_type text);
+    as x(target_id text,target_collection text,relation_type text);
 end;
 $$;
-revoke all on function public.spiritual_replace_record_relations(uuid,text,uuid,jsonb) from public,anon;
+revoke all on function public.spiritual_replace_record_relations(uuid,text,text,jsonb) from public,anon;
 grant execute on function public.spiritual_replace_record_relations(uuid,text,uuid,jsonb) to authenticated;
 
 -- Transactional, self-service wipe for this OS only. It never deletes the auth user
