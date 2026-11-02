@@ -5,7 +5,7 @@ import {useRecordStore,arr,live,uid} from "../../core/records.jsx";
 import {AccessDenied} from "../../core/ui.jsx";
 import {publishOSEvent,publishDurableOSEvent} from "../integrationEvents.js";
 import {HOBBY_CATEGORIES,HOBBY_SECTIONS,makeHobbyId,validateHobby,validateHobbySession,hobbiesSummary,hobbyMetrics,validateHobbySkill,validateHobbySkillLog,validateHobbyMilestone,validateHobbyGoal,validateHobbyPlan,hobbyGoalProgress,hobbyPlanProgress,validateHobbyResource,validateHobbyEquipmentLink,validateHobbyJournalEntry,hobbyInsights,hobbySessionEvent,resurfaceHobbyMemories} from "./domain.js";
-import {validateHabit,validateHabitLog,habitSummary,habitStreak,habitAdherence,validateRelapse,relapseSummary,validateBook,validateReadingSession,readingSummary} from "./habit-domain.js";
+import {validateHabit,validateHabitLog,habitSummary,habitStreak,habitAdherence,validateRelapse,relapseSummary,validateBook,validateReadingSession,readingSummary,validateWeeklyFocus,weeklyFocusProgress,habitAchievements} from "./habit-domain.js";
 const C={ink:"#172033",muted:"#64748B",line:"#E2E8F0",bg:"#F8FAFC",accent:"#7C3AED",soft:"#F5F3FF",green:"#047857",white:"#fff"};
 const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Cairo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 const stamp=()=>new Date().toISOString();
@@ -31,6 +31,7 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
  const relapses=useMemo(()=>live(arr(store.recs,"relapses")), [store.recs]);
  const books=useMemo(()=>live(arr(store.recs,"books")), [store.recs]);
  const readingSessions=useMemo(()=>live(arr(store.recs,"readingSessions")), [store.recs]);
+ const weeklyFocusRecords=useMemo(()=>live(arr(store.recs,"weeklyFocus")), [store.recs]);
  const latestPractice=useMemo(()=>sessions.filter(x=>!x.deleted_at).slice().sort((a,b)=>(b.localDate||"").localeCompare(a.localDate||"")||(b.created_at||"").localeCompare(a.created_at||""))[0]||null,[sessions]);
  const resurfacedMemories=useMemo(()=>{const hobbyId=latestPractice?.hobbyId||null;return resurfaceHobbyMemories(journalEntries,today(),{hobbyId,skillIds:skills.filter(x=>x.hobbyId===hobbyId).map(x=>x.id),milestoneIds:milestones.filter(x=>x.hobbyId===hobbyId).map(x=>x.id)});},[journalEntries,latestPractice,skills,milestones]);
  const [journalShowTrash,setJournalShowTrash]=useState(false); const [journalShowArchived,setJournalShowArchived]=useState(false);
@@ -48,6 +49,8 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
  const [bookEditingId,setBookEditingId]=useState("");
  const [readingDraft,setReadingDraft]=useState({bookId:"",localDate:today(),durationMinutes:"",pagesRead:"",note:""});
  const [readingEditingId,setReadingEditingId]=useState("");
+ const [focusDraft,setFocusDraft]=useState({title:"تركيز الأسبوع",startDate:today(),endDate:today(),habitIds:[],notes:"",status:"active"});
+ const [focusEditingId,setFocusEditingId]=useState("");
  const [skillDraft,setSkillDraft]=useState({hobbyId:"",name:"",measurementType:"descriptive",unit:"",currentValue:"",targetValue:"",description:""});
  const [logDraft,setLogDraft]=useState({skillId:"",localDate:today(),previousValue:"",newValue:"",note:"",evidenceUrl:""});
  const [milestoneDraft,setMilestoneDraft]=useState({hobbyId:"",skillId:"",title:"",milestoneType:"achievement",achievedAt:today(),description:"",evidenceUrl:""});
@@ -67,6 +70,7 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
  const canEdit=osSectionLevel(access,page)!=="view"&&osSectionLevel(access,page)!=="none";
  const summary=hobbiesSummary(hobbies,sessions,today());
  const habitStats=habitSummary(habits,habitLogs,today());
+ const achievementBadges=useMemo(()=>habitAchievements(habits,habitLogs,relapses,books,readingSessions,today()),[habits,habitLogs,relapses,books,readingSessions]);
  const insights=hobbyInsights(hobbies,sessions,goals,skills,milestones,today());
  const category=id=>HOBBY_CATEGORIES.find(x=>x.id===id)||HOBBY_CATEGORIES.at(-1);
  const saveHobby=async e=>{e.preventDefault();setError("");const old=hobbies.find(x=>x.id===editing);const checked=validateHobby({...draft,id:editing||makeHobbyId(),created_at:old?.created_at||stamp(),updated_at:stamp()});if(!checked.ok){setError(checked.error);return;}setBusy(true);try{const saved=await store.api.put("hobbies",checked.value);if(!saved)throw new Error("لم يتم حفظ الهواية.");setEditing("");setDraft({name:"",categoryId:"creative",status:"active",description:"",motivation:"",enjoymentRating:""});shell?.toast?.("تم حفظ الهواية.");}catch(err){setError(err.message||"تعذر الحفظ.");}finally{setBusy(false);}};
@@ -83,6 +87,9 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
  const saveReadingSession=async e=>{e.preventDefault();if(!canEdit){setError("ليس لديك صلاحية تسجيل جلسات القراءة.");return;}setError("");const existing=readingSessions.find(s=>s.id===readingEditingId&&!s.deleted_at);let visibility={};if(!isDemo){const {data,error}=await supabase.auth.getUser();if(error||!data?.user?.id){setError("تعذر التحقق من المستخدم؛ لم تُحفظ جلسة القراءة.");return;}visibility._vis=[data.user.id];}const checked=validateReadingSession({...readingDraft,...visibility,id:readingEditingId||makeHobbyId("reading-session"),created_at:existing?.created_at||stamp(),updated_at:stamp()},books);if(!checked.ok){setError(checked.error);return;}setBusy(true);try{const saved=await store.api.put("readingSessions",checked.value);if(!saved)throw new Error("لم يتم حفظ جلسة القراءة.");setReadingEditingId("");setReadingDraft({bookId:readingDraft.bookId,localDate:today(),durationMinutes:"",pagesRead:"",note:""});shell?.toast?.(existing?"تم تحديث جلسة القراءة.":"تم تسجيل جلسة القراءة بشكل خاص.");}catch(err){setError(err.message||"تعذر حفظ جلسة القراءة.");}finally{setBusy(false);}};
  const editReadingSession=s=>{setReadingEditingId(s.id);setReadingDraft({bookId:s.bookId,localDate:s.localDate,durationMinutes:s.durationMinutes??"",pagesRead:s.pagesRead??"",note:s.note||""});};
  const removeReadingSession=async s=>{if(!canEdit||!window.confirm("نقل جلسة القراءة إلى سلة المحذوفات؟"))return;try{const saved=await store.api.softDelete("readingSessions",s.id);if(!saved)throw new Error("تعذر حذف جلسة القراءة.");shell?.toast?.("تم نقل جلسة القراءة إلى سلة المحذوفات.");}catch(err){setError(err.message||"تعذر حذف جلسة القراءة.");}};
+ const saveWeeklyFocus=async e=>{e.preventDefault();if(!canEdit){setError("ليس لديك صلاحية تعديل التركيز الأسبوعي.");return;}setError("");const existing=weeklyFocusRecords.find(f=>f.id===focusEditingId&&!f.deleted_at);let visibility={};if(!isDemo){const {data,error}=await supabase.auth.getUser();if(error||!data?.user?.id){setError("تعذر التحقق من المستخدم؛ لم يُحفظ التركيز الأسبوعي.");return;}visibility._vis=[data.user.id];}const checked=validateWeeklyFocus({...focusDraft,...visibility,id:focusEditingId||makeHobbyId("weekly-focus"),created_at:existing?.created_at||stamp(),updated_at:stamp()},habits);if(!checked.ok){setError(checked.error);return;}setBusy(true);try{const saved=await store.api.put("weeklyFocus",checked.value);if(!saved)throw new Error("لم يتم حفظ التركيز الأسبوعي.");setFocusEditingId("");setFocusDraft({title:"تركيز الأسبوع",startDate:today(),endDate:today(),habitIds:[],notes:"",status:"active"});shell?.toast?.("تم حفظ التركيز الأسبوعي بشكل خاص.");}catch(err){setError(err.message||"تعذر حفظ التركيز الأسبوعي.");}finally{setBusy(false);}};
+ const editWeeklyFocus=f=>{setFocusEditingId(f.id);setFocusDraft({title:f.title||"",startDate:f.startDate||today(),endDate:f.endDate||today(),habitIds:f.habitIds||[],notes:f.notes||"",status:f.status||"active"});};
+ const removeWeeklyFocus=async f=>{if(!canEdit||!window.confirm("نقل خطة التركيز إلى سلة المحذوفات؟"))return;try{const saved=await store.api.softDelete("weeklyFocus",f.id);if(!saved)throw new Error("تعذر حذف التركيز الأسبوعي.");shell?.toast?.("تم نقل التركيز إلى سلة المحذوفات.");}catch(err){setError(err.message||"تعذر حذف التركيز.");}};
  const editHobby=h=>{setEditing(h.id);setDraft({name:h.name,categoryId:h.categoryId,status:h.status,description:h.description||"",motivation:h.motivation||"",enjoymentRating:h.enjoymentRating??""});setPage("hobbies");};
  const saveSkill=async e=>{e.preventDefault();setError("");const hobby=hobbies.find(h=>h.id===skillDraft.hobbyId);const checked=validateHobbySkill({...skillDraft,id:makeHobbyId("skill"),created_at:stamp(),updated_at:stamp()},hobby);if(!checked.ok){setError(checked.error);return;}setBusy(true);try{const saved=await store.api.put("skills",checked.value);if(!saved)throw new Error("لم يتم حفظ المهارة.");setSkillDraft({hobbyId:skillDraft.hobbyId,name:"",measurementType:"descriptive",unit:"",currentValue:"",targetValue:"",description:""});shell?.toast?.("تمت إضافة المهارة.");}catch(err){setError(err.message||"تعذر حفظ المهارة.");}finally{setBusy(false);}};
  const saveSkillLog=async e=>{e.preventDefault();setError("");const skill=skills.find(s=>s.id===logDraft.skillId);const checked=validateHobbySkillLog(logDraft,skill);if(!checked.ok){setError(checked.error);return;}const row={...checked.value,id:makeHobbyId("skill-log"),created_at:stamp(),updated_at:stamp()};setBusy(true);try{const saved=await store.api.put("skillLogs",row);if(!saved)throw new Error("لم يتم حفظ سجل التقدم.");if(skill.measurementType==="number"||skill.measurementType==="level")await store.api.put("skills",{...skill,currentValue:checked.value.newValue,updated_at:stamp()});setLogDraft({...logDraft,localDate:today(),previousValue:checked.value.newValue,newValue:"",note:"",evidenceUrl:""});shell?.toast?.("تم تسجيل التقدم.");}catch(err){setError(err.message||"تعذر تسجيل التقدم.");}finally{setBusy(false);}};
@@ -112,6 +119,8 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
  <nav style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:16}}>{HOBBY_SECTIONS.map(s=><button key={s.id} onClick={()=>setPage(s.id)} style={{border:"1px solid "+(page===s.id?C.accent:C.line),background:page===s.id?C.soft:"#fff",color:page===s.id?C.accent:C.muted,borderRadius:10,padding:"9px 12px",font:"inherit",fontSize:12,fontWeight:750}}>{s.icon} {s.label}</button>)}</nav>
  {error&&<div style={{background:"#FEF2F2",color:"#B91C1C",padding:11,borderRadius:9,marginBottom:12,fontSize:12}}>{error}</div>}
  {page==="habit-library"&&<HabitLibraryView habits={habits} habitDraft={habitDraft} setHabitDraft={setHabitDraft} saveHabit={saveHabit} habitEditingId={habitEditingId} setHabitEditingId={setHabitEditingId} editHabit={editHabit} canEdit={canEdit} busy={busy} setHabitLogDraft={setHabitLogDraft} setPage={setPage} habitLogs={habitLogs}/>}
+ {page==="weekly-focus"&&<WeeklyFocusView focuses={weeklyFocusRecords} habits={habits} logs={habitLogs} draft={focusDraft} setDraft={setFocusDraft} saveFocus={saveWeeklyFocus} editingId={focusEditingId} setEditingId={setFocusEditingId} editFocus={editWeeklyFocus} removeFocus={removeWeeklyFocus} canEdit={canEdit} busy={busy}/>}
+ {page==="achievements"&&<HabitAchievementsView badges={achievementBadges}/ >}
  {page==="books"&&<BookLibraryView books={books} readingSessions={readingSessions} draft={bookDraft} setDraft={setBookDraft} saveBook={saveBook} editingId={bookEditingId} setEditingId={setBookEditingId} editBook={editBook} removeBook={removeBook} canEdit={canEdit} busy={busy}/>}
  {page==="reading"&&<ReadingSessionsView books={books} readingSessions={readingSessions} draft={readingDraft} setDraft={setReadingDraft} saveSession={saveReadingSession} editingId={readingEditingId} setEditingId={setReadingEditingId} editSession={editReadingSession} removeSession={removeReadingSession} canEdit={canEdit} busy={busy}/>}
  {page==="relapses"&&<RelapseView habits={habits} relapses={relapses} relapseDraft={relapseDraft} setRelapseDraft={setRelapseDraft} saveRelapse={saveRelapse} relapseEditingId={relapseEditingId} setRelapseEditingId={setRelapseEditingId} editRelapse={editRelapse} removeRelapse={removeRelapse} canEdit={canEdit} busy={busy}/>}
@@ -172,6 +181,48 @@ function HabitLogView({habits,habitLogs,habitStats,habitLogDraft,setHabitLogDraf
 }
 
 
+
+
+function WeeklyFocusView({focuses,habits,logs,draft,setDraft,saveFocus,editingId,setEditingId,editFocus,removeFocus,canEdit,busy}) {
+ const activeHabits=habits.filter(h=>h.status!=="archived"&&!h.deleted_at);
+ return <><Panel title="تحديد تركيز الأسبوع">
+  <p style={{fontSize:12,color:C.muted,lineHeight:1.8}}>اختر العادات التي تريد إعطاءها أولوية خلال فترة محددة. اختيار أكثر من خمس عادات مسموح، لكن قد يشتت التركيز؛ ستظهر ملاحظة فقط دون منع الحفظ.</p>
+  {canEdit&&<form onSubmit={saveFocus} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,alignItems:"start"}}>
+   <Field label="عنوان التركيز" value={draft.title} onChange={v=>setDraft(d=>({...d,title:v}))} required/>
+   <Field label="بداية الفترة" type="date" value={draft.startDate} onChange={v=>setDraft(d=>({...d,startDate:v}))} required/>
+   <Field label="نهاية الفترة" type="date" value={draft.endDate} onChange={v=>setDraft(d=>({...d,endDate:v}))} required/>
+   <label style={{display:"grid",gap:5,fontSize:12,color:C.muted,gridColumn:"1 / -1"}}>العادات ذات الأولوية ({draft.habitIds.length})<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:7}}>{activeHabits.map(h=><label key={h.id} style={{display:"flex",gap:7,alignItems:"center",border:"1px solid "+(draft.habitIds.includes(h.id)?C.accent:C.line),borderRadius:9,padding:9,color:C.ink}}><input type="checkbox" checked={draft.habitIds.includes(h.id)} onChange={e=>setDraft(d=>({...d,habitIds:e.target.checked?[...d.habitIds,h.id]:d.habitIds.filter(id=>id!==h.id)}))}/><span>{h.name}</span></label>)}</div></label>
+   {draft.habitIds.length>5&&<div style={{gridColumn:"1 / -1",fontSize:12,color:"#92400E",background:"#FFFBEB",padding:10,borderRadius:8}}>اخترت {draft.habitIds.length} عادات. هذا ليس خطأ ولن يمنع الحفظ، لكن يفضّل تقليل الأولويات لتحسين التركيز.</div>}
+   <label style={{display:"grid",gap:5,fontSize:12,color:C.muted,gridColumn:"1 / -1"}}>ملاحظات أو نية الأسبوع<textarea maxLength={2000} value={draft.notes} onChange={e=>setDraft(d=>({...d,notes:e.target.value}))} rows={2} style={{padding:10,border:"1px solid "+C.line,borderRadius:9,font:"inherit",resize:"vertical"}}/></label>
+   <div style={{display:"flex",gap:7}}><Btn primary disabled={busy}>{editingId?"حفظ التعديلات":"حفظ التركيز"}</Btn>{editingId&&<Btn type="button" onClick={()=>{setEditingId("");setDraft({title:"تركيز الأسبوع",startDate:today(),endDate:today(),habitIds:[],notes:"",status:"active"});}}>إلغاء</Btn>}</div>
+  </form>}
+ </Panel>
+ <Panel title="خطط التركيز ومراجعة التقدم">
+  {focuses.slice().sort((a,b)=>(b.startDate||"").localeCompare(a.startDate||"")).map(f=>{const p=weeklyFocusProgress(f,logs,habits);return <article key={f.id} style={{padding:"12px 0",borderTop:"1px solid "+C.line}}>
+   <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}><b>{f.title}</b><span style={{fontSize:11,color:C.muted}}>{f.startDate} — {f.endDate} · {f.status==="active"?"نشط":f.status==="completed"?"مكتمل":"مؤرشف"}</span></div>
+   <div style={{fontSize:12,color:C.muted,marginTop:5}}>{p.habitCount} عادات · {p.done} تسجيلات مكتملة · {p.partial} جزئية · {p.completionPercent}% من الأيام المجدولة مكتملة</div>
+   <div style={{height:7,background:C.bg,borderRadius:8,overflow:"hidden",marginTop:8}}><div style={{height:"100%",width:p.completionPercent+"%",background:C.green,borderRadius:8}}/></div>
+   <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:8}}>{canEdit&&<><Btn type="button" onClick={()=>editFocus(f)}>تعديل</Btn>{f.status==="active"&&<Btn type="button" onClick={()=>store.api.put("weeklyFocus",{...f,status:"completed",updated_at:stamp()})}>إنهاء الأسبوع</Btn>}{f.status==="completed"&&<Btn type="button" onClick={()=>store.api.put("weeklyFocus",{...f,status:"active",updated_at:stamp()})}>إعادة فتح</Btn>}<Btn type="button" onClick={()=>removeFocus(f)}>حذف</Btn></>}</div>
+   {f.notes&&<p style={{fontSize:12,whiteSpace:"pre-wrap",margin:"8px 0 0"}}>{f.notes}</p>}
+  </article>;})}
+  {!focuses.length&&<p style={{fontSize:12,color:C.muted}}>لم تنشئ خطة تركيز بعد.</p>}
+ </Panel></>;
+}
+
+function HabitAchievementsView({badges}) {
+ const earned=badges.filter(b=>b.earned);
+ return <><Panel title="إنجازات العادات">
+  <div style={{fontSize:12,color:C.muted,lineHeight:1.8,marginBottom:12}}>تُحتسب الإنجازات تلقائيًا من سجلاتك الحالية؛ لا تحتاج إلى إضافتها يدويًا. عند تراجع البيانات أو حذف سجل، يعاد احتساب الحالة بدل الاحتفاظ بإنجاز غير مستحق.</div>
+  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:10}}>
+   {badges.map(b=><article key={b.id} style={{border:"1px solid "+(b.earned?C.accent:C.line),background:b.earned?C.soft:"#fff",borderRadius:12,padding:13,opacity:b.earned?1:.82}}>
+    <div style={{display:"flex",alignItems:"center",gap:9}}><span style={{fontSize:24}}>{b.icon}</span><div><b style={{fontSize:13}}>{b.title}</b><div style={{fontSize:10,color:b.earned?C.accent:C.muted,marginTop:3}}>{b.earned?"تم فتح الإنجاز":"لم يُفتح بعد"}</div></div></div>
+    <p style={{fontSize:12,color:C.muted,lineHeight:1.7,margin:"8px 0"}}>{b.description}</p>
+    {!b.earned&&<><div style={{height:6,background:C.line,borderRadius:8,overflow:"hidden"}}><div style={{height:"100%",width:b.percent+"%",background:C.accent}}/></div><div style={{fontSize:10,color:C.muted,marginTop:5}}>{b.progress} / {b.target}</div></>}
+   </article>)}
+  </div>
+  {!earned.length&&<p style={{fontSize:12,color:C.muted,marginTop:10}}>أول إنجاز قريب: أضف عادة وسجّل أول خطوة.</p>}
+ </Panel></>;
+}
 
 function BookLibraryView({books,readingSessions,draft,setDraft,saveBook,editingId,setEditingId,editBook,removeBook,canEdit,busy}) {
  return <><Panel title="مكتبة الكتب والقراءة">
