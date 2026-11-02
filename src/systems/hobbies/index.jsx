@@ -113,7 +113,8 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
    counts[key]={file:sourceRows[key].length,new:sourceRows[key].filter(row=>row?.id&&!existing.has(row.id)).length,existing:duplicates};
    if(duplicates)warnings.push(key+": سيتم تخطي "+duplicates+" سجلًا موجودًا بالفعل، ولن يتم استبداله.");
   }
-  const allIds=key=>new Set([...currentCollectionRows(key).filter(row=>!row.deleted_at).map(row=>row.id),...sourceRows[key].filter(row=>!row.deleted_at).map(row=>row.id)]);
+  const existingIdsByCollection=Object.fromEntries(importCollections.map(key=>[key,new Set(currentCollectionRows(key).map(row=>row.id))]));
+  const allIds=key=>new Set([...currentCollectionRows(key).filter(row=>!row.deleted_at).map(row=>row.id),...sourceRows[key].filter(row=>!row.deleted_at&&!existingIdsByCollection[key].has(row.id)).map(row=>row.id)]);
   const has=(key,id)=>!id||allIds(key).has(id);
   const checkRefs=(key,fn,message)=>sourceRows[key].forEach((row,index)=>{if(row&&!row.deleted_at&&!fn(row))errors.push(message+" (السجل "+(index+1)+").");});
   checkRefs("sessions",r=>has("hobbies",r.hobbyId),"جلسة هواية تشير إلى هواية غير موجودة");
@@ -133,8 +134,9 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
   const hobbyById=id=>{const row=existingById.hobbies.get(id)||importedById.hobbies.get(id);return row?.status==="archived"?{...row,status:"active"}:row;};
   const skillById=id=>existingById.skills.get(id)||importedById.skills.get(id);
   sourceRows.hobbies.forEach((row,i)=>{const v=validateHobby(row);if(!row?.deleted_at&&!v.ok)errors.push("هواية غير صالحة في السجل "+(i+1)+": "+v.error);});
-  const validationHobbies=sourceRows.hobbies.concat(currentCollectionRows("hobbies")).map(row=>row?.status==="archived"?{...row,status:"active"}:row);
-  const validationSkills=sourceRows.skills.concat(currentCollectionRows("skills"));
+  const mergeForValidation=key=>[...currentCollectionRows(key),...sourceRows[key].filter(row=>!existingIdsByCollection[key].has(row.id))];
+  const validationHobbies=mergeForValidation("hobbies").map(row=>row?.status==="archived"?{...row,status:"active"}:row);
+  const validationSkills=mergeForValidation("skills");
   sourceRows.skills.forEach((row,i)=>{const v=validateHobbySkill(row,hobbyById(row?.hobbyId));if(!row?.deleted_at&&!v.ok)errors.push("مهارة غير صالحة في السجل "+(i+1)+": "+v.error);});
   sourceRows.skillLogs.forEach((row,i)=>{const v=validateHobbySkillLog(row,skillById(row?.skillId));if(!row?.deleted_at&&!v.ok)errors.push("سجل تقدم مهارة غير صالح في السجل "+(i+1)+": "+v.error);});
   sourceRows.milestones.forEach((row,i)=>{const v=validateHobbyMilestone(row,validationHobbies,validationSkills);if(!row?.deleted_at&&!v.ok)errors.push("إنجاز غير صالح في السجل "+(i+1)+": "+v.error);});
