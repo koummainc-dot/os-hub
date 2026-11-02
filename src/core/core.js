@@ -293,8 +293,8 @@ function osClearLocalCaches(){
 }
 function osBuildDemoState(){
   const sys=(lvl)=>{const o={};OS_SYSTEMS.forEach(s=>{o[s.id]={level:lvl,manage:false,sections:{}};});return o;};
-  const sara=sys("edit"); sara.finance.level="view"; delete sara.spiritual; delete sara.relationships; sara.content={level:"edit",manage:false,sections:{analytics:"none",team:"none",settings:"none"}}; sara.projects.manage=true; sara.habits={level:"view",manage:false,sections:{journal:"none",relapses:"none"}};
-  const layla=sys("view"); delete layla.finance; delete layla.spiritual; delete layla.relationships; delete layla.nutrition; delete layla.habits;
+  const sara=sys("edit"); sara.finance.level="view"; delete sara.spiritual; delete sara.relationships; sara.content={level:"edit",manage:false,sections:{analytics:"none",team:"none",settings:"none"}}; sara.projects.manage=true; sara.hobbies={level:"view",manage:false,sections:{settings:"none"}};
+  const layla=sys("view"); delete layla.finance; delete layla.spiritual; delete layla.relationships; delete layla.nutrition; delete layla.hobbies;
   const omar=sys("view"); Object.keys(omar).forEach(k=>{if(["content","projects","knowledge"].indexOf(k)<0)delete omar[k];});
   const ago=(d)=>new Date(Date.now()-d*86400000).toISOString();
   return {
