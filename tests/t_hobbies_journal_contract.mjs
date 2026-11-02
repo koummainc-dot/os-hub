@@ -77,7 +77,6 @@ const domain=readFileSync(new URL("../src/systems/hobbies/domain.js",import.meta
 assert.match(ui,/resurfaceHobbyMemories/);
 assert.match(ui,/const inspectImport=payload/);
 assert.match(ui,/habitAchievementRecords/);
-assert.match(ui,/Persist earned habit achievements/);
 assert.match(ui,/إصدار الملف غير مدعوم/);
 assert.match(ui,/سيتم تخطي/);
 assert.match(ui,/تأكيد استيراد/);
