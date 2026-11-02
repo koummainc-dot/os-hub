@@ -17,6 +17,6 @@ assert.match(ui, /async function archiveRow\(ws,collection,id\)[\s\S]*?supabase\
 
 assert.doesNotMatch(ui, /localStorage\.(?:setItem|getItem)\([^)]*(?:spiritual|reflection|practice|commitment)/i, "sensitive Spiritual content must not be persisted to browser localStorage by this module");
 assert.doesNotMatch(ui, /console\.(?:log|info|debug)\([^)]*(?:rows|record|reflection|practice|commitment|body)/i, "sensitive record payloads must not be written to console logs");
-assert.match(ui, /publishOSEvent\(\{type:"spiritual\.record\.saved",entityType:"spiritual_record",entityId:row\.id,payload:\{collection\}\}/, "integration events must expose only the collection name, not record content");
+assert.match(ui, /publishOSEvent\(\{type:"spiritual\.record\.saved",entityType:"spiritual_record",entityId:item\.id,payload:\{collection\}\}/, "integration events must expose only the collection name, not record content");
 assert.doesNotMatch(ui, /payload:\{[^}]*\b(?:body|description|note|reflection|data|record)\s*:/i, "integration event payloads must not contain sensitive content fields");
 console.log("Spiritual normalized practice-log integrity migration contract passed.");
