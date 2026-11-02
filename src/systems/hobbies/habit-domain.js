@@ -110,3 +110,49 @@ export function habitSummary(habits, logs, date) {
     completedScheduledToday: scheduledToday.filter(h => completedToday.has(h.id)).length
   };
 }
+
+export function validateRelapse(input, habits) {
+  const habit = (habits || []).find(item => item.id === input?.habitId && !item.deleted_at);
+  if (!habit || habit.type !== "avoid" || habit.status === "archived") {
+    return { ok: false, error: "اختر عادة تجنّب نشطة أو متوقفة مؤقتًا لتسجيل التعافي." };
+  }
+  const localDate = String(input?.localDate || "");
+  if (!validDate(localDate)) return { ok: false, error: "تاريخ السجل غير صالح." };
+  const eventType = input?.eventType || "lapse";
+  if (!["urge", "lapse"].includes(eventType)) return { ok: false, error: "نوع الحدث غير صحيح." };
+  const trigger = String(input?.trigger || "").trim();
+  if (!trigger) return { ok: false, error: "اكتب الموقف أو المحفّز باختصار." };
+  if (trigger.length > 500) return { ok: false, error: "المحفّز يجب ألا يتجاوز 500 حرف." };
+  const intensity = input?.intensity == null || input.intensity === "" ? null : Number(input.intensity);
+  if (intensity !== null && (!Number.isInteger(intensity) || intensity < 1 || intensity > 5)) {
+    return { ok: false, error: "شدة الرغبة يجب أن تكون من 1 إلى 5." };
+  }
+  const response = String(input?.response || "").trim();
+  const lesson = String(input?.lesson || "").trim();
+  const recoveryPlan = String(input?.recoveryPlan || "").trim();
+  if (response.length > 1500 || lesson.length > 1500 || recoveryPlan.length > 1500) {
+    return { ok: false, error: "كل حقل تأملي يجب ألا يتجاوز 1500 حرف." };
+  }
+  return { ok: true, value: { ...input, localDate, eventType, trigger, intensity, response, lesson, recoveryPlan } };
+}
+
+export function daysSinceLastLapse(habitId, events, asOfDate) {
+  if (!habitId || !validDate(asOfDate)) return null;
+  const latest = (events || [])
+    .filter(event => !event.deleted_at && event.habitId === habitId && event.eventType === "lapse" && validDate(event.localDate) && event.localDate <= asOfDate)
+    .map(event => event.localDate)
+    .sort()
+    .at(-1);
+  if (!latest) return null;
+  return Math.floor((utcDate(asOfDate).getTime() - utcDate(latest).getTime()) / 86400000);
+}
+
+export function relapseSummary(habitId, events, asOfDate) {
+  const recentFrom = shiftDate(asOfDate, -29);
+  const recent = (events || []).filter(event => !event.deleted_at && event.habitId === habitId && event.localDate >= recentFrom && event.localDate <= asOfDate);
+  return {
+    daysSinceLastLapse: daysSinceLastLapse(habitId, events, asOfDate),
+    urgesRecorded30d: recent.filter(event => event.eventType === "urge").length,
+    lapsesRecorded30d: recent.filter(event => event.eventType === "lapse").length
+  };
+}
