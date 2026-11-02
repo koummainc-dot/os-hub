@@ -75,6 +75,13 @@ console.log("Hobbies Journal privacy, editing, search, private storage, immutabl
 
 const domain=readFileSync(new URL("../src/systems/hobbies/domain.js",import.meta.url),"utf8");
 assert.match(ui,/resurfaceHobbyMemories/);
+assert.match(ui,/const inspectImport=payload/);
+assert.match(ui,/إصدار الملف غير مدعوم/);
+assert.match(ui,/سيتم تخطي/);
+assert.match(ui,/تأكيد استيراد/);
+assert.match(ui,/privateImportCollections/);
+assert.match(ui,/schemaVersion:6/);
+assert.match(ui,/الحد الأقصى 5 ميجابايت و500 سجل جديد/);
 assert.match(ui,/ذكريات تستحق الرجوع إليها/);
 assert.match(ui,/في مثل هذا اليوم/);
 assert.match(ui,/مرتبطة بآخر ممارسة/);
