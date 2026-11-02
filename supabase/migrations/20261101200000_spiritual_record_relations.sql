@@ -85,7 +85,7 @@ begin
 end;
 $$;
 revoke all on function public.spiritual_replace_record_relations(uuid,text,text,jsonb) from public,anon;
-grant execute on function public.spiritual_replace_record_relations(uuid,text,uuid,jsonb) to authenticated;
+grant execute on function public.spiritual_replace_record_relations(uuid,text,text,jsonb) to authenticated;
 
 -- Transactional, self-service wipe for this OS only. It never deletes the auth user
 -- or records owned by other systems.
