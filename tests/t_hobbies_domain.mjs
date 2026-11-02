@@ -12,6 +12,7 @@ assert.equal(validateHobby({...hobby,enjoymentRating:6}).ok,false);
 assert.equal(validateHobbySession({localDate:"2026-11-01",durationMinutes:"45",satisfactionRating:"4"},hobby).ok,true);
 assert.equal(validateHobbySession({localDate:"2026-02-31",durationMinutes:"45"},hobby).ok,false);
 assert.equal(validateHobbySession({localDate:"2026-11-01",durationMinutes:"1441"},hobby).ok,false);
+assert.equal(validateHobbySession({localDate:"2026-11-01",durationMinutes:"30",habitId:"habit-1"},hobby,{habits:[{id:"habit-1",status:"active"}]}).value.habitId,"habit-1");
 assert.equal(validateHobbySession({localDate:"2026-11-01",durationMinutes:"30"},{...hobby,status:"archived"}).ok,false);
 const sessions=[{id:"s1",hobbyId:"h1",localDate:"2026-10-31",durationMinutes:30},{id:"s2",hobbyId:"h1",localDate:"2026-11-01",durationMinutes:45},{id:"s3",hobbyId:"h2",localDate:"2026-11-01",durationMinutes:20}];
 const metrics=hobbyMetrics("h1",[hobby],sessions);
