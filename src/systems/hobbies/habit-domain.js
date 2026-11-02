@@ -278,7 +278,7 @@ export function validateHabitReminder(input, habits) {
   const habit = (habits || []).find(item => item.id === input?.habitId && !item.deleted_at && item.status !== "archived");
   if (!habit) return { ok: false, error: "اختر عادة متاحة للتذكير." };
   const time = String(input?.time || "");
-  if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time)) return { ok: false, error: "أدخل وقتًا صحيحًا بصيغة 24 ساعة." };
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return { ok: false, error: "أدخل وقتًا صحيحًا بصيغة 24 ساعة." };
   const daysOfWeek = [...new Set((Array.isArray(input?.daysOfWeek) ? input.daysOfWeek : []).map(Number))].sort((a,b)=>a-b);
   if (!daysOfWeek.length || daysOfWeek.some(day => !Number.isInteger(day) || day < 0 || day > 6)) {
     return { ok: false, error: "اختر يومًا واحدًا على الأقل للتذكير." };
@@ -293,7 +293,7 @@ export function validateHabitReminder(input, habits) {
 }
 
 export function isHabitReminderDue(reminder, date, time, nowIso = null) {
-  if (!reminder || reminder.deleted_at || reminder.enabled === false || !validDate(date) || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(time || ""))) return false;
+  if (!reminder || reminder.deleted_at || reminder.enabled === false || !validDate(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(time || ""))) return false;
   if (reminder.snoozedUntil && nowIso) {
     if (new Date(reminder.snoozedUntil).getTime() > new Date(nowIso).getTime()) return false;
     return true;
