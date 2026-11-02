@@ -294,12 +294,12 @@ export function validateHabitReminder(input, habits) {
 
 export function isHabitReminderDue(reminder, date, time, nowIso = null) {
   if (!reminder || reminder.deleted_at || reminder.enabled === false || !validDate(date) || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(time || ""))) return false;
-  if (!(reminder.daysOfWeek || []).includes(utcDate(date).getUTCDay())) return false;
-  if (String(reminder.time || "") > time) return false;
   if (reminder.snoozedUntil && nowIso) {
     if (new Date(reminder.snoozedUntil).getTime() > new Date(nowIso).getTime()) return false;
     return true;
   }
+  if (!(reminder.daysOfWeek || []).includes(utcDate(date).getUTCDay())) return false;
+  if (String(reminder.time || "") > time) return false;
   if (reminder.lastFiredLocalDate === date) return false;
   return true;
 }
