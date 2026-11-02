@@ -36,7 +36,8 @@ assert.equal(isHabitScheduledOn(scheduledHabit, "2026-11-01"), false); // Sunday
 const streakLogs = [
   { id: "s1", habitId: "h3", localDate: "2026-10-30", status: "done" }, // Friday
   { id: "s2", habitId: "h3", localDate: "2026-11-02", status: "done" }, // Monday
-  { id: "s3", habitId: "h3", localDate: "2026-11-02", status: "done", occurrenceKey: "second" }
+  { id: "s3", habitId: "h3", localDate: "2026-11-02", status: "done", occurrenceKey: "second" },
+  { id: "s4", habitId: "h3", localDate: "2026-11-06", status: "done" } // Friday
 ];
 assert.equal(habitStreak(scheduledHabit, streakLogs, "2026-11-02"), 2); // weekend is not scheduled
 assert.deepEqual(habitAdherence(scheduledHabit, streakLogs, "2026-11-01", "2026-11-07"), {
