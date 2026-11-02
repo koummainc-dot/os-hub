@@ -202,3 +202,71 @@ export function readingSummary(bookId, sessions) {
     totalPages: rows.reduce((sum, row) => sum + (Number(row.pagesRead) || 0), 0)
   };
 }
+
+
+export function validateWeeklyFocus(input, habits) {
+  const title = String(input?.title || "").trim();
+  if (!title) return { ok: false, error: "عنوان التركيز الأسبوعي مطلوب." };
+  if (title.length > 160) return { ok: false, error: "العنوان يجب ألا يتجاوز 160 حرفًا." };
+  const startDate = String(input?.startDate || "");
+  const endDate = String(input?.endDate || "");
+  if (!validDate(startDate) || !validDate(endDate)) return { ok: false, error: "تواريخ أسبوع التركيز غير صالحة." };
+  if (endDate < startDate) return { ok: false, error: "تاريخ النهاية يجب ألا يسبق البداية." };
+  const habitIds = [...new Set((Array.isArray(input?.habitIds) ? input.habitIds : []).map(String).filter(Boolean))];
+  const known = new Set((habits || []).filter(h => !h.deleted_at && h.status !== "archived").map(h => h.id));
+  if (habitIds.some(id => !known.has(id))) return { ok: false, error: "تحتوي القائمة على عادة غير متاحة." };
+  const notes = String(input?.notes || "").trim();
+  if (notes.length > 2000) return { ok: false, error: "الملاحظات يجب ألا تتجاوز 2000 حرف." };
+  const status = input?.status || "active";
+  if (!["active", "completed", "archived"].includes(status)) return { ok: false, error: "حالة التركيز الأسبوعي غير صحيحة." };
+  return { ok: true, value: { ...input, title, startDate, endDate, habitIds, notes, status } };
+}
+
+export function weeklyFocusProgress(focus, logs, habits) {
+  const ids = new Set(focus?.habitIds || []);
+  const byId = new Map((habits || []).map(h => [h.id, h]));
+  const focusHabits = [...ids].map(id => byId.get(id)).filter(h => h && !h.deleted_at);
+  const relevant = (logs || []).filter(log => !log.deleted_at && ids.has(log.habitId) && log.localDate >= focus.startDate && log.localDate <= focus.endDate);
+  const done = relevant.filter(log => log.status === "done").length;
+  const partial = relevant.filter(log => log.status === "partial").length;
+  const scheduledDays = focusHabits.reduce((sum, habit) => {
+    const from = focus.startDate < (habit.created_at || focus.startDate).slice(0,10) ? (habit.created_at || focus.startDate).slice(0,10) : focus.startDate;
+    if (from > focus.endDate || habit.status === "archived") return sum;
+    let count = 0;
+    for (let day = from; day <= focus.endDate; day = shiftDate(day, 1)) if (isHabitScheduledOn(habit, day)) count++;
+    return sum + count;
+  }, 0);
+  const completedScheduled = focusHabits.reduce((sum, habit) => {
+    let count = 0;
+    for (let day = focus.startDate; day <= focus.endDate; day = shiftDate(day, 1)) {
+      if (!isHabitScheduledOn(habit, day)) continue;
+      if (relevant.some(log => log.habitId === habit.id && log.localDate === day && log.status === "done")) count++;
+    }
+    return sum + count;
+  }, 0);
+  return { habitCount: focusHabits.length, logCount: relevant.length, done, partial, scheduledDays, completedScheduled, completionPercent: scheduledDays ? Math.round(completedScheduled / scheduledDays * 100) : 0 };
+}
+
+export function habitAchievements(habits, logs, relapses, books, readingSessions, asOfDate) {
+  const safeHabits = (habits || []).filter(h => !h.deleted_at);
+  const safeLogs = (logs || []).filter(l => !l.deleted_at && l.localDate <= asOfDate);
+  const safeRelapses = (relapses || []).filter(r => !r.deleted_at && r.localDate <= asOfDate);
+  const safeBooks = (books || []).filter(b => !b.deleted_at);
+  const safeReading = (readingSessions || []).filter(s => !s.deleted_at && s.localDate <= asOfDate);
+  const doneLogs = safeLogs.filter(l => l.status === "done");
+  const result = [];
+  const add = (id, title, description, earned, progress, target, icon) => result.push({ id, title, description, earned, progress: Math.min(progress, target), target, icon, percent: Math.min(100, Math.round(progress / target * 100)) });
+  add("first-habit", "بداية جديدة", "أنشأت أول عادة في نظامك.", safeHabits.length > 0 ? 1 : 0, safeHabits.length > 0 ? 1 : 0, 1, "🌱");
+  add("first-log", "أول خطوة", "سجّلت أول إنجاز لعادة.", doneLogs.length > 0 ? 1 : 0, doneLogs.length > 0 ? 1 : 0, 1, "👣");
+  add("ten-logs", "عشر خطوات", "أكملت 10 تسجيلات عادات.", doneLogs.length >= 10 ? 1 : 0, doneLogs.length, 10, "🔟");
+  add("fifty-logs", "ثبات يتراكم", "أكملت 50 تسجيلًا للعادات.", doneLogs.length >= 50 ? 1 : 0, doneLogs.length, 50, "🧱");
+  const bestStreak = safeHabits.reduce((max, habit) => Math.max(max, habitStreak(habit, safeLogs, asOfDate)), 0);
+  add("seven-streak", "أسبوع من الثبات", "حققت سلسلة من 7 أيام مجدولة متتالية.", bestStreak >= 7 ? 1 : 0, bestStreak, 7, "🔥");
+  add("thirty-streak", "شهر من الالتزام", "حققت سلسلة من 30 يومًا مجدولًا متتاليًا.", bestStreak >= 30 ? 1 : 0, bestStreak, 30, "🏅");
+  const completedBooks = safeBooks.filter(b => b.status === "completed").length;
+  add("first-book", "قارئ مستمر", "أكملت قراءة كتاب.", completedBooks > 0 ? 1 : 0, completedBooks, 1, "📚");
+  add("five-reading-sessions", "وقت للمعرفة", "سجلت 5 جلسات قراءة.", safeReading.length >= 5 ? 1 : 0, safeReading.length, 5, "📖");
+  const recoveryEvents = safeRelapses.length;
+  add("recovery-reflection", "وعي بالتعافي", "سجلت رغبة أو تعثرًا مع توثيق المحفز.", recoveryEvents > 0 ? 1 : 0, recoveryEvents > 0 ? 1 : 0, 1, "🛟");
+  return result;
+}
