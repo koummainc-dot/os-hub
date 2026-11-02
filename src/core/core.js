@@ -22,7 +22,6 @@ const OS_SYSTEMS=[
 {id:"projects",group:"work",scope:"shared",icon:"🚀",color:"#6366F1",name:"Projects OS",title:"المشاريع والمخرجات",status:"live",phase:"جاهز",sensitive:false,plan:"Projects_OS_v4_Unified_Master_Plan.md",
  desc:"المشاريع والمهام والمخرجات والمخاطر والأهداف (OKR) للفريق.",
  sections:osSec("dashboard:الرئيسية:⌂|today:اليوم:📅|week:هذا الأسبوع:🗓️|projects:المشاريع:📁|tasks:مهامي:✅|discovery:الاكتشاف:🔎|prds:المواصفات:📝|okrs:الأهداف (OKR):🎯|outputs:المخرجات:📦|risks:المخاطر والمشاكل والقرارات:⚠️|meetings:الاجتماعات:👥|updates:التحديثات:📣|wins:الإنجازات:🏆|reviews:المراجعات الأسبوعية:🔁|contacts:جهات الاتصال:📇|team:الفريق:🧑‍🤝‍🧑|templates:القوالب:🧩|settings:الإعدادات:⚙️")},
-{id:"habits",group:"life",scope:"personal",icon:"🌱",color:"#84CC16",name:"Habit OS",title:"العادات",status:"planned",phase:"المرحلة 2",sensitive:true,plan:"Habit_OS_v4_Unified_Master_Plan.md",
  desc:"مكتبة العادات والتسجيل السريع والسلاسل والأيام النظيفة والجورنال والكتب والتركيز الأسبوعي والإنجازات.",
  sections:osSec("dashboard:اليوم:◷|habits:العادات:🌿|logs:السجل اليومي:📒|relapses:التعافي:🛟|journal:الجورنال:✍️|books:الكتب والقراءة:📚|focus:التركيز الأسبوعي:🎯|achievements:الإنجازات:🏅|settings:الإعدادات والخصوصية:⚙️")},
 {id:"knowledge",group:"work",scope:"shared",icon:"🧠",color:"#0EA5E9",name:"Knowledge OS",title:"المعرفة والموارد",status:"live",phase:"جاهز",sensitive:false,plan:"Knowledge_OS_v4_Unified_Master_Plan.md",
