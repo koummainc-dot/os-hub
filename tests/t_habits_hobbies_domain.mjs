@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { validateHabit, validateHabitLog, habitSummary, isHabitScheduledOn, habitStreak, habitAdherence } from "../src/systems/hobbies/habit-domain.js";
+import { validateHabit, validateHabitLog, habitSummary, isHabitScheduledOn, habitStreak, habitAdherence, validateRelapse, daysSinceLastLapse, relapseSummary } from "../src/systems/hobbies/habit-domain.js";
 
 const habit = { id: "h1", name: "قراءة", type: "build", status: "active", trackingType: "quantity", target: 10, unit: "صفحة", scheduleDays: [0,1,2,3,4,5,6] };
 assert.equal(validateHabit(habit).ok, true);
@@ -47,4 +47,21 @@ const pausedHabit = { ...scheduledHabit, pausePeriods: [{ startDate: "2026-11-04
 assert.deepEqual(habitAdherence(pausedHabit, streakLogs, "2026-11-01", "2026-11-07"), {
   expectedDays: 1, completedDays: 1, rate: 100
 });
+
+const avoidanceHabit = { id: "avoid-1", name: "عدم التدخين", type: "avoid", status: "active", trackingType: "check", scheduleDays: [0,1,2,3,4,5,6] };
+const lapse = validateRelapse({ habitId: "avoid-1", localDate: "2026-10-30", eventType: "lapse", trigger: "ضغط العمل", intensity: 4, response: "خرجت للمشي", lesson: "أحتاج استراحة مبكرة", recoveryPlan: "أجهز بديلًا قبل الموقف" }, [avoidanceHabit]);
+assert.equal(lapse.ok, true);
+assert.equal(validateRelapse({ habitId: "avoid-1", localDate: "2026-11-02", eventType: "urge", trigger: "" }, [avoidanceHabit]).ok, false);
+assert.equal(validateRelapse({ habitId: "avoid-1", localDate: "2026-11-02", eventType: "lapse", trigger: "ضغط", intensity: 6 }, [avoidanceHabit]).ok, false);
+assert.equal(validateRelapse({ habitId: "h1", localDate: "2026-11-02", eventType: "lapse", trigger: "ضغط" }, [habit]).ok, false);
+const recoveryEvents = [
+  { id: "r1", habitId: "avoid-1", localDate: "2026-10-30", eventType: "lapse" },
+  { id: "r2", habitId: "avoid-1", localDate: "2026-11-01", eventType: "urge" },
+  { id: "r3", habitId: "avoid-1", localDate: "2026-10-01", eventType: "lapse" }
+];
+assert.equal(daysSinceLastLapse("avoid-1", recoveryEvents, "2026-11-02"), 3);
+assert.deepEqual(relapseSummary("avoid-1", recoveryEvents, "2026-11-02"), {
+  daysSinceLastLapse: 3, urgesRecorded30d: 1, lapsesRecorded30d: 1
+});
+
 console.log("Unified Habits & Hobbies domain tests passed.");
