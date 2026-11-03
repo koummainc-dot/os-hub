@@ -7,7 +7,7 @@ const core=fs.readFileSync("src/core/core.js","utf8");
 const migration=fs.readFileSync("supabase/migrations/20261103141026_health_os_h3_medications_flare_events.sql","utf8");
 const fix=fs.readFileSync("supabase/migrations/20261103141038_health_os_h3_integrity_fix.sql","utf8");
 
-assert.ok(core.includes('phase:"H3 · الأدوية والعلاجات والنوبات"') && core.includes('medications:الأدوية والعلاجات:💊|flare_events:نوبات التهيّج:🌡️'),"H3 sections must be registered");
+assert.ok(core.includes('phase:"H4 · المتابعة اليومية والعوامل"') && core.includes('medications:الأدوية والعلاجات:💊|flare_events:نوبات التهيّج:🌡️'),"H3 sections must be registered");
 assert.match(ui,/page === "medications"/,"Medication screen must exist");
 assert.match(ui,/page === "flare_events"/,"Flare screen must exist");
 for(const method of ["listMedications","listMedicationVersions","listMedicationEvents","listMedicationSideEffects","listMedicationReminders","createMedication","updateMedication","createMedicationVersion","createMedicationEvent","updateMedicationEvent","deleteMedicationEvent","createMedicationSideEffect","updateMedicationSideEffect","deleteMedicationSideEffect","createMedicationReminder","updateMedicationReminder","deleteMedicationReminder","listFlareEvents","createFlareEvent","updateFlareEvent","deleteFlareEvent"]) {
