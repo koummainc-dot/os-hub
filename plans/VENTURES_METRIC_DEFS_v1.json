@@ -1,0 +1,4176 @@
+{
+ "schema": "ventures.metric_defs.v1",
+ "note": "Seed for ventures metric definitions. Keys repeat across templates when meaning differs (e.g. mrr in app vs digital); resolve by (template, key). Derived values are never stored.",
+ "defs": [
+  {
+   "key": "revenue",
+   "label_ar": "الإيراد",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "المالية",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "cogs",
+   "label_ar": "تكلفة البضاعة/الخدمة (COGS)",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "المالية",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "gross_profit",
+   "label_ar": "الربح الإجمالي",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "revenue − cogs",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "المالية",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "gross_margin_pct",
+   "label_ar": "هامش الربح الإجمالي",
+   "unit": "%",
+   "type": "derived",
+   "formula": "gross_profit ÷ revenue",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "المالية",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "opex",
+   "label_ar": "مصاريف التشغيل",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المالية",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "marketing_spend",
+   "label_ar": "مصاريف التسويق",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "المالية",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "net_profit",
+   "label_ar": "صافي الربح",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "gross_profit − opex − marketing_spend 🛠️ (انتبه: لا تُدخل التسويق مرتين)",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "المالية",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "cash_flow",
+   "label_ar": "التدفق النقدي",
+   "unit": "ج",
+   "type": "input",
+   "formula": "يُدخل أو يُربط لاحقًا بـ Finance OS",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "المالية",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "receivables",
+   "label_ar": "الذمم",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المالية",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "taxes_fees",
+   "label_ar": "الضرائب/الرسوم",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المالية",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "orders",
+   "label_ar": "عدد الطلبات/المعاملات",
+   "unit": "#",
+   "type": "input",
+   "formula": "مدخل مساعد للحسابات",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "العملاء",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "new_customers",
+   "label_ar": "عملاء جدد",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "العملاء",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "repeat_customers",
+   "label_ar": "عملاء متكررون",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "العملاء",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "aov",
+   "label_ar": "متوسط قيمة الطلب AOV",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "revenue ÷ orders",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "العملاء",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "cac",
+   "label_ar": "تكلفة اكتساب العميل CAC",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "marketing_spend ÷ new_customers",
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "العملاء",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "ltv",
+   "label_ar": "قيمة العميل LTV",
+   "unit": "ج",
+   "type": "input",
+   "formula": "تُدخل حسب نموذج عملك (لا تُحسب تلقائيًا)",
+   "frequency": "quarterly",
+   "better": "higher",
+   "domain_ar": "العملاء",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "ltv_cac",
+   "label_ar": "LTV ÷ CAC",
+   "unit": "×",
+   "type": "derived",
+   "formula": "ltv ÷ cac — الحكم عليها حسب نموذج العمل",
+   "frequency": "quarterly",
+   "better": "higher",
+   "domain_ar": "العملاء",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "repeat_rate",
+   "label_ar": "معدل الشراء المتكرر",
+   "unit": "%",
+   "type": "derived",
+   "formula": "repeat_customers ÷ (new_customers + repeat_customers) 🛠️",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "العملاء",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "complaints",
+   "label_ar": "الشكاوى",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "العملاء",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "rating_avg",
+   "label_ar": "متوسط التقييمات",
+   "unit": "1–5",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "العملاء",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "sessions",
+   "label_ar": "الجلسات/الزيارات",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التسويق",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "top_sources",
+   "label_ar": "أهم المصادر",
+   "unit": "نص",
+   "type": "text_or_table",
+   "formula": "من جدول المصادر أو نص",
+   "frequency": "weekly",
+   "better": "none",
+   "domain_ar": "التسويق",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "cvr",
+   "label_ar": "معدل التحويل CVR",
+   "unit": "%",
+   "type": "derived",
+   "formula": "orders ÷ sessions",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التسويق",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "ad_spend",
+   "label_ar": "مصاريف الإعلانات",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التسويق",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "ad_revenue",
+   "label_ar": "الإيراد المنسوب للإعلانات",
+   "unit": "ج",
+   "type": "input",
+   "formula": "مدخل مساعد لحساب ROAS 🛠️",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التسويق",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "roas",
+   "label_ar": "ROAS",
+   "unit": "×",
+   "type": "derived",
+   "formula": "ad_revenue ÷ ad_spend",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التسويق",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "mer",
+   "label_ar": "MER",
+   "unit": "×",
+   "type": "derived",
+   "formula": "revenue ÷ marketing_spend",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التسويق",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "leads",
+   "label_ar": "عدد الليدز",
+   "unit": "#",
+   "type": "input",
+   "formula": "للخدمات/المدونات",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التسويق",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "cost_per_lead",
+   "label_ar": "تكلفة الليد",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "marketing_spend ÷ leads",
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التسويق",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "email_sms_revenue",
+   "label_ar": "إيراد الإيميل/SMS",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "التسويق",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "returns",
+   "label_ar": "المرتجعات",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "المنتج/الخدمة",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "return_rate",
+   "label_ar": "معدل المرتجعات",
+   "unit": "%",
+   "type": "derived",
+   "formula": "returns ÷ orders",
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "المنتج/الخدمة",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "quality_issues",
+   "label_ar": "مشاكل الجودة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "المنتج/الخدمة",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "stock_units",
+   "label_ar": "المخزون (وحدات)",
+   "unit": "#",
+   "type": "input",
+   "formula": "إن وُجد",
+   "frequency": "weekly",
+   "better": "none",
+   "domain_ar": "المنتج/الخدمة",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "fulfillment_days",
+   "label_ar": "مدة التنفيذ",
+   "unit": "يوم",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "المنتج/الخدمة",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "delays",
+   "label_ar": "التأخيرات",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التشغيل",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "errors",
+   "label_ar": "الأخطاء",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التشغيل",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "support_tickets",
+   "label_ar": "تذاكر الدعم",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التشغيل",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "avg_response_hours",
+   "label_ar": "متوسط وقت الرد",
+   "unit": "ساعة",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التشغيل",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "dep_platform",
+   "label_ar": "اعتماد على منصة واحدة",
+   "unit": "نعم/لا",
+   "type": "boolean",
+   "formula": null,
+   "frequency": "quarterly",
+   "better": "lower",
+   "domain_ar": "المخاطر",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "dep_supplier",
+   "label_ar": "اعتماد على مورد واحد",
+   "unit": "نعم/لا",
+   "type": "boolean",
+   "formula": null,
+   "frequency": "quarterly",
+   "better": "lower",
+   "domain_ar": "المخاطر",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "dep_ad_account",
+   "label_ar": "اعتماد على حساب إعلاني واحد",
+   "unit": "نعم/لا",
+   "type": "boolean",
+   "formula": null,
+   "frequency": "quarterly",
+   "better": "lower",
+   "domain_ar": "المخاطر",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "top_product_revenue",
+   "label_ar": "إيراد أكبر منتج",
+   "unit": "ج",
+   "type": "input",
+   "formula": "مدخل مساعد",
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "المخاطر",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "revenue_concentration_pct",
+   "label_ar": "تركّز الإيراد",
+   "unit": "%",
+   "type": "derived",
+   "formula": "top_product_revenue ÷ revenue",
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المخاطر",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "compliance_open",
+   "label_ar": "بنود امتثال مفتوحة",
+   "unit": "#",
+   "type": "derived",
+   "formula": "من وحدة الامتثال",
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المخاطر",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "ip_risk",
+   "label_ar": "خطر ملكية فكرية",
+   "unit": "نعم/لا",
+   "type": "boolean",
+   "formula": null,
+   "frequency": "quarterly",
+   "better": "lower",
+   "domain_ar": "المخاطر",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "owner",
+   "label_ar": "المالك",
+   "unit": "شخص",
+   "type": "text_or_table",
+   "formula": "من حقل Lead في المشروع",
+   "frequency": "none",
+   "better": "none",
+   "domain_ar": "المشروع نفسه",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "phase",
+   "label_ar": "المرحلة",
+   "unit": "قائمة",
+   "type": "text_or_table",
+   "formula": "من شجرة المهام",
+   "frequency": "none",
+   "better": "none",
+   "domain_ar": "المشروع نفسه",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "overdue_tasks",
+   "label_ar": "المهام المتأخرة",
+   "unit": "#",
+   "type": "derived",
+   "formula": "من المهام",
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "المشروع نفسه",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "blockers",
+   "label_ar": "العوائق",
+   "unit": "نص",
+   "type": "text_or_table",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "none",
+   "domain_ar": "المشروع نفسه",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "decision",
+   "label_ar": "القرار: Scale / Fix / Pause / Kill",
+   "unit": "قائمة",
+   "type": "text_or_table",
+   "formula": "سجل قرارات (§9)",
+   "frequency": "quarterly",
+   "better": "none",
+   "domain_ar": "المشروع نفسه",
+   "template": "COMMON",
+   "applies_to": [
+    "all"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "items_sold",
+   "label_ar": "عدد القطع المباعة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "المبيعات",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "items_per_order",
+   "label_ar": "قطع/طلب",
+   "unit": "#",
+   "type": "derived",
+   "formula": "items_sold ÷ orders",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "المبيعات",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "carts_created",
+   "label_ar": "سلال أُنشئت",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "none",
+   "domain_ar": "المبيعات",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "abandoned_cart_rate",
+   "label_ar": "معدل السلة المتروكة",
+   "unit": "%",
+   "type": "derived",
+   "formula": "1 − (orders ÷ carts_created)",
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "المبيعات",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "checkout_started",
+   "label_ar": "بدء الدفع",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "none",
+   "domain_ar": "المبيعات",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "checkout_completion_rate",
+   "label_ar": "معدل إتمام الدفع",
+   "unit": "%",
+   "type": "derived",
+   "formula": "orders ÷ checkout_started",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "المبيعات",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "shipping_cost",
+   "label_ar": "تكلفة الشحن",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الربحية",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "platform_fees",
+   "label_ar": "رسوم المنصة",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الربحية",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "payment_fees",
+   "label_ar": "رسوم الدفع",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الربحية",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "returns_value",
+   "label_ar": "قيمة المرتجعات",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الربحية",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "contribution_net",
+   "label_ar": "صافي المساهمة",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "revenue − cogs − shipping_cost − platform_fees − payment_fees − ad_spend − returns_value",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الربحية",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "contribution_per_order",
+   "label_ar": "صافي المساهمة لكل طلب",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "contribution_net ÷ orders",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الربحية",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "ctr",
+   "label_ar": "CTR",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التسويق",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "cpc",
+   "label_ar": "CPC",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التسويق",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "sessions_by_source",
+   "label_ar": "الجلسات حسب المصدر",
+   "unit": "جدول",
+   "type": "text_or_table",
+   "formula": "جدول فرعي: المصدر · الجلسات",
+   "frequency": "weekly",
+   "better": "none",
+   "domain_ar": "التسويق",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "campaign_performance",
+   "label_ar": "أداء الحملات",
+   "unit": "جدول",
+   "type": "text_or_table",
+   "formula": "جدول فرعي: الحملة · إنفاق · إيراد · ROAS",
+   "frequency": "weekly",
+   "better": "none",
+   "domain_ar": "التسويق",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "top_skus",
+   "label_ar": "أفضل 20 منتج/SKU",
+   "unit": "جدول",
+   "type": "derived",
+   "formula": "يُرتَّب تلقائيًا من جدول SKU حسب صافي المساهمة",
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "المنتج",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "losing_skus",
+   "label_ar": "المنتجات الخاسرة",
+   "unit": "#",
+   "type": "derived",
+   "formula": "عدد SKU صافي مساهمتها < 0",
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المنتج",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "return_rate_by_sku",
+   "label_ar": "معدل المرتجعات لكل منتج",
+   "unit": "%",
+   "type": "derived",
+   "formula": "من جدول SKU",
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المنتج",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "quality_complaints",
+   "label_ar": "شكاوى الجودة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "المنتج",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "return_reason",
+   "label_ar": "سبب الاسترجاع",
+   "unit": "جدول",
+   "type": "text_or_table",
+   "formula": "جدول فرعي: السبب · العدد",
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "العميل",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "prep_days",
+   "label_ar": "وقت التجهيز",
+   "unit": "يوم",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التشغيل",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "ship_days",
+   "label_ar": "وقت الشحن",
+   "unit": "يوم",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التشغيل",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "late_orders",
+   "label_ar": "طلبات متأخرة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التشغيل",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "late_orders_pct",
+   "label_ar": "نسبة الطلبات المتأخرة",
+   "unit": "%",
+   "type": "derived",
+   "formula": "late_orders ÷ orders",
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التشغيل",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "order_errors",
+   "label_ar": "أخطاء الطلب",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التشغيل",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "avg_daily_sales",
+   "label_ar": "متوسط البيع اليومي",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "none",
+   "domain_ar": "المخزون (اختياري)",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "stock_days",
+   "label_ar": "أيام المخزون",
+   "unit": "يوم",
+   "type": "derived",
+   "formula": "stock_units ÷ avg_daily_sales",
+   "frequency": "weekly",
+   "better": "none",
+   "domain_ar": "المخزون (اختياري)",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "units_sold",
+   "label_ar": "وحدات مباعة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "المخزون (اختياري)",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "sell_through",
+   "label_ar": "معدل البيع",
+   "unit": "%",
+   "type": "derived",
+   "formula": "units_sold ÷ (units_sold + stock_units) 🛠️",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "المخزون (اختياري)",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "dead_stock_units",
+   "label_ar": "مخزون ميت",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المخزون (اختياري)",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "stockouts",
+   "label_ar": "حالات نقص المخزون",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "المخزون (اختياري)",
+   "template": "STORE",
+   "applies_to": [
+    "store"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "supplier_prep_days",
+   "label_ar": "مدة تجهيز المورد",
+   "unit": "يوم",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "أداء المورد",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "supplier_ship_days",
+   "label_ar": "مدة شحن المورد",
+   "unit": "يوم",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "أداء المورد",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "supplier_late_pct",
+   "label_ar": "نسبة تأخر المورد",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "أداء المورد",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "supplier_error_pct",
+   "label_ar": "نسبة أخطاء المورد",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "أداء المورد",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "supplier_cancel_pct",
+   "label_ar": "نسبة الإلغاء",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "أداء المورد",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "product_rating",
+   "label_ar": "تقييم المنتج",
+   "unit": "1–5",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "جودة المنتج",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "chargebacks",
+   "label_ar": "Chargebacks",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "النزاعات المالية",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "disputes",
+   "label_ar": "النزاعات",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "النزاعات المالية",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "refunds_value",
+   "label_ar": "قيمة الاستردادات",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "النزاعات المالية",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "refund_pct",
+   "label_ar": "نسبة الاسترداد",
+   "unit": "%",
+   "type": "derived",
+   "formula": "refunds_value ÷ revenue",
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "النزاعات المالية",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "oos_errors",
+   "label_ar": "أخطاء نفاد المخزون",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "مزامنة المخزون",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "unfulfilled_orders",
+   "label_ar": "طلبات لم تُنفَّذ",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "مزامنة المخزون",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "price_mismatch",
+   "label_ar": "اختلاف السعر",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "مزامنة المخزون",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "products_tested",
+   "label_ar": "منتجات مختبرة",
+   "unit": "#",
+   "type": "input",
+   "formula": "معدل الاختبار",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "أداء المنتج",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "winning_products",
+   "label_ar": "منتجات رابحة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "أداء المنتج",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "winner_rate",
+   "label_ar": "نسبة المنتجات الرابحة",
+   "unit": "%",
+   "type": "derived",
+   "formula": "winning_products ÷ products_tested",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "أداء المنتج",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "top_supplier_revenue",
+   "label_ar": "إيراد أكبر مورد",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "الاعتماد",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "top_supplier_share_pct",
+   "label_ar": "نسبة الإيراد من مورد واحد",
+   "unit": "%",
+   "type": "derived",
+   "formula": "top_supplier_revenue ÷ revenue",
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الاعتماد",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "top_product_share_pct",
+   "label_ar": "نسبة الإيراد من منتج واحد",
+   "unit": "%",
+   "type": "derived",
+   "formula": "top_product_revenue ÷ revenue",
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الاعتماد",
+   "template": "DROP",
+   "applies_to": [
+    "store:dropship"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "design_sales",
+   "label_ar": "مبيعات كل تصميم",
+   "unit": "جدول",
+   "type": "derived",
+   "formula": "جدول التصاميم: التصميم · مبيعات · CTR · CVR",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "أداء التصميم",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "best_design",
+   "label_ar": "أفضل تصميم/منتج",
+   "unit": "نص",
+   "type": "derived",
+   "formula": "أعلى هامش",
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "أداء التصميم",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "blank_cost",
+   "label_ar": "تكلفة القطعة الفارغة",
+   "unit": "ج",
+   "type": "input",
+   "formula": "لكل SKU",
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الهوامش",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "print_cost",
+   "label_ar": "تكلفة الطباعة",
+   "unit": "ج",
+   "type": "input",
+   "formula": "لكل SKU",
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الهوامش",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "pod_shipping",
+   "label_ar": "الشحن",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الهوامش",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "design_margin",
+   "label_ar": "هامش كل تصميم/مقاس/لون",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "sell_price − blank_cost − print_cost − pod_shipping − رسوم",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الهوامش",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "print_complaints",
+   "label_ar": "شكاوى الطباعة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الجودة",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "defects",
+   "label_ar": "العيوب",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الجودة",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "replacements",
+   "label_ar": "المرتجعات/الاستبدال",
+   "unit": "#",
+   "type": "input",
+   "formula": "حسب المقاس أو اللون",
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الجودة",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "complaint_rate",
+   "label_ar": "معدل الشكاوى/الاستبدال",
+   "unit": "%",
+   "type": "derived",
+   "formula": "(print_complaints + replacements) ÷ orders 🛠️",
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الجودة",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "production_days",
+   "label_ar": "مدة الإنتاج",
+   "unit": "يوم",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الإنتاج",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "pod_ship_days",
+   "label_ar": "مدة الشحن",
+   "unit": "يوم",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الإنتاج",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "pod_late_orders",
+   "label_ar": "طلبات متأخرة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الإنتاج",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "seasonal_revenue",
+   "label_ar": "إيراد التصميمات الموسمية",
+   "unit": "ج",
+   "type": "input",
+   "formula": "وسم التصميم: عيد/ترند/موسم",
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "الموسمية",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "ip_flags",
+   "label_ar": "مخاطر حقوق الملكية",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المخاطر",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "copied_designs",
+   "label_ar": "تصميمات مقلدة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المخاطر",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "pod_supplier_share_pct",
+   "label_ar": "الاعتماد على مورّد POD",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "quarterly",
+   "better": "lower",
+   "domain_ar": "المخاطر",
+   "template": "POD",
+   "applies_to": [
+    "store:pod"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "product_views",
+   "label_ar": "زيارات صفحة المنتج",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "القمع",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "add_to_cart",
+   "label_ar": "إضافة للسلة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "القمع",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "purchases",
+   "label_ar": "إتمام الشراء",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "القمع",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "digital_cvr",
+   "label_ar": "معدل التحويل",
+   "unit": "%",
+   "type": "derived",
+   "formula": "purchases ÷ product_views",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "القمع",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "access_issues",
+   "label_ar": "مشاكل الوصول/التحميل",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التسليم",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "access_issue_rate",
+   "label_ar": "نسبة مشاكل الوصول",
+   "unit": "%",
+   "type": "derived",
+   "formula": "access_issues ÷ purchases",
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التسليم",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "resends",
+   "label_ar": "إعادة الإرسال",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التسليم",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "refunds",
+   "label_ar": "عدد الاستردادات",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الاسترداد",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "refund_rate",
+   "label_ar": "معدل الاسترداد",
+   "unit": "%",
+   "type": "derived",
+   "formula": "refunds ÷ purchases",
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الاسترداد",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "refund_reason",
+   "label_ar": "سبب الاسترداد",
+   "unit": "جدول",
+   "type": "text_or_table",
+   "formula": "جدول فرعي",
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "الاسترداد",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "disputes",
+   "label_ar": "النزاعات",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الاسترداد",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "upsell_orders",
+   "label_ar": "طلبات فيها Upsell/Bundle",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "القيمة",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "attach_rate",
+   "label_ar": "Upsell/Bundle attach rate",
+   "unit": "%",
+   "type": "derived",
+   "formula": "upsell_orders ÷ purchases",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "القيمة",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "emails_captured",
+   "label_ar": "إيميلات مكتسبة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "القيمة",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "piracy_incidents",
+   "label_ar": "قرصنة/تسريب",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الحماية",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "downloads_per_license",
+   "label_ar": "متوسط التحميلات/ترخيص",
+   "unit": "#",
+   "type": "input",
+   "formula": "إن أمكن",
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "الحماية",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "trials",
+   "label_ar": "بداية تجارب",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الاشتراكات (إن وجدت)",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "paid_from_trial",
+   "label_ar": "تحويل Trial → Paid",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الاشتراكات (إن وجدت)",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "trial_to_paid",
+   "label_ar": "نسبة Trial → Paid",
+   "unit": "%",
+   "type": "derived",
+   "formula": "paid_from_trial ÷ trials",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الاشتراكات (إن وجدت)",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "active_subs",
+   "label_ar": "مشتركون نشطون",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الاشتراكات (إن وجدت)",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "churned_subs",
+   "label_ar": "مشتركون ألغوا",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الاشتراكات (إن وجدت)",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "churn",
+   "label_ar": "Churn",
+   "unit": "%",
+   "type": "derived",
+   "formula": "churned_subs ÷ مشتركي بداية الفترة",
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الاشتراكات (إن وجدت)",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "mrr",
+   "label_ar": "MRR",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الاشتراكات (إن وجدت)",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "arpu",
+   "label_ar": "ARPU",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "mrr ÷ active_subs",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الاشتراكات (إن وجدت)",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "content_sessions",
+   "label_ar": "جلسات محتوى مؤدية للمنتج",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "المحتوى",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "purchases_from_content",
+   "label_ar": "مشتريات من المحتوى",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "المحتوى",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "content_to_product_cvr",
+   "label_ar": "تحويل المحتوى → المنتج",
+   "unit": "%",
+   "type": "derived",
+   "formula": "purchases_from_content ÷ content_sessions",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "المحتوى",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "net_revenue",
+   "label_ar": "صافي الإيراد بعد الرسوم والاسترداد",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "revenue − رسوم − refunds_value",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "المحتوى",
+   "template": "DIGI",
+   "applies_to": [
+    "store:digital"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "listing_views",
+   "label_ar": "مشاهدات صفحة المتجر",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الاكتساب",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "installs",
+   "label_ar": "التثبيتات",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الاكتساب",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "cpi",
+   "label_ar": "CPI",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "ad_spend ÷ installs_paid (إن لم يُدخَل installs_paid يُستخدم installs)",
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الاكتساب",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "listing_cvr",
+   "label_ar": "تحويل صفحة المتجر",
+   "unit": "%",
+   "type": "derived",
+   "formula": "installs ÷ listing_views",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الاكتساب",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "install_sources",
+   "label_ar": "مصادر التثبيت",
+   "unit": "جدول",
+   "type": "text_or_table",
+   "formula": "جدول فرعي",
+   "frequency": "weekly",
+   "better": "none",
+   "domain_ar": "الاكتساب",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "onboarding_completion",
+   "label_ar": "إتمام Onboarding",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التفعيل",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "first_session_rate",
+   "label_ar": "أول جلسة",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التفعيل",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "first_core_action_rate",
+   "label_ar": "أول إجراء أساسي",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التفعيل",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "step_dropoff",
+   "label_ar": "معدل الإسقاط لكل خطوة",
+   "unit": "جدول",
+   "type": "text_or_table",
+   "formula": "جدول فرعي: الخطوة · النسبة",
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التفعيل",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "d1",
+   "label_ar": "D1 Retention",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الاحتفاظ",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "d7",
+   "label_ar": "D7 Retention",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الاحتفاظ",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "d30",
+   "label_ar": "D30 Retention",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الاحتفاظ",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "dau",
+   "label_ar": "DAU",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الاحتفاظ",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "mau",
+   "label_ar": "MAU",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الاحتفاظ",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "stickiness",
+   "label_ar": "DAU ÷ MAU",
+   "unit": "%",
+   "type": "derived",
+   "formula": "dau ÷ mau",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الاحتفاظ",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "sessions_per_user",
+   "label_ar": "جلسات/مستخدم",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الاحتفاظ",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "session_minutes",
+   "label_ar": "مدة الجلسة",
+   "unit": "دقيقة",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الاحتفاظ",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "trial_starts",
+   "label_ar": "Trial start",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الإيراد",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "trial_to_paid_pct",
+   "label_ar": "Trial → Paid",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الإيراد",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "mrr",
+   "label_ar": "MRR",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الإيراد",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "arpu",
+   "label_ar": "ARPU",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الإيراد",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "churn",
+   "label_ar": "Churn",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الإيراد",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "refunds",
+   "label_ar": "Refunds",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الإيراد",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "paywall_views",
+   "label_ar": "مشاهدات Paywall",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "none",
+   "domain_ar": "الإيراد",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "paywall_cvr",
+   "label_ar": "Paywall CVR",
+   "unit": "%",
+   "type": "derived",
+   "formula": "مشتريات ÷ paywall_views",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الإيراد",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "core_feature_usage",
+   "label_ar": "استخدام الميزات الأساسية",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التفاعل",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "feature_adoption",
+   "label_ar": "Feature adoption",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "التفاعل",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "push_optin",
+   "label_ar": "Push opt-in",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "التفاعل",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "notification_open_rate",
+   "label_ar": "فتح الإشعارات",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "التفاعل",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "crash_free",
+   "label_ar": "Crash-free sessions",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "الجودة التقنية",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "anr_rate",
+   "label_ar": "ANR",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الجودة التقنية",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "api_errors",
+   "label_ar": "أخطاء API",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الجودة التقنية",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "load_ms",
+   "label_ar": "زمن التحميل",
+   "unit": "ms",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الجودة التقنية",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "release_perf",
+   "label_ar": "أداء الإصدارات",
+   "unit": "جدول",
+   "type": "text_or_table",
+   "formula": "جدول فرعي: الإصدار · Crash-free · تقييم",
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "الجودة التقنية",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "store_rating",
+   "label_ar": "التقييم",
+   "unit": "1–5",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "المتجر",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "reviews_count",
+   "label_ar": "المراجعات",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "المتجر",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "store_complaints",
+   "label_ar": "الشكاوى",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "المتجر",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "compliance_status",
+   "label_ar": "حالة الامتثال",
+   "unit": "قائمة",
+   "type": "text_or_table",
+   "formula": "ok / تحذير / مخالفة",
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "المتجر",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "privacy_policy_ok",
+   "label_ar": "سياسة الخصوصية سارية",
+   "unit": "نعم/لا",
+   "type": "boolean",
+   "formula": null,
+   "frequency": "quarterly",
+   "better": "higher",
+   "domain_ar": "المتجر",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "app_tickets",
+   "label_ar": "تذاكر",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الدعم",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "app_response_hours",
+   "label_ar": "وقت الرد",
+   "unit": "ساعة",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الدعم",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "cancel_reasons",
+   "label_ar": "أسباب الإلغاء",
+   "unit": "جدول",
+   "type": "text_or_table",
+   "formula": "جدول فرعي",
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "الدعم",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "dep_single_store",
+   "label_ar": "اعتماد على متجر واحد",
+   "unit": "نعم/لا",
+   "type": "boolean",
+   "formula": null,
+   "frequency": "quarterly",
+   "better": "lower",
+   "domain_ar": "المخاطر",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "policy_change",
+   "label_ar": "تغيير سياسات المتجر",
+   "unit": "نص",
+   "type": "text_or_table",
+   "formula": null,
+   "frequency": "quarterly",
+   "better": "none",
+   "domain_ar": "المخاطر",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "competitor_note",
+   "label_ar": "منافس جديد",
+   "unit": "نص",
+   "type": "text_or_table",
+   "formula": null,
+   "frequency": "quarterly",
+   "better": "none",
+   "domain_ar": "المخاطر",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "hosting_cost",
+   "label_ar": "تكلفة الاستضافة",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المخاطر",
+   "template": "APP",
+   "applies_to": [
+    "app"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "organic_sessions",
+   "label_ar": "جلسات عضوية",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "النمو العضوي",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "qualified_organic_sessions",
+   "label_ar": "جلسات عضوية مؤهلة",
+   "unit": "#",
+   "type": "input",
+   "formula": "ما تعدّه أنت مؤهلًا (دولة/نية)",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "النمو العضوي",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "indexed_pages",
+   "label_ar": "صفحات مفهرسة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "النمو العضوي",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "kw_top3",
+   "label_ar": "كلمات في Top 3",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "النمو العضوي",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "kw_top10",
+   "label_ar": "كلمات في Top 10",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "النمو العضوي",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "avg_position",
+   "label_ar": "متوسط الترتيب",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "النمو العضوي",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "organic_ctr",
+   "label_ar": "CTR",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "النمو العضوي",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "articles_published",
+   "label_ar": "مقالات منشورة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "المحتوى",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "article_performance",
+   "label_ar": "أداء كل مقال",
+   "unit": "جدول",
+   "type": "text_or_table",
+   "formula": "جدول المقالات: عنوان · جلسات · إيراد · آخر تحديث",
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "المحتوى",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "decaying_articles",
+   "label_ar": "محتوى متهاوٍ (Decay)",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المحتوى",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "refresh_opportunities",
+   "label_ar": "فرص التحديث",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "المحتوى",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "read_time",
+   "label_ar": "وقت القراءة",
+   "unit": "ثانية",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التفاعل",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "scroll_depth",
+   "label_ar": "Scroll depth",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التفاعل",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "engagement_rate",
+   "label_ar": "Engagement",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التفاعل",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "bounce_rate",
+   "label_ar": "Bounce",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التفاعل",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "pages_per_session",
+   "label_ar": "صفحات/جلسة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التفاعل",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "email_signups",
+   "label_ar": "تسجيل الإيميل",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التحويل",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "leadmagnet_downloads",
+   "label_ar": "تحميل Lead magnet",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التحويل",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "affiliate_clicks",
+   "label_ar": "نقرات أفلييت",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "التحويل",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "product_conversions",
+   "label_ar": "تحويلات لمنتج/خدمة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "التحويل",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "ad_revenue_blog",
+   "label_ar": "إيراد إعلانات",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الإيراد",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "rpm",
+   "label_ar": "RPM",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "ad_revenue_blog ÷ sessions × 1000",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الإيراد",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "affiliate_revenue",
+   "label_ar": "إيراد أفلييت",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الإيراد",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "epc",
+   "label_ar": "EPC",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "affiliate_revenue ÷ affiliate_clicks",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الإيراد",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "product_revenue",
+   "label_ar": "إيراد منتجات",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الإيراد",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "sponsorship_revenue",
+   "label_ar": "إيراد رعاية",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الإيراد",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "rev_per_1000",
+   "label_ar": "الإيراد لكل 1000 جلسة",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "revenue ÷ sessions × 1000",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الإيراد",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "cwv_pass_pct",
+   "label_ar": "Core Web Vitals (نسبة الصفحات الناجحة)",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "SEO تقني",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "page_speed",
+   "label_ar": "سرعة الصفحة",
+   "unit": "ث",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "SEO تقني",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "indexing_errors",
+   "label_ar": "أخطاء الفهرسة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "SEO تقني",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "internal_links",
+   "label_ar": "الروابط الداخلية",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "SEO تقني",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "backlinks",
+   "label_ar": "Backlinks",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "SEO تقني",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "dup_ai_content",
+   "label_ar": "محتوى AI مكرر",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المخاطر",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "cannibalization",
+   "label_ar": "حالات Cannibalization",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المخاطر",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "top_keyword_share",
+   "label_ar": "اعتماد على كلمة واحدة",
+   "unit": "%",
+   "type": "input",
+   "formula": "نسبة الجلسات من أكبر كلمة",
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المخاطر",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "core_update_note",
+   "label_ar": "تأثير تحديثات جوجل",
+   "unit": "نص",
+   "type": "text_or_table",
+   "formula": null,
+   "frequency": "quarterly",
+   "better": "none",
+   "domain_ar": "المخاطر",
+   "template": "BLOG",
+   "applies_to": [
+    "blog"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "footfall",
+   "label_ar": "الزوار Footfall",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "daily",
+   "better": "higher",
+   "domain_ar": "المبيعات",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "transactions",
+   "label_ar": "عدد الفواتير",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "daily",
+   "better": "higher",
+   "domain_ar": "المبيعات",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "offline_cvr",
+   "label_ar": "معدل التحويل",
+   "unit": "%",
+   "type": "derived",
+   "formula": "transactions ÷ footfall",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "المبيعات",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "units_per_invoice",
+   "label_ar": "قطع/فاتورة",
+   "unit": "#",
+   "type": "derived",
+   "formula": "items_sold ÷ transactions",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "المبيعات",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "variant_sales",
+   "label_ar": "مبيعات كل تصميم/مقاس/لون",
+   "unit": "جدول",
+   "type": "text_or_table",
+   "formula": "جدول SKU",
+   "frequency": "weekly",
+   "better": "none",
+   "domain_ar": "المنتج",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "sell_through_o",
+   "label_ar": "Sell-through",
+   "unit": "%",
+   "type": "derived",
+   "formula": "units_sold ÷ (units_sold + stock_units)",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "المنتج",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "dead_stock_o",
+   "label_ar": "مخزون ميت",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المنتج",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "stock_days_o",
+   "label_ar": "أيام المخزون",
+   "unit": "يوم",
+   "type": "derived",
+   "formula": "stock_units ÷ avg_daily_sales",
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "المنتج",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "unit_cost",
+   "label_ar": "تكلفة القطعة",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الربحية",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "print_cost_o",
+   "label_ar": "الطباعة",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الربحية",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "rent",
+   "label_ar": "الإيجار",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الربحية",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "payroll",
+   "label_ar": "الرواتب",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الربحية",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "area_sqm",
+   "label_ar": "المساحة (م²)",
+   "unit": "م²",
+   "type": "input",
+   "formula": "ثابت للفرع",
+   "frequency": "none",
+   "better": "none",
+   "domain_ar": "الربحية",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "contribution_margin",
+   "label_ar": "هامش المساهمة",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "revenue − cogs − print_cost_o − رسوم متغيّرة 🛠️",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الربحية",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "contribution_per_sqm",
+   "label_ar": "هامش المساهمة لكل م²",
+   "unit": "ج/م²",
+   "type": "derived",
+   "formula": "contribution_margin ÷ area_sqm",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الربحية",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "returns_exchanges",
+   "label_ar": "المرتجعات/الاستبدال",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الجودة",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "defects_o",
+   "label_ar": "العيوب",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الجودة",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "complaints_o",
+   "label_ar": "الشكاوى",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "الجودة",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "inventory_accuracy",
+   "label_ar": "دقة المخزون",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "التشغيل",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "count_variance",
+   "label_ar": "فرق الجرد",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "التشغيل",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "shrinkage",
+   "label_ar": "الفاقد",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "التشغيل",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "prep_time_o",
+   "label_ar": "وقت التجهيز",
+   "unit": "دقيقة",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "التشغيل",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "offers_run",
+   "label_ar": "العروض المنفّذة",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "التسويق المحلي",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "referrals",
+   "label_ar": "الإحالات",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "التسويق المحلي",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "local_social_reach",
+   "label_ar": "سوشيال محلي (وصول)",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "التسويق المحلي",
+   "template": "O01",
+   "applies_to": [
+    "offline:apparel"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "footfall",
+   "label_ar": "Footfall",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "daily",
+   "better": "higher",
+   "domain_ar": "المبيعات",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "transactions",
+   "label_ar": "عدد الفواتير",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "daily",
+   "better": "higher",
+   "domain_ar": "المبيعات",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "offline_cvr",
+   "label_ar": "Conversion",
+   "unit": "%",
+   "type": "derived",
+   "formula": "transactions ÷ footfall",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "المبيعات",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "basket_size",
+   "label_ar": "Basket size (قطع/فاتورة)",
+   "unit": "#",
+   "type": "derived",
+   "formula": "items_sold ÷ transactions",
+   "frequency": "weekly",
+   "better": "higher",
+   "domain_ar": "المبيعات",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "inventory_value_avg",
+   "label_ar": "متوسط قيمة المخزون",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "المخزون",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "inventory_turnover",
+   "label_ar": "معدل دوران المخزون",
+   "unit": "×",
+   "type": "derived",
+   "formula": "cogs ÷ inventory_value_avg",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "المخزون",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "days_cover",
+   "label_ar": "أيام التغطية",
+   "unit": "يوم",
+   "type": "derived",
+   "formula": "inventory_value_avg ÷ (cogs ÷ أيام الفترة)",
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "المخزون",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "slow_skus",
+   "label_ar": "SKU بطيء",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المخزون",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "shrinkage_pct",
+   "label_ar": "الفاقد Shrinkage",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "المخزون",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "count_accuracy",
+   "label_ar": "دقة الجرد",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "المخزون",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "sku_margin",
+   "label_ar": "هامش كل SKU",
+   "unit": "جدول",
+   "type": "derived",
+   "formula": "من جدول SKU",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الربحية",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "branch_profit",
+   "label_ar": "ربحية الفرع",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "gross_profit − opex",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الربحية",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "branch_contribution",
+   "label_ar": "هامش مساهمة الفرع",
+   "unit": "ج",
+   "type": "derived",
+   "formula": "gross_profit − تكاليف الفرع المباشرة",
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الربحية",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "repeat_o",
+   "label_ar": "تكرار الشراء",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "العملاء",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "new_o",
+   "label_ar": "عملاء جدد",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "العملاء",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "complaints_o",
+   "label_ar": "شكاوى",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "العملاء",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "returns_o",
+   "label_ar": "مرتجعات",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "lower",
+   "domain_ar": "العملاء",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "supplier_lead_days",
+   "label_ar": "مدة التوريد",
+   "unit": "يوم",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "الموردون",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "supplier_compliance",
+   "label_ar": "الالتزام",
+   "unit": "%",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الموردون",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "batch_quality",
+   "label_ar": "جودة الدفعات",
+   "unit": "1–5",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "higher",
+   "domain_ar": "الموردون",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "cash_on_hand",
+   "label_ar": "الكاش",
+   "unit": "ج",
+   "type": "input",
+   "formula": null,
+   "frequency": "daily",
+   "better": "none",
+   "domain_ar": "التشغيل",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "fin"
+  },
+  {
+   "key": "shifts",
+   "label_ar": "الورديات",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "weekly",
+   "better": "none",
+   "domain_ar": "التشغيل",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "staff_count",
+   "label_ar": "الموظفون",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "none",
+   "domain_ar": "التشغيل",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  },
+  {
+   "key": "shrink_ops",
+   "label_ar": "الفاقد التشغيلي",
+   "unit": "#",
+   "type": "input",
+   "formula": null,
+   "frequency": "monthly",
+   "better": "lower",
+   "domain_ar": "التشغيل",
+   "template": "O02",
+   "applies_to": [
+    "offline:general"
+   ],
+   "class": "ops"
+  }
+ ]
+}
