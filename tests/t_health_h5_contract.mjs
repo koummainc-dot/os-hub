@@ -16,7 +16,7 @@ assert.ok(component.includes('canRead("sensitive_trackers","read")'),"Sensitive 
 assert.ok(component.includes("window.print()"),"PDF output must use the browser print/save flow");
 assert.ok(component.includes('type:"text/csv;charset=utf-8"'),"CSV must be UTF-8");
 assert.ok(component.includes("source"),"Report rows must include data source metadata");
-assert.ok(component.includes("لا يُستنتج علاقة سببية"),"Analytics must not imply causation");
+assert.ok(component.includes("لا تُستنتج علاقة سببية"),"Analytics must not imply causation");
 assert.ok(component.includes("لا يتم استيراد أو نسخ الوجبات أو الماء أو التمارين"),"Nutrition and Sports records must not be duplicated");
 assert.ok(!component.includes("cycleEntries"),"Cycle records must not enter H5 reports");
 assert.ok(!component.includes("notes"),"Free-text clinical notes must not be exported");
