@@ -134,13 +134,25 @@ function TrialDetail({ trial, diaryEntries, reactions }) {
     }));
   const reactionEvents = reactions
     .filter(item => item.productId === trial.productId && item.dateStarted >= trial.startDate && item.dateStarted <= finish)
-    .map(item => ({
-      id: "reaction-" + item.id,
-      date: item.dateStarted,
-      type: "reaction",
-      title: "تفاعل مسجل — " + ({ mild: "خفيف", moderate: "متوسط", severe: "شديد" }[item.severity] || item.severity),
-      detail: (item.symptoms || []).join("، ") || "لم تسجل أعراض نصية",
-    }));
+    .flatMap(item => {
+      const events = [{
+        id: "reaction-" + item.id,
+        date: item.dateStarted,
+        type: "reaction",
+        title: "تفاعل مسجل — " + ({ mild: "خفيف", moderate: "متوسط", severe: "شديد" }[item.severity] || item.severity),
+        detail: (item.symptoms || []).join("، ") || "لم تسجل أعراض نصية",
+      }];
+      if (item.resolvedDate && item.resolvedDate >= trial.startDate && item.resolvedDate <= finish) {
+        events.push({
+          id: "reaction-resolved-" + item.id,
+          date: item.resolvedDate,
+          type: "reaction-resolved",
+          title: "تسجيل حل التفاعل",
+          detail: "حالة التفاعل الحالية: " + (item.status === "archived" ? "مؤرشف" : "محلول"),
+        });
+      }
+      return events;
+    });
   const lifecycleEvents = (trial.timelineEvents || []).map(item => ({
     id: item.id,
     date: item.date,
@@ -156,7 +168,7 @@ function TrialDetail({ trial, diaryEntries, reactions }) {
     {!events.length && <p style={{ color: C.muted, fontSize: 11 }}>لا توجد أحداث مسجلة في هذه الفترة.</p>}
     <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
       {events.map(event => <div key={event.id} style={{ display: "grid", gridTemplateColumns: "10px 1fr", gap: 8 }}>
-        <span style={{ width: 8, height: 8, borderRadius: 20, background: event.type === "reaction" ? C.warn : event.type === "diary" ? C.accent : C.ink, marginTop: 4 }} />
+        <span style={{ width: 8, height: 8, borderRadius: 20, background: event.type.startsWith("reaction") ? C.warn : event.type === "diary" ? C.accent : C.ink, marginTop: 4 }} />
         <div style={{ borderBottom: "1px solid " + C.line, paddingBottom: 7 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
             <b style={{ fontSize: 11 }}>{event.title}</b><span style={{ color: C.muted, fontSize: 10 }}>{event.date}</span>
