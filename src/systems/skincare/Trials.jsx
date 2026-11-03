@@ -102,7 +102,7 @@ export default function TrialsView({ trials, products, diaryEntries, reactions, 
               {selectedTrialId === trial.id ? "إخفاء تفاصيل التجربة" : "فتح تفاصيل التجربة والسجل الزمني"}
             </button>
           </div>
-          {selectedTrialId === trial.id && <TrialDetail trial={trial} diaryEntries={diaryEntries} reactions={reactions} />}
+          {selectedTrialId === trial.id && <TrialDetail trial={trial} diaryEntries={diaryEntries} reactions={reactions} summary={summary} />}
           {canEdit && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
             {trial.status === "planned" && <button type="button" style={btn()} disabled={busy} onClick={() => onTransition(trial, "running", {})}>بدء</button>}
             {trial.status === "running" && <button type="button" style={btn()} disabled={busy} onClick={() => onTransition(trial, "paused", {})}>إيقاف مؤقت</button>}
@@ -121,7 +121,7 @@ export default function TrialsView({ trials, products, diaryEntries, reactions, 
   </>;
 }
 
-function TrialDetail({ trial, diaryEntries, reactions }) {
+function TrialDetail({ trial, diaryEntries, reactions, summary }) {
   const finish = trial.endDate || today();
   const diaryEvents = diaryEntries
     .filter(entry => entry.date >= trial.startDate && entry.date <= finish)
@@ -163,8 +163,23 @@ function TrialDetail({ trial, diaryEntries, reactions }) {
   const events = [...lifecycleEvents, ...diaryEvents, ...reactionEvents]
     .sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.id.localeCompare(b.id));
   return <section style={{ background: C.white, border: "1px solid " + C.line, borderRadius: 10, padding: 11, marginTop: 10 }}>
+    <b style={{ fontSize: 12 }}>المقارنة حسب مراحل التجربة</b>
+    <div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>تُحسب المتوسطات من التقييمات الفعلية المسجلة في كل فترة، وتقارن بخط الأساس المحفوظ قبل البداية.</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 7, marginTop: 9 }}>
+      <PeriodMetric title="الأسبوع الأول" period={summary.firstWeek} />
+      <PeriodMetric title="الأسبوع الثاني" period={summary.secondWeek} />
+      <PeriodMetric title="آخر 7 أيام" period={summary.finalWeek} />
+    </div>
+    {summary.periodsOverlap && <div style={{ color: C.warn, fontSize: 10, marginTop: 7 }}>تتداخل فترة آخر 7 أيام مع الأسبوع الأول أو الثاني؛ لا تقارن هذه الفترات كعينات مستقلة.</div>}
+    {summary.concurrentTrialCount > 0 && <div style={{ background: C.soft, borderRadius: 8, padding: 9, marginTop: 8 }}>
+      <b style={{ fontSize: 11 }}>تجارب منتجات أخرى متزامنة ({summary.concurrentTrialCount})</b>
+      {summary.concurrentTrials.map(item => <div key={item.id} style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>{item.startDate} – {item.endDate || "مستمرة/غير محدد"} · {item.status}</div>)}
+    </div>}
+    <div style={{ color: C.muted, fontSize: 10, marginTop: 7 }}>توزيع شدة التفاعلات: خفيف {summary.reactionSeverityCounts.mild || 0} · متوسط {summary.reactionSeverityCounts.moderate || 0} · شديد {summary.reactionSeverityCounts.severe || 0}</div>
+    <div style={{ borderTop: "1px solid " + C.line, marginTop: 12, paddingTop: 11 }}>
     <b style={{ fontSize: 12 }}>السجل الزمني للتجربة</b>
     <div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>يعرض تغييرات حالة التجربة وإدخالات المفكرة والتفاعلات المسجلة خلال الفترة. لا يعني التزامن وجود علاقة سببية.</div>
+    </div>
     {!events.length && <p style={{ color: C.muted, fontSize: 11 }}>لا توجد أحداث مسجلة في هذه الفترة.</p>}
     <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
       {events.map(event => <div key={event.id} style={{ display: "grid", gridTemplateColumns: "10px 1fr", gap: 8 }}>
@@ -179,6 +194,19 @@ function TrialDetail({ trial, diaryEntries, reactions }) {
     </div>
     <div style={{ color: C.muted, fontSize: 10, marginTop: 8 }}>عدد الأحداث: {events.length} · إدخالات المفكرة: {diaryEvents.length} · التفاعلات: {reactionEvents.length}</div>
   </section>;
+}
+
+
+function PeriodMetric({ title, period }) {
+  const average = period.average == null ? "لا توجد تقييمات" : period.average.toFixed(2) + " / 5";
+  const delta = period.deltaFromBaseline == null ? "—" : (period.deltaFromBaseline > 0 ? "+" : "") + period.deltaFromBaseline.toFixed(2);
+  return <div style={{ border: "1px solid " + C.line, borderRadius: 9, padding: 9 }}>
+    <b style={{ fontSize: 11 }}>{title}</b>
+    <div style={{ color: C.muted, fontSize: 9, marginTop: 3 }}>{period.startDate} – {period.endDate}</div>
+    <div style={{ fontSize: 13, fontWeight: 750, marginTop: 7 }}>{average}</div>
+    <div style={{ color: C.muted, fontSize: 10, marginTop: 3 }}>{period.count} تقييم · {period.daysRecorded} أيام مسجلة</div>
+    <div style={{ color: C.muted, fontSize: 10, marginTop: 3 }}>الفرق عن خط الأساس: {delta}</div>
+  </div>;
 }
 
 
