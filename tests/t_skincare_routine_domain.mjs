@@ -12,6 +12,8 @@ assert.equal(validateRoutineStep({ productId: "p3" }, products).requiresConfirma
 assert.equal(validateRoutineStep({ productId: "p3", avoidConfirmed: true }, products).ok, true);
 assert.deepEqual(sortRoutineSteps([{ id: "a", category: "sunscreen" }, { id: "b", category: "cleanser" }]).map(x => x.id), ["b", "a"]);
 assert.equal(isRoutineDue({ status: "active", frequency: "selected_days", days: [1] }, new Date("2026-11-02T12:00:00")), true);
+assert.equal(isRoutineDue({ id: "r2", status: "active", frequency: "times_per_week", timesPerWeek: 1 }, new Date("2026-11-02T12:00:00"), []), true);
+assert.equal(isRoutineDue({ id: "r2", status: "active", frequency: "times_per_week", timesPerWeek: 1 }, new Date("2026-11-02T12:00:00"), [{ routineId: "r2", status: "done", date: "2026-11-02" }]), false);
 assert.equal(routineAdherence([{ status: "done" }, { status: "skipped" }], 2), 50);
 assert.equal(routineAdherence([], 0), null);
 assert.equal(routineLogId("r1", "2026-11-03", "s1"), "r1:2026-11-03:s1");
