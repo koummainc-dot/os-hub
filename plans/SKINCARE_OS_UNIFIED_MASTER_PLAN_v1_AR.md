@@ -298,3 +298,56 @@
 | S8 Acceptance/Release | لم تبدأ |
 
 **الخطوة التالية:** تنفيذ S0 على المستودع وقاعدة البيانات، ثم اعتماد تصميم التخزين والصلاحيات قبل إنشاء أي سجل إنتاجي أو إظهار أزرار غير موصولة.
+
+
+---
+
+## 10. تقرير فحص S0 — البنية الفعلية في المستودع وقاعدة البيانات
+
+> تاريخ الفحص: 2026-11-03. هذا القسم يسجل نتائج قراءة المستودع وقاعدة Supabase المتصلة. لم تُنفذ أي تغييرات على قاعدة البيانات في S0.
+
+### 10.1 نتائج مؤكدة
+
+1. **سجل الأنظمة المركزي موجود** في `src/core/core.js` باسم `OS_SYSTEMS`. النظام يعرّف `id/group/scope/icon/color/name/title/status/phase/sensitive/sections`. كما أن `osSections(sys)` يرجع الأقسام من تعريف النظام. لذلك إضافة Skincare تتطلب سجلًا واحدًا في هذا المصدر، لكن يجب تأجيله إلى حين وجود شاشة قابلة للتحميل حتى لا يظهر عنصر يفتح صفحة ناقصة.
+2. **عقد البيانات العام الحالي موجود** في `osMakeApi(wsId, systemId, part)` داخل `src/core/core.js`. هذا العقد يقرأ/يكتب `workspace_data` حسب workspace/system/part، ويحتفظ بنسخة `localStorage` كمسار fallback عند فشل القراءة. لا ينبغي استخدام هذا المسار وحده للبيانات الحساسة أو صور البشرة؛ فالـfallback المحلي ليس بديلًا عن RLS أو عزل الملفات.
+3. **جدول Record Store موجود فعليًا**: `public.workspace_records` ويحتوي: `workspace_id, system_id, collection, id, data (jsonb), deleted, updated_at, updated_by, visible_to`. جدول `workspace_data` موجود أيضًا، لكن وجوده لا يبرر تخزين النظام كله في blob واحد.
+4. **RLS مفعّل على workspace_records**، وسياسات القراءة/الإضافة/التعديل تعتمد على `ws_access_level(workspace_id, system_id, collection)` مع شرط `visible_to`. سياسة الحذف المباشر الحالية مقيدة بمالك الـworkspace؛ لذلك يجب أن يعتمد حذف سجلات Skincare في MVP على soft-delete عبر update إذا كان المستخدم محررًا غير مالك، أو يضاف مسار حذف مصرح به بعد مراجعة آلية Record Store. لا نفترض أن DELETE المباشر متاح لكل محرر.
+5. **عدد سجلات workspace_records وقت الفحص 49**، و`workspace_data` يحتوي سجلًا واحدًا. لا توجد جداول باسم skincare حتى الآن.
+6. **Buckets الحالية خاصة (private)**: `knowledge-attachments`, `sports-body-progress`, `health-documents`. توجد سياسات Storage منفصلة لهذه الأنظمة، ولا يوجد bucket أو policy لـSkincare.
+7. **Health OS يقدم نمطًا مناسبًا للبيانات الحساسة**: Repository مستقل، جداول ذات RLS، سجل تدقيق لا ينسخ التفاصيل السريرية الحساسة إلى metadata، وStorage خاص للوثائق. يمكن استعارة مبادئ الفصل والتدقيق، لا نسخ مخطط Health حرفيًا.
+8. **اختبارات المشروع** معرفة في `package.json` عبر `npm test`، وتضم اختبارات عقود وأنظمة كثيرة، لكن قراءة تعريف الأمر ليست تشغيلًا للاختبارات. لم يتم تشغيل build أو test في S0.
+9. **سجل migrations الفعلي** يتضمن أساس المنصة وRecords وميزات الأنظمة حتى migrations Health الحالية بتاريخ 2026-11-03؛ لم تُنشأ أي migration لـSkincare.
+
+### 10.2 قرارات معمارية بعد الفحص
+
+- يمكن أن تستخدم سجلات Skincare غير شديدة الحساسية `workspace_records` مع `system_id='skincare'` وcollection مستقلة لكل مجال، بعد فحص خريطة collection/section وآلية Record Store في ملفات التنفيذ.
+- لا يجوز وضع كل السجلات في collection واحدة إذا كان المطلوب صلاحيات مستقلة للأقسام. يجب أن تكون أسماء collections متوافقة مع مفاتيح الصلاحيات التي تقرؤها `ws_access_level`، وأن تختبر على مستوى RLS لا على مستوى إخفاء الواجهة فقط.
+- بيانات الملف الجلدي والمفكرة والتفاعلات والتجارب يجب أن تظل ضمن collections محددة الصلاحية، ولا تدمج في سجل مشترك واسع.
+- `cycle_phase` وملاحظات الحساسية/التفاعلات والصور تحتاج مراجعة خصوصية مستقلة. لا نعتمد على `visible_to` كبديل عن صلاحيات دقيقة، ولا نضع هذه الحقول في localStorage fallback.
+- صور التقدم تحتاج bucket خاصًا جديدًا مخصصًا لـSkincare، مع مسارات ذات prefix يثبت ملكية الـworkspace/المستخدم، وسياسات SELECT/INSERT/UPDATE/DELETE متطابقة في النطاق، وsigned URLs قصيرة العمر. لا نعيد استخدام bucket Health أو Sports ولا نضع الصور داخل JSONB.
+- يجب أن يتضمن سجل الصور metadata فقط (object path، النوع، الحجم، التاريخ، الربط)، بينما تبقى bytes في Storage. يلزم lifecycle يضمن حذف الملف المصغر والأصل معًا، مع معالجة orphaned objects.
+- قبل البناء الوظيفي يجب تحديد Record Store API الحقيقي ومصدره وطرق list/get/upsert/soft-delete/restore والـsubscription، وكذلك تحميل النظام في OSSystemHost. لم يظهر موضع تعريف `OSSystemHost` أو `useRecordStore` في نتائج البحث الحالية، لذلك هذه نقطة تحقق مفتوحة وليست مفترضة.
+
+### 10.3 فجوات S0 المتبقية قبل اعتماد مخطط التنفيذ
+
+1. تتبع تعريف Record Store وملفات تحميل الأنظمة/المضيف داخل المستودع، وتوثيق عقدها الفعلي بدل الاكتفاء بعقد `osMakeApi`.
+2. قراءة migration المنصة وmigration `collection_sections_map` لتوثيق جدول/دالة ربط collection بمستوى section، والتحقق هل يسمح بإضافة collections جديدة دون migration.
+3. مراجعة تعريف `ws_access_level` وسياسات `workspace_records` كاملة، خصوصًا الفرق بين مالك workspace والمحرر في update/delete/restore.
+4. فحص إعدادات bucket (الحد الأقصى للحجم وMIME types) عند إنشاء bucket Skincare، ثم كتابة سياسات عزل مستقلة واختبارات cross-workspace.
+5. تحديد سياسة الاحتفاظ والحذف للصور والنسخ المصغرة، وسجل تدقيق لا يتضمن أسماء منتجات أو وصف تفاعلات أو صورًا.
+6. تشغيل اختبارات المشروع وبناء التطبيق في بيئة التنفيذ المتاحة قبل اعتماد أي تغيير واجهة؛ لم يتم ذلك حتى الآن.
+
+### 10.4 حالة المرحلة
+
+- [x] قراءة سجل الأنظمة وواجهة البيانات العامة في `src/core/core.js`.
+- [x] قراءة `package.json` وتحديد أمر الاختبارات.
+- [x] فحص وجود `workspace_records` وحقوله وRLS policies.
+- [x] فحص buckets الحالية وسياسات Storage ذات الصلة.
+- [x] فحص migrations المسجلة وغياب جداول Skincare.
+- [ ] تحديد Record Store API ومضيف النظام بدقة.
+- [ ] اعتماد خريطة collection/section النهائية.
+- [ ] اعتماد تصميم Storage وصلاحيات الصور.
+- [ ] تشغيل build/tests baseline.
+- [ ] إغلاق S0 والانتقال إلى S1.
+
+**الحكم:** البنية الأساسية تسمح بدمج Skincare OS، لكن لا تزال هناك نقاط أمان وتكامل غير محسومة. لذلك لا نضيف النظام إلى القائمة ولا ننشئ جداول أو bucket في الإنتاج قبل إغلاق عناصر S0 المفتوحة أعلاه.
