@@ -1,0 +1,31 @@
+import fs from "node:fs";
+import assert from "node:assert/strict";
+
+const ui=fs.readFileSync("src/systems/health/index.jsx","utf8");
+const repository=fs.readFileSync("src/systems/health/repository.js","utf8");
+const core=fs.readFileSync("src/core/core.js","utf8");
+const migration=fs.readFileSync("supabase/migrations/20261103150000_health_h2_1_vital_measurements.sql","utf8");
+const hardening=fs.readFileSync("supabase/migrations/20261103150500_health_h2_1_measurement_audit_policy_hardening.sql","utf8");
+const plan=fs.readFileSync("plans/HEALTH_WELLNESS_OS_UNIFIED_MASTER_PLAN_v1_AR.md","utf8");
+
+assert.ok(ui.includes('const [measurements, setMeasurements] = useState([])'),"Measurements state must exist");
+assert.ok(ui.includes('healthRepository.listMeasurements(selected.id)'),"Measurements must reload from repository");
+assert.ok(ui.includes('page === "measurements"'),"Measurements route must render");
+assert.ok(ui.includes('["measurements","القياسات الحيوية"]'),"Measurements navigation must be visible");
+assert.ok(ui.includes('hasScopeAction("measurements"'),"UI must enforce measurements scopes");
+assert.ok(ui.includes("healthRepository.createMeasurement"),"Create flow must use repository");
+assert.ok(ui.includes("healthRepository.updateMeasurement"),"Update flow must use repository");
+assert.ok(ui.includes("healthRepository.deleteMeasurement"),"Delete flow must use repository");
+assert.ok(ui.includes("blood_pressure"),"Blood pressure must support systolic and diastolic values");
+assert.ok(ui.includes("مؤشر كتلة الجسم المحسوب"),"BMI must be derived rather than stored");
+assert.ok(repository.includes('from("health_measurements")'),"Repository must use the normalized measurements table");
+assert.ok(migration.includes("enable row level security"),"Measurements table must enable RLS");
+assert.ok(migration.includes("health_has_access(profile_id,'measurements'"),"Measurements must use the dedicated grant scope");
+for(const type of ["weight","height","blood_pressure","heart_rate","body_temperature","oxygen_saturation","respiratory_rate","waist_circumference","body_fat_percentage"])assert.ok(migration.includes("'"+type+"'"),"Missing measurement type "+type);
+assert.ok(migration.includes("health_measurements_value_unit_check"),"Database must validate value and unit per measurement type");
+assert.ok(hardening.includes("health_factor_log")&&hardening.includes("sensitive_trackers"),"Audit policy must preserve sensitive tracker scope");
+assert.ok(hardening.includes("health_measurements_guard"),"Measurement identity fields must be immutable");
+assert.ok(core.includes("measurements:القياسات الحيوية:📏"),"Core OS must register the measurements section");
+assert.ok(plan.includes("H2.1 — القياسات الحيوية والجسمية"),"Master plan must document H2.1");
+assert.ok(plan.includes("H2.2 — مخطط الجسم (مفتوح)")&&plan.includes("H2.3 — البحث الصحي الموحّد (مفتوح)")&&plan.includes("H2.4 — الخط الزمني الصحي (مفتوح)"),"Remaining H2 gaps must remain tracked");
+console.log("Health H2.1 measurements contract checks passed.");
