@@ -9,7 +9,8 @@ const plan=fs.readFileSync("plans/HEALTH_WELLNESS_OS_UNIFIED_MASTER_PLAN_v1_AR.m
 assert.ok(ui.includes('import HealthAnalytics from "./HealthAnalytics.jsx"'),"H5 component must be integrated");
 assert.ok(ui.includes('page === "reports"'),"Reports route must render");
 assert.ok(ui.includes('["reports","التقارير"]'),"Reports navigation must be visible");
-assert.ok(core.includes('phase:"H5 · التحليلات والتقارير"'),"H5 must be the active phase");
+assert.ok(core.includes('phase:"H2.1 · القياسات الحيوية"'),"H2.1 is the active Health phase");
+assert.ok(core.includes("reports:التقارير الصحية:📊"),"Previously completed H5 reports must remain registered");
 assert.ok(core.includes("reports:التقارير الصحية:📊"),"H5 section must be registered in OS navigation");
 assert.ok(component.includes('canRead("reports","read")'),"Reports must require explicit reports read scope");
 assert.ok(component.includes('canRead("sensitive_trackers","read")'),"Sensitive factors must require the separate sensitive scope");
