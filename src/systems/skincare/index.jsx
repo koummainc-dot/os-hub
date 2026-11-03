@@ -28,15 +28,15 @@ const SECTIONS = [
   ["units", "العبوات", "📦"],
   ["routines", "الروتين", "🗓️"],
 ];
-const EMPTY_PRODUCT = { name: "", brand: "", category: "other", status: "active", startDate: "", expiryDate: "", ingredients: "", instructions: "", notes: "" };
+const EMPTY_PRODUCT = { name: "", brand: "", category: "other", status: "active", suitability: "suitable", startDate: "", expiryDate: "", ingredients: "", instructions: "", notes: "" };
 const EMPTY_UNIT = { name: "", productId: "", openedOn: today(), expiresOn: "", notes: "" };
 
 export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home", setPage = () => {}, shell }) {
   const store = useRecordStore({ wsId: ws?.id || "demo", systemId: "skincare", isDemo, demoStore: demoStore || { current: {} }, seed: () => ({}) , onToast: message => shell?.toast?.(message) });
   const products = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.products)), [store.recs]);
   const units = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.units)), [store.recs]);
-  const routines = useMemo(() => live(arr(store.recs, "skin_routines")), [store.recs]);
-  const routineLogs = useMemo(() => live(arr(store.recs, "skin_routine_logs")), [store.recs]);
+  const routines = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.routines)), [store.recs]);
+  const routineLogs = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.routineLogs)), [store.recs]);
   const deletedProducts = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.products).filter(x => x.deleted_at), [store.recs]);
   const deletedUnits = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.units).filter(x => x.deleted_at), [store.recs]);
   const profile = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.profile).find(x => x.id === "profile") || null, [store.recs]);
@@ -113,15 +113,16 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     if (!checked.ok) return say(checked.error);
     setBusy(true);
     try {
-      const saved = await store.api.put("skin_routines", { ...checked.value, id: routine.id || uid(), updatedAt: new Date().toISOString() });
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.routines, { ...checked.value, id: routine.id || uid(), updatedAt: new Date().toISOString() });
       if (!saved) throw new Error("لم يؤكد النظام حفظ الروتين.");
       say(routine.id ? "تم تحديث الروتين." : "تم إنشاء الروتين.");
-    } catch (error) { say(error?.message || "تعذر حفظ الروتين."); }
+      return true;
+    } catch (error) { say(error?.message || "تعذر حفظ الروتين."); return false; }
     finally { setBusy(false); }
   };
   const toggleRoutine = async routine => {
     if (!canEdit) return;
-    const saved = await store.api.put("skin_routines", { ...routine, status: routine.status === "paused" ? "active" : "paused", updatedAt: new Date().toISOString() });
+    const saved = await store.api.put(SKINCARE_COLLECTIONS.routines, { ...routine, status: routine.status === "paused" ? "active" : "paused", updatedAt: new Date().toISOString() });
     if (saved) say(routine.status === "paused" ? "تم تفعيل الروتين." : "تم إيقاف الروتين مؤقتًا.");
   };
   const copyRoutine = async routine => {
@@ -135,14 +136,14 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     const id = routineLogId(routine.id, date, step.id);
     if (routineLogs.some(log => log.id === id || log.client_generated_id === id)) return say("تم تسجيل هذه الخطوة بالفعل اليوم.");
-    const saved = await store.api.put("skin_routine_logs", { id, client_generated_id: id, routineId: routine.id, stepId: step.id, date, status, createdAt: new Date().toISOString() });
+    const saved = await store.api.put(SKINCARE_COLLECTIONS.routineLogs, { id, client_generated_id: id, routineId: routine.id, stepId: step.id, date, status, createdAt: new Date().toISOString() });
     if (saved) say(status === "done" ? "تم تسجيل تنفيذ الخطوة." : "تم تسجيل تخطي الخطوة.");
   };
   const undoRoutineLog = async () => {
     if (!canEdit || !routineLogs.length) return;
     const latest = [...routineLogs].sort((a, b) => String(b.createdAt || b.updated_at || "").localeCompare(String(a.createdAt || a.updated_at || "")))[0];
     if (!latest || !window.confirm("هل تريد التراجع عن آخر تسجيل؟")) return;
-    const result = await store.api.softDelete("skin_routine_logs", latest.id);
+    const result = await store.api.softDelete(SKINCARE_COLLECTIONS.routineLogs, latest.id);
     if (result) say("تم التراجع عن آخر تسجيل.");
   };
 
@@ -204,6 +205,7 @@ function ProductsView({ products, deletedProducts, onRestore, draft, setDraft, o
       <Field title="العلامة التجارية" value={draft.brand} onChange={v => setDraft(d => ({ ...d, brand: v }))} />
       <Select title="التصنيف" value={draft.category} onChange={v => setDraft(d => ({ ...d, category: v }))} options={[["cleanser","غسول"],["moisturizer","مرطب"],["sunscreen","واقي شمس"],["serum","سيروم"],["treatment","علاج"],["toner","تونر"],["mask","قناع"],["other","أخرى"]]} />
       <Select title="الحالة" value={draft.status} onChange={v => setDraft(d => ({ ...d, status: v }))} options={[["active","نشط"],["paused","متوقف مؤقتًا"],["finished","منتهي"],["discarded","تم التخلص منه"]]} />
+      <Select title="ملاءمة المنتج" value={draft.suitability || "suitable"} onChange={v => setDraft(d => ({ ...d, suitability: v }))} options={[["suitable","مناسب مبدئيًا"],["review","يحتاج مراجعة"],["avoid","تجنب"]]} />
       <Field title="تاريخ البدء" type="date" value={draft.startDate} onChange={v => setDraft(d => ({ ...d, startDate: v }))} />
       <Field title="تاريخ الانتهاء" type="date" value={draft.expiryDate} onChange={v => setDraft(d => ({ ...d, expiryDate: v }))} />
       <label style={{ ...label, gridColumn: "1 / -1" }}>المكونات<textarea style={{ ...field, minHeight: 65 }} value={draft.ingredients} onChange={e => setDraft(d => ({ ...d, ingredients: e.target.value }))} maxLength={2000} /></label>
