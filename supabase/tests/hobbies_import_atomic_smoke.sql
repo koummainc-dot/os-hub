@@ -68,11 +68,18 @@ begin
   select count(*) into v_count from public.hobbies_import_records_batch(
     'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
     '[
+      {"collection":"journalEntries","id":"journal-ok","data":{"title":"private note"},"visible_to":["11111111-1111-4111-8111-111111111111"]},
       {"collection":"habits","id":"habit-ok","data":{"name":"reading"},"visible_to":["11111111-1111-4111-8111-111111111111"]},
-      {"collection":"habitLogs","id":"log-ok","data":{"habitId":"habit-ok","status":"done"},"visible_to":["11111111-1111-4111-8111-111111111111"]}
+      {"collection":"habitLogs","id":"log-ok","data":{"habitId":"habit-ok","status":"done"},"visible_to":["11111111-1111-4111-8111-111111111111"]},
+      {"collection":"relapses","id":"relapse-ok","data":{"trigger":"stress"},"visible_to":["11111111-1111-4111-8111-111111111111"]},
+      {"collection":"books","id":"book-ok","data":{"title":"book"},"visible_to":["11111111-1111-4111-8111-111111111111"]},
+      {"collection":"readingSessions","id":"reading-ok","data":{"bookId":"book-ok"},"visible_to":["11111111-1111-4111-8111-111111111111"]},
+      {"collection":"weeklyFocus","id":"focus-ok","data":{"title":"focus"},"visible_to":["11111111-1111-4111-8111-111111111111"]},
+      {"collection":"habitReminders","id":"reminder-ok","data":{"time":"08:30"},"visible_to":["11111111-1111-4111-8111-111111111111"]},
+      {"collection":"habitAchievementRecords","id":"achievement-ok","data":{"achievementId":"first-habit","earnedAt":"2026-11-03T00:00:00Z"},"visible_to":["11111111-1111-4111-8111-111111111111"]}
     ]'::jsonb
   );
-  if v_count <> 2 then raise exception 'expected two confirmed import rows, got %',v_count; end if;
+  if v_count <> 9 then raise exception 'expected nine confirmed private import rows, got %',v_count; end if;
 end
 $test$;
 
@@ -84,9 +91,10 @@ declare v_count integer;
 begin
   select count(*) into v_count from public.workspace_records
   where workspace_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-    and system_id='hobbies' and collection in ('habits','habitLogs')
-    and id in ('habit-ok','log-ok');
-  if v_count <> 0 then raise exception 'another member can read imported private habit records'; end if;
+    and system_id='hobbies'
+    and collection in ('journalEntries','habits','habitLogs','relapses','books','readingSessions','weeklyFocus','habitReminders','habitAchievementRecords')
+    and id in ('journal-ok','habit-ok','log-ok','relapse-ok','book-ok','reading-ok','focus-ok','reminder-ok','achievement-ok');
+  if v_count <> 0 then raise exception 'another member can read imported private Hobbies records'; end if;
 end
 $privacy$;
 reset role;
