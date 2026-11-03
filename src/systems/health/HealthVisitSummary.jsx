@@ -3,9 +3,9 @@ import React, { useMemo, useState } from "react";
 const card={background:"#fff",border:"1px solid #E2E8F0",borderRadius:14,padding:16,marginBottom:14};
 const muted={color:"#64748B",fontSize:12};
 const field={width:"100%",boxSizing:"border-box",padding:10,border:"1px solid #CBD5E1",borderRadius:9};
-const dateOf=(row,key)=>String(row?.[key]||"").slice(0,10);
-const inRange=(value,from,to)=>{const d=dateOf({d:value},"d");return !d||(d>=from&&d<=to);};
-const dateLabel=(value)=>value?new Intl.DateTimeFormat("ar-EG",{dateStyle:"medium"}).format(new Date(value)):"غير محدد";
+const dateOf=(value,timezone)=>{if(!value)return "";const raw=String(value);if(/^\\d{4}-\\d{2}-\\d{2}$/.test(raw))return raw;const parts=new Intl.DateTimeFormat("en-CA",{timeZone:timezone||"Africa/Cairo",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(value));const p=Object.fromEntries(parts.map(x=>[x.type,x.value]));return p.year+"-"+p.month+"-"+p.day;};
+const inRange=(value,from,to,timezone)=>{const d=dateOf(value,timezone);return !d||(d>=from&&d<=to);};
+const dateLabel=(value,timezone)=>value?new Intl.DateTimeFormat("ar-EG",{dateStyle:"medium",timeZone:timezone||"Africa/Cairo"}).format(new Date(/^\\d{4}-\\d{2}-\\d{2}$/.test(String(value))?String(value)+"T12:00:00":value)):"غير محدد";
 const noteOf=(row)=>row?.notes||row?.instructions||"";
 const item=(id,title,meta,row,notes)=>({id,title,meta,row,notes:notes||""});
 
@@ -35,19 +35,19 @@ export default function HealthVisitSummary({
      v?[v.dose_amount,v.dose_unit,v.route,v.frequency].filter(Boolean).join(" · "):"لا توجد نسخة جرعة"].filter(Boolean).join(" — "),m,noteOf(m)||v?.instructions);
   });
   const data={
-   conditions:conditions.map(x=>item("condition:"+x.id,x.name,[x.condition_type,x.status==="active"?"نشطة":"منتهية",x.diagnosed_on?"التشخيص: "+dateLabel(x.diagnosed_on):""].filter(Boolean).join(" · "),x,x.notes)),
+   conditions:conditions.map(x=>item("condition:"+x.id,x.name,[x.condition_type,x.status==="active"?"نشطة":"منتهية",x.diagnosed_on?"التشخيص: "+dateLabel(x.diagnosed_on,profile.timezone):""].filter(Boolean).join(" · "),x,x.notes)),
    allergies:allergies.map(x=>item("allergy:"+x.id,x.allergen,[x.severity==="severe"?"شديدة":x.severity==="moderate"?"متوسطة":x.severity==="mild"?"خفيفة":"الشدة غير معروفة",x.reaction].filter(Boolean).join(" · "),x,x.notes)),
-   symptoms:symptomLogs.filter(x=>inRange(x.recorded_at,from,to)).map(x=>item("symptom:"+x.id,x.symptom_name_snapshot,"الشدة "+x.severity+"/10 · "+dateLabel(x.recorded_at)+(x.duration_minutes?" · "+x.duration_minutes+" دقيقة":"")+(x.body_location?" · "+x.body_location:""),x,x.notes)),
+   symptoms:symptomLogs.filter(x=>inRange(x.recorded_at,from,to,profile.timezone)).map(x=>item("symptom:"+x.id,x.symptom_name_snapshot,"الشدة "+x.severity+"/10 · "+dateLabel(x.recorded_at,profile.timezone)+(x.duration_minutes?" · "+x.duration_minutes+" دقيقة":"")+(x.body_location?" · "+x.body_location:""),x,x.notes)),
    medications:medicationItems,
-   sideEffects:sideEffects.filter(x=>inRange(x.occurred_at,from,to)).map(x=>item("side:"+x.id,x.name,[x.severity,dateLabel(x.occurred_at),medications.find(m=>m.id===x.medication_id)?.name].filter(Boolean).join(" · "),x,x.notes)),
-   flares:flareEvents.filter(x=>inRange(x.started_at,from,to)).map(x=>item("flare:"+x.id,x.title||"نوبة تهيّج","الشدة "+x.severity+" · "+dateLabel(x.started_at)+(x.ended_at?" إلى "+dateLabel(x.ended_at):" · مستمرة"),x,[x.symptoms,x.suspected_triggers,x.relief_actions,x.notes].filter(Boolean).join("\n"))),
-   checkins:checkins.filter(x=>inRange(x.entry_date,from,to)).map(x=>item("checkin:"+x.id,"متابعة "+dateLabel(x.entry_date),[x.mood_score!=null?"المزاج "+x.mood_score+"/5":"",x.energy_score!=null?"الطاقة "+x.energy_score+"/5":"",x.stress_score!=null?"الضغط "+x.stress_score+"/5":"",x.sleep_hours!=null?"النوم "+x.sleep_hours+" ساعة":"",x.sleep_quality?"جودة النوم "+x.sleep_quality:"",x.digestion_status?"الهضم "+x.digestion_status:""].filter(Boolean).join(" · "),x,x.notes)),
+   sideEffects:sideEffects.filter(x=>inRange(x.occurred_at,from,to,profile.timezone)).map(x=>item("side:"+x.id,x.name,[x.severity,dateLabel(x.occurred_at,profile.timezone),medications.find(m=>m.id===x.medication_id)?.name].filter(Boolean).join(" · "),x,x.notes)),
+   flares:flareEvents.filter(x=>inRange(x.started_at,from,to,profile.timezone)).map(x=>item("flare:"+x.id,x.title||"نوبة تهيّج","الشدة "+x.severity+" · "+dateLabel(x.started_at,profile.timezone)+(x.ended_at?" إلى "+dateLabel(x.ended_at,profile.timezone):" · مستمرة"),x,[x.symptoms,x.suspected_triggers,x.relief_actions,x.notes].filter(Boolean).join("\n"))),
+   checkins:checkins.filter(x=>inRange(x.entry_date,from,to,profile.timezone)).map(x=>item("checkin:"+x.id,"متابعة "+dateLabel(x.entry_date,profile.timezone),[x.mood_score!=null?"المزاج "+x.mood_score+"/5":"",x.energy_score!=null?"الطاقة "+x.energy_score+"/5":"",x.stress_score!=null?"الضغط "+x.stress_score+"/5":"",x.sleep_hours!=null?"النوم "+x.sleep_hours+" ساعة":"",x.sleep_quality?"جودة النوم "+x.sleep_quality:"",x.digestion_status?"الهضم "+x.digestion_status:""].filter(Boolean).join(" · "),x,x.notes)),
    trackers:factorLogs.filter(x=>inRange(x.recorded_at,from,to)).filter(x=>{const f=factors.find(y=>y.id===x.factor_id);return f&&!f.is_sensitive;}).map(x=>{const f=factors.find(y=>y.id===x.factor_id);return item("factor:"+x.id,f.name,[x.value_numeric??x.value_boolean??x.value_choice??x.value_text,f.unit,dateLabel(x.recorded_at)].filter(v=>v!==null&&v!==undefined&&v!=="").join(" · "),x,x.notes);}),
    sensitive:factorLogs.filter(x=>inRange(x.recorded_at,from,to)).filter(x=>{const f=factors.find(y=>y.id===x.factor_id);return f?.is_sensitive;}).map(x=>{const f=factors.find(y=>y.id===x.factor_id);return item("sensitive:"+x.id,f.name,[x.value_numeric??x.value_boolean??x.value_choice??x.value_text,f.unit,dateLabel(x.recorded_at)].filter(v=>v!==null&&v!==undefined&&v!=="").join(" · "),x,x.notes);})
   };
   return data;
  },[conditions,allergies,symptomLogs,medications,medicationVersions,sideEffects,flareEvents,checkins,factors,factorLogs,from,to]);
- const labels={conditions:"الحالات الطبية",allergies:"الحساسيات",symptoms:"الأعراض خلال الفترة",medications:"الأدوية والعلاجات الحالية",sideEffects:"الآثار الجانبية المسجلة",flares:"نوبات التهيّج",checkins:"المتابعة اليومية",trackers:"المتتبّعات العادية"};
+ const labels={conditions:"الحالات الطبية",allergies:"الحساسيات",symptoms:"الأعراض خلال الفترة",medications:"الأدوية والعلاجات",sideEffects:"الآثار الجانبية المسجلة",flares:"نوبات التهيّج",checkins:"المتابعة اليومية",trackers:"المتتبّعات العادية"};
  const allowed={conditions:readable.conditions,allergies:readable.conditions,symptoms:readable.symptoms,medications:readable.medications,sideEffects:readable.medications,flares:readable.flares,checkins:readable.checkins,trackers:readable.trackers};
  const selectedItems=Object.entries(sections).flatMap(([key,on])=>{
   if(!on)return [];
@@ -96,13 +96,13 @@ export default function HealthVisitSummary({
    <h3 style={{marginTop:0}}>3. معاينة التقرير قبل التصدير</h3>
    <article id="health-visit-print" style={{border:"1px solid #CBD5E1",borderRadius:10,padding:16,background:"#fff"}}>
     <h2 style={{marginTop:0}}>ملخص صحي لزيارة طبية</h2>
-    <p>الملف: <strong>{profile.display_name}</strong> · تاريخ الزيارة: <strong>{dateLabel(visitDate)}</strong></p>
+    <p>الملف: <strong>{profile.display_name}</strong> · تاريخ الزيارة: <strong>{dateLabel(visitDate,profile.timezone)}</strong></p>
     {(doctor||facility)&&<p>{doctor&&"الطبيب: "+doctor}{doctor&&facility?" · ":""}{facility&&"المنشأة: "+facility}</p>}
-    <p>الفترة المغطاة: {dateLabel(from)} — {dateLabel(to)}</p>
+    <p>الفترة المغطاة: {dateLabel(from,profile.timezone)} — {dateLabel(to,profile.timezone)}</p>
     {reason&&<><h3>سبب الزيارة</h3><p style={{whiteSpace:"pre-wrap"}}>{reason}</p></>}
     {questions&&<><h3>أسئلة للطبيب</h3><p style={{whiteSpace:"pre-wrap"}}>{questions}</p></>}
     {selectedItems.length?<><h3>السجلات المختارة ({selectedItems.length})</h3>{selectedItems.map(x=><div key={x.id} style={{borderBottom:"1px solid #E2E8F0",padding:"8px 0",breakInside:"avoid"}}><strong>{x.title}</strong><div style={{fontSize:12,color:"#475569",marginTop:3}}>{x.meta}</div>{includeNotes&&x.notes&&<p style={{fontSize:12,whiteSpace:"pre-wrap"}}>{x.notes}</p>}</div>)}</>:<p>لم يتم اختيار سجلات بعد.</p>}
-    <p style={{fontSize:11,color:"#64748B",marginTop:16}}>هذا ملخص للسجلات التي اختارها المستخدم، وليس تقريرًا تشخيصيًا أو توصية علاجية. يُرجى التحقق من دقة المعلومات مع مقدم الرعاية.</p>
+    <p style={{fontSize:11,color:"#64748B",marginTop:16}}>هذا ملخص للسجلات التي اختارها المستخدم، وليس تقريرًا تشخيصيًا أو توصية علاجية. تسجيل أثر جانبي لا يثبت أن الدواء سببه. يُرجى التحقق من دقة المعلومات مع مقدم الرعاية.</p>
    </article>
    <label style={{display:"flex",gap:9,alignItems:"center",marginTop:14,fontSize:13,fontWeight:700}}><input type="checkbox" checked={reviewed} onChange={e=>setReviewed(e.target.checked)}/> راجعت المعاينة وأؤكد أنني اخترت المعلومات المناسبة للمشاركة.</label>
    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}><button type="button" disabled={!exportReady||!reviewed} onClick={printReport} style={{border:0,borderRadius:9,padding:"11px 15px",background:exportReady&&reviewed?"#0284C7":"#94A3B8",color:"#fff",fontWeight:800,cursor:exportReady&&reviewed?"pointer":"not-allowed"}}>طباعة / حفظ PDF بعد المراجعة</button><button type="button" onClick={()=>{setSelected({});setSections({conditions:false,allergies:false,symptoms:false,medications:false,sideEffects:false,flares:false,checkins:false,trackers:false});setIncludeNotes(false);setIncludeSensitive(false);setReviewed(false);}} style={{border:"1px solid #CBD5E1",borderRadius:9,padding:"10px 13px",background:"#fff"}}>مسح الاختيارات</button></div>
