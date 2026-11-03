@@ -225,9 +225,9 @@ function Platform(){
   if(!ws||!me) return null;
 
   // ═══ shell ═══
-  const visibleSystems=OS_SYSTEMS.filter(s=>osAccess(ws,s.id).level!=="none");
+  const visibleSystems=OS_SYSTEMS.filter(s=>s.id==="health"||osAccess(ws,s.id).level!=="none");
   const sys=route.view==="system"?osSystemById(route.system):null;
-  const acc=sys?osAccess(ws,sys.id):null;
+  const acc=sys?(sys.id==="health"?{level:"edit",manage:true,sections:{},owner:true}:osAccess(ws,sys.id)):null;
   const br=sys?(bridge[sys.id]||{}):{};
   const defSection=(s)=>{const l=osSections(s);return l[0]?l[0].id:"";};
   const currentSection=sys?(sectionBy[sys.id]||defSection(sys)):"";
