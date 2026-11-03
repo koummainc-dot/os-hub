@@ -697,7 +697,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
 
   const box = (title, description, children) => <section style={{ ...CARD, marginBottom: 16 }}><h2 style={{ margin: "0 0 7px", fontSize: 17, color: COLORS.ink }}>{title}</h2>{description && <p style={{ margin: "0 0 16px", color: COLORS.muted, fontSize: 13, lineHeight: 1.8 }}>{description}</p>}{children}</section>;
   const field = (label, value, onChange, extra = {}) => <label style={{ display: "block", marginBottom: 13 }}><span style={LABEL}>{label}</span><input style={FIELD} value={value} onChange={e => onChange(e.target.value)} {...extra} /></label>;
-  const pageTitle = ({ home: "نظرة عامة", profile: "الملف الصحي", conditions: "الحالات والحساسيات", symptoms: "الأعراض", medications: "الأدوية والعلاجات", flare_events: "نوبات التهيّج", checkins: "المتابعة اليومية", factors: "العوامل والمتتبعات", cycle_tracking: "متابعة الدورة الاختيارية", access: "المشاركة والتفويض", documents: "الوثائق الطبية", settings: "الإعدادات والخصوصية" })[page] || "نظرة عامة";
+  const pageTitle = ({ home: "نظرة عامة", profile: "الملف الصحي", measurements: "القياسات الحيوية", conditions: "الحالات والحساسيات", symptoms: "الأعراض", medications: "الأدوية والعلاجات", flare_events: "نوبات التهيّج", checkins: "المتابعة اليومية", factors: "العوامل والمتتبعات", cycle_tracking: "متابعة الدورة الاختيارية", access: "المشاركة والتفويض", documents: "الوثائق الطبية", settings: "الإعدادات والخصوصية" })[page] || "نظرة عامة";
 
   return <div dir="rtl" style={{ maxWidth: 1050, margin: "0 auto", color: COLORS.ink }}>
     <header style={{ ...CARD, marginBottom: 16, background: "linear-gradient(130deg,#FFFFFF,#F0F9FF)" }}>
@@ -735,7 +735,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
           </div>
           <button disabled={busy} style={{ ...PRIMARY, opacity: busy ? .65 : 1 }}>{busy?"جارٍ الإنشاء…":"إنشاء الملف الصحي"}</button>
         </form>)}
-        {selected && box("حالة المرحلة", "تم تفعيل الملف الصحي، السجل الطبي، الأدوية والنوبات، والمتابعة اليومية والعوامل. تبقى قياسات الجسم والخط الزمني والاختبارات النهائية ضمن الفجوات.", <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 }}>
+        {selected && box("حالة المرحلة", "تم تفعيل الملف الصحي والسجل الطبي والأدوية والنوبات والمتابعة اليومية والعوامل. أصبحت القياسات الحيوية متاحة؛ وما زال مخطط الجسم والبحث الصحي والخط الزمني ضمن مراحل H2 التالية.", <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 }}>
           {[["الملفات",profiles.length],["التفويضات النشطة",grants.filter(g=>!g.revoked_at && (!g.expires_at||new Date(g.expires_at)>new Date())).length],["أحداث التدقيق",auditEvents.length]].map(([label,value]) => <div key={label} style={{ border: "1px solid "+COLORS.border, borderRadius: 12, padding: 13 }}><div style={{ color: COLORS.muted, fontSize: 12 }}>{label}</div><strong style={{ display: "block", fontSize: 22, marginTop: 5 }}>{value}</strong></div>)}
         </div>)}
       </>}
@@ -973,6 +973,6 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
         {selected && isOwner && box("آخر أحداث التدقيق", "سجل تشغيلي لا يُفترض أن يحتوي على أعراض أو ملاحظات طبية أو تفاصيل تشخيصية.", auditEvents.length ? <div>{auditEvents.map(ev=><div key={ev.id} style={{ padding: "10px 0", borderBottom: "1px solid "+COLORS.border, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", fontSize: 12 }}><span>{ev.action} · {ev.resource_type}</span><span style={{ color: COLORS.muted }}>{fmtDate(ev.created_at)}</span></div>)}</div> : <div style={{ color: COLORS.muted, fontSize: 13 }}>لا توجد أحداث بعد أو لا توجد أحداث قابلة للعرض.</div>)}
       </>}
     </>}
-    <footer style={{ color: COLORS.muted, fontSize: 11, lineHeight: 1.8, padding: "8px 4px 20px" }}>H4 يسجّل المعلومات التي تدخلها ولا يقدّم تشخيصًا أو توصية علاجية. المتابعة اليومية لا تكرر سجلات الطعام أو الماء أو الرياضة، ووحدة الدورة اختيارية ومعطلة افتراضيًا. لا توجد إشعارات خلفية في هذه المرحلة.</footer>
+    <footer style={{ color: COLORS.muted, fontSize: 11, lineHeight: 1.8, padding: "8px 4px 20px" }}>Health OS يسجّل المعلومات التي تدخلها ولا يقدّم تشخيصًا أو توصية علاجية. المتابعة اليومية لا تكرر سجلات الطعام أو الماء أو الرياضة، ووحدة الدورة اختيارية ومعطلة افتراضيًا. لا توجد إشعارات خلفية في هذه المرحلة.</footer>
   </div>;
 }
