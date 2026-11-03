@@ -171,6 +171,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     {store.ready && !store.error && page === "settings" && <ProfileView profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={saveProfile} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "products" && <ProductsView products={products} deletedProducts={deletedProducts} onRestore={restoreProduct} draft={productDraft} setDraft={setProductDraft} onSave={saveProduct} onEdit={editProduct} onDelete={deleteProduct} editing={editingProduct} setEditing={setEditingProduct} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "units" && <UnitsView units={units} deletedUnits={deletedUnits} onRestore={restoreUnit} products={products} draft={unitDraft} setDraft={setUnitDraft} onSave={saveUnit} onEdit={editUnit} onDelete={deleteUnit} editing={editingUnit} setEditing={setEditingUnit} canEdit={canEdit} busy={busy} />}
+    {store.ready && !store.error && page === "routines" && <RoutinesView routines={routines} logs={routineLogs} products={products} canEdit={canEdit} busy={busy} onSave={saveRoutine} onArchive={toggleRoutine} onCopy={copyRoutine} onLog={logRoutineStep} onUndo={undoRoutineLog} />}
   </div>;
 }
 
