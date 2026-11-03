@@ -10,7 +10,7 @@ const EMPTY = { productId: "", unitId: "", dateStarted: today(), severity: "mild
 const SEVERITY = { mild: "خفيف", moderate: "متوسط", severe: "شديد" };
 const STATUS = { open: "مفتوح", resolved: "تم الحل", archived: "مؤرشف" };
 
-export default function ReactionsView({ reactions, products, units, ingredients, canEdit, busy, onCreate, onResolve, onArchive }) {
+export default function ReactionsView({ reactions, products, units, ingredients, canEdit, busy, onCreate, onResolve, onArchive, setPage }) {
   const [draft, setDraft] = useState(EMPTY);
   const submit = async event => {
     event.preventDefault();
@@ -77,6 +77,11 @@ export default function ReactionsView({ reactions, products, units, ingredients,
           {suspected.length > 0 && <div style={{ color: C.warn, fontSize: 11, marginTop: 5 }}>مكونات مشتبه بها حسب تسجيلك: {suspected.map(item => item.inciName).join("، ")}</div>}
           {reaction.note && <div style={{ color: C.muted, fontSize: 11, marginTop: 5 }}>{reaction.note}</div>}
           {reaction.resolvedDate && <div style={{ color: C.muted, fontSize: 10, marginTop: 5 }}>تاريخ الحل: {reaction.resolvedDate}</div>}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 9 }}>
+            <button type="button" style={btn()} onClick={() => setPage("products")}>مراجعة المنتجات</button>
+            <button type="button" style={btn()} onClick={() => setPage("routines")}>مراجعة الروتين يدويًا</button>
+            {!!suspected.length && <button type="button" style={btn()} onClick={() => setPage("ingredients")}>مراجعة المكونات المشتبه بها</button>}
+          </div>
           {canEdit && reaction.status === "open" && <div style={{ display: "flex", gap: 6, marginTop: 9 }}>
             <button type="button" style={btn()} disabled={busy} onClick={() => onResolve(reaction)}>تسجيل الحل اليوم</button>
             <button type="button" style={btn()} disabled={busy} onClick={() => onArchive(reaction)}>أرشفة</button>
