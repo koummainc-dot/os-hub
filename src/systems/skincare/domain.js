@@ -7,6 +7,10 @@ export const SKINCARE_COLLECTIONS = Object.freeze({
   diary: "skin_diary",
   photos: "skin_photos",
   ingredients: "skin_ingredients",
+  trials: "skin_trials",
+  reactions: "skin_reactions",
+  lists: "skin_lists",
+  settings: "skin_settings",
 });
 
 const text = (value, max = 160) => String(value ?? "").trim().slice(0, max);
@@ -275,4 +279,142 @@ export function productsContainingIngredient(products = [], ingredient) {
   if (!aliases.length) return [];
   return products.filter(product => parseINCIList(product.ingredients || "")
     .some(name => aliases.includes(normalizeINCIName(name))));
+}
+
+
+const parseSkinDate = value => {
+  const date = text(value, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const [year, month, day] = date.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day ? date : null;
+};
+
+export const SKIN_TRIAL_STATUSES = Object.freeze(["planned", "running", "paused", "completed", "cancelled"]);
+export const SKIN_TRIAL_VERDICTS = Object.freeze(["pending", "improved", "unchanged", "worse", "inconclusive"]);
+export const SKIN_REACTION_SEVERITIES = Object.freeze(["mild", "moderate", "severe"]);
+
+export function validateSkinTrial(input = {}, todayKey) {
+  const productId = text(input.productId, 100);
+  const question = text(input.question, 500);
+  const startDate = parseSkinDate(input.startDate);
+  const plannedDays = Number(input.plannedDays);
+  const status = text(input.status || "planned", 20);
+  const verdict = text(input.verdict || "pending", 20);
+  const endDate = input.endDate ? parseSkinDate(input.endDate) : "";
+  if (!productId) return { ok: false, error: "اختر المنتج المرتبط بالتجربة." };
+  if (!question) return { ok: false, error: "اكتب سؤالًا واضحًا للتجربة." };
+  if (!startDate) return { ok: false, error: "تاريخ بداية التجربة غير صالح." };
+  if (todayKey && startDate > todayKey) return { ok: false, error: "لا يمكن بدء تجربة بتاريخ مستقبلي." };
+  if (!Number.isInteger(plannedDays) || plannedDays < 1 || plannedDays > 180) return { ok: false, error: "مدة التجربة يجب أن تكون من يوم إلى 180 يومًا." };
+  if (!SKIN_TRIAL_STATUSES.includes(status)) return { ok: false, error: "حالة التجربة غير صحيحة." };
+  if (!SKIN_TRIAL_VERDICTS.includes(verdict)) return { ok: false, error: "نتيجة التجربة غير صحيحة." };
+  if (endDate && endDate < startDate) return { ok: false, error: "تاريخ نهاية التجربة يسبق تاريخ البداية." };
+  if (status === "completed" && (verdict === "pending" || !endDate)) return { ok: false, error: "إنهاء التجربة يتطلب تاريخ نهاية ونتيجة يحددها المستخدم." };
+  const baselineDiaryIds = Array.isArray(input.baselineDiaryIds)
+    ? [...new Set(input.baselineDiaryIds.map(value => text(value, 100)).filter(Boolean))].slice(0, 14)
+    : [];
+  return { ok: true, value: {
+    ...input,
+    id: text(input.id, 100),
+    productId,
+    question,
+    startDate,
+    plannedDays,
+    status,
+    endDate: endDate || null,
+    verdict,
+    verdictNote: text(input.verdictNote, 2000),
+    baselineDiaryIds,
+    updatedAt: new Date().toISOString(),
+  }};
+}
+
+export function transitionSkinTrial(trial, nextStatus, details = {}, todayKey) {
+  const allowed = {
+    planned: ["running", "cancelled"],
+    running: ["paused", "completed", "cancelled"],
+    paused: ["running", "completed", "cancelled"],
+    completed: [],
+    cancelled: [],
+  };
+  if (!trial || !allowed[trial.status]?.includes(nextStatus)) {
+    return { ok: false, error: "انتقال حالة التجربة غير مسموح." };
+  }
+  const candidate = { ...trial, ...details, status: nextStatus };
+  if (nextStatus === "running" && trial.status === "planned" && !candidate.startedAt) candidate.startedAt = todayKey || new Date().toISOString().slice(0, 10);
+  if (nextStatus === "completed") {
+    candidate.endDate = parseSkinDate(details.endDate || todayKey || new Date().toISOString().slice(0, 10));
+    candidate.verdict = text(details.verdict, 20);
+  }
+  return validateSkinTrial(candidate, todayKey);
+}
+
+export function validateSkinReaction(input = {}) {
+  const productId = text(input.productId, 100);
+  const dateStarted = parseSkinDate(input.dateStarted);
+  const severity = text(input.severity, 20);
+  const resolvedDate = input.resolvedDate ? parseSkinDate(input.resolvedDate) : "";
+  if (!productId) return { ok: false, error: "اربط التفاعل بمنتج مسجل." };
+  if (!dateStarted) return { ok: false, error: "تاريخ بداية التفاعل غير صالح." };
+  if (!SKIN_REACTION_SEVERITIES.includes(severity)) return { ok: false, error: "درجة شدة التفاعل غير صحيحة." };
+  if (resolvedDate && resolvedDate < dateStarted) return { ok: false, error: "تاريخ الحل يسبق تاريخ بداية التفاعل." };
+  const symptoms = Array.isArray(input.symptoms)
+    ? [...new Set(input.symptoms.map(value => text(value, 100)).filter(Boolean))].slice(0, 30)
+    : [];
+  const suspectedIngredientIds = Array.isArray(input.suspectedIngredientIds)
+    ? [...new Set(input.suspectedIngredientIds.map(value => text(value, 100)).filter(Boolean))].slice(0, 30)
+    : [];
+  return { ok: true, value: {
+    ...input,
+    id: text(input.id, 100),
+    productId,
+    unitId: text(input.unitId, 100) || null,
+    dateStarted,
+    severity,
+    symptoms,
+    area: text(input.area, 200),
+    actionTaken: text(input.actionTaken, 1000),
+    resolvedDate: resolvedDate || null,
+    status: resolvedDate ? "resolved" : text(input.status || "open", 20),
+    suspectedIngredientIds,
+    note: text(input.note, 2000),
+    updatedAt: new Date().toISOString(),
+  }};
+}
+
+export function canDeleteSkinReaction(reaction) {
+  return !!reaction && reaction.severity !== "severe";
+}
+
+export function summarizeSkinTrial(trial, diaryEntries = [], reactions = [], otherTrials = []) {
+  const baselineIds = new Set(trial?.baselineDiaryIds || []);
+  const baseline = diaryEntries.filter(entry => baselineIds.has(entry.id) && Number.isFinite(Number(entry.skinRating)));
+  const finish = trial?.endDate || new Date().toISOString().slice(0, 10);
+  const followup = diaryEntries.filter(entry =>
+    entry.date >= trial.startDate && entry.date <= finish &&
+    Number.isFinite(Number(entry.skinRating)) && entry.skinRating !== null && entry.skinRating !== ""
+  );
+  const average = rows => rows.length ? rows.reduce((sum, entry) => sum + Number(entry.skinRating), 0) / rows.length : null;
+  const baselineAverage = average(baseline);
+  const followupAverage = average(followup);
+  const concurrent = otherTrials.filter(item =>
+    item.id !== trial.id && item.productId !== trial.productId &&
+    item.status === "running" &&
+    item.startDate <= finish &&
+    (!item.endDate || item.endDate >= trial.startDate)
+  );
+  const linkedReactions = reactions.filter(item => item.productId === trial.productId &&
+    item.dateStarted >= trial.startDate && item.dateStarted <= finish);
+  return {
+    baselineCount: baseline.length,
+    followupCount: followup.length,
+    baselineAverage,
+    followupAverage,
+    delta: baselineAverage === null || followupAverage === null ? null : Number((followupAverage - baselineAverage).toFixed(2)),
+    concurrentTrialCount: concurrent.length,
+    reactionCount: linkedReactions.length,
+    enoughData: baseline.length >= 3 && followup.length >= 3,
+    interpretation: "مقارنة وصفية بين إدخالاتك؛ لا تثبت أن المنتج سبب التغير. ضع في الاعتبار التجارب المتزامنة والتفاعلات واختلاف ظروف التسجيل.",
+  };
 }
