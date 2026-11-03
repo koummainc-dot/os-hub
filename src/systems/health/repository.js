@@ -1,6 +1,6 @@
 import { supabase } from "../../core/supabase.js";
 
-const PROFILE_FIELDS = "id,owner_user_id,display_name,profile_type,status,timezone,locale,settings,cycle_tracking_enabled,created_at,updated_at";
+const PROFILE_FIELDS = "id,owner_user_id,display_name,profile_type,status,timezone,locale,settings,created_at,updated_at";
 const GRANT_FIELDS = "id,profile_id,grantee_user_id,granted_by,grant_role,scope_keys,actions,starts_at,expires_at,revoked_at,created_at,updated_at";
 
 async function audit(profileId, actorUserId, action, resourceType, resourceId = null, metadata = {}) {
@@ -55,7 +55,14 @@ export const healthRepository = {
     const { data, error } = await supabase.from("health_profiles")
       .select(PROFILE_FIELDS).order("created_at", { ascending: false });
     if (error) throw error;
-    return data || [];
+    const rows=data||[];
+    if(!rows.length)return rows;
+    // Cycle preference is fetched from an owner-only table; it is never exposed on shareable profile rows.
+    const { data: cycleSettings, error: cycleError } = await supabase.from("health_cycle_settings")
+      .select("profile_id,enabled").in("profile_id",rows.map(row=>row.id));
+    if(cycleError)throw cycleError;
+    const enabledByProfile=new Map((cycleSettings||[]).map(row=>[row.profile_id,!!row.enabled]));
+    return rows.map(row=>({...row,cycle_tracking_enabled:enabledByProfile.get(row.id)===true}));
   },
 
   async createProfile({ ownerUserId, displayName, timezone = "Africa/Cairo", locale = "ar-EG" }) {
@@ -71,13 +78,12 @@ export const healthRepository = {
     return data;
   },
 
-  async updateProfile({ profileId, ownerUserId, displayName, timezone, locale, status, cycleTrackingEnabled }) {
+  async updateProfile({ profileId, ownerUserId, displayName, timezone, locale, status }) {
     const patch = { updated_at: new Date().toISOString() };
     if (displayName !== undefined) patch.display_name = displayName.trim();
     if (timezone !== undefined) patch.timezone = timezone;
     if (locale !== undefined) patch.locale = locale;
     if (status !== undefined) patch.status = status;
-    if (cycleTrackingEnabled !== undefined) patch.cycle_tracking_enabled = !!cycleTrackingEnabled;
     const { data, error } = await supabase.from("health_profiles").update(patch)
       .eq("id", profileId).eq("owner_user_id", ownerUserId).select(PROFILE_FIELDS).single();
     if (error) throw error;
@@ -388,12 +394,12 @@ export const healthRepository = {
     return row;
   },
   async updateCycleTrackingPreference({ profileId, ownerUserId, enabled }) {
-    const { data, error } = await supabase.from("health_profiles").update({
-      cycle_tracking_enabled: !!enabled, updated_at: new Date().toISOString()
-    }).eq("id", profileId).eq("owner_user_id", ownerUserId).select(PROFILE_FIELDS).single();
+    const { data, error } = await supabase.from("health_cycle_settings").upsert({
+      profile_id: profileId, enabled: !!enabled, created_by: ownerUserId, updated_at: new Date().toISOString()
+    }, { onConflict: "profile_id" }).select("profile_id,enabled").single();
     if (error) throw error;
     await audit(profileId, ownerUserId, enabled ? "cycle_tracking_enabled" : "cycle_tracking_disabled", "cycle_settings", profileId, {});
-    return data;
+    return !!data.enabled;
   },
   async listCycleEntries(profileId) { return listScoped("health_cycle_entries", "id,profile_id,entry_date,flow_intensity,period_start,period_end,symptoms,notes,created_by,created_at,updated_at", profileId, "entry_date"); },
   async upsertCycleEntry({ profileId, actorUserId, entry }) {
