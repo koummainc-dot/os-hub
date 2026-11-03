@@ -198,13 +198,13 @@ function TrialDetail({ trial, diaryEntries, reactions, summary }) {
 
 
 function PeriodMetric({ title, period }) {
-  const average = period.average == null ? "لا توجد تقييمات" : period.average.toFixed(2) + " / 5";
+  const average = !period.active ? "خارج مدة التجربة" : period.average == null ? "لا توجد تقييمات" : period.average.toFixed(2) + " / 5";
   const delta = period.deltaFromBaseline == null ? "—" : (period.deltaFromBaseline > 0 ? "+" : "") + period.deltaFromBaseline.toFixed(2);
   return <div style={{ border: "1px solid " + C.line, borderRadius: 9, padding: 9 }}>
     <b style={{ fontSize: 11 }}>{title}</b>
-    <div style={{ color: C.muted, fontSize: 9, marginTop: 3 }}>{period.startDate} – {period.endDate}</div>
+    <div style={{ color: C.muted, fontSize: 9, marginTop: 3 }}>{period.active ? period.startDate + " – " + period.endDate : "لا تقع ضمن مدة التجربة"}</div>
     <div style={{ fontSize: 13, fontWeight: 750, marginTop: 7 }}>{average}</div>
-    <div style={{ color: C.muted, fontSize: 10, marginTop: 3 }}>{period.count} تقييم · {period.daysRecorded} أيام مسجلة</div>
+    <div style={{ color: C.muted, fontSize: 10, marginTop: 3 }}>{period.active ? period.count + " تقييم · " + period.daysRecorded + " أيام مسجلة" : "—"}</div>
     <div style={{ color: C.muted, fontSize: 10, marginTop: 3 }}>الفرق عن خط الأساس: {delta}</div>
   </div>;
 }
