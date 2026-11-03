@@ -9,18 +9,19 @@ const expected = [
   ["skin_photos", "photos"], ["skin_lists", "lists"], ["skin_settings", "settings"],
 ];
 for (const [collection, section] of expected) {
-  assert.match(sql, new RegExp("\\('skincare','" + collection + "','" + section + "'\\)"), `missing section mapping: ${collection} -> ${section}`);
+  assert.ok(sql.includes("('skincare','" + collection + "','" + section + "')"), `missing section mapping: ${collection} -> ${section}`);
 }
-assert.match(sql, /'skincare-progress',[\\s\\S]*?false[\\s\\S]*?10485760/);
-assert.match(sql, /array\\['image\\/jpeg','image\\/png','image\\/webp'\\]/);
+assert.ok(sql.includes("'skincare-progress','skincare-progress',false,10485760"));
+assert.ok(sql.includes("array['image/jpeg','image/png','image/webp']"));
 for (const action of ["select", "insert", "delete"]) {
-  assert.match(sql, new RegExp("create policy skincare_progress_" + action), `missing storage ${action} policy`);
+  assert.ok(sql.includes("create policy skincare_progress_" + action), "missing storage " + action + " policy");
 }
-assert.match(sql, /ws_access_level\\([^;]*'skincare', 'photos'/);
-assert.match(sql, /photo\\.collection = 'skin_photos'/);
-assert.match(sql, /photo\\.data->>'objectPath' = name or photo\\.data->>'thumbnailPath' = name/);
-assert.match(sql, /diary\\.collection = 'skin_diary'/);
-assert.match(sql, /public = false/);
-assert.match(sql, /drop policy if exists skincare_progress_update/);
-assert.match(sql, /begin;[\\s\\S]*commit;/);
+assert.ok(sql.includes("ws_access_level(((storage.foldername(name))[1])::uuid, 'skincare', 'photos')"));
+assert.ok(sql.includes("photo.collection = 'skin_photos'"));
+assert.ok(sql.includes("photo.data->>'objectPath' = name or photo.data->>'thumbnailPath' = name"));
+assert.ok(sql.includes("diary.collection = 'skin_diary'"));
+assert.ok(sql.includes("public = false"));
+assert.ok(sql.includes("drop policy if exists skincare_progress_update"));
+assert.ok(!sql.includes("create policy skincare_progress_update"));
+assert.ok(sql.includes("begin;") && sql.includes("commit;"));
 console.log("Skincare storage and collection permission migration contract: PASS");
