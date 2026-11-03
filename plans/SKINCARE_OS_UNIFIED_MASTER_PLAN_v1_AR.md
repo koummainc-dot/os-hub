@@ -351,3 +351,46 @@
 - [ ] إغلاق S0 والانتقال إلى S1.
 
 **الحكم:** البنية الأساسية تسمح بدمج Skincare OS، لكن لا تزال هناك نقاط أمان وتكامل غير محسومة. لذلك لا نضيف النظام إلى القائمة ولا ننشئ جداول أو bucket في الإنتاج قبل إغلاق عناصر S0 المفتوحة أعلاه.
+
+
+### 10.5 إغلاق فحص Record Store ومضيف النظام (استكمال S0)
+
+بعد استعراض الملفات الفعلية في المستودع، تم تحديد المكونات التي لم تكن واضحة في الفحص الأول:
+
+1. **Record Store الفعلي:** `src/core/records.jsx` ويصدر `useRecordStore`, `arr`, `live`, `byId`, `uid`, `stripMeta`. العقد هو:
+   - `useRecordStore({wsId, systemId, isDemo, demoStore, seed, onToast})`
+   - الحالة: `recs, ready, error, pending, online`.
+   - API: `put, putAtomic, putBatchAtomic, purgeAtomic, softDelete, restore, putMany, reload, sync, flushQueue`.
+   - القراءة من `workspace_records` لكل (workspace + system)، مع pagination وRealtime وincremental sync.
+   - الكتابة تستخدم optimistic concurrency بواسطة `updated_at`، وتسلسل الكتابات لكل سجل، وقائمة انتظار offline محلية.
+   - `softDelete` و`restore` عمليتا تحديث للسجل وليستا DELETE SQL؛ وهذا هو المسار المناسب لمحرر غير مالك ما دامت RLS تسمح له بالتحديث.
+   - وضع Demo يستخدم مخزنًا داخل الذاكرة ولا يكتب إلى Supabase.
+2. **مضيف النظام:** `src/platform/Platform.jsx` يحتوي `OSSystemHost` و`SYSTEM_LOADERS` باستخدام `import.meta.glob("../systems/*/index.jsx")`. يحمّل `src/systems/<systemId>/index.jsx` تلقائيًا، ثم يمرر `api/access/authUser/ws/members/isDemo/demoStore/page/setPage/shell`. لذلك لا نحتاج تسجيل loader منفصل؛ نحتاج فقط مجلد النظام وسجل OS_SYSTEMS.
+3. **النمط المرجعي الأقرب:** `src/systems/hobbies/index.jsx` يستورد `useRecordStore` من `../../core/records.jsx` ويستخدم `arr/live/uid`. هذا هو نمط التخزين الذي سيُستخدم للكيانات التشغيلية في Skincare بدل `osMakeApi` أو localStorage.
+4. **خريطة صلاحيات الأقسام موجودة فعليًا:** جدول `public.collection_sections(system_id, collection, section_id)`، وmigration `20261025020000_collection_sections_map.sql`. دالة `ws_access_level(ws, sys, part)` تبحث عن collection في هذا الجدول، ثم تطبق صلاحية القسم المقابل. إذا لم توجد خريطة، تستخدم اسم collection كأنه section id.
+5. **نتيجة عملية مهمة:** إضافة collections دون إضافة mapping ستسمح بأن تكون صلاحية القسم المخفي غير مطبقة إذا اختلف اسم collection عن section id. لذلك migration Skincare يجب أن تسجل كل collection وربطها بقسمها، مع اختبار RLS على collection مخفية، لا الاكتفاء بإخفائها في القائمة.
+6. **حالة الخريطة الحالية:** لا توجد أي صفوف لـ`skincare` في `collection_sections`، كما لا توجد جداول Skincare. الصفوف الحالية تخص Finance وProjects وSpiritual.
+7. **المضيف لا يمرر Record Store جاهزًا:** كل نظام يستورد hook ويهيئه بنفسه. بالتالي `src/systems/skincare/index.jsx` سيُنشئ Record Store داخليًا باستخدام `ws.id` و`systemId="skincare"` وDemo store الممرر من المنصة.
+
+### 10.6 قرارات S1 المعتمدة
+
+- اعتماد `useRecordStore` هو المسار الأساسي لبيانات Skincare التي يمكن تخزينها كسجلات JSONB.
+- اعتماد أسماء collections صريحة وربطها بأقسام الواجهة في migration واحدة؛ لا collection واحدة لكل النظام.
+- عدم استخدام `putAtomic` أو `putBatchAtomic` لعمليات Skincare قبل توسيع allowlists/عقود RPC؛ هذه الدوال الحالية مقيدة بأنظمة أخرى. عمليات CRUD المفردة تستخدم `put`، والعمليات متعددة السجلات تحتاج migration/RPC مخصصًا واختبارات ذرية.
+- `softDelete` هو مسار الحذف الافتراضي، و`restore` للاستعادة؛ لا نستخدم DELETE الفعلي على `workspace_records` من الواجهة.
+- لا نضيف بيانات الدورة أو صور التقدم إلى fallback المحلي. الصور ستظل في Storage خاص مع metadata في Record Store.
+- لا حاجة إلى تعديل `OSSystemHost` أو `SYSTEM_LOADERS`؛ إضافة مجلد النظام تكفي للتحميل الديناميكي.
+- يبقى إنشاء bucket وسياسات Storage وmigration الخاصة بـSkincare جزءًا من S1 بعد تحديد owner/path contract واختبارات العزل، وليس تغييرًا مرتجلًا على الإنتاج.
+
+### 10.7 حالة S0 بعد الاستكمال
+
+- [x] تحديد `useRecordStore` وعقده ومخرجاته.
+- [x] تحديد `OSSystemHost` والتحميل الديناميكي.
+- [x] تحديد جدول `collection_sections` ودالة تطبيق صلاحيات الأقسام.
+- [x] تحديد الحاجة إلى mapping لكل collection قبل تفعيل النظام.
+- [x] اعتماد مسار soft-delete/restore.
+- [ ] تشغيل build/tests baseline في بيئة تشغيل المشروع.
+- [ ] إعداد Storage bucket والسياسات (ينتقل إلى S1).
+- [ ] تنفيذ اختبار RLS بحساب عضو view/edit على أقسام Skincare بعد migration (قبل أي إطلاق).
+
+**حالة المرحلة:** أُغلقت مراجعة البنية المصدرية وقرارات التكامل في S0. بقي baseline runtime غير منفذ بسبب عدم توفر بيئة تشغيل المستودع في هذا المسار، ويجب تنفيذه قبل الدمج النهائي. يبدأ S1 ببناء شاشة النظام وطبقة Repository وربط الصلاحيات، ثم إعداد Storage واختباراته قبل تفعيل الصور.
