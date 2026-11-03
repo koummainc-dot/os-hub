@@ -10,7 +10,7 @@ const storageFix = fs.readFileSync("supabase/migrations/20261103141500_health_os
 const registry = core.match(/id:"health"[\s\S]*?sections:osSec\("([^"]+)"\)/);
 assert.ok(registry, "Health OS must be registered in the unified OS registry");
 const registeredSections = registry[1].split("|").map(item => item.split(":")[0]);
-const renderedSections = [...moduleSource.matchAll(/\[\["(home|profile|access|documents|settings)","[^"]+"\]\]/g)].map(m => m[1]);
+const renderedSections = [...moduleSource.matchAll(/\["(home|profile|access|documents|settings)","[^"]+"\]/g)].map(m => m[1]);
 assert.deepEqual([...new Set(renderedSections)].sort(), [...new Set(registeredSections)].sort(), "Health internal navigation must match registry sections");
 assert.match(core, /id:"health"[\s\S]*?scope:"personal"[\s\S]*?sensitive:true/, "Health OS must be personal and sensitive");
 assert.match(moduleSource, /healthRepository\.listProfiles\(\)/, "Health UI must load from the dedicated repository");
