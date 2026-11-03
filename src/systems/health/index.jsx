@@ -132,6 +132,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
   useEffect(() => {
     if (!selected?.id) { setConditions([]); setAllergies([]); setSymptomDefinitions([]); setSymptomLogs([]); setDocuments([]); setMedications([]); setMedicationVersions([]); setMedicationEvents([]); setSideEffects([]); setMedicationReminders([]); setFlareEvents([]); setDailyCheckins([]); setFactors([]); setFactorLogs([]); setCycleEntries([]); return; }
     let cancelled = false;
+    setDailyCheckins([]); setFactors([]); setFactorLogs([]); setCycleEntries([]);
     (async () => {
       try {
         let rows;
@@ -208,7 +209,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
       let updated;
       if (isDemo) updated = { ...selected, display_name: editName.trim(), timezone, locale, updated_at: new Date().toISOString() };
       else updated = await healthRepository.updateProfile({ profileId: selected.id, ownerUserId: userId, displayName: editName, timezone, locale });
-      setProfiles(rows => rows.map(p => p.id === selected.id ? updated : p));
+      setProfiles(rows => rows.map(p => p.id === selected.id ? { ...updated, cycle_tracking_enabled: !!selected.cycle_tracking_enabled } : p));
       if (isDemo) {
         const key = demoKey("profiles", userId);
         demoStore.current[key] = (demoStore.current[key] || []).map(p => p.id === selected.id ? updated : p);
