@@ -22,9 +22,6 @@ const OS_SYSTEMS=[
 {id:"projects",group:"work",scope:"shared",icon:"🚀",color:"#6366F1",name:"Projects OS",title:"المشاريع والمخرجات",status:"live",phase:"جاهز",sensitive:false,plan:"Projects_OS_v4_Unified_Master_Plan.md",
  desc:"المشاريع والمهام والمخرجات والمخاطر والأهداف (OKR) للفريق.",
  sections:osSec("dashboard:الرئيسية:⌂|today:اليوم:📅|week:هذا الأسبوع:🗓️|projects:المشاريع:📁|tasks:مهامي:✅|discovery:الاكتشاف:🔎|prds:المواصفات:📝|okrs:الأهداف (OKR):🎯|outputs:المخرجات:📦|risks:المخاطر والمشاكل والقرارات:⚠️|meetings:الاجتماعات:👥|updates:التحديثات:📣|wins:الإنجازات:🏆|reviews:المراجعات الأسبوعية:🔁|contacts:جهات الاتصال:📇|team:الفريق:🧑‍🤝‍🧑|templates:القوالب:🧩|settings:الإعدادات:⚙️")},
-{id:"habits",group:"life",scope:"personal",icon:"🌱",color:"#84CC16",name:"Habit OS",title:"العادات",status:"planned",phase:"المرحلة 2",sensitive:true,plan:"Habit_OS_v4_Unified_Master_Plan.md",
- desc:"مكتبة العادات والتسجيل السريع والسلاسل والأيام النظيفة والجورنال والكتب والتركيز الأسبوعي والإنجازات.",
- sections:osSec("dashboard:اليوم:◷|habits:العادات:🌿|logs:السجل اليومي:📒|relapses:التعافي:🛟|journal:الجورنال:✍️|books:الكتب والقراءة:📚|focus:التركيز الأسبوعي:🎯|achievements:الإنجازات:🏅|settings:الإعدادات والخصوصية:⚙️")},
 {id:"knowledge",group:"work",scope:"shared",icon:"🧠",color:"#0EA5E9",name:"Knowledge OS",title:"المعرفة والموارد",status:"live",phase:"جاهز",sensitive:false,plan:"Knowledge_OS_v4_Unified_Master_Plan.md",
  desc:"التقط ← وضّح ← نظّم ← استخدم: الروابط والأفكار والاجتماعات والفعاليات.",
  sections:osSec("hub:الرئيسية:⌂|inbox:Inbox:📥|bookmarks:الروابط والمصادر:🔖|ideas:الأفكار:💡|notes:الملاحظات:📝|meetings:الاجتماعات:👥|events:الفعاليات:🎟️|calendar:التقويم الموحّد:📅|categories:التصنيفات:🗂️|linktypes:أنواع الروابط:🏷️|search:البحث:🔍|settings:الإعدادات:⚙️")},
@@ -54,7 +51,7 @@ const OS_SYSTEMS=[
 {id:"travel",group:"life",scope:"personal",icon:"✈️",color:"#06B6D4",name:"Travel & Experiences OS",title:"السفر والتجارب",status:"live",phase:"المرحلة 12 · نسخة أولية",sensitive:false,plan:"TRAVEL_EXPERIENCES_OS_UNIFIED_MASTER_PLAN_v4.md",
  desc:"الرحلات والبرنامج اليومي والحجوزات والميزانيات وقوائم التجهيز والوجهات والمستندات والذكريات والتقييمات.",
  sections:osSec("home:الرئيسية:⌂|trips:الرحلات:🧳|active:الرحلة النشطة:📍|itinerary:برنامج الرحلة:🗓️|bookings:الحجوزات:🎟️|budget:الميزانية:💳|packing:قائمة التجهيز:🎒|destinations:الوجهات:🌍|places:الأماكن والتجارب:🗺️|documents:المستندات:🛂|memories:الذكريات:📸|reviews:التقييمات:⭐|settings:الإعدادات:⚙️")},
-{id:"hobbies",group:"life",scope:"personal",icon:"🎨",color:"#7C3AED",name:"Hobbies OS",title:"الهوايات والاهتمامات",status:"live",phase:"المرحلة 6A · التحليلات والرؤى",sensitive:false,plan:"Hobbies_OS_v1_Unified_Master_Plan_AR.md",desc:"إدارة الهوايات والاهتمامات وجلسات الممارسة والتقدم والإنجازات والموارد والمعدات.",sections:osSec("dashboard:الرئيسية:⌂|hobbies:هواياتي:🎯|explore:اهتمامات مستقبلية:🔎|sessions:جلسات الممارسة:⏱️|skills:المهارات والتقدم:📈|milestones:الإنجازات:🏆|goals:الأهداف:🎯|plans:خطط الممارسة:🗓️|resources:الموارد والمراجع:📚|equipment:المعدات المرتبطة:🧰|journal:اليوميات والذكريات:📔|insights:التحليلات والرؤى:📊|settings:الإعدادات:⚙️")},
+{id:"hobbies",group:"life",scope:"personal",icon:"🌱",color:"#65A30D",name:"Habits & Hobbies OS",title:"العادات والهوايات",status:"live",phase:"الدمج · العادات والهوايات",sensitive:true,plan:"Habit_OS_v4_Unified_Master_Plan.md + Hobbies_OS_v1_Unified_Master_Plan_AR.md",desc:"قسم موحّد للعادات اليومية والهوايات وجلسات الممارسة وتطور المهارات، مع الحفاظ على خصوصية السجلات.",sections:osSec("dashboard:الرئيسية:⌂|habit-library:العادات:🌱|habit-log:سجل العادات:📒|relapses:التعافي:🛟|books:الكتب:📚|reading:جلسات القراءة:📖|weekly-focus:التركيز الأسبوعي:🎯|achievements:إنجازات العادات:🏅|reminders:التذكيرات:🔔|trash:المحذوفات:🗑️|hobbies:هواياتي:🎨|explore:اهتمامات مستقبلية:🔎|sessions:جلسات الممارسة:⏱️|skills:المهارات والتقدم:📈|milestones:إنجازات الهوايات:🏆|goals:الأهداف:🎯|plans:خطط الممارسة:🗓️|resources:الموارد والمراجع:📚|equipment:المعدات المرتبطة:🧰|journal:اليوميات والذكريات:📔|insights:التحليلات والرؤى:📊|settings:الإعدادات والخصوصية:⚙️")},
 {id:"spiritual",group:"life",scope:"personal",icon:"🙏",color:"#14B8A6",name:"Spiritual & Values OS",title:"الروحانيات والقيم",status:"planned",phase:"المرحلة 13",sensitive:true,plan:"SPIRITUAL_VALUES_OS_UNIFIED_MASTER_PLAN_v4.md",
  desc:"القيم والمبادئ والممارسات والتأملات والالتزامات بهدوء وخصوصية.",
  sections:osSec("home:الرئيسية:⌂|values:القيم:💎|principles:المبادئ:📜|practices:الممارسات:🌿|dailylog:السجل اليومي:📒|reflections:التأملات:🪞|goals:الأهداف:🎯|commitments:الالتزامات:🤲|dates:التواريخ المهمة:📅|reviews:المراجعات:🔁|seasons:المواسم:🌙|alignment:الاتساق:🧭|settings:الإعدادات:⚙️")},
@@ -296,8 +293,8 @@ function osClearLocalCaches(){
 }
 function osBuildDemoState(){
   const sys=(lvl)=>{const o={};OS_SYSTEMS.forEach(s=>{o[s.id]={level:lvl,manage:false,sections:{}};});return o;};
-  const sara=sys("edit"); sara.finance.level="view"; delete sara.spiritual; delete sara.relationships; sara.content={level:"edit",manage:false,sections:{analytics:"none",team:"none",settings:"none"}}; sara.projects.manage=true; sara.habits={level:"view",manage:false,sections:{journal:"none",relapses:"none"}};
-  const layla=sys("view"); delete layla.finance; delete layla.spiritual; delete layla.relationships; delete layla.nutrition; delete layla.habits;
+  const sara=sys("edit"); sara.finance.level="view"; delete sara.spiritual; delete sara.relationships; sara.content={level:"edit",manage:false,sections:{analytics:"none",team:"none",settings:"none"}}; sara.projects.manage=true; sara.hobbies={level:"view",manage:false,sections:{settings:"none"}};
+  const layla=sys("view"); delete layla.finance; delete layla.spiritual; delete layla.relationships; delete layla.nutrition; delete layla.hobbies;
   const omar=sys("view"); Object.keys(omar).forEach(k=>{if(["content","projects","knowledge"].indexOf(k)<0)delete omar[k];});
   const ago=(d)=>new Date(Date.now()-d*86400000).toISOString();
   return {
