@@ -421,7 +421,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     {store.ready && !store.error && page === "photos" && <PhotosView workspaceId={ws?.id} entries={diaryEntries} photos={photos} deletedPhotos={deletedPhotos} isDemo={isDemo} canEdit={canEdit} busy={busy} onUpload={uploadPhoto} onDelete={removePhoto} onPurge={removePhoto} />}
     {store.ready && !store.error && page === "ingredients" && <IngredientsView ingredients={ingredients} deletedIngredients={deletedIngredients} products={products} canEdit={canEdit} busy={busy} onSave={saveIngredient} onDelete={deleteIngredient} onRestore={restoreIngredient} onImportCatalog={importIngredientCatalog} />}
     {store.ready && !store.error && page === "trials" && <TrialsView trials={trials} products={products} diaryEntries={diaryEntries} reactions={reactions} canEdit={canEdit} busy={busy} onCreate={createTrial} onTransition={updateTrialStatus} />}
-    {store.ready && !store.error && page === "reactions" && <ReactionsView reactions={reactions} products={products} units={units} ingredients={ingredients} canEdit={canEdit} busy={busy} onCreate={createReaction} onResolve={resolveReaction} onArchive={archiveReaction} setPage={setPage} />}
+    {store.ready && !store.error && page === "reactions" && <ReactionsView reactions={reactions} products={products} units={units} ingredients={ingredients} routines={routines} canEdit={canEdit} busy={busy} onCreate={createReaction} onResolve={resolveReaction} onArchive={archiveReaction} setPage={setPage} />}
   </div>;
 }
 
