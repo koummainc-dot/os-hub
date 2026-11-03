@@ -7,15 +7,15 @@ on:
       - "supabase/tests/hobbies_journal_privacy_smoke.sql"
       - "supabase/tests/hobbies_import_atomic_smoke.sql"
       - "supabase/migrations/*hobbies_import_records_batch*"
-      - "supabase/tests/hobbies_import_atomic_smoke.sql"
-      - "supabase/migrations/*hobbies_import_records_batch*"
       - "tests/hobbies_journal_sql_bootstrap.sql"
       - ".github/workflows/hobbies-journal-sql-smoke.yml"
   push:
     branches: [main]
     paths:
       - "supabase/migrations/*hobbies_journal*"
+      - "supabase/migrations/*hobbies_import_records_batch*"
       - "supabase/tests/hobbies_journal_privacy_smoke.sql"
+      - "supabase/tests/hobbies_import_atomic_smoke.sql"
       - "tests/hobbies_journal_sql_bootstrap.sql"
       - ".github/workflows/hobbies-journal-sql-smoke.yml"
 
