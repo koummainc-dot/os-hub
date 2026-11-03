@@ -11,7 +11,7 @@ const storageFix = fs.readFileSync("supabase/migrations/20261103134401_health_os
 const registry = core.match(/id:"health"[\s\S]*?sections:osSec\("([^"]+)"\)/);
 assert.ok(registry, "Health OS must be registered in the unified OS registry");
 const registeredSections = registry[1].split("|").map(item => item.split(":")[0]);
-const renderedSections = [...moduleSource.matchAll(/\["(home|profile|conditions|symptoms|medications|flare_events|access|documents|settings)","[^"]+"\]/g)].map(m => m[1]);
+const renderedSections = [...moduleSource.matchAll(/\["(home|profile|conditions|symptoms|medications|flare_events|checkins|factors|cycle_tracking|access|documents|settings)","[^"]+"\]/g)].map(m => m[1]);
 assert.deepEqual([...new Set(renderedSections)].sort(), [...new Set(registeredSections)].sort(), "Health internal navigation must match registry sections");
 assert.match(core, /id:"health"[\s\S]*?scope:"personal"[\s\S]*?sensitive:true/, "Health OS must be personal and sensitive");
 assert.match(platform, /s\.id==="health"\|\|osAccess\(ws,s\.id\)\.level!=="none"/, "Health OS must be discoverable independently of workspace membership");
