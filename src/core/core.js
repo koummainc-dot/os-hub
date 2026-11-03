@@ -56,6 +56,8 @@ const OS_SYSTEMS=[
  desc:"القيم والمبادئ والممارسات والتأملات والالتزامات بهدوء وخصوصية.",
  sections:osSec("home:الرئيسية:⌂|values:القيم:💎|principles:المبادئ:📜|practices:الممارسات:🌿|dailylog:السجل اليومي:📒|reflections:التأملات:🪞|goals:الأهداف:🎯|commitments:الالتزامات:🤲|dates:التواريخ المهمة:📅|reviews:المراجعات:🔁|seasons:المواسم:🌙|alignment:الاتساق:🧭|settings:الإعدادات:⚙️")},
 {id:"health",group:"life",scope:"personal",icon:"🩺",color:"#0EA5E9",name:"Health & Wellness OS",title:"الصحة والعافية",status:"live",phase:"H2.4 · الخط الزمني الصحي",sensitive:true,plan:"plans/HEALTH_WELLNESS_OS_UNIFIED_MASTER_PLAN_v1_AR.md",desc:"ملف صحي خاص، قياسات حيوية وجسمية، حالات وأعراض وأدوية ونوبات، متابعة يومية وتقارير.",sections:osSec("home:الرئيسية:⌂|profile:الملف الصحي:🩺|measurements:القياسات الحيوية:📏|conditions:الحالات والحساسيات:🧾|symptoms:الأعراض:🩹|body_map:مخطط الجسم:🧍|search:البحث الصحي:🔎|timeline:الخط الزمني الصحي:🕒|medications:الأدوية والعلاجات:💊|flare_events:نوبات التهيّج:🌡️|checkins:المتابعة اليومية:📅|factors:العوامل والمتتبعات:📈|reports:التقارير الصحية:📊|visit_summary:ملخص زيارة الطبيب:📝|cycle_tracking:الدورة الاختيارية:🔒|access:المشاركة والتفويض:🔐|documents:الوثائق الطبية:📄|settings:الإعدادات والخصوصية:⚙️")},
+
+{id:"skincare",group:"life",scope:"personal",icon:"🧴",color:"#A855F7",name:"Skincare OS",title:"العناية بالبشرة",status:"live",phase:"S1 · الملف والمنتجات والعبوات",sensitive:true,plan:"plans/SKINCARE_OS_UNIFIED_MASTER_PLAN_v1_AR.md",desc:"ملف البشرة والمنتجات والعبوات، مع خصوصية بيانات مساحة العمل.",sections:osSec("home:الرئيسية:⌂|settings:ملف البشرة:🧴|products:المنتجات:🧪|units:العبوات:📦")},
 ];
 function osSystemById(id){return OS_SYSTEMS.find(s=>s.id===id)||null;}
 function osSections(sys){
