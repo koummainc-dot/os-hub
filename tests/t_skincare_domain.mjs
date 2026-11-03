@@ -19,3 +19,17 @@ assert.equal(validateSkinDiaryEntry({ date: "2026-02-30" }, "2026-11-03").ok, fa
 assert.equal(validateSkinDiaryEntry({ date: "2026-11-03", skinRating: 6 }, "2026-11-03").ok, false);
 assert.equal(validateSkinDiaryEntry({ date: "2026-11-03", sleepHours: -1 }, "2026-11-03").ok, false);
 console.log("Skincare diary contracts passed.");
+
+import { buildSkinPhotoPaths, validateSkinPhotoFile } from "../src/systems/skincare/photoDomain.js";
+const workspaceId = "123e4567-e89b-42d3-a456-426614174000";
+const photoId = "123e4567-e89b-42d3-a456-426614174001";
+assert.deepEqual(buildSkinPhotoPaths({ workspaceId, diaryId: "diary-2026-11-03", photoId, mimeType: "image/jpeg" }), {
+  objectPath: workspaceId + "/diary-2026-11-03/" + photoId + ".jpg",
+  thumbnailPath: workspaceId + "/diary-2026-11-03/" + photoId + ".thumb.webp",
+});
+assert.equal(validateSkinPhotoFile({ type: "image/jpeg", size: 1024 }).ok, true);
+assert.equal(validateSkinPhotoFile({ type: "image/gif", size: 1024 }).ok, false);
+assert.equal(validateSkinPhotoFile({ type: "image/png", size: 11 * 1024 * 1024 }).ok, false);
+assert.throws(() => buildSkinPhotoPaths({ workspaceId: "bad", diaryId: "diary-2026-11-03", photoId, mimeType: "image/jpeg" }));
+assert.throws(() => buildSkinPhotoPaths({ workspaceId, diaryId: "../other", photoId, mimeType: "image/jpeg" }));
+console.log("Skincare photo contracts passed.");
