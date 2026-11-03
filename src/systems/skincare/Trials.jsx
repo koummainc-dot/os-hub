@@ -80,6 +80,13 @@ export default function TrialsView({ trials, products, diaryEntries, reactions, 
             <span style={{ background: C.soft, color: C.ink, borderRadius: 20, padding: "4px 9px", fontSize: 10 }}>{trial.verdict === "pending" ? "لم تُسجل نتيجة" : (VERDICTS.find(x => x[0] === trial.verdict)?.[1] || trial.verdict)}</span>
           </div>
           <p style={{ fontSize: 12, margin: "8px 0" }}>{trial.question}</p>
+          <div style={{ background: C.soft, borderRadius: 9, padding: 10, marginBottom: 9 }}>
+            <b style={{ fontSize: 11 }}>سياق الروتين عند بدء التجربة</b>
+            {trial.routineContext?.length ? trial.routineContext.map(item => <div key={item.routineId} style={{ fontSize: 11, marginTop: 5 }}>
+              <b>{item.name}</b> <span style={{ color: C.muted }}>({item.timeOfDay === "am" ? "صباح" : item.timeOfDay === "pm" ? "مساء" : "مخصص"})</span>
+              <div style={{ color: C.muted }}>{item.steps.map(step => step.category + (step.instruction ? " — " + step.instruction : "")).join("، ")}</div>
+            </div>) : <div style={{ color: C.muted, fontSize: 11, marginTop: 5 }}>لم يكن المنتج موجودًا في أي خطوة روتين مسجلة عند بدء التجربة، أو أن هذه تجربة قديمة قبل حفظ هذا السياق.</div>}
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 7 }}>
             <Metric label="خط الأساس" value={summary.baselineAverage == null ? "—" : summary.baselineAverage.toFixed(1) + " / 5"} />
             <Metric label="المتابعة" value={summary.followupAverage == null ? "—" : summary.followupAverage.toFixed(1) + " / 5"} />
