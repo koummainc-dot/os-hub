@@ -81,6 +81,8 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
   const [symptomDraft, setSymptomDraft] = useState({ name:"", category:"" });
   const [symptomLogDraft, setSymptomLogDraft] = useState({ symptom_definition_id:"", severity:"3", recorded_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16), duration_minutes:"", body_location:"", body_region_code:null, body_view:null, body_x:null, body_y:null, notes:"" });
   const [bodyMapTargetId,setBodyMapTargetId] = useState("");
+  const [symptomMapView,setSymptomMapView] = useState("front");
+  const [bodyMapView,setBodyMapView] = useState("front");
   const [bodyMapDraft,setBodyMapDraft] = useState({body_region_code:null,body_view:"front",body_x:null,body_y:null,body_location:""});
 
 
@@ -328,13 +330,34 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
     try{if(isDemo){const rows=symptomDefinitions.filter(x=>x.id!==row.id);storeDemoRows("symptoms",rows);setSymptomDefinitions(rows);const logs=symptomLogs.map(x=>x.symptom_definition_id===row.id?{...x,symptom_definition_id:null}:x);storeDemoRows("symptom-logs",logs);setSymptomLogs(logs);}else{await healthRepository.deleteSymptomDefinition({profileId:selected.id,actorUserId:userId,id:row.id});setSymptomDefinitions(rows=>rows.filter(x=>x.id!==row.id));}setNotice("تم حذف العَرَض من القائمة مع الحفاظ على السجلات السابقة.");}
     catch(e){setError(e?.message||"تعذر حذف العَرَض.");}finally{setBusy(false);}
   }
+  function selectBodyMapTarget(id) {
+    const row=symptomLogs.find(x=>x.id===id);
+    setBodyMapTargetId(id);
+    setBodyMapView(row?.body_view||"front");
+    setBodyMapDraft(row?{body_region_code:row.body_region_code||null,body_view:row.body_view||null,body_x:row.body_x??null,body_y:row.body_y??null,body_location:row.body_location||""}:{body_region_code:null,body_view:"front",body_x:null,body_y:null,body_location:""});
+  }
+  async function saveSymptomBodyLocation() {
+    const row=symptomLogs.find(x=>x.id===bodyMapTargetId);
+    if(!row||!hasScopeAction("symptoms","update"))return;
+    if(bodyMapDraft.body_region_code&&(!bodyMapDraft.body_view||bodyMapDraft.body_x==null||bodyMapDraft.body_y==null)){setError("أكمل تحديد المنطقة والاتجاه والموقع.");return;}
+    setBusy(true);setError("");setNotice("");
+    try {
+      const patch={body_region_code:bodyMapDraft.body_region_code||null,body_view:bodyMapDraft.body_region_code?bodyMapDraft.body_view:null,body_x:bodyMapDraft.body_region_code?bodyMapDraft.body_x:null,body_y:bodyMapDraft.body_region_code?bodyMapDraft.body_y:null,body_location:bodyMapDraft.body_location?.trim()||null};
+      let updated;
+      if(isDemo){updated={...row,...patch,updated_at:new Date().toISOString()};const rows=symptomLogs.map(x=>x.id===row.id?updated:x);storeDemoRows("symptom-logs",rows);setSymptomLogs(rows);}
+      else {updated=await healthRepository.updateSymptomLog({profileId:selected.id,actorUserId:userId,id:row.id,patch});setSymptomLogs(rows=>rows.map(x=>x.id===row.id?updated:x));}
+      setBodyMapDraft({body_region_code:updated.body_region_code||null,body_view:updated.body_view||null,body_x:updated.body_x??null,body_y:updated.body_y??null,body_location:updated.body_location||""});
+      setNotice("تم حفظ موضع العرض على مخطط الجسم.");
+    }catch(e){setError(e?.message||"تعذر حفظ موضع العرض.");}finally{setBusy(false);}
+  }
+
   async function addSymptomLog(e) {
     e?.preventDefault();if(!selected||!hasScopeAction("symptoms","create"))return;setBusy(true);setError("");setNotice("");
     try{const definition=symptomDefinitions.find(x=>x.id===symptomLogDraft.symptom_definition_id);if(!definition)throw new Error("اختر عَرَضًا نشطًا.");const when=new Date(symptomLogDraft.recorded_at);if(Number.isNaN(when.getTime()))throw new Error("وقت التسجيل غير صحيح.");
-      const payload={symptom_definition_id:definition.id,symptom_name_snapshot:definition.name,severity:Number(symptomLogDraft.severity),recorded_at:when.toISOString(),duration_minutes:symptomLogDraft.duration_minutes===""?null:Number(symptomLogDraft.duration_minutes),body_location:symptomLogDraft.body_location.trim()||null,notes:symptomLogDraft.notes.trim()||null,source:"manual"};
+      const payload={symptom_definition_id:definition.id,symptom_name_snapshot:definition.name,severity:Number(symptomLogDraft.severity),recorded_at:when.toISOString(),duration_minutes:symptomLogDraft.duration_minutes===""?null:Number(symptomLogDraft.duration_minutes),body_location:symptomLogDraft.body_location.trim()||null,body_region_code:symptomLogDraft.body_region_code||null,body_view:symptomLogDraft.body_region_code?symptomLogDraft.body_view:null,body_x:symptomLogDraft.body_region_code?symptomLogDraft.body_x:null,body_y:symptomLogDraft.body_region_code?symptomLogDraft.body_y:null,notes:symptomLogDraft.notes.trim()||null,source:"manual"};
       if(!Number.isInteger(payload.severity)||payload.severity<1||payload.severity>10)throw new Error("الشدة يجب أن تكون من 1 إلى 10.");if(payload.duration_minutes!==null&&(!Number.isInteger(payload.duration_minutes)||payload.duration_minutes<1||payload.duration_minutes>10080))throw new Error("المدة يجب أن تكون بين 1 و10080 دقيقة.");
       let row;if(isDemo){row={...payload,id:"demo-symptom-log-"+Date.now(),profile_id:selected.id,created_by:userId,created_at:new Date().toISOString()};const rows=[row,...symptomLogs];storeDemoRows("symptom-logs",rows);setSymptomLogs(rows);}else{row=await healthRepository.createSymptomLog({profileId:selected.id,actorUserId:userId,log:payload});setSymptomLogs(rows=>[row,...rows]);}
-      setSymptomLogDraft(d=>({...d,duration_minutes:"",body_location:"",notes:""}));setNotice("تم تسجيل العَرَض. التسجيل لا يشخّص سبب الأعراض.");
+      setSymptomLogDraft(d=>({...d,duration_minutes:"",body_location:"",body_region_code:null,body_view:null,body_x:null,body_y:null,notes:""}));setNotice("تم تسجيل العَرَض. التسجيل لا يشخّص سبب الأعراض.");
     }catch(e){setError(e?.message||"تعذر تسجيل العَرَض.");}finally{setBusy(false);}
   }
   async function updateSymptomSeverity(row,value) {
