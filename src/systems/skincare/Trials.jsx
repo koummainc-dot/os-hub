@@ -19,6 +19,7 @@ export default function TrialsView({ trials, products, diaryEntries, reactions, 
   const [question, setQuestion] = useState("");
   const [plannedDays, setPlannedDays] = useState("28");
   const [verdicts, setVerdicts] = useState({});
+  const [selectedTrialId, setSelectedTrialId] = useState(null);
   const todayKey = today();
   const baseline = useMemo(() => diaryEntries.filter(entry =>
     entry.date >= addDays(todayKey, -7) && entry.date < todayKey &&
@@ -96,6 +97,12 @@ export default function TrialsView({ trials, products, diaryEntries, reactions, 
           </div>
           {!summary.enoughData && <div style={{ color: C.warn, fontSize: 10, marginTop: 7 }}>البيانات أقل من 3 تقييمات في خط الأساس أو المتابعة؛ اعرض المتوسطات بحذر.</div>}
           <div style={{ color: C.muted, fontSize: 10, lineHeight: 1.6, marginTop: 7 }}>{summary.interpretation}</div>
+          <div style={{ marginTop: 10 }}>
+            <button type="button" style={btn()} onClick={() => setSelectedTrialId(current => current === trial.id ? null : trial.id)}>
+              {selectedTrialId === trial.id ? "إخفاء تفاصيل التجربة" : "فتح تفاصيل التجربة والسجل الزمني"}
+            </button>
+          </div>
+          {selectedTrialId === trial.id && <TrialDetail trial={trial} diaryEntries={diaryEntries} reactions={reactions} />}
           {canEdit && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
             {trial.status === "planned" && <button type="button" style={btn()} disabled={busy} onClick={() => onTransition(trial, "running", {})}>بدء</button>}
             {trial.status === "running" && <button type="button" style={btn()} disabled={busy} onClick={() => onTransition(trial, "paused", {})}>إيقاف مؤقت</button>}
@@ -113,6 +120,55 @@ export default function TrialsView({ trials, products, diaryEntries, reactions, 
     </section>
   </>;
 }
+
+function TrialDetail({ trial, diaryEntries, reactions }) {
+  const finish = trial.endDate || today();
+  const diaryEvents = diaryEntries
+    .filter(entry => entry.date >= trial.startDate && entry.date <= finish)
+    .map(entry => ({
+      id: "diary-" + entry.id,
+      date: entry.date,
+      type: "diary",
+      title: "إدخال في مفكرة البشرة",
+      detail: entry.skinRating === null || entry.skinRating === undefined || entry.skinRating === "" ? "دون تقييم عام" : "تقييم البشرة: " + entry.skinRating + " / 5",
+    }));
+  const reactionEvents = reactions
+    .filter(item => item.productId === trial.productId && item.dateStarted >= trial.startDate && item.dateStarted <= finish)
+    .map(item => ({
+      id: "reaction-" + item.id,
+      date: item.dateStarted,
+      type: "reaction",
+      title: "تفاعل مسجل — " + ({ mild: "خفيف", moderate: "متوسط", severe: "شديد" }[item.severity] || item.severity),
+      detail: (item.symptoms || []).join("، ") || "لم تسجل أعراض نصية",
+    }));
+  const lifecycleEvents = (trial.timelineEvents || []).map(item => ({
+    id: item.id,
+    date: item.date,
+    type: item.type,
+    title: ({ started: "بدء التجربة", resumed: "استكمال التجربة", paused: "إيقاف مؤقت", completed: "إنهاء التجربة", cancelled: "إلغاء التجربة" }[item.type] || "تحديث التجربة"),
+    detail: item.note || "",
+  }));
+  const events = [...lifecycleEvents, ...diaryEvents, ...reactionEvents]
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.id.localeCompare(b.id));
+  return <section style={{ background: C.white, border: "1px solid " + C.line, borderRadius: 10, padding: 11, marginTop: 10 }}>
+    <b style={{ fontSize: 12 }}>السجل الزمني للتجربة</b>
+    <div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>يعرض تغييرات حالة التجربة وإدخالات المفكرة والتفاعلات المسجلة خلال الفترة. لا يعني التزامن وجود علاقة سببية.</div>
+    {!events.length && <p style={{ color: C.muted, fontSize: 11 }}>لا توجد أحداث مسجلة في هذه الفترة.</p>}
+    <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+      {events.map(event => <div key={event.id} style={{ display: "grid", gridTemplateColumns: "10px 1fr", gap: 8 }}>
+        <span style={{ width: 8, height: 8, borderRadius: 20, background: event.type === "reaction" ? C.warn : event.type === "diary" ? C.accent : C.ink, marginTop: 4 }} />
+        <div style={{ borderBottom: "1px solid " + C.line, paddingBottom: 7 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+            <b style={{ fontSize: 11 }}>{event.title}</b><span style={{ color: C.muted, fontSize: 10 }}>{event.date}</span>
+          </div>
+          {event.detail && <div style={{ color: C.muted, fontSize: 10, marginTop: 3 }}>{event.detail}</div>}
+        </div>
+      </div>)}
+    </div>
+    <div style={{ color: C.muted, fontSize: 10, marginTop: 8 }}>عدد الأحداث: {events.length} · إدخالات المفكرة: {diaryEvents.length} · التفاعلات: {reactionEvents.length}</div>
+  </section>;
+}
+
 
 function Metric({ label, value }) {
   return <div style={{ border: "1px solid " + C.line, borderRadius: 9, padding: 8 }}>
