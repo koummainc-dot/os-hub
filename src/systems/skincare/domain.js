@@ -5,6 +5,7 @@ export const SKINCARE_COLLECTIONS = Object.freeze({
   routines: "skin_routines",
   routineLogs: "skin_routine_logs",
   diary: "skin_diary",
+  photos: "skin_photos",
 });
 
 const text = (value, max = 160) => String(value ?? "").trim().slice(0, max);
