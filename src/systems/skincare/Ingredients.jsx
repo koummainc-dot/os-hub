@@ -44,7 +44,7 @@ export default function IngredientsView({ ingredients, deletedIngredients, produ
           setImporting(true); setImportSummary("");
           try {
             const result = await onImportCatalog(INGREDIENT_CATALOG);
-            setImportSummary(result ? "أُضيف " + result.added + "، وتُرك " + result.skipped + " موجودًا دون تعديل." : "لم يكتمل الاستيراد؛ يمكنك المحاولة مرة أخرى.");
+            setImportSummary(result ? (result.failed ? "توقف الاستيراد بعد إضافة " : "اكتمل الاستيراد: أُضيف ") + result.added + "، وتُرك " + result.skipped + " موجودًا دون تعديل." : "لم يكتمل الاستيراد؛ يمكنك المحاولة مرة أخرى.");
           } finally { setImporting(false); }
         }}>{importing ? "جارٍ الاستيراد…" : "استيراد الأسماء المرجعية"}</button>}
       </div>
