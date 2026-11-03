@@ -118,11 +118,17 @@ export function sortRoutineSteps(steps = []) {
   }).map((step, index) => ({ ...step, order: index }));
 }
 
-export function isRoutineDue(routine, date = new Date()) {
+export function isRoutineDue(routine, date = new Date(), logs = []) {
   if (!routine || routine.status !== "active") return false;
   const day = date.getDay();
   if (routine.frequency === "selected_days") return (routine.days || []).includes(day);
-  if (routine.frequency === "times_per_week") return false;
+  if (routine.frequency === "times_per_week") {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+    const start = new Date(date); start.setDate(start.getDate() - start.getDay());
+    const weekStart = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(start);
+    const completedDays = new Set(logs.filter(x => x.routineId === routine.id && x.status === "done" && x.date >= weekStart && x.date <= today).map(x => x.date));
+    return completedDays.size < Number(routine.timesPerWeek || 0);
+  }
   return true;
 }
 
