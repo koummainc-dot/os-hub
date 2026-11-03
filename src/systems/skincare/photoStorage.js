@@ -128,12 +128,15 @@ export async function getSkinPhotoSignedUrls({ workspaceId, photo }) {
   if (!workspaceId || !photo?.id || !photo.objectPath || !photo.thumbnailPath) throw new Error("بيانات الصورة غير مكتملة.");
   const row = await readWorkspaceRecord({ workspaceId, collection: "skin_photos", id: photo.id });
   if (!row || row.deleted || row.data?.deleted_at) throw new Error("الصورة محذوفة أو لا تملك صلاحية عرضها.");
+  const expectedPaths = buildSkinPhotoPaths({ workspaceId, diaryId: row.data?.diaryId, photoId: row.id, mimeType: row.data?.mimeType });
   if (
+    expectedPaths.objectPath !== row.data?.objectPath ||
+    expectedPaths.thumbnailPath !== row.data?.thumbnailPath ||
     row.data?.objectPath !== photo.objectPath ||
     row.data?.thumbnailPath !== photo.thumbnailPath ||
     row.data?.diaryId !== photo.diaryId ||
     row.data?.date !== photo.date
-  ) throw new Error("بيانات الصورة لا تطابق السجل الموثوق؛ أوقفنا إنشاء الرابط.");
+  ) throw new Error("بيانات الصورة أو مساراتها لا تطابق العقد الموثوق؛ أوقفنا إنشاء الرابط.");
   const [original, thumbnail] = await Promise.all([
     supabase.storage.from(BUCKET).createSignedUrl(row.data.objectPath, 300),
     supabase.storage.from(BUCKET).createSignedUrl(row.data.thumbnailPath, 300),
