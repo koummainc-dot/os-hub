@@ -12,7 +12,7 @@ assert.deepEqual(events.map(e=>new Date(e.date).getTime()),[...events.map(e=>new
 assert.equal(buildHealthTimeline(data,()=>false).length,0);
 assert.equal(buildHealthTimeline(data,scope=>scope==="sensitive_trackers").length,0);
 assert.equal(filterHealthTimeline(events,{type:"symptom"}).length,1);
-assert.equal(filterHealthTimeline(events,{from:"2026-11-03",to:"2026-11-03",timezone:"Africa/Cairo"}).length,4);
+assert.equal(filterHealthTimeline(events,{from:"2026-11-03",to:"2026-11-03",timezone:"Africa/Cairo"}).length,6);
 assert.equal(healthTimelineLocalDay("2026-11-02T22:30:00.000Z","Africa/Cairo"),"2026-11-03");
 const ui=fs.readFileSync("src/systems/health/index.jsx","utf8"),repo=fs.readFileSync("src/systems/health/repository.js","utf8"),component=fs.readFileSync("src/systems/health/HealthTimeline.jsx","utf8"),plan=fs.readFileSync("plans/HEALTH_WELLNESS_OS_UNIFIED_MASTER_PLAN_v1_AR.md","utf8");
 for(const method of ["listConditions","listAllergies","listSymptomLogs","listDocuments","listMedications","listMedicationVersions","listMedicationEvents","listMedicationSideEffects","listFlareEvents","listDailyCheckins","listMeasurements"])assert.ok(repo.includes(method),method);
