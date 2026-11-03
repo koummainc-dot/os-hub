@@ -120,7 +120,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
   const saveDiaryEntry = async e => {
     e.preventDefault();
     if (!canEdit) return;
-    const result = validateSkinDiaryEntry({ ...diaryDraft, issues: diaryDraft.issuesText.split(/[,،\\n]/) }, today());
+    const result = validateSkinDiaryEntry({ ...diaryDraft, issues: diaryDraft.issuesText.split(/[,،\n]/) }, today());
     if (!result.ok) return say(result.error);
     const existing = diaryEntries.find(entry => entry.date === result.value.date && entry.id !== editingDiary);
     if (existing) return say("يوجد تسجيل لهذا اليوم بالفعل؛ افتحه من السجل لتعديله.");
