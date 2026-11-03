@@ -43,9 +43,25 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
   const [grantRole, setGrantRole] = useState("viewer");
   const [scopes, setScopes] = useState(["documents"]);
   const [expiresDate, setExpiresDate] = useState("");
+  const [conditions, setConditions] = useState([]);
+  const [allergies, setAllergies] = useState([]);
+  const [symptomDefinitions, setSymptomDefinitions] = useState([]);
+  const [symptomLogs, setSymptomLogs] = useState([]);
+  const [conditionDraft, setConditionDraft] = useState({ name:"", condition_type:"unknown", diagnosed_on:"", diagnosed_by:"", notes:"" });
+  const [allergyDraft, setAllergyDraft] = useState({ allergen:"", reaction:"", severity:"unknown", first_observed_on:"", notes:"" });
+  const [symptomDraft, setSymptomDraft] = useState({ name:"", category:"" });
+  const [symptomLogDraft, setSymptomLogDraft] = useState({ symptom_definition_id:"", severity:"3", recorded_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16), duration_minutes:"", body_location:"", notes:"" });
+
 
   const selected = useMemo(() => profiles.find(p => p.id === selectedId) || profiles[0] || null, [profiles, selectedId]);
   const isOwner = !!selected && (isDemo || selected.owner_user_id === userId);
+  const hasScopeAction = (scope, action) => {
+    if (isOwner) return true;
+    const now = Date.now();
+    return grants.some(g => g.grantee_user_id === userId && !g.revoked_at && new Date(g.starts_at).getTime() <= now && (!g.expires_at || new Date(g.expires_at).getTime() > now) && (g.scope_keys?.includes("all") || g.scope_keys?.includes(scope)) && g.actions?.includes(action));
+  };
+  const storeDemoRows = (type, rows) => { if (isDemo && demoStore?.current && selected?.id) demoStore.current[demoKey(type + ":" + selected.id, userId)] = rows; };
+
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -87,6 +103,29 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
     })();
     return () => { cancelled = true; };
   }, [selected?.id, selected?.owner_user_id, isDemo, demoStore, userId]);
+
+
+  useEffect(() => {
+    if (!selected?.id) { setConditions([]); setAllergies([]); setSymptomDefinitions([]); setSymptomLogs([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        let rows;
+        if (isDemo) rows = {
+          conditions: readDemo(demoStore, demoKey("conditions:" + selected.id, userId), []).map(x=>({...x})),
+          allergies: readDemo(demoStore, demoKey("allergies:" + selected.id, userId), []).map(x=>({...x})),
+          definitions: readDemo(demoStore, demoKey("symptoms:" + selected.id, userId), []).map(x=>({...x})),
+          logs: readDemo(demoStore, demoKey("symptom-logs:" + selected.id, userId), []).map(x=>({...x}))
+        };
+        else {
+          const result = await Promise.all([healthRepository.listConditions(selected.id),healthRepository.listAllergies(selected.id),healthRepository.listSymptomDefinitions(selected.id),healthRepository.listSymptomLogs(selected.id)]);
+          rows = {conditions:result[0],allergies:result[1],definitions:result[2],logs:result[3]};
+        }
+        if (!cancelled) { setConditions(rows.conditions); setAllergies(rows.allergies); setSymptomDefinitions(rows.definitions); setSymptomLogs(rows.logs); }
+      } catch(e) { if(!cancelled) setError(e?.message || "تعذر تحميل السجل الصحي."); }
+    })();
+    return () => { cancelled = true; };
+  }, [selected?.id,isDemo,demoStore,userId]);
 
   async function createProfile(e) {
     e?.preventDefault(); setBusy(true); setError(""); setNotice("");
@@ -166,15 +205,94 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
     finally { setBusy(false); }
   }
 
+
+  async function addCondition(e) {
+    e?.preventDefault(); if(!selected || !hasScopeAction("conditions","create")) return;
+    setBusy(true);setError("");setNotice("");
+    try {
+      const payload={...conditionDraft,name:conditionDraft.name.trim(),diagnosed_on:conditionDraft.diagnosed_on||null,diagnosed_by:conditionDraft.diagnosed_by.trim()||null,notes:conditionDraft.notes.trim()||null};
+      if(!payload.name) throw new Error("اكتب اسم الحالة الطبية.");
+      let row;
+      if(isDemo){row={...payload,id:"demo-condition-"+Date.now(),profile_id:selected.id,status:"active",created_by:userId,created_at:new Date().toISOString()};const rows=[row,...conditions];storeDemoRows("conditions",rows);setConditions(rows);}
+      else{row=await healthRepository.createCondition({profileId:selected.id,actorUserId:userId,condition:payload});setConditions(rows=>[row,...rows]);}
+      setConditionDraft({name:"",condition_type:"unknown",diagnosed_on:"",diagnosed_by:"",notes:""});setNotice("تمت إضافة الحالة الطبية.");
+    }catch(e){setError(e?.message||"تعذرت إضافة الحالة.");}finally{setBusy(false);}
+  }
+  async function toggleCondition(row) {
+    if(!selected||!hasScopeAction("conditions","update"))return;const patch={status:row.status==="active"?"resolved":"active",resolved_on:row.status==="active"?new Date().toISOString().slice(0,10):null};setBusy(true);setError("");
+    try{if(isDemo){const rows=conditions.map(x=>x.id===row.id?{...x,...patch}:x);storeDemoRows("conditions",rows);setConditions(rows);}else{const updated=await healthRepository.updateCondition({profileId:selected.id,actorUserId:userId,id:row.id,patch});setConditions(rows=>rows.map(x=>x.id===row.id?updated:x));}setNotice("تم تحديث حالة السجل.");}
+    catch(e){setError(e?.message||"تعذر تحديث الحالة.");}finally{setBusy(false);}
+  }
+  async function removeCondition(row) {
+    if(!selected||!hasScopeAction("conditions","delete")||!window.confirm("حذف الحالة الطبية؟"))return;setBusy(true);setError("");
+    try{if(isDemo){const rows=conditions.filter(x=>x.id!==row.id);storeDemoRows("conditions",rows);setConditions(rows);}else{await healthRepository.deleteCondition({profileId:selected.id,actorUserId:userId,id:row.id});setConditions(rows=>rows.filter(x=>x.id!==row.id));}setNotice("تم حذف الحالة.");}
+    catch(e){setError(e?.message||"تعذر حذف الحالة.");}finally{setBusy(false);}
+  }
+  async function addAllergy(e) {
+    e?.preventDefault();if(!selected||!hasScopeAction("conditions","create"))return;setBusy(true);setError("");setNotice("");
+    try{const payload={...allergyDraft,allergen:allergyDraft.allergen.trim(),reaction:allergyDraft.reaction.trim()||null,first_observed_on:allergyDraft.first_observed_on||null,notes:allergyDraft.notes.trim()||null};if(!payload.allergen)throw new Error("اكتب اسم المادة المسببة للحساسية.");let row;
+      if(isDemo){row={...payload,id:"demo-allergy-"+Date.now(),profile_id:selected.id,status:"active",created_by:userId,created_at:new Date().toISOString()};const rows=[row,...allergies];storeDemoRows("allergies",rows);setAllergies(rows);}
+      else{row=await healthRepository.createAllergy({profileId:selected.id,actorUserId:userId,allergy:payload});setAllergies(rows=>[row,...rows]);}
+      setAllergyDraft({allergen:"",reaction:"",severity:"unknown",first_observed_on:"",notes:""});setNotice("تمت إضافة الحساسية.");
+    }catch(e){setError(e?.message||"تعذرت إضافة الحساسية.");}finally{setBusy(false);}
+  }
+  async function toggleAllergy(row) {
+    if(!selected||!hasScopeAction("conditions","update"))return;const patch={status:row.status==="active"?"inactive":"active"};setBusy(true);setError("");
+    try{if(isDemo){const rows=allergies.map(x=>x.id===row.id?{...x,...patch}:x);storeDemoRows("allergies",rows);setAllergies(rows);}else{const updated=await healthRepository.updateAllergy({profileId:selected.id,actorUserId:userId,id:row.id,patch});setAllergies(rows=>rows.map(x=>x.id===row.id?updated:x));}setNotice("تم تحديث حالة الحساسية.");}
+    catch(e){setError(e?.message||"تعذر تحديث الحساسية.");}finally{setBusy(false);}
+  }
+  async function removeAllergy(row) {
+    if(!selected||!hasScopeAction("conditions","delete")||!window.confirm("حذف الحساسية؟"))return;setBusy(true);setError("");
+    try{if(isDemo){const rows=allergies.filter(x=>x.id!==row.id);storeDemoRows("allergies",rows);setAllergies(rows);}else{await healthRepository.deleteAllergy({profileId:selected.id,actorUserId:userId,id:row.id});setAllergies(rows=>rows.filter(x=>x.id!==row.id));}setNotice("تم حذف الحساسية.");}
+    catch(e){setError(e?.message||"تعذر حذف الحساسية.");}finally{setBusy(false);}
+  }
+  async function addSymptomDefinition(e) {
+    e?.preventDefault();if(!selected||!hasScopeAction("symptoms","create"))return;setBusy(true);setError("");setNotice("");
+    try{const name=symptomDraft.name.trim();if(!name)throw new Error("اكتب اسم العَرَض.");let row;
+      if(isDemo){row={id:"demo-symptom-"+Date.now(),profile_id:selected.id,name,category:symptomDraft.category.trim()||null,is_active:true,created_by:userId,created_at:new Date().toISOString()};const rows=[...symptomDefinitions,row];storeDemoRows("symptoms",rows);setSymptomDefinitions(rows);}
+      else{row=await healthRepository.createSymptomDefinition({profileId:selected.id,actorUserId:userId,name,category:symptomDraft.category});setSymptomDefinitions(rows=>[...rows,row].sort((a,b)=>a.name.localeCompare(b.name,"ar")));}
+      setSymptomDraft({name:"",category:""});setSymptomLogDraft(d=>({...d,symptom_definition_id:row.id}));setNotice("تمت إضافة العَرَض إلى قائمتك.");
+    }catch(e){setError(e?.message||"تعذرت إضافة العَرَض.");}finally{setBusy(false);}
+  }
+  async function toggleSymptomDefinition(row) {
+    if(!selected||!hasScopeAction("symptoms","update"))return;setBusy(true);setError("");
+    try{if(isDemo){const rows=symptomDefinitions.map(x=>x.id===row.id?{...x,is_active:!x.is_active}:x);storeDemoRows("symptoms",rows);setSymptomDefinitions(rows);}else{const updated=await healthRepository.updateSymptomDefinition({profileId:selected.id,actorUserId:userId,id:row.id,patch:{is_active:!row.is_active}});setSymptomDefinitions(rows=>rows.map(x=>x.id===row.id?updated:x));}}
+    catch(e){setError(e?.message||"تعذر تحديث العَرَض.");}finally{setBusy(false);}
+  }
+  async function removeSymptomDefinition(row) {
+    if(!selected||!hasScopeAction("symptoms","delete")||!window.confirm("حذف العَرَض من القائمة؟ ستبقى السجلات السابقة محفوظة."))return;setBusy(true);setError("");
+    try{if(isDemo){const rows=symptomDefinitions.filter(x=>x.id!==row.id);storeDemoRows("symptoms",rows);setSymptomDefinitions(rows);const logs=symptomLogs.map(x=>x.symptom_definition_id===row.id?{...x,symptom_definition_id:null}:x);storeDemoRows("symptom-logs",logs);setSymptomLogs(logs);}else{await healthRepository.deleteSymptomDefinition({profileId:selected.id,actorUserId:userId,id:row.id});setSymptomDefinitions(rows=>rows.filter(x=>x.id!==row.id));}setNotice("تم حذف العَرَض من القائمة مع الحفاظ على السجلات السابقة.");}
+    catch(e){setError(e?.message||"تعذر حذف العَرَض.");}finally{setBusy(false);}
+  }
+  async function addSymptomLog(e) {
+    e?.preventDefault();if(!selected||!hasScopeAction("symptoms","create"))return;setBusy(true);setError("");setNotice("");
+    try{const definition=symptomDefinitions.find(x=>x.id===symptomLogDraft.symptom_definition_id);if(!definition)throw new Error("اختر عَرَضًا نشطًا.");const when=new Date(symptomLogDraft.recorded_at);if(Number.isNaN(when.getTime()))throw new Error("وقت التسجيل غير صحيح.");
+      const payload={symptom_definition_id:definition.id,symptom_name_snapshot:definition.name,severity:Number(symptomLogDraft.severity),recorded_at:when.toISOString(),duration_minutes:symptomLogDraft.duration_minutes===""?null:Number(symptomLogDraft.duration_minutes),body_location:symptomLogDraft.body_location.trim()||null,notes:symptomLogDraft.notes.trim()||null,source:"manual"};
+      if(!Number.isInteger(payload.severity)||payload.severity<1||payload.severity>10)throw new Error("الشدة يجب أن تكون من 1 إلى 10.");if(payload.duration_minutes!==null&&(!Number.isInteger(payload.duration_minutes)||payload.duration_minutes<1||payload.duration_minutes>10080))throw new Error("المدة يجب أن تكون بين 1 و10080 دقيقة.");
+      let row;if(isDemo){row={...payload,id:"demo-symptom-log-"+Date.now(),profile_id:selected.id,created_by:userId,created_at:new Date().toISOString()};const rows=[row,...symptomLogs];storeDemoRows("symptom-logs",rows);setSymptomLogs(rows);}else{row=await healthRepository.createSymptomLog({profileId:selected.id,actorUserId:userId,log:payload});setSymptomLogs(rows=>[row,...rows]);}
+      setSymptomLogDraft(d=>({...d,duration_minutes:"",body_location:"",notes:""}));setNotice("تم تسجيل العَرَض. التسجيل لا يشخّص سبب الأعراض.");
+    }catch(e){setError(e?.message||"تعذر تسجيل العَرَض.");}finally{setBusy(false);}
+  }
+  async function updateSymptomSeverity(row,value) {
+    if(!selected||!hasScopeAction("symptoms","update"))return;const severity=Number(value);if(!Number.isInteger(severity)||severity<1||severity>10||severity===row.severity)return;setBusy(true);setError("");
+    try{if(isDemo){const rows=symptomLogs.map(x=>x.id===row.id?{...x,severity}:x);storeDemoRows("symptom-logs",rows);setSymptomLogs(rows);}else{const updated=await healthRepository.updateSymptomLog({profileId:selected.id,actorUserId:userId,id:row.id,patch:{severity}});setSymptomLogs(rows=>rows.map(x=>x.id===row.id?updated:x));}setNotice("تم تعديل شدة العَرَض.");}
+    catch(e){setError(e?.message||"تعذر تعديل السجل.");}finally{setBusy(false);}
+  }
+  async function removeSymptomLog(row) {
+    if(!selected||!hasScopeAction("symptoms","delete")||!window.confirm("حذف سجل العَرَض؟"))return;setBusy(true);setError("");
+    try{if(isDemo){const rows=symptomLogs.filter(x=>x.id!==row.id);storeDemoRows("symptom-logs",rows);setSymptomLogs(rows);}else{await healthRepository.deleteSymptomLog({profileId:selected.id,actorUserId:userId,id:row.id});setSymptomLogs(rows=>rows.filter(x=>x.id!==row.id));}setNotice("تم حذف سجل العَرَض.");}
+    catch(e){setError(e?.message||"تعذر حذف السجل.");}finally{setBusy(false);}
+  }
+
   const box = (title, description, children) => <section style={{ ...CARD, marginBottom: 16 }}><h2 style={{ margin: "0 0 7px", fontSize: 17, color: COLORS.ink }}>{title}</h2>{description && <p style={{ margin: "0 0 16px", color: COLORS.muted, fontSize: 13, lineHeight: 1.8 }}>{description}</p>}{children}</section>;
   const field = (label, value, onChange, extra = {}) => <label style={{ display: "block", marginBottom: 13 }}><span style={LABEL}>{label}</span><input style={FIELD} value={value} onChange={e => onChange(e.target.value)} {...extra} /></label>;
-  const pageTitle = ({ home: "نظرة عامة", profile: "الملف الصحي", access: "المشاركة والتفويض", documents: "الوثائق الطبية", settings: "الإعدادات والخصوصية" })[page] || "نظرة عامة";
+  const pageTitle = ({ home: "نظرة عامة", profile: "الملف الصحي", conditions: "الحالات والحساسيات", symptoms: "الأعراض", access: "المشاركة والتفويض", documents: "الوثائق الطبية", settings: "الإعدادات والخصوصية" })[page] || "نظرة عامة";
 
   return <div dir="rtl" style={{ maxWidth: 1050, margin: "0 auto", color: COLORS.ink }}>
     <header style={{ ...CARD, marginBottom: 16, background: "linear-gradient(130deg,#FFFFFF,#F0F9FF)" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div style={{ minWidth: 220, flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}><span style={{ fontSize: 26 }}>🩺</span><span style={{ fontSize: 11, fontWeight: 900, color: COLORS.blue }}>HEALTH & WELLNESS OS · H1</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}><span style={{ fontSize: 26 }}>🩺</span><span style={{ fontSize: 11, fontWeight: 900, color: COLORS.blue }}>HEALTH & WELLNESS OS · H2</span></div>
           <h1 style={{ margin: "0 0 8px", fontSize: 25 }}>الصحة والعافية</h1>
           <p style={{ margin: 0, color: COLORS.muted, fontSize: 13, lineHeight: 1.9 }}>ملف صحي خاص، مع صلاحيات مشاركة صريحة وقابلة للإلغاء. لا تُشارك البيانات تلقائيًا مع مساحة العمل أو أي نظام آخر.</p>
         </div>
@@ -183,7 +301,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
         </div>
       </div>
       <nav style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 18 }}>
-        {[["home","الرئيسية"],["profile","الملف الصحي"],["access","المشاركة"],["documents","الوثائق"],["settings","الخصوصية"]].map(([id,label]) => <button key={id} style={page===id?PRIMARY:SECONDARY} onClick={() => setPage?.(id)}>{label}</button>)}
+        {[["home","الرئيسية"],["profile","الملف الصحي"],["conditions","الحالات والحساسيات"],["symptoms","الأعراض"],["access","المشاركة"],["documents","الوثائق"],["settings","الخصوصية"]].map(([id,label]) => <button key={id} style={page===id?PRIMARY:SECONDARY} onClick={() => setPage?.(id)}>{label}</button>)}
       </nav>
     </header>
 
@@ -231,12 +349,52 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
         </form>)}
         {box("التفويضات", "يمكن إلغاء التفويض في أي وقت. لا يؤدي الإلغاء إلى حذف بيانات الملف.", grants.length ? <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 620 }}><thead><tr>{["الحساب","الدور","النطاق","الحالة","الانتهاء","الإجراء"].map(h=><th key={h} style={{ textAlign: "right", padding: 10, borderBottom: "1px solid "+COLORS.border, color: COLORS.muted }}>{h}</th>)}</tr></thead><tbody>{grants.map(g=>{const expired=g.expires_at&&new Date(g.expires_at)<=new Date();const active=!g.revoked_at&&!expired&&new Date(g.starts_at)<=new Date();return <tr key={g.id}><td style={{ padding: 10, borderBottom: "1px solid "+COLORS.border }}><code>{g.grantee_user_id}</code></td><td style={{ padding: 10, borderBottom: "1px solid "+COLORS.border }}>{g.grant_role==="viewer"?"قارئ":g.grant_role==="editor"?"محرر":"مخصص"}</td><td style={{ padding: 10, borderBottom: "1px solid "+COLORS.border }}>{(g.scope_keys||[]).map(k=>k==="profile"?"الملف":SCOPE_OPTIONS.find(s=>s[0]===k)?.[1]||k).join("، ")}</td><td style={{ padding: 10, borderBottom: "1px solid "+COLORS.border, color: active?COLORS.green:COLORS.muted }}>{active?"نشط":g.revoked_at?"ملغي":expired?"منتهي":"لم يبدأ"}</td><td style={{ padding: 10, borderBottom: "1px solid "+COLORS.border }}>{fmtDate(g.expires_at)}</td><td style={{ padding: 10, borderBottom: "1px solid "+COLORS.border }}>{isOwner&&active?<button disabled={busy} style={{ ...SECONDARY, color: COLORS.red }} onClick={()=>revokeGrant(g)}>إلغاء</button>:"—"}</td></tr>})}</tbody></table></div> : <div style={{ color: COLORS.muted, fontSize: 13 }}>لا توجد تفويضات حتى الآن.</div>)}
       </> : box("لا يوجد ملف صحي", "أنشئ ملفًا أولًا ثم يمكنك إدارة التفويض.", <button style={PRIMARY} onClick={() => setPage?.("home")}>العودة للرئيسية</button>))}
+
+      {page === "conditions" && (selected ? <>
+        {hasScopeAction("conditions","create") && box("إضافة حالة طبية","سجّل الحالات كما وثّقها مختص. التطبيق لا يستنتج تشخيصًا ولا يغيّر العلاج.",<form onSubmit={addCondition}>
+          {field("اسم الحالة",conditionDraft.name,v=>setConditionDraft(d=>({...d,name:v})),{maxLength:160,required:true})}
+          <label style={{display:"block",marginBottom:12}}><span style={LABEL}>النوع</span><select style={FIELD} value={conditionDraft.condition_type} onChange={e=>setConditionDraft(d=>({...d,condition_type:e.target.value}))}><option value="unknown">غير محدد</option><option value="chronic">مزمنة</option><option value="acute">حادة/مؤقتة</option><option value="other">أخرى</option></select></label>
+          {field("تاريخ التشخيص",conditionDraft.diagnosed_on,v=>setConditionDraft(d=>({...d,diagnosed_on:v})),{type:"date"})}
+          {field("الطبيب/المصدر (اختياري)",conditionDraft.diagnosed_by,v=>setConditionDraft(d=>({...d,diagnosed_by:v})),{maxLength:160})}
+          <label style={{display:"block",marginBottom:12}}><span style={LABEL}>ملاحظات</span><textarea style={{...FIELD,minHeight:70}} maxLength={4000} value={conditionDraft.notes} onChange={e=>setConditionDraft(d=>({...d,notes:e.target.value}))}/></label>
+          <button disabled={busy} style={PRIMARY}>إضافة الحالة</button>
+        </form>)}
+        {box("الحالات الطبية","تحويل الحالة إلى منتهية لا يحذف تاريخها.",conditions.length?<div style={{display:"grid",gap:10}}>{conditions.map(row=><article key={row.id} style={{border:"1px solid "+COLORS.border,borderRadius:12,padding:13}}><div style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}><strong>{row.name}</strong><span style={{color:row.status==="active"?COLORS.green:COLORS.muted,fontSize:12}}>{row.status==="active"?"نشطة":"منتهية"}</span></div><div style={{fontSize:12,color:COLORS.muted,marginTop:6}}>{({chronic:"مزمنة",acute:"حادة/مؤقتة",other:"أخرى",unknown:"غير محدد"})[row.condition_type]||row.condition_type} · تاريخ التشخيص: {row.diagnosed_on||"غير محدد"}</div>{row.notes&&<p style={{fontSize:13,whiteSpace:"pre-wrap"}}>{row.notes}</p>}<div style={{display:"flex",gap:8}}>{hasScopeAction("conditions","update")&&<button style={SECONDARY} disabled={busy} onClick={()=>toggleCondition(row)}>{row.status==="active"?"تحديد كمنتهية":"إعادة إلى نشطة"}</button>}{hasScopeAction("conditions","delete")&&<button style={{...SECONDARY,color:COLORS.red}} disabled={busy} onClick={()=>removeCondition(row)}>حذف</button>}</div></article>)}</div>:<p style={{color:COLORS.muted,fontSize:13}}>لا توجد حالات مسجلة بعد.</p>)}
+        {hasScopeAction("conditions","create") && box("إضافة حساسية","سجّل المادة والتفاعل المعروفين فقط. التطبيق ليس خدمة طوارئ.",<form onSubmit={addAllergy}>
+          {field("المادة/المسبب",allergyDraft.allergen,v=>setAllergyDraft(d=>({...d,allergen:v})),{maxLength:160,required:true})}
+          {field("التفاعل المعروف",allergyDraft.reaction,v=>setAllergyDraft(d=>({...d,reaction:v})),{maxLength:1000})}
+          <label style={{display:"block",marginBottom:12}}><span style={LABEL}>الشدة الموثقة</span><select style={FIELD} value={allergyDraft.severity} onChange={e=>setAllergyDraft(d=>({...d,severity:e.target.value}))}><option value="unknown">غير معروفة</option><option value="mild">خفيفة</option><option value="moderate">متوسطة</option><option value="severe">شديدة</option></select></label>
+          {field("أول ظهور معروف",allergyDraft.first_observed_on,v=>setAllergyDraft(d=>({...d,first_observed_on:v})),{type:"date"})}
+          <label style={{display:"block",marginBottom:12}}><span style={LABEL}>ملاحظات</span><textarea style={{...FIELD,minHeight:60}} maxLength={3000} value={allergyDraft.notes} onChange={e=>setAllergyDraft(d=>({...d,notes:e.target.value}))}/></label>
+          <button disabled={busy} style={PRIMARY}>إضافة الحساسية</button>
+        </form>)}
+        {box("الحساسيات","تغيير الحالة هنا توثيق شخصي وليس إثباتًا لزوال الحساسية.",allergies.length?<div style={{display:"grid",gap:10}}>{allergies.map(row=><article key={row.id} style={{border:"1px solid "+COLORS.border,borderRadius:12,padding:13}}><div style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}><strong>{row.allergen}</strong><span style={{fontSize:12,color:row.severity==="severe"?COLORS.red:COLORS.muted}}>{({mild:"خفيفة",moderate:"متوسطة",severe:"شديدة",unknown:"الشدة غير معروفة"})[row.severity]||row.severity} · {row.status==="active"?"نشطة":"غير نشطة"}</span></div>{row.reaction&&<p style={{fontSize:13}}>التفاعل: {row.reaction}</p>}{row.notes&&<p style={{fontSize:12,color:COLORS.muted,whiteSpace:"pre-wrap"}}>{row.notes}</p>}<div style={{display:"flex",gap:8}}>{hasScopeAction("conditions","update")&&<button style={SECONDARY} disabled={busy} onClick={()=>toggleAllergy(row)}>{row.status==="active"?"تحديد كغير نشطة":"إعادة إلى نشطة"}</button>}{hasScopeAction("conditions","delete")&&<button style={{...SECONDARY,color:COLORS.red}} disabled={busy} onClick={()=>removeAllergy(row)}>حذف</button>}</div></article>)}</div>:<p style={{color:COLORS.muted,fontSize:13}}>لا توجد حساسيات مسجلة بعد.</p>)}
+      </> : box("لا يوجد ملف صحي","أنشئ ملفًا صحيًا أولًا.",<button style={PRIMARY} onClick={()=>setPage?.("home")}>الرئيسية</button>))}
+      {page === "symptoms" && (selected ? <>
+        {hasScopeAction("symptoms","create") && box("قائمة الأعراض","أضف الأعراض التي تريد تتبعها. الأسماء خاصة بالملف.",<form onSubmit={addSymptomDefinition}>
+          {field("اسم العَرَض",symptomDraft.name,v=>setSymptomDraft(d=>({...d,name:v})),{maxLength:120,required:true})}
+          {field("التصنيف (اختياري)",symptomDraft.category,v=>setSymptomDraft(d=>({...d,category:v})),{maxLength:80})}
+          <button disabled={busy} style={PRIMARY}>إضافة إلى قائمة الأعراض</button>
+        </form>)}
+        {box("الأعراض المحفوظة","إيقاف عَرَض من القائمة لا يمحو سجلاته السابقة.",symptomDefinitions.length?<div style={{display:"grid",gap:8}}>{symptomDefinitions.map(row=><div key={row.id} style={{border:"1px solid "+COLORS.border,borderRadius:10,padding:11,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}><div><strong>{row.name}</strong><div style={{fontSize:12,color:COLORS.muted}}>{row.category||"بلا تصنيف"} · {row.is_active?"نشط":"متوقف"}</div></div><div style={{display:"flex",gap:6}}>{hasScopeAction("symptoms","update")&&<button style={SECONDARY} disabled={busy} onClick={()=>toggleSymptomDefinition(row)}>{row.is_active?"إيقاف":"تفعيل"}</button>}{hasScopeAction("symptoms","delete")&&<button style={{...SECONDARY,color:COLORS.red}} disabled={busy} onClick={()=>removeSymptomDefinition(row)}>حذف</button>}</div></div>)}</div>:<p style={{color:COLORS.muted,fontSize:13}}>أضف أول عَرَض ثم سجّل شدته.</p>)}
+        {hasScopeAction("symptoms","create") && box("تسجيل عَرَض","الشدة من 1 (خفيف جدًا) إلى 10 (شديد جدًا). الارتباطات لا تثبت السببية.",<form onSubmit={addSymptomLog}>
+          <label style={{display:"block",marginBottom:12}}><span style={LABEL}>العَرَض</span><select style={FIELD} required value={symptomLogDraft.symptom_definition_id} onChange={e=>setSymptomLogDraft(d=>({...d,symptom_definition_id:e.target.value}))}><option value="">اختر عَرَضًا</option>{symptomDefinitions.filter(x=>x.is_active).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+          <label style={{display:"block",marginBottom:12}}><span style={LABEL}>الشدة (1–10)</span><input type="number" min="1" max="10" required style={FIELD} value={symptomLogDraft.severity} onChange={e=>setSymptomLogDraft(d=>({...d,severity:e.target.value}))}/></label>
+          <label style={{display:"block",marginBottom:12}}><span style={LABEL}>تاريخ ووقت البداية</span><input type="datetime-local" required style={FIELD} value={symptomLogDraft.recorded_at} onChange={e=>setSymptomLogDraft(d=>({...d,recorded_at:e.target.value}))}/></label>
+          <label style={{display:"block",marginBottom:12}}><span style={LABEL}>المدة بالدقائق (اختياري)</span><input type="number" min="1" max="10080" style={FIELD} value={symptomLogDraft.duration_minutes} onChange={e=>setSymptomLogDraft(d=>({...d,duration_minutes:e.target.value}))}/></label>
+          {field("موضع الجسم (اختياري)",symptomLogDraft.body_location,v=>setSymptomLogDraft(d=>({...d,body_location:v})),{maxLength:120})}
+          <label style={{display:"block",marginBottom:12}}><span style={LABEL}>ملاحظات</span><textarea style={{...FIELD,minHeight:60}} maxLength={3000} value={symptomLogDraft.notes} onChange={e=>setSymptomLogDraft(d=>({...d,notes:e.target.value}))}/></label>
+          <button disabled={busy||!symptomDefinitions.some(x=>x.id===symptomLogDraft.symptom_definition_id&&x.is_active)} style={PRIMARY}>حفظ السجل</button>
+        </form>)}
+        {box("سجل الأعراض","أحدث السجلات أولًا. حذف اسم العَرَض لا يمحو السجلات السابقة.",symptomLogs.length?<div style={{display:"grid",gap:10}}>{symptomLogs.map(row=><article key={row.id} style={{border:"1px solid "+COLORS.border,borderRadius:12,padding:13}}><div style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}><strong>{row.symptom_name_snapshot}</strong><span style={{fontSize:12,color:COLORS.muted}}>{fmtDate(row.recorded_at)}</span></div><div style={{fontSize:13,marginTop:6}}>الشدة: <strong>{row.severity}/10</strong>{row.duration_minutes?(" · المدة "+row.duration_minutes+" دقيقة"):""}{row.body_location?(" · "+row.body_location):""}</div>{row.notes&&<p style={{fontSize:12,color:COLORS.muted,whiteSpace:"pre-wrap"}}>{row.notes}</p>}<div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>{hasScopeAction("symptoms","update")&&<label style={{fontSize:12}}>تعديل الشدة <select style={{...FIELD,width:85,padding:6}} value={row.severity} disabled={busy} onChange={e=>updateSymptomSeverity(row,e.target.value)}>{Array.from({length:10},(_,i)=>i+1).map(n=><option key={n} value={n}>{n}</option>)}</select></label>}{hasScopeAction("symptoms","delete")&&<button disabled={busy} style={{...SECONDARY,color:COLORS.red}} onClick={()=>removeSymptomLog(row)}>حذف السجل</button>}</div></article>)}</div>:<p style={{color:COLORS.muted,fontSize:13}}>لا توجد سجلات أعراض بعد.</p>)}
+      </> : box("لا يوجد ملف صحي","أنشئ ملفًا صحيًا أولًا.",<button style={PRIMARY} onClick={()=>setPage?.("home")}>الرئيسية</button>))}
+
       {page === "documents" && box("الوثائق الطبية", "تم إنشاء مخزن خاص بسياسات وصول على مستوى الملف الصحي. واجهة رفع/معاينة/تنزيل الوثائق ستُبنى في مرحلة السجلات الطبية، بعد اختبار سياسات Storage بحسابين.", <div style={{ border: "1px solid #BAE6FD", background: "#F0F9FF", borderRadius: 10, padding: 12, color: "#075985", fontSize: 13 }}>لا ترفع وثائق حقيقية في هذه المرحلة. لم يتم تفعيل واجهة رفع الملفات بعد.</div>)}
       {page === "settings" && <>
         {box("الخصوصية والأمان", "البيانات الصحية لا تستخدم صلاحيات مساحة العمل. كل ملف يملك مالكًا واحدًا، والتفويضات محددة النطاق وقابلة للإلغاء.", <ul style={{ margin: 0, paddingInlineStart: 20, lineHeight: 2, fontSize: 13 }}><li>المالك فقط يستطيع إنشاء ملف وتعديل إعداداته ومنح الصلاحيات.</li><li>لا توجد صلاحيات للزوار المجهولين.</li><li>الوثائق مخزنة في bucket خاص وليس عامًا.</li><li>لا نضع تفاصيل طبية داخل بيانات مساحة العمل أو سجلات التدقيق.</li><li>إلغاء التفويض يغيّر صلاحية الخادم، وليس شكل الواجهة فقط.</li></ul>)}
         {selected && isOwner && box("آخر أحداث التدقيق", "سجل تشغيلي لا يُفترض أن يحتوي على أعراض أو ملاحظات طبية أو تفاصيل تشخيصية.", auditEvents.length ? <div>{auditEvents.map(ev=><div key={ev.id} style={{ padding: "10px 0", borderBottom: "1px solid "+COLORS.border, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", fontSize: 12 }}><span>{ev.action} · {ev.resource_type}</span><span style={{ color: COLORS.muted }}>{fmtDate(ev.created_at)}</span></div>)}</div> : <div style={{ color: COLORS.muted, fontSize: 13 }}>لا توجد أحداث بعد أو لا توجد أحداث قابلة للعرض.</div>)}
       </>}
     </>}
-    <footer style={{ color: COLORS.muted, fontSize: 11, lineHeight: 1.8, padding: "8px 4px 20px" }}>H1 لا يقدّم تشخيصًا أو توصية علاجية. لا تُدخل بيانات طبية حقيقية قبل اجتياز اختبارات الخصوصية والاستعادة.</footer>
+    <footer style={{ color: COLORS.muted, fontSize: 11, lineHeight: 1.8, padding: "8px 4px 20px" }}>H2 يسجّل المعلومات التي تدخلها ولا يقدّم تشخيصًا أو توصية علاجية. لا تُدخل بيانات طبية حقيقية قبل اجتياز اختبارات الخصوصية والاستعادة.</footer>
   </div>;
 }
