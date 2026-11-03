@@ -5,9 +5,10 @@ assert.equal(validateRoutine({ name: "روتين الصباح", timeOfDay: "am",
 assert.equal(validateRoutine({ name: "", frequency: "daily" }).ok, false);
 assert.equal(validateRoutine({ name: "أيام", frequency: "selected_days", days: [] }).ok, false);
 assert.equal(validateRoutine({ name: "مرتين", frequency: "times_per_week", timesPerWeek: 2 }).ok, true);
-const products = [{ id: "p1", status: "active", category: "serum" }, { id: "p2", status: "finished", category: "serum" }, { id: "p3", status: "active", category: "serum", suitability: "avoid" }];
+const products = [{ id: "p1", status: "active", category: "serum" }, { id: "p2", status: "finished", category: "serum" }, { id: "p3", status: "active", category: "serum", suitability: "avoid" }, { id: "p4", status: "paused", category: "serum" }];
 assert.equal(validateRoutineStep({ productId: "p1" }, products).ok, true);
 assert.equal(validateRoutineStep({ productId: "p2" }, products).ok, false);
+assert.equal(validateRoutineStep({ productId: "p4" }, products).ok, false);
 assert.equal(validateRoutineStep({ productId: "p3" }, products).requiresConfirmation, true);
 assert.equal(validateRoutineStep({ productId: "p3", avoidConfirmed: true }, products).ok, true);
 assert.deepEqual(sortRoutineSteps([{ id: "a", category: "sunscreen" }, { id: "b", category: "cleanser" }]).map(x => x.id), ["b", "a"]);
