@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../core/supabase.js";
 import { healthRepository } from "./repository.js";
 import HealthAnalytics from "./HealthAnalytics.jsx";
+import HealthVisitSummary from "./HealthVisitSummary.jsx";
 
 const COLORS = { ink: "#182230", muted: "#64748B", border: "#E2E8F0", blue: "#0EA5E9", bg: "#F8FAFC", green: "#047857", red: "#B91C1C" };
 const CARD = { background: "#fff", border: "1px solid " + COLORS.border, borderRadius: 16, padding: 20, boxShadow: "0 4px 14px rgba(15,23,42,.035)" };
@@ -662,7 +663,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
         </div>
       </div>
       <nav style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 18 }}>
-        {[["home","الرئيسية"],["profile","الملف الصحي"],["conditions","الحالات والحساسيات"],["symptoms","الأعراض"],["medications","الأدوية والعلاجات"],["flare_events","نوبات التهيّج"],["checkins","المتابعة اليومية"],["factors","العوامل والمتتبعات"],["reports","التقارير"],...(selected&&isOwner&&selected.cycle_tracking_enabled?[["cycle_tracking","الدورة الاختيارية"]]:[]),["access","المشاركة"],["documents","الوثائق"],["settings","الخصوصية"]].map(([id,label]) => <button key={id} style={page===id?PRIMARY:SECONDARY} onClick={() => setPage?.(id)}>{label}</button>)}
+        {[["home","الرئيسية"],["profile","الملف الصحي"],["conditions","الحالات والحساسيات"],["symptoms","الأعراض"],["medications","الأدوية والعلاجات"],["flare_events","نوبات التهيّج"],["checkins","المتابعة اليومية"],["factors","العوامل والمتتبعات"],["reports","التقارير"],["visit_summary","ملخص زيارة الطبيب"],...(selected&&isOwner&&selected.cycle_tracking_enabled?[["cycle_tracking","الدورة الاختيارية"]]:[]),["access","المشاركة"],["documents","الوثائق"],["settings","الخصوصية"]].map(([id,label]) => <button key={id} style={page===id?PRIMARY:SECONDARY} onClick={() => setPage?.(id)}>{label}</button>)}
       </nav>
     </header>
 
@@ -896,6 +897,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
 
         {selected && isOwner && box("الوحدات الحساسة الاختيارية", "متابعة الدورة معطلة افتراضيًا. عند تعطيلها، لا يمكن قراءة سجلاتها أو إضافتها حتى إعادة التفعيل؛ لا تُحذف السجلات تلقائيًا. لا تتم مشاركة هذه الوحدة مع المفوضين.", <label style={{display:"flex",alignItems:"center",gap:10,fontSize:14}}><input type="checkbox" checked={!!selected.cycle_tracking_enabled} disabled={busy} onChange={e=>toggleCycleTracking(e.target.checked)}/><span><strong>تفعيل سجل الدورة</strong><div style={{fontSize:12,color:COLORS.muted,marginTop:4}}>خاص بمالك الملف فقط؛ دون توقعات أو حساب خصوبة.</div></span></label>)}
       {page === "reports" && (selected ? <HealthAnalytics profile={selected} checkins={dailyCheckins} factors={factors} factorLogs={factorLogs} symptomLogs={symptomLogs} flareEvents={flareEvents} canRead={hasScopeAction} /> : box("لا يوجد ملف صحي","أنشئ ملفًا صحيًا أولًا.",<button style={PRIMARY} onClick={()=>setPage?.("home")}>الرئيسية</button>))}
+      {page === "visit_summary" && (selected ? <HealthVisitSummary profile={selected} conditions={conditions} allergies={allergies} symptomLogs={symptomLogs} medications={medications} medicationVersions={medicationVersions} sideEffects={sideEffects} flareEvents={flareEvents} checkins={dailyCheckins} factors={factors} factorLogs={factorLogs} canRead={hasScopeAction} /> : box("لا يوجد ملف صحي","أنشئ ملفًا صحيًا أولًا.",<button style={PRIMARY} onClick={()=>setPage?.("home")}>الرئيسية</button>))}
       {page === "settings" && <>
         {box("الخصوصية والأمان", "البيانات الصحية لا تستخدم صلاحيات مساحة العمل. كل ملف يملك مالكًا واحدًا، والتفويضات محددة النطاق وقابلة للإلغاء.", <ul style={{ margin: 0, paddingInlineStart: 20, lineHeight: 2, fontSize: 13 }}><li>المالك فقط يستطيع إنشاء ملف وتعديل إعداداته ومنح الصلاحيات.</li><li>لا توجد صلاحيات للزوار المجهولين.</li><li>الوثائق مخزنة في bucket خاص وليس عامًا.</li><li>لا نضع تفاصيل طبية داخل بيانات مساحة العمل أو سجلات التدقيق.</li><li>إلغاء التفويض يغيّر صلاحية الخادم، وليس شكل الواجهة فقط.</li></ul>)}
         {selected && isOwner && box("آخر أحداث التدقيق", "سجل تشغيلي لا يُفترض أن يحتوي على أعراض أو ملاحظات طبية أو تفاصيل تشخيصية.", auditEvents.length ? <div>{auditEvents.map(ev=><div key={ev.id} style={{ padding: "10px 0", borderBottom: "1px solid "+COLORS.border, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", fontSize: 12 }}><span>{ev.action} · {ev.resource_type}</span><span style={{ color: COLORS.muted }}>{fmtDate(ev.created_at)}</span></div>)}</div> : <div style={{ color: COLORS.muted, fontSize: 13 }}>لا توجد أحداث بعد أو لا توجد أحداث قابلة للعرض.</div>)}
