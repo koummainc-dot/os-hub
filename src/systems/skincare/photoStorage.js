@@ -148,7 +148,8 @@ export async function deleteSkinPhoto({ workspaceId, photo, storeApi }) {
   if (!workspaceId || !photo?.id || !photo.objectPath || !photo.thumbnailPath) throw new Error("بيانات الصورة غير صالحة للحذف.");
   const row = await readWorkspaceRecord({ workspaceId, collection: "skin_photos", id: photo.id });
   if (!row || row.deleted || row.data?.deleted_at) throw new Error("الصورة غير موجودة أو سبق حذفها.");
-  if (row.data?.objectPath !== photo.objectPath || row.data?.thumbnailPath !== photo.thumbnailPath) {
+  const expectedPaths = buildSkinPhotoPaths({ workspaceId, diaryId: row.data?.diaryId, photoId: row.id, mimeType: row.data?.mimeType });
+  if (expectedPaths.objectPath !== row.data?.objectPath || expectedPaths.thumbnailPath !== row.data?.thumbnailPath || row.data?.objectPath !== photo.objectPath || row.data?.thumbnailPath !== photo.thumbnailPath) {
     throw new Error("مسارات الملفات لا تطابق سجل الصورة؛ أوقفنا الحذف.");
   }
   await removeObjects([row.data.objectPath, row.data.thumbnailPath]);
