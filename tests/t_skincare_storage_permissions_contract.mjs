@@ -27,6 +27,21 @@ assert.ok(sql.includes("drop policy if exists skincare_progress_update"));
 assert.ok(!sql.includes("create policy skincare_progress_update"));
 assert.ok(sql.includes("storage.filename(name) ~*"));
 assert.ok(sql.includes("begin;") && sql.includes("commit;"));
+assert.equal((sql.match(/\\bcreate policy skincare_progress_/g) || []).length, 3, "only select/insert/delete policies should exist");
+assert.equal((sql.match(/\\bcommit;/gi) || []).length, 1, "migration must have one terminal COMMIT");
+assert.match(sql, /for delete to authenticated[\\s\\S]*?ws_access_level\\(\\(\\(storage\\.foldername\\(name\\)\\)\\[1\\]\\)::uuid, 'skincare', 'photos'\\) = 'edit'/);
+assert.match(sql, /storage\\.filename\\(name\\) ~\\* '\\^\\[0-9a-f\\]\\{8\\}.*\\(\\\\\\.thumb\\)\\?\\\\\\.\\(jpg\\|png\\|webp\\)\\\
+assert.ok(storage.includes('storeApi.putStrict("skin_photos", record)'));
+assert.ok(storage.includes("createSignedUrl(row.data.objectPath, 300)"));
+assert.ok(storage.includes("expectedPaths.objectPath !== row.data?.objectPath"));
+assert.ok(storage.includes("removeObjects([row.data.objectPath, row.data.thumbnailPath])"));
+assert.ok(storage.includes("storagePurgePending: true"));
+assert.ok(records.includes("persist(coll, next, prev, false, false)"), "strict metadata writes must not enter the offline queue");
+console.log("Skincare storage and collection permission migration contract: PASS");
+/);
+assert.match(sql.trimEnd(), /commit;$/);
+assert.ok(!sql.includes("is not distinct from case"), "thumbnail reads must use the metadata thumbnailPath predicate only");
+
 assert.ok(storage.includes('storeApi.putStrict("skin_photos", record)'));
 assert.ok(storage.includes("createSignedUrl(row.data.objectPath, 300)"));
 assert.ok(storage.includes("expectedPaths.objectPath !== row.data?.objectPath"));
