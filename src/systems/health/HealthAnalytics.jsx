@@ -36,8 +36,8 @@ export default function HealthAnalytics({profile,checkins,factors,factorLogs,sym
  const summary=[
   ["المتابعات اليومية",recentCheckins.length],
   ["قراءات المتتبّعات",visibleLogs.filter(l=>new Date(l.recorded_at).getTime()>=cutoff).length],
-  ["الأعراض المسجلة",0],
-  ["نوبات التهيّج",0]
+  ["سجلات الأعراض",symptomLogs.filter(r=>new Date(r.recorded_at).getTime()>=cutoff).length],
+  ["نوبات التهيّج",flareEvents.filter(r=>new Date(r.started_at).getTime()>=cutoff).length]
  ];
  const reportRows=[
   ["نوع السجل","التاريخ","المؤشر","القيمة","الوحدة","المصدر"],
