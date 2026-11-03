@@ -405,32 +405,71 @@ export function canDeleteSkinReaction(reaction) {
 
 export function summarizeSkinTrial(trial, diaryEntries = [], reactions = [], otherTrials = []) {
   const baselineIds = new Set(trial?.baselineDiaryIds || []);
-  const baseline = diaryEntries.filter(entry => baselineIds.has(entry.id) && entry.skinRating !== null && entry.skinRating !== undefined && entry.skinRating !== "" && Number.isFinite(Number(entry.skinRating)));
+  const validRating = entry => entry.skinRating !== null && entry.skinRating !== undefined &&
+    entry.skinRating !== "" && Number.isFinite(Number(entry.skinRating));
+  const baseline = diaryEntries.filter(entry => baselineIds.has(entry.id) && validRating(entry));
   const finish = trial?.endDate || new Date().toISOString().slice(0, 10);
   const followup = diaryEntries.filter(entry =>
-    entry.date >= trial.startDate && entry.date <= finish &&
-    Number.isFinite(Number(entry.skinRating)) && entry.skinRating !== null && entry.skinRating !== ""
+    entry.date >= trial.startDate && entry.date <= finish && validRating(entry)
   );
   const average = rows => rows.length ? rows.reduce((sum, entry) => sum + Number(entry.skinRating), 0) / rows.length : null;
+  const summarizePeriod = (startDate, endDate) => {
+    const rows = followup.filter(entry => entry.date >= startDate && entry.date <= endDate);
+    const value = average(rows);
+    return {
+      startDate,
+      endDate,
+      count: rows.length,
+      daysRecorded: new Set(rows.map(entry => entry.date)).size,
+      average: value === null ? null : Number(value.toFixed(2)),
+      deltaFromBaseline: value === null || average(baseline) === null
+        ? null
+        : Number((value - average(baseline)).toFixed(2)),
+    };
+  };
+  const firstWeek = summarizePeriod(trial.startDate, addSkinDays(trial.startDate, 6));
+  const secondWeek = summarizePeriod(addSkinDays(trial.startDate, 7), addSkinDays(trial.startDate, 13));
+  const finalWeekStart = finish > addSkinDays(trial.startDate, 6) ? laterSkinDate(trial.startDate, addSkinDays(finish, -6)) : trial.startDate;
+  const finalWeek = summarizePeriod(finalWeekStart, finish);
+  const periodsOverlap = finalWeek.startDate <= firstWeek.endDate || finalWeek.startDate <= secondWeek.endDate;
   const baselineAverage = average(baseline);
   const followupAverage = average(followup);
-  const concurrent = otherTrials.filter(item =>
-    item.id !== trial.id && item.productId !== trial.productId &&
-    item.status === "running" &&
-    item.startDate <= finish &&
-    (!item.endDate || item.endDate >= trial.startDate)
-  );
+  const concurrent = otherTrials.filter(item => {
+    if (item.id === trial.id || item.productId === trial.productId || item.status === "cancelled") return false;
+    const otherStart = item.startDate;
+    const otherFinish = item.endDate || (["running", "paused"].includes(item.status) ? finish : item.startDate);
+    return Boolean(otherStart && otherFinish && otherStart <= finish && otherFinish >= trial.startDate);
+  });
   const linkedReactions = reactions.filter(item => item.productId === trial.productId &&
     item.dateStarted >= trial.startDate && item.dateStarted <= finish);
   return {
     baselineCount: baseline.length,
     followupCount: followup.length,
-    baselineAverage,
-    followupAverage,
+    baselineAverage: baselineAverage === null ? null : Number(baselineAverage.toFixed(2)),
+    followupAverage: followupAverage === null ? null : Number(followupAverage.toFixed(2)),
     delta: baselineAverage === null || followupAverage === null ? null : Number((followupAverage - baselineAverage).toFixed(2)),
+    firstWeek,
+    secondWeek,
+    finalWeek,
+    periodsOverlap,
     concurrentTrialCount: concurrent.length,
+    concurrentTrials: concurrent.map(item => ({ id: item.id, productId: item.productId, startDate: item.startDate, endDate: item.endDate || null, status: item.status })),
     reactionCount: linkedReactions.length,
+    reactionSeverityCounts: linkedReactions.reduce((counts, item) => {
+      const key = item.severity || "unknown";
+      counts[key] = (counts[key] || 0) + 1;
+      return counts;
+    }, {}),
     enoughData: baseline.length >= 3 && followup.length >= 3,
     interpretation: "مقارنة وصفية بين إدخالاتك؛ لا تثبت أن المنتج سبب التغير. ضع في الاعتبار التجارب المتزامنة والتفاعلات واختلاف ظروف التسجيل.",
   };
+}
+
+function addSkinDays(dateKey, delta) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + delta)).toISOString().slice(0, 10);
+}
+
+function laterSkinDate(first, second) {
+  return first > second ? first : second;
 }
