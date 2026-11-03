@@ -89,7 +89,7 @@ const rows=(d)=>({data:d,error:null});
   E.all('button').find(b=>b.textContent.includes('✓ قبول')).click(); await sleep(900);
   ok(E.stub.calls.some(c=>c.rpc==='accept_invitation'&&c.a.inv==='i1'),'accept_invitation RPC called with invitation id');
   const sel=E.all('aside select')[0]; ok(!!sel&&sel.value==='w2','switched to the new workspace after accepting');
-  ok(E.all('main button').filter(b=>/OS/.test(b.textContent)).length===2,'member sees only granted systems (projects, content)');
+  ok(E.all('main button').filter(b=>/OS/.test(b.textContent)).length===3,'member sees granted systems plus personal Health OS (projects, content, health)');
   console.log('FAILS',fails);
   process.exit(fails?1:0);
 })().catch(e=>console.log('HARNESS ERR',e));
