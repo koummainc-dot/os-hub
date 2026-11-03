@@ -15,12 +15,14 @@ for(const table of ["health_daily_checkins","health_factors","health_factor_logs
  assert.match(migration,new RegExp("create table if not exists public\\."+table),"Missing H4 table "+table);
  assert.match(migration,new RegExp("alter table public\\."+table+" enable row level security"),"RLS missing on "+table);
 }
-assert.match(migration,/cycle_tracking_enabled boolean not null default false/,"Cycle tracker must be disabled by default");
-assert.match(migration,/hp\.owner_user_id=\(select auth\.uid\(\)\) and hp\.cycle_tracking_enabled/,"Cycle data must be owner-only and inaccessible while disabled");
+assert.match(privacyMigration,/enabled boolean not null default false/,"Cycle tracker must be disabled by default");
+assert.match(privacyMigration,/public\\.health_cycle_settings cs on cs\\.profile_id=hp\\.id[\\s\\S]*?cs\\.enabled/,"Cycle data must be owner-only and inaccessible while disabled");
+assert.match(repo,/from\\("health_cycle_settings"\\)/,"Cycle setting must be read from the owner-only relation");
+assert.doesNotMatch(repo,/cycle_tracking_enabled,created_at/,"Cycle setting must not be selected from shareable profile rows");
 assert.match(migration,/case when is_sensitive then 'sensitive_trackers' else 'trackers' end/,"Sensitive custom factors must use a separate scope");
 assert.match(migration,/create trigger health_factor_logs_validate_value/,"Factor values must be validated against their definition in the database");
 assert.match(migration,/daily_checkin_created/,"Check-in audit action must be allowed");
-assert.match(ui,/لا تُعدّ سجلات للطعام أو التمرين أو الماء/,"Check-ins must not duplicate Nutrition or Sports records");
+assert.match(ui,/لم تُضف سجلات للطعام أو التمرين أو الماء/,"Check-ins must not duplicate Nutrition or Sports records");
 assert.match(ui,/لا يحسب التطبيق الخصوبة أو يتنبأ بالدورة/,"Cycle tracking must not make fertility predictions");
 assert.doesNotMatch(repo,/workspace_records|workspace_data/,"Health records must not use generic workspace storage");
 console.log("Health H4 contract checks passed.");
