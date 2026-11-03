@@ -173,7 +173,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
       for (const item of catalog) {
         const key = normalizeINCIName(item.inciName);
         if (!key || knownNames.has(key)) { skipped++; continue; }
-        const checked = validateSkinIngredient({ ...item, id: "catalog:" + item.catalogKey });
+        const checked = validateSkinIngredient({ ...item, id: uid() });
         if (!checked.ok) throw new Error(checked.error);
         const saved = await store.api.put(SKINCARE_COLLECTIONS.ingredients, checked.value);
         if (!saved) throw new Error("توقف استيراد الكتالوج عند " + item.inciName + ".");
