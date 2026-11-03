@@ -4,6 +4,8 @@ import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
 import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry } from "./domain.js";
 import DiaryView from "./Diary.jsx";
 import RoutinesView from "./Routines.jsx";
+import PhotosView from "./Photos.jsx";
+import { uploadSkinPhoto, deleteSkinPhoto } from "./photoStorage.js";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#A855F7", soft: "#FAF5FF", white: "#FFFFFF", danger: "#B91C1C" };
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -29,6 +31,7 @@ const SECTIONS = [
   ["units", "العبوات", "📦"],
   ["routines", "الروتين", "🗓️"],
   ["diary", "مفكرة البشرة", "📔"],
+  ["photos", "صور التقدم", "📷"],
 ];
 const EMPTY_PRODUCT = { name: "", brand: "", category: "other", status: "active", suitability: "suitable", startDate: "", expiryDate: "", ingredients: "", instructions: "", notes: "" };
 const EMPTY_UNIT = { name: "", productId: "", openedOn: today(), expiresOn: "", notes: "" };
@@ -41,6 +44,8 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
   const routineLogs = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.routineLogs)), [store.recs]);
   const diaryEntries = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.diary)).sort((a, b) => String(b.date).localeCompare(String(a.date))), [store.recs]);
   const deletedDiaryEntries = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.diary).filter(x => x.deleted_at), [store.recs]);
+  const photos = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.photos)).sort((a, b) => String(b.date).localeCompare(String(a.date))), [store.recs]);
+  const deletedPhotos = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.photos).filter(x => x.deleted_at), [store.recs]);
   const deletedProducts = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.products).filter(x => x.deleted_at), [store.recs]);
   const deletedUnits = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.units).filter(x => x.deleted_at), [store.recs]);
   const profile = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.profile).find(x => x.id === "profile") || null, [store.recs]);
@@ -153,6 +158,26 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     const result = await store.api.restore(SKINCARE_COLLECTIONS.diary, entry.id);
     if (result) say("تمت استعادة إدخال المفكرة.");
   };
+  const uploadPhoto = async payload => {
+    if (!canEdit || isDemo) return say("رفع الصور يتطلب صلاحية تعديل واتصالًا بمساحة عمل فعلية.");
+    setBusy(true);
+    try {
+      await uploadSkinPhoto({ workspaceId: ws?.id, ...payload, photoId: uid(), storeApi: store.api });
+      say("تم رفع الصورة والنسخة المصغرة وربطهما بإدخال اليوم.");
+    } catch (error) {
+      say(error?.message || "تعذر رفع الصورة بأمان.");
+    } finally { setBusy(false); }
+  };
+  const removePhoto = async photo => {
+    if (!canEdit || isDemo || !window.confirm("سيتم حذف الصورة الأصلية والنسخة المصغرة نهائيًا. هل تريد المتابعة؟")) return;
+    setBusy(true);
+    try {
+      await deleteSkinPhoto({ workspaceId: ws?.id, photo, storeApi: store.api });
+      say("تم حذف الصورة الأصلية والنسخة المصغرة.");
+    } catch (error) {
+      say(error?.message || "تعذر حذف الصورة بالكامل؛ راجع حالة السجل قبل إعادة المحاولة.");
+    } finally { setBusy(false); }
+  };
   const saveRoutine = async routine => {
     if (!canEdit) return;
     const checked = validateRoutine(routine);
@@ -230,6 +255,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     {store.ready && !store.error && page === "units" && <UnitsView units={units} deletedUnits={deletedUnits} onRestore={restoreUnit} products={products} draft={unitDraft} setDraft={setUnitDraft} onSave={saveUnit} onEdit={editUnit} onDelete={deleteUnit} editing={editingUnit} setEditing={setEditingUnit} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "routines" && <RoutinesView routines={routines} logs={routineLogs} products={products} canEdit={canEdit} busy={busy} onSave={saveRoutine} onArchive={toggleRoutine} onCopy={copyRoutine} onLog={logRoutineStep} onUndo={undoRoutineLog} />}
     {store.ready && !store.error && page === "diary" && <DiaryView entries={diaryEntries} deletedEntries={deletedDiaryEntries} selectedDate={diaryDate} setSelectedDate={setDiaryDate} draft={diaryDraft} setDraft={setDiaryDraft} editing={editingDiary} setEditing={setEditingDiary} onSave={saveDiaryEntry} onEdit={editDiaryEntry} onDelete={deleteDiaryEntry} onRestore={restoreDiaryEntry} canEdit={canEdit} busy={busy} />}
+    {store.ready && !store.error && page === "photos" && <PhotosView workspaceId={ws?.id} entries={diaryEntries} photos={photos} deletedPhotos={deletedPhotos} isDemo={isDemo} canEdit={canEdit} busy={busy} onUpload={uploadPhoto} onDelete={removePhoto} />}
   </div>;
 }
 
@@ -237,7 +263,7 @@ function HomeView({ profile, products, units, setPage }) {
   const active = products.filter(x => x.status === "active");
   return <><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 14 }}>
     {[["منتجات نشطة", active.length], ["إجمالي المنتجات", products.length], ["العبوات المسجلة", units.length], ["نوع البشرة", ({normal:"عادية",dry:"جافة",oily:"دهنية",combination:"مختلطة",sensitive:"حساسة",unknown:"غير محدد"})[profile?.skinType || "unknown"]]].map(([name, value]) => <div key={name} style={{ ...panel, margin: 0 }}><div style={{ color: C.muted, fontSize: 11 }}>{name}</div><b style={{ fontSize: 22 }}>{value}</b></div>)}
-  </div><Panel title="ابدأ من هنا"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button style={button(true)} onClick={() => setPage("settings")}>إعداد ملف البشرة</button><button style={button()} onClick={() => setPage("products")}>إضافة منتج</button><button style={button()} onClick={() => setPage("units")}>تسجيل عبوة</button><button style={button()} onClick={() => setPage("diary")}>سجّل يومك</button></div></Panel></>;
+  </div><Panel title="ابدأ من هنا"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button style={button(true)} onClick={() => setPage("settings")}>إعداد ملف البشرة</button><button style={button()} onClick={() => setPage("products")}>إضافة منتج</button><button style={button()} onClick={() => setPage("units")}>تسجيل عبوة</button><button style={button()} onClick={() => setPage("diary")}>سجّل يومك</button><button style={button()} onClick={() => setPage("photos")}>صور التقدم</button></div></Panel></>;
 }
 
 function ProfileView({ profile, draft, setDraft, onSave, canEdit, busy }) {
