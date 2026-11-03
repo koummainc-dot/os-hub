@@ -534,11 +534,11 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
   }
   async function saveFactorLog(e) {
     e?.preventDefault();if(!selected)return;
-    const factor=factors.find(x=>x.id===factorLogDraft.factor_id);if(!factor)throw new Error("اختر متتبّعًا صالحًا.");
-    const scope=factor.is_sensitive?"sensitive_trackers":"trackers";
-    if(!hasScopeAction(scope,factorLogDraft.id?"update":"create"))return;
     setBusy(true);setError("");setNotice("");
     try{
+      const factor=factors.find(x=>x.id===factorLogDraft.factor_id);if(!factor)throw new Error("اختر متتبّعًا صالحًا.");
+      const scope=factor.is_sensitive?"sensitive_trackers":"trackers";
+      if(!hasScopeAction(scope,factorLogDraft.id?"update":"create"))throw new Error("لا تملك صلاحية تعديل هذا المتتبّع.");
       if(factorLogDraft.value==="")throw new Error("أدخل قيمة للسجل.");
       const payload={factor_id:factor.id,recorded_at:new Date(factorLogDraft.recorded_at).toISOString(),value_numeric:null,value_boolean:null,value_text:null,value_choice:null,notes:factorLogDraft.notes.trim()||null};
       if(factor.value_type==="scale"||factor.value_type==="number"){
@@ -578,7 +578,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
     if(!selected||!isOwner)return;setBusy(true);setError("");setNotice("");
     try{let updated;
       if(isDemo)updated={...selected,cycle_tracking_enabled:!!enabled,updated_at:new Date().toISOString()};
-      else updated=await healthRepository.updateCycleTrackingPreference({profileId:selected.id,ownerUserId:userId,enabled});
+      else {await healthRepository.updateCycleTrackingPreference({profileId:selected.id,ownerUserId:userId,enabled});updated={...selected,cycle_tracking_enabled:!!enabled};}
       setProfiles(rows=>rows.map(p=>p.id===selected.id?updated:p));
       if(!enabled)setCycleEntries([]);
       setNotice(enabled?"تم تفعيل سجل الدورة الاختياري. لا يحسب التطبيق الخصوبة أو يتنبأ بالدورة.":"تم تعطيل سجل الدورة. ستبقى السجلات محفوظة وغير متاحة حتى إعادة التفعيل.");
