@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit } from "./domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, routineLogId } from "./domain.js";
+import RoutinesView from "./Routines.jsx";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#A855F7", soft: "#FAF5FF", white: "#FFFFFF", danger: "#B91C1C" };
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -25,6 +26,7 @@ const SECTIONS = [
   ["settings", "ملف البشرة", "🧴"],
   ["products", "المنتجات", "🧪"],
   ["units", "العبوات", "📦"],
+  ["routines", "الروتين", "🗓️"],
 ];
 const EMPTY_PRODUCT = { name: "", brand: "", category: "other", status: "active", startDate: "", expiryDate: "", ingredients: "", instructions: "", notes: "" };
 const EMPTY_UNIT = { name: "", productId: "", openedOn: today(), expiresOn: "", notes: "" };
@@ -33,6 +35,8 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
   const store = useRecordStore({ wsId: ws?.id || "demo", systemId: "skincare", isDemo, demoStore: demoStore || { current: {} }, seed: () => ({}) , onToast: message => shell?.toast?.(message) });
   const products = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.products)), [store.recs]);
   const units = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.units)), [store.recs]);
+  const routines = useMemo(() => live(arr(store.recs, "skin_routines")), [store.recs]);
+  const routineLogs = useMemo(() => live(arr(store.recs, "skin_routine_logs")), [store.recs]);
   const deletedProducts = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.products).filter(x => x.deleted_at), [store.recs]);
   const deletedUnits = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.units).filter(x => x.deleted_at), [store.recs]);
   const profile = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.profile).find(x => x.id === "profile") || null, [store.recs]);
