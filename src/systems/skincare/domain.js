@@ -184,8 +184,23 @@ export function validateSkinDiaryEntry(input = {}, todayKey) {
   const issues = Array.isArray(input.issues)
     ? [...new Set(input.issues.map(x => text(x, 60)).filter(Boolean))].slice(0, 20)
     : [];
+  const areaKeys = ["forehead", "leftCheek", "rightCheek", "nose", "chin", "jawline"];
+  const areaMeasurements = {};
+  const sourceAreas = input.areaMeasurements && typeof input.areaMeasurements === "object" ? input.areaMeasurements : {};
+  for (const key of areaKeys) {
+    const raw = sourceAreas[key];
+    if (raw === "" || raw === null || raw === undefined) {
+      areaMeasurements[key] = null;
+      continue;
+    }
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 0 || value > 5) {
+      return { ok: false, error: "شدة المشكلة في إحدى مناطق الوجه يجب أن تكون من 0 إلى 5." };
+    }
+    areaMeasurements[key] = value;
+  }
   return { ok: true, value: {
-    ...input, date, ...values, issues,
+    ...input, date, ...values, issues, areaMeasurements,
     moodLabel: text(input.moodLabel, 40),
     note: text(input.note, 3000),
     trialId: text(input.trialId, 100) || null,
