@@ -21,7 +21,7 @@ function Trend({title,unit,rows,period}){
     {points.length>0&&<div style={muted}>الأحدث: {values.at(-1)} {unit||""} · المتوسط: {(values.reduce((a,b)=>a+b,0)/values.length).toFixed(2)} {unit||""}</div>}
   </article>;
 }
-export default function HealthAnalytics({profile,checkins,factors,factorLogs,canRead}){
+export default function HealthAnalytics({profile,checkins,factors,factorLogs,symptomLogs,flareEvents,canRead}){
  const [period,setPeriod]=useState(90);
  const visibleLogs=useMemo(()=>factorLogs.filter(log=>factors.some(f=>f.id===log.factor_id&&f.status==="active"&&(!f.is_sensitive||canRead("sensitive_trackers","read")))),[factorLogs,factors,canRead]);
  const cutoff=Date.now()-period*86400000;
