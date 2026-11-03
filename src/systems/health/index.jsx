@@ -48,6 +48,18 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
   const [symptomDefinitions, setSymptomDefinitions] = useState([]);
   const [symptomLogs, setSymptomLogs] = useState([]);
   const [documents, setDocuments] = useState([]);
+  const [medications, setMedications] = useState([]);
+  const [medicationVersions, setMedicationVersions] = useState([]);
+  const [medicationEvents, setMedicationEvents] = useState([]);
+  const [sideEffects, setSideEffects] = useState([]);
+  const [medicationReminders, setMedicationReminders] = useState([]);
+  const [flareEvents, setFlareEvents] = useState([]);
+  const [medicationDraft, setMedicationDraft] = useState({name:"",brand:"",medication_type:"medication",dose_amount:"",dose_unit:"mg",route:"oral",frequency:"once_daily",schedule_times:"08:00",effective_from:new Date().toISOString().slice(0,10),start_date:new Date().toISOString().slice(0,10),prescribed_by:"",instructions:""});
+  const [versionDraft, setVersionDraft] = useState({medication_id:"",dose_amount:"",dose_unit:"mg",route:"oral",frequency:"once_daily",schedule_times:"08:00",effective_from:new Date().toISOString().slice(0,10),instructions:""});
+  const [sideEffectDraft, setSideEffectDraft] = useState({medication_id:"",medication_event_id:"",name:"",severity:"unknown",occurred_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),notes:""});
+  const [reminderDraft, setReminderDraft] = useState({medication_id:"",remind_at:""});
+  const [flareDraft, setFlareDraft] = useState({title:"",severity:"3",started_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),symptoms:"",suspected_triggers:"",relief_actions:"",notes:""});
+
   const [documentFile, setDocumentFile] = useState(null);
   const [documentDraft, setDocumentDraft] = useState({ display_name:"", document_type:"other", document_date:"", notes:"" });
 
@@ -110,7 +122,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
 
 
   useEffect(() => {
-    if (!selected?.id) { setConditions([]); setAllergies([]); setSymptomDefinitions([]); setSymptomLogs([]); setDocuments([]); return; }
+    if (!selected?.id) { setConditions([]); setAllergies([]); setSymptomDefinitions([]); setSymptomLogs([]); setDocuments([]); setMedications([]); setMedicationVersions([]); setMedicationEvents([]); setSideEffects([]); setMedicationReminders([]); setFlareEvents([]); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -120,13 +132,19 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
           allergies: readDemo(demoStore, demoKey("allergies:" + selected.id, userId), []).map(x=>({...x})),
           definitions: readDemo(demoStore, demoKey("symptoms:" + selected.id, userId), []).map(x=>({...x})),
           logs: readDemo(demoStore, demoKey("symptom-logs:" + selected.id, userId), []).map(x=>({...x})),
-          documents: readDemo(demoStore, demoKey("documents:" + selected.id, userId), []).map(x=>({...x}))
+          documents: readDemo(demoStore, demoKey("documents:" + selected.id, userId), []).map(x=>({...x})),
+          medications: readDemo(demoStore, demoKey("medications:" + selected.id, userId), []).map(x=>({...x})),
+          versions: readDemo(demoStore, demoKey("medication-versions:" + selected.id, userId), []).map(x=>({...x})),
+          events: readDemo(demoStore, demoKey("medication-events:" + selected.id, userId), []).map(x=>({...x})),
+          sideEffects: readDemo(demoStore, demoKey("medication-side-effects:" + selected.id, userId), []).map(x=>({...x})),
+          reminders: readDemo(demoStore, demoKey("medication-reminders:" + selected.id, userId), []).map(x=>({...x})),
+          flares: readDemo(demoStore, demoKey("flare-events:" + selected.id, userId), []).map(x=>({...x}))
         };
         else {
-          const result = await Promise.all([healthRepository.listConditions(selected.id),healthRepository.listAllergies(selected.id),healthRepository.listSymptomDefinitions(selected.id),healthRepository.listSymptomLogs(selected.id),healthRepository.listDocuments(selected.id)]);
-          rows = {conditions:result[0],allergies:result[1],definitions:result[2],logs:result[3],documents:result[4]};
+          const result = await Promise.all([healthRepository.listConditions(selected.id),healthRepository.listAllergies(selected.id),healthRepository.listSymptomDefinitions(selected.id),healthRepository.listSymptomLogs(selected.id),healthRepository.listDocuments(selected.id),healthRepository.listMedications(selected.id),healthRepository.listMedicationVersions(selected.id),healthRepository.listMedicationEvents(selected.id),healthRepository.listMedicationSideEffects(selected.id),healthRepository.listMedicationReminders(selected.id),healthRepository.listFlareEvents(selected.id)]);
+          rows = {conditions:result[0],allergies:result[1],definitions:result[2],logs:result[3],documents:result[4],medications:result[5],versions:result[6],events:result[7],sideEffects:result[8],reminders:result[9],flares:result[10]};
         }
-        if (!cancelled) { setConditions(rows.conditions); setAllergies(rows.allergies); setSymptomDefinitions(rows.definitions); setSymptomLogs(rows.logs); setDocuments(rows.documents || []); }
+        if (!cancelled) { setConditions(rows.conditions); setAllergies(rows.allergies); setSymptomDefinitions(rows.definitions); setSymptomLogs(rows.logs); setDocuments(rows.documents || []); setMedications(rows.medications||[]); setMedicationVersions(rows.versions||[]); setMedicationEvents(rows.events||[]); setSideEffects(rows.sideEffects||[]); setMedicationReminders(rows.reminders||[]); setFlareEvents(rows.flares||[]); }
       } catch(e) { if(!cancelled) setError(e?.message || "تعذر تحميل السجل الصحي."); }
     })();
     return () => { cancelled = true; };
@@ -289,6 +307,137 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
     catch(e){setError(e?.message||"تعذر حذف السجل.");}finally{setBusy(false);}
   }
 
+
+
+  function latestMedicationVersion(medicationId) {
+    return medicationVersions.filter(v=>v.medication_id===medicationId).sort((a,b)=>Number(b.version_no)-Number(a.version_no))[0] || null;
+  }
+  function parseScheduleTimes(value) {
+    return String(value||"").split(",").map(x=>x.trim()).filter(Boolean);
+  }
+  async function addMedication(e) {
+    e?.preventDefault(); if(!selected||!hasScopeAction("medications","create"))return;
+    setBusy(true);setError("");setNotice("");
+    try {
+      const name=medicationDraft.name.trim(), amount=Number(medicationDraft.dose_amount), unit=medicationDraft.dose_unit.trim();
+      if(!name)throw new Error("اكتب اسم الدواء أو العلاج.");
+      if(!Number.isFinite(amount)||amount<=0)throw new Error("أدخل جرعة رقمية موجبة كما هي موثقة.");
+      if(!unit)throw new Error("اكتب وحدة الجرعة.");
+      const times=parseScheduleTimes(medicationDraft.schedule_times);
+      if(times.some(t=>!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(t)))throw new Error("اكتب أوقاتًا بصيغة HH:MM مفصولة بفواصل.");
+      const medication={name,brand:medicationDraft.brand.trim()||null,medication_type:medicationDraft.medication_type,status:"active",instructions:medicationDraft.instructions.trim()||null,prescribed_by:medicationDraft.prescribed_by.trim()||null,start_date:medicationDraft.start_date||null,end_date:null};
+      const version={dose_amount:amount,dose_unit:unit,route:medicationDraft.route,frequency:medicationDraft.frequency,schedule_times:times,effective_from:medicationDraft.effective_from||new Date().toISOString().slice(0,10),instructions:medicationDraft.instructions.trim()||null};
+      let row,dose;
+      if(isDemo){
+        row={...medication,id:"demo-med-"+Date.now(),profile_id:selected.id,created_by:userId,created_at:new Date().toISOString()};
+        dose={...version,id:"demo-med-version-"+Date.now(),profile_id:selected.id,medication_id:row.id,version_no:1,created_by:userId,created_at:new Date().toISOString()};
+        const ms=[row,...medications],vs=[dose,...medicationVersions];storeDemoRows("medications",ms);storeDemoRows("medication-versions",vs);setMedications(ms);setMedicationVersions(vs);
+      } else {
+        const result=await healthRepository.createMedication({profileId:selected.id,actorUserId:userId,medication,version});row=result.medication;dose=result.version;setMedications(rows=>[row,...rows]);setMedicationVersions(rows=>[dose,...rows]);
+      }
+      setMedicationDraft({name:"",brand:"",medication_type:"medication",dose_amount:"",dose_unit:"mg",route:"oral",frequency:"once_daily",schedule_times:"08:00",effective_from:new Date().toISOString().slice(0,10),start_date:new Date().toISOString().slice(0,10),prescribed_by:"",instructions:""});
+      setNotice("تم تسجيل العلاج وإنشاء النسخة الأولى للجرعة. هذا سجل توثيقي وليس توصية علاجية.");
+    }catch(e){setError(e?.message||"تعذر تسجيل العلاج.");}finally{setBusy(false);}
+  }
+  async function addMedicationVersion(e) {
+    e?.preventDefault();const med=medications.find(x=>x.id===versionDraft.medication_id);if(!selected||!med||!hasScopeAction("medications","create"))return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      const amount=Number(versionDraft.dose_amount),unit=versionDraft.dose_unit.trim(),times=parseScheduleTimes(versionDraft.schedule_times);
+      if(!Number.isFinite(amount)||amount<=0||!unit)throw new Error("أدخل الجرعة والوحدة كما هما موثقتان.");
+      if(times.some(t=>!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(t)))throw new Error("صيغة الوقت يجب أن تكون HH:MM.");
+      const payload={dose_amount:amount,dose_unit:unit,route:versionDraft.route,frequency:versionDraft.frequency,schedule_times:times,effective_from:versionDraft.effective_from||new Date().toISOString().slice(0,10),instructions:versionDraft.instructions.trim()||null};
+      let row;
+      if(isDemo){row={...payload,id:"demo-med-version-"+Date.now(),profile_id:selected.id,medication_id:med.id,version_no:Math.max(0,...medicationVersions.filter(x=>x.medication_id===med.id).map(x=>Number(x.version_no)))+1,created_by:userId,created_at:new Date().toISOString()};const rows=[row,...medicationVersions];storeDemoRows("medication-versions",rows);setMedicationVersions(rows);}
+      else{row=await healthRepository.createMedicationVersion({profileId:selected.id,actorUserId:userId,medicationId:med.id,version:payload});setMedicationVersions(rows=>[row,...rows]);}
+      setVersionDraft({medication_id:"",dose_amount:"",dose_unit:"mg",route:"oral",frequency:"once_daily",schedule_times:"08:00",effective_from:new Date().toISOString().slice(0,10),instructions:""});
+      setNotice("تم إنشاء نسخة جرعة جديدة. النسخ السابقة وسجلات الجرعات الفعلية محفوظة دون تعديل.");
+    }catch(e){setError(e?.message||"تعذر إضافة نسخة الجرعة.");}finally{setBusy(false);}
+  }
+  async function updateMedicationStatus(med,status) {
+    if(!selected||!hasScopeAction("medications","update"))return;setBusy(true);setError("");
+    try{const patch={status,end_date:status==="stopped"?(new Date().toISOString().slice(0,10)):null};let row;
+      if(isDemo){row={...med,...patch,updated_at:new Date().toISOString()};const rows=medications.map(x=>x.id===med.id?row:x);storeDemoRows("medications",rows);setMedications(rows);}
+      else{row=await healthRepository.updateMedication({profileId:selected.id,actorUserId:userId,id:med.id,patch});setMedications(rows=>rows.map(x=>x.id===med.id?row:x));}
+      setNotice("تم تحديث حالة العلاج. لم تُعدّل سجلات الجرعات السابقة.");
+    }catch(e){setError(e?.message||"تعذر تحديث حالة العلاج.");}finally{setBusy(false);}
+  }
+  async function recordDoseEvent(med,status) {
+    if(!selected||!hasScopeAction("medications","create"))return;const version=latestMedicationVersion(med.id);if(!version){setError("لا توجد نسخة جرعة لهذا العلاج.");return;}
+    setBusy(true);setError("");setNotice("");
+    try{
+      const now=new Date(),iso=now.toISOString(),taken=status==="taken";
+      const payload={medication_id:med.id,medication_version_id:version.id,event_status:status,scheduled_for:iso,occurred_at:taken?iso:null,dose_amount:Number(version.dose_amount),dose_unit:version.dose_unit,medication_name_snapshot:med.name,notes:null};
+      let row;
+      if(isDemo){row={...payload,id:"demo-med-event-"+Date.now(),profile_id:selected.id,created_by:userId,created_at:iso};const rows=[row,...medicationEvents];storeDemoRows("medication-events",rows);setMedicationEvents(rows);}
+      else{row=await healthRepository.createMedicationEvent({profileId:selected.id,actorUserId:userId,event:payload});setMedicationEvents(rows=>[row,...rows]);}
+      setNotice(status==="taken"?"سُجلت الجرعة على أنها تم تناولها.":status==="skipped"?"سُجلت الجرعة على أنها متخطاة، ولم تُحتسب كجرعة متناولة.":status==="missed"?"سُجلت الجرعة على أنها فائتة، ولم تُحتسب كجرعة متناولة.":status==="held"?"سُجلت الجرعة على أنها موقوفة مؤقتًا.":"سُجلت الحالة على أنها غير معروفة.");
+    }catch(e){setError(e?.message||"تعذر تسجيل الجرعة.");}finally{setBusy(false);}
+  }
+  async function addSideEffect(e) {
+    e?.preventDefault();if(!selected||!hasScopeAction("medications","create"))return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      const med=medications.find(x=>x.id===sideEffectDraft.medication_id);if(!med)throw new Error("اختر علاجًا.");
+      const payload={medication_id:med.id,medication_event_id:sideEffectDraft.medication_event_id||null,name:sideEffectDraft.name.trim(),severity:sideEffectDraft.severity,occurred_at:sideEffectDraft.occurred_at?new Date(sideEffectDraft.occurred_at).toISOString():new Date().toISOString(),notes:sideEffectDraft.notes.trim()||null};
+      if(!payload.name)throw new Error("اكتب الأثر الجانبي الذي تريد توثيقه.");
+      let row;
+      if(isDemo){row={...payload,id:"demo-side-effect-"+Date.now(),profile_id:selected.id,created_by:userId,created_at:new Date().toISOString()};const rows=[row,...sideEffects];storeDemoRows("medication-side-effects",rows);setSideEffects(rows);}
+      else{row=await healthRepository.createMedicationSideEffect({profileId:selected.id,actorUserId:userId,sideEffect:payload});setSideEffects(rows=>[row,...rows]);}
+      setSideEffectDraft({medication_id:"",medication_event_id:"",name:"",severity:"unknown",occurred_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),notes:""});
+      setNotice("تم توثيق الأثر الجانبي. هذا التسجيل لا يثبت أن العلاج سببه.");
+    }catch(e){setError(e?.message||"تعذر تسجيل الأثر الجانبي.");}finally{setBusy(false);}
+  }
+  async function removeSideEffect(row) {
+    if(!selected||!hasScopeAction("medications","delete")||!window.confirm("حذف سجل الأثر الجانبي؟"))return;setBusy(true);setError("");
+    try{if(isDemo){const rows=sideEffects.filter(x=>x.id!==row.id);storeDemoRows("medication-side-effects",rows);setSideEffects(rows);}else{await healthRepository.deleteMedicationSideEffect({profileId:selected.id,actorUserId:userId,id:row.id});setSideEffects(rows=>rows.filter(x=>x.id!==row.id));}setNotice("تم حذف سجل الأثر الجانبي.");}
+    catch(e){setError(e?.message||"تعذر حذف سجل الأثر الجانبي.");}finally{setBusy(false);}
+  }
+  async function addMedicationReminder(e,med) {
+    e?.preventDefault();if(!selected||!med||!hasScopeAction("medications","create"))return;const version=latestMedicationVersion(med.id);if(!version){setError("لا توجد نسخة جرعة مرتبطة بالتذكير.");return;}
+    setBusy(true);setError("");setNotice("");
+    try{const raw=reminderDraft.medication_id===med.id?reminderDraft.remind_at:"";if(!raw)throw new Error("اختر وقت التذكير.");
+      const payload={medication_id:med.id,medication_version_id:version.id,remind_at:new Date(raw).toISOString(),status:"pending",completed_at:null,linked_event_id:null};
+      let row;
+      if(isDemo){row={...payload,id:"demo-med-reminder-"+Date.now(),profile_id:selected.id,created_by:userId,created_at:new Date().toISOString()};const rows=[row,...medicationReminders];storeDemoRows("medication-reminders",rows);setMedicationReminders(rows);}
+      else{row=await healthRepository.createMedicationReminder({profileId:selected.id,actorUserId:userId,reminder:payload});setMedicationReminders(rows=>[row,...rows]);}
+      setReminderDraft({medication_id:"",remind_at:""});setNotice("تم إنشاء تذكير داخل التطبيق. لا يرسل هذا الإصدار إشعارًا في الخلفية.");
+    }catch(e){setError(e?.message||"تعذر إنشاء التذكير.");}finally{setBusy(false);}
+  }
+  async function updateMedicationReminder(row,action) {
+    if(!selected||!hasScopeAction("medications","update"))return;setBusy(true);setError("");
+    try{let patch;
+      if(action==="snooze")patch={remind_at:new Date(Date.now()+15*60000).toISOString(),status:"pending",completed_at:null};
+      else patch={status:action==="complete"?"completed":"dismissed",completed_at:action==="complete"?new Date().toISOString():null};
+      let updated;
+      if(isDemo){updated={...row,...patch,updated_at:new Date().toISOString()};const rows=medicationReminders.map(x=>x.id===row.id?updated:x);storeDemoRows("medication-reminders",rows);setMedicationReminders(rows);}
+      else{updated=await healthRepository.updateMedicationReminder({profileId:selected.id,actorUserId:userId,id:row.id,patch});setMedicationReminders(rows=>rows.map(x=>x.id===row.id?updated:x));}
+      setNotice(action==="snooze"?"تم تأجيل التذكير 15 دقيقة.":action==="complete"?"تمت مراجعة التذكير؛ هذا لا يعني تلقائيًا أن الجرعة أُخذت.":"تم إخفاء التذكير.");
+    }catch(e){setError(e?.message||"تعذر تحديث التذكير.");}finally{setBusy(false);}
+  }
+  async function addFlareEvent(e) {
+    e?.preventDefault();if(!selected||!hasScopeAction("flare_events","create"))return;setBusy(true);setError("");setNotice("");
+    try{const title=flareDraft.title.trim(),severity=Number(flareDraft.severity);if(!title)throw new Error("اكتب اسمًا للنوبة.");if(!Number.isInteger(severity)||severity<1||severity>10)throw new Error("الشدة يجب أن تكون من 1 إلى 10.");
+      const payload={title,status:"ongoing",severity,started_at:new Date(flareDraft.started_at).toISOString(),ended_at:null,symptoms:flareDraft.symptoms.trim()||null,suspected_triggers:flareDraft.suspected_triggers.trim()||null,relief_actions:flareDraft.relief_actions.trim()||null,notes:flareDraft.notes.trim()||null};
+      let row;
+      if(isDemo){row={...payload,id:"demo-flare-"+Date.now(),profile_id:selected.id,created_by:userId,created_at:new Date().toISOString()};const rows=[row,...flareEvents];storeDemoRows("flare-events",rows);setFlareEvents(rows);}
+      else{row=await healthRepository.createFlareEvent({profileId:selected.id,actorUserId:userId,flare:payload});setFlareEvents(rows=>[row,...rows]);}
+      setFlareDraft({title:"",severity:"3",started_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),symptoms:"",suspected_triggers:"",relief_actions:"",notes:""});setNotice("تم تسجيل النوبة. العوامل المذكورة وصفية ولا تثبت سببًا طبيًا.");
+    }catch(e){setError(e?.message||"تعذر تسجيل النوبة.");}finally{setBusy(false);}
+  }
+  async function resolveFlare(row) {
+    if(!selected||!hasScopeAction("flare_events","update"))return;setBusy(true);setError("");
+    try{const patch=row.status==="ongoing"?{status:"resolved",ended_at:new Date().toISOString()}:{status:"ongoing",ended_at:null};let updated;
+      if(isDemo){updated={...row,...patch,updated_at:new Date().toISOString()};const rows=flareEvents.map(x=>x.id===row.id?updated:x);storeDemoRows("flare-events",rows);setFlareEvents(rows);}
+      else{updated=await healthRepository.updateFlareEvent({profileId:selected.id,actorUserId:userId,id:row.id,patch});setFlareEvents(rows=>rows.map(x=>x.id===row.id?updated:x));}
+      setNotice("تم تحديث حالة النوبة.");
+    }catch(e){setError(e?.message||"تعذر تحديث النوبة.");}finally{setBusy(false);}
+  }
+  async function removeFlare(row) {
+    if(!selected||!hasScopeAction("flare_events","delete")||!window.confirm("حذف سجل النوبة؟"))return;setBusy(true);setError("");
+    try{if(isDemo){const rows=flareEvents.filter(x=>x.id!==row.id);storeDemoRows("flare-events",rows);setFlareEvents(rows);}else{await healthRepository.deleteFlareEvent({profileId:selected.id,actorUserId:userId,id:row.id});setFlareEvents(rows=>rows.filter(x=>x.id!==row.id));}setNotice("تم حذف سجل النوبة.");}
+    catch(e){setError(e?.message||"تعذر حذف سجل النوبة.");}finally{setBusy(false);}
+  }
 
   async function uploadMedicalDocument(e) {
     e?.preventDefault(); if (!selected || !hasScopeAction("documents","create")) return;
