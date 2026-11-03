@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 
 const records = readFileSync(new URL("../src/core/records.jsx", import.meta.url), "utf8");
 const ui = readFileSync(new URL("../src/systems/hobbies/index.jsx", import.meta.url), "utf8");
+const smoke = readFileSync(new URL("../supabase/tests/hobbies_restore_matrix_smoke.sql", import.meta.url), "utf8");
+const workflow = readFileSync(new URL("../.github/workflows/hobbies-journal-sql-smoke.yml", import.meta.url), "utf8");
 
 const trashCollections = [
   "habits",
@@ -55,5 +57,9 @@ assert.match(ui, /const restoreJournalEntry=async j=>/);
 assert.match(ui, /store\.api\.restore\("journalEntries",j\.id\)/);
 assert.match(ui, /if\(journalShowTrash\?\!j\.deleted_at:!!j\.deleted_at\)return false/);
 assert.match(ui, /journalShowTrash\?\<><Btn onClick=\{\(\)=>restoreJournalEntry\(j\)\}>استعادة/);
+assert.match(smoke, /expected 8 restored private records/);
+assert.match(smoke, /restore changed or lost a record payload/);
+assert.match(smoke, /another member can read restored private records/);
+assert.match(workflow, /hobbies_restore_matrix_smoke\.sql/);
 
 console.log("Hobbies restore matrix contract passed: seven trash collections + Journal, restore persistence mapping, and active-screen filtering.");
