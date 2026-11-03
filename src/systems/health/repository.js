@@ -1,6 +1,6 @@
 import { supabase } from "../../core/supabase.js";
 
-const PROFILE_FIELDS = "id,owner_user_id,display_name,profile_type,status,timezone,locale,settings,created_at,updated_at";
+const PROFILE_FIELDS = "id,owner_user_id,display_name,profile_type,status,timezone,locale,settings,cycle_tracking_enabled,created_at,updated_at";
 const GRANT_FIELDS = "id,profile_id,grantee_user_id,granted_by,grant_role,scope_keys,actions,starts_at,expires_at,revoked_at,created_at,updated_at";
 
 async function audit(profileId, actorUserId, action, resourceType, resourceId = null, metadata = {}) {
@@ -71,12 +71,13 @@ export const healthRepository = {
     return data;
   },
 
-  async updateProfile({ profileId, ownerUserId, displayName, timezone, locale, status }) {
+  async updateProfile({ profileId, ownerUserId, displayName, timezone, locale, status, cycleTrackingEnabled }) {
     const patch = { updated_at: new Date().toISOString() };
     if (displayName !== undefined) patch.display_name = displayName.trim();
     if (timezone !== undefined) patch.timezone = timezone;
     if (locale !== undefined) patch.locale = locale;
     if (status !== undefined) patch.status = status;
+    if (cycleTrackingEnabled !== undefined) patch.cycle_tracking_enabled = !!cycleTrackingEnabled;
     const { data, error } = await supabase.from("health_profiles").update(patch)
       .eq("id", profileId).eq("owner_user_id", ownerUserId).select(PROFILE_FIELDS).single();
     if (error) throw error;
@@ -335,6 +336,80 @@ export const healthRepository = {
   async deleteFlareEvent({ profileId, actorUserId, id }) {
     const row = await deleteScoped("health_flare_events", id, profileId);
     await auditClinical(profileId, actorUserId, "flare_event_deleted", "flare_event", row.id);
+    return row;
+  },
+
+
+  async listDailyCheckins(profileId) { return listScoped("health_daily_checkins", "id,profile_id,entry_date,mood_score,energy_score,stress_score,sleep_hours,sleep_quality,digestion_status,digestion_severity,notes,recorded_at,created_by,created_at,updated_at", profileId, "entry_date"); },
+  async upsertDailyCheckin({ profileId, actorUserId, checkin }) {
+    const { data: previous, error: findError } = await supabase.from("health_daily_checkins").select("id")
+      .eq("profile_id", profileId).eq("entry_date", checkin.entry_date).maybeSingle();
+    if (findError) throw findError;
+    const payload = { ...checkin, profile_id: profileId, created_by: actorUserId, updated_at: new Date().toISOString() };
+    const { data, error } = await supabase.from("health_daily_checkins").upsert(payload, { onConflict: "profile_id,entry_date" })
+      .select("id,profile_id,entry_date,mood_score,energy_score,stress_score,sleep_hours,sleep_quality,digestion_status,digestion_severity,notes,recorded_at,created_by,created_at,updated_at").single();
+    if (error) throw error;
+    await auditClinical(profileId, actorUserId, previous ? "daily_checkin_updated" : "daily_checkin_created", "daily_checkin", data.id);
+    return data;
+  },
+  async deleteDailyCheckin({ profileId, actorUserId, id }) {
+    const row = await deleteScoped("health_daily_checkins", id, profileId);
+    await auditClinical(profileId, actorUserId, "daily_checkin_deleted", "daily_checkin", row.id);
+    return row;
+  },
+
+  async listFactors(profileId) { return listScoped("health_factors", "id,profile_id,name,category,value_type,unit,scale_min,scale_max,choice_options,is_sensitive,status,created_by,created_at,updated_at", profileId); },
+  async createFactor({ profileId, actorUserId, factor }) {
+    const row = await insertScoped("health_factors", "id,profile_id,name,category,value_type,unit,scale_min,scale_max,choice_options,is_sensitive,status,created_by,created_at,updated_at",
+      { ...factor, profile_id: profileId, created_by: actorUserId });
+    await auditClinical(profileId, actorUserId, "health_factor_created", "health_factor", row.id);
+    return row;
+  },
+  async updateFactor({ profileId, actorUserId, id, patch }) {
+    const row = await updateScoped("health_factors", "id,profile_id,name,category,value_type,unit,scale_min,scale_max,choice_options,is_sensitive,status,created_by,created_at,updated_at", id, profileId, patch);
+    await auditClinical(profileId, actorUserId, "health_factor_updated", "health_factor", row.id);
+    return row;
+  },
+  async listFactorLogs(profileId) { return listScoped("health_factor_logs", "id,profile_id,factor_id,recorded_at,value_numeric,value_boolean,value_text,value_choice,notes,created_by,created_at,updated_at", profileId, "recorded_at"); },
+  async createFactorLog({ profileId, actorUserId, log }) {
+    const row = await insertScoped("health_factor_logs", "id,profile_id,factor_id,recorded_at,value_numeric,value_boolean,value_text,value_choice,notes,created_by,created_at,updated_at",
+      { ...log, profile_id: profileId, created_by: actorUserId });
+    await auditClinical(profileId, actorUserId, "health_factor_log_created", "health_factor_log", row.id);
+    return row;
+  },
+  async updateFactorLog({ profileId, actorUserId, id, patch }) {
+    const row = await updateScoped("health_factor_logs", "id,profile_id,factor_id,recorded_at,value_numeric,value_boolean,value_text,value_choice,notes,created_by,created_at,updated_at", id, profileId, patch);
+    await auditClinical(profileId, actorUserId, "health_factor_log_updated", "health_factor_log", row.id);
+    return row;
+  },
+  async deleteFactorLog({ profileId, actorUserId, id }) {
+    const row = await deleteScoped("health_factor_logs", id, profileId);
+    await auditClinical(profileId, actorUserId, "health_factor_log_deleted", "health_factor_log", row.id);
+    return row;
+  },
+  async updateCycleTrackingPreference({ profileId, ownerUserId, enabled }) {
+    const { data, error } = await supabase.from("health_profiles").update({
+      cycle_tracking_enabled: !!enabled, updated_at: new Date().toISOString()
+    }).eq("id", profileId).eq("owner_user_id", ownerUserId).select(PROFILE_FIELDS).single();
+    if (error) throw error;
+    await audit(profileId, ownerUserId, enabled ? "cycle_tracking_enabled" : "cycle_tracking_disabled", "cycle_settings", profileId, {});
+    return data;
+  },
+  async listCycleEntries(profileId) { return listScoped("health_cycle_entries", "id,profile_id,entry_date,flow_intensity,period_start,period_end,symptoms,notes,created_by,created_at,updated_at", profileId, "entry_date"); },
+  async upsertCycleEntry({ profileId, actorUserId, entry }) {
+    const { data: previous, error: findError } = await supabase.from("health_cycle_entries").select("id")
+      .eq("profile_id", profileId).eq("entry_date", entry.entry_date).maybeSingle();
+    if (findError) throw findError;
+    const payload = { ...entry, profile_id: profileId, created_by: actorUserId, updated_at: new Date().toISOString() };
+    const { data, error } = await supabase.from("health_cycle_entries").upsert(payload, { onConflict: "profile_id,entry_date" })
+      .select("id,profile_id,entry_date,flow_intensity,period_start,period_end,symptoms,notes,created_by,created_at,updated_at").single();
+    if (error) throw error;
+    await audit(profileId, actorUserId, previous ? "cycle_entry_updated" : "cycle_entry_created", "cycle_entry", data.id, {});
+    return data;
+  },
+  async deleteCycleEntry({ profileId, actorUserId, id }) {
+    const row = await deleteScoped("health_cycle_entries", id, profileId);
+    await audit(profileId, actorUserId, "cycle_entry_deleted", "cycle_entry", row.id, {});
     return row;
   },
 
