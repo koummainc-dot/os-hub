@@ -155,7 +155,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
           checkins: readDemo(demoStore, demoKey("daily-checkins:" + selected.id, userId), []).map(x=>({...x})),
           factors: readDemo(demoStore, demoKey("factors:" + selected.id, userId), []).map(x=>({...x})),
           factorLogs: readDemo(demoStore, demoKey("factor-logs:" + selected.id, userId), []).map(x=>({...x})),
-          cycleEntries: (isOwner && selected.cycle_tracking_enabled) ? readDemo(demoStore, demoKey("cycle-entries:" + selected.id, userId), []).map(x=>({...x})),
+          cycleEntries: (isOwner && selected.cycle_tracking_enabled) ? readDemo(demoStore, demoKey("cycle-entries:" + selected.id, userId), []).map(x=>({...x})) : [],
           measurements: readDemo(demoStore, demoKey("measurements:" + selected.id, userId), []).map(x=>({...x}))
         };
         else {
