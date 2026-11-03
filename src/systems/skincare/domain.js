@@ -100,7 +100,7 @@ export function validateRoutineStep(input = {}, products = []) {
     return { ok: false, error: "نوع خطوة الروتين غير صحيح." };
   }
   return { ok: true, value: {
-    id: text(input.id, 100) || uid(),
+    id: text(input.id, 100),
     productId, category,
     instruction: text(input.instruction, 500),
     order: Number.isInteger(input.order) ? input.order : 0,
@@ -122,7 +122,7 @@ export function isRoutineDue(routine, date = new Date()) {
   if (!routine || routine.status !== "active") return false;
   const day = date.getDay();
   if (routine.frequency === "selected_days") return (routine.days || []).includes(day);
-  if (routine.frequency === "times_per_week") return true;
+  if (routine.frequency === "times_per_week") return false;
   return true;
 }
 
