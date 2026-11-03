@@ -6,7 +6,7 @@ const repository = fs.readFileSync("src/systems/health/repository.js", "utf8");
 const core = fs.readFileSync("src/core/core.js", "utf8");
 const migration = fs.readFileSync("supabase/migrations/20261103135639_health_os_h2_core_records.sql", "utf8");
 
-assert.ok(core.includes('phase:"H3 · الأدوية والعلاجات والنوبات"') && core.includes('conditions:الحالات والحساسيات:🧾|symptoms:الأعراض:🩹'), "Health registry must expose H2 pages");
+assert.ok(core.includes('phase:"H4 · المتابعة اليومية والعوامل"') && core.includes('conditions:الحالات والحساسيات:🧾|symptoms:الأعراض:🩹'), "Health registry must expose H2 pages");
 assert.match(ui, /page === "conditions"/, "Condition and allergy screen must exist");
 assert.match(ui, /page === "symptoms"/, "Symptom screen must exist");
 for (const method of ["listConditions","createCondition","updateCondition","deleteCondition","listAllergies","createAllergy","updateAllergy","deleteAllergy","listSymptomDefinitions","createSymptomDefinition","updateSymptomDefinition","deleteSymptomDefinition","listSymptomLogs","createSymptomLog","updateSymptomLog","deleteSymptomLog"]) {
