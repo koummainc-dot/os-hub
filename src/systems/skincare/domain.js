@@ -236,6 +236,10 @@ export function validateSkinIngredient(input = {}) {
     notes: text(input.notes, 1200),
     flag,
     source: text(input.source, 500),
+    referenceUrl: text(input.referenceUrl, 1000),
+    catalogKey: text(input.catalogKey, 120),
+    catalogVersion: text(input.catalogVersion, 40),
+    sourceType: text(input.sourceType, 40) || "user",
     updatedAt: new Date().toISOString(),
   }};
 }
