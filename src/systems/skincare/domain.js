@@ -30,18 +30,20 @@ export function validateSkinProduct(input = {}) {
   const brand = text(input.brand, 100);
   const category = text(input.category || "other", 40);
   const status = text(input.status || "active", 30);
+  const suitability = text(input.suitability || "suitable", 20);
   if (!name) return { ok: false, error: "اسم المنتج مطلوب." };
   if (!["cleanser", "moisturizer", "sunscreen", "serum", "treatment", "toner", "mask", "other"].includes(category)) {
     return { ok: false, error: "تصنيف المنتج غير صحيح." };
   }
   if (!["active", "paused", "finished", "discarded"].includes(status)) return { ok: false, error: "حالة المنتج غير صحيحة." };
+  if (!["suitable", "review", "avoid"].includes(suitability)) return { ok: false, error: "تقييم ملاءمة المنتج غير صحيح." };
   const startDate = text(input.startDate, 10);
   const expiryDate = text(input.expiryDate, 10);
   for (const [label, value] of [["تاريخ البدء", startDate], ["تاريخ الانتهاء", expiryDate]]) {
     if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) return { ok: false, error: label + " غير صالح." };
   }
   return { ok: true, value: {
-    ...input, name, brand, category, status, startDate, expiryDate,
+    ...input, name, brand, category, status, suitability, startDate, expiryDate,
     ingredients: text(input.ingredients, 2000),
     instructions: text(input.instructions, 1000),
     notes: text(input.notes, 2000),
