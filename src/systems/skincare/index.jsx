@@ -137,6 +137,12 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     if (!canEdit) return;
     const result = validateSkinDiaryEntry({ ...diaryDraft, issues: diaryDraft.issuesText.split(/[,،\n]/) }, today());
     if (!result.ok) return say(result.error);
+    if (result.value.trialId) {
+      const linkedTrial = trials.find(trial => trial.id === result.value.trialId);
+      if (!linkedTrial || linkedTrial.status === "cancelled" || result.value.date < linkedTrial.startDate || (linkedTrial.endDate && result.value.date > linkedTrial.endDate)) {
+        return say("التجربة المختارة غير متاحة لهذا التاريخ؛ راجع تاريخ التجربة وحالتها.");
+      }
+    }
     const existing = diaryEntries.find(entry => entry.date === result.value.date && entry.id !== editingDiary);
     if (existing) return say("يوجد تسجيل لهذا اليوم بالفعل؛ افتحه من السجل لتعديله.");
     setBusy(true);
@@ -411,7 +417,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     {store.ready && !store.error && page === "products" && <ProductsView products={products} deletedProducts={deletedProducts} onRestore={restoreProduct} draft={productDraft} setDraft={setProductDraft} onSave={saveProduct} onEdit={editProduct} onDelete={deleteProduct} editing={editingProduct} setEditing={setEditingProduct} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "units" && <UnitsView units={units} deletedUnits={deletedUnits} onRestore={restoreUnit} products={products} draft={unitDraft} setDraft={setUnitDraft} onSave={saveUnit} onEdit={editUnit} onDelete={deleteUnit} editing={editingUnit} setEditing={setEditingUnit} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "routines" && <RoutinesView routines={routines} logs={routineLogs} products={products} canEdit={canEdit} busy={busy} onSave={saveRoutine} onArchive={toggleRoutine} onCopy={copyRoutine} onLog={logRoutineStep} onUndo={undoRoutineLog} />}
-    {store.ready && !store.error && page === "diary" && <DiaryView entries={diaryEntries} deletedEntries={deletedDiaryEntries} selectedDate={diaryDate} setSelectedDate={setDiaryDate} draft={diaryDraft} setDraft={setDiaryDraft} editing={editingDiary} setEditing={setEditingDiary} onSave={saveDiaryEntry} onEdit={editDiaryEntry} onDelete={deleteDiaryEntry} onRestore={restoreDiaryEntry} canEdit={canEdit} busy={busy} />}
+    {store.ready && !store.error && page === "diary" && <DiaryView entries={diaryEntries} deletedEntries={deletedDiaryEntries} trials={trials} selectedDate={diaryDate} setSelectedDate={setDiaryDate} draft={diaryDraft} setDraft={setDiaryDraft} editing={editingDiary} setEditing={setEditingDiary} onSave={saveDiaryEntry} onEdit={editDiaryEntry} onDelete={deleteDiaryEntry} onRestore={restoreDiaryEntry} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "photos" && <PhotosView workspaceId={ws?.id} entries={diaryEntries} photos={photos} deletedPhotos={deletedPhotos} isDemo={isDemo} canEdit={canEdit} busy={busy} onUpload={uploadPhoto} onDelete={removePhoto} onPurge={removePhoto} />}
     {store.ready && !store.error && page === "ingredients" && <IngredientsView ingredients={ingredients} deletedIngredients={deletedIngredients} products={products} canEdit={canEdit} busy={busy} onSave={saveIngredient} onDelete={deleteIngredient} onRestore={restoreIngredient} onImportCatalog={importIngredientCatalog} />}
     {store.ready && !store.error && page === "trials" && <TrialsView trials={trials} products={products} diaryEntries={diaryEntries} reactions={reactions} canEdit={canEdit} busy={busy} onCreate={createTrial} onTransition={updateTrialStatus} />}
