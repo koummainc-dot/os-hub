@@ -53,10 +53,6 @@ using (
           and photo.id = split_part(storage.filename(name), '.', 1)
           and photo.deleted = false
           and photo.data->>'deleted_at' is null
-          and photo.data->>'objectPath' is not distinct from case
-            when storage.filename(name) ~* '\.thumb\.webp$' then null
-            else name
-          end
           and (photo.data->>'objectPath' = name or photo.data->>'thumbnailPath' = name)
           and diary.data->>'date' = photo.data->>'date'
       )
