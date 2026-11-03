@@ -7,6 +7,8 @@ insert into public.workspaces(id) values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 -- Owner A creates an encrypted practice record and a normalized log.
 set role authenticated;
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',false);
+insert into public.spiritual_user_keyrings(user_id,version,kdf,iterations,salt,wrap_iv,wrapped_key)
+values ('11111111-1111-4111-8111-111111111111',1,'PBKDF2-SHA-256',310000,'AAAAAAAAAAAAAAAAAAAAAA==','AAAAAAAAAAAAAAAA','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
 insert into public.spiritual_private_records(user_id,workspace_id,id,collection,data,encrypted_data,encryption_version)
 values ('11111111-1111-4111-8111-111111111111','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','practice-1','practices','{}',
  '{"version":1,"algorithm":"AES-256-GCM","iv":"AAAAAAAAAAAAAAAA","ciphertext":"AAAAAAAAAAAAAAAAAAAAAA=="}',1);
