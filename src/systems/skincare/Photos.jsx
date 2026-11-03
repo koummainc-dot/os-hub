@@ -19,6 +19,7 @@ export default function PhotosView({ workspaceId, entries, photos, deletedPhotos
   const [leftId, setLeftId] = useState(photos[1]?.id || photos[0]?.id || "");
   const [rightId, setRightId] = useState(photos[0]?.id || "");
   const [loadingUrls, setLoadingUrls] = useState(false);
+  const [urlVersion, setUrlVersion] = useState(0);
 
   const selectedDiary = entries.find(entry => entry.id === diaryId) || null;
   const signatureKey = useMemo(() => photos.map(photo => photo.id + ":" + (photo.updated_at || photo.createdAt || "")).join("|"), [photos]);
@@ -50,7 +51,7 @@ export default function PhotosView({ workspaceId, entries, photos, deletedPhotos
       setSignErrors(nextErrors);
     }).finally(() => { if (!cancelled) setLoadingUrls(false); });
     return () => { cancelled = true; };
-  }, [workspaceId, isDemo, signatureKey]);
+  }, [workspaceId, isDemo, signatureKey, urlVersion]);
 
   const compareLeft = photos.find(photo => photo.id === leftId) || null;
   const compareRight = photos.find(photo => photo.id === rightId) || null;
@@ -58,7 +59,8 @@ export default function PhotosView({ workspaceId, entries, photos, deletedPhotos
   const submit = async e => {
     e.preventDefault();
     if (!file || !selectedDiary || !canEdit || busy || isDemo) return;
-    await onUpload({ file, diaryEntry: selectedDiary, lighting, angle, notes });
+    const saved = await onUpload({ file, diaryEntry: selectedDiary, lighting, angle, notes });
+    if (!saved) return;
     setFile(null);
     setNotes("");
     const input = document.getElementById("skincare-photo-file");
@@ -96,7 +98,7 @@ export default function PhotosView({ workspaceId, entries, photos, deletedPhotos
 
     <section style={panel}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <b>معرض الصور ({photos.length})</b><span style={{ color: C.muted, fontSize: 11 }}>{loadingUrls ? "جارٍ تجهيز روابط عرض مؤقتة…" : "الروابط صالحة لمدة 5 دقائق"}</span>
+        <b>معرض الصور ({photos.length})</b><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: C.muted, fontSize: 11 }}>{loadingUrls ? "جارٍ تجهيز روابط عرض مؤقتة…" : "الروابط صالحة لمدة 5 دقائق"}</span><button type="button" style={btn()} disabled={loadingUrls || isDemo} onClick={() => setUrlVersion(value => value + 1)}>تحديث الصور</button></div>
       </div>
       {!photos.length && <p style={{ color: C.muted, fontSize: 12 }}>لا توجد صور نشطة بعد.</p>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))", gap: 12, marginTop: 12 }}>
@@ -123,7 +125,7 @@ export default function PhotosView({ workspaceId, entries, photos, deletedPhotos
         </div>
         {compareLeft && compareRight && leftId === rightId && <p style={{ color: C.danger, fontSize: 11 }}>اختر صورتين مختلفتين.</p>}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12, marginTop: 12 }}>
-          {[compareLeft, compareRight].map((photo, index) => photo && <div key={photo.id} style={{ border: "1px solid " + C.line, borderRadius: 10, overflow: "hidden" }}>
+          {[compareLeft, compareRight].map((photo, index) => photo && <div key={photo.id + "-" + index} style={{ border: "1px solid " + C.line, borderRadius: 10, overflow: "hidden" }}>
             {signed[photo.id]?.originalUrl ? <img src={signed[photo.id].originalUrl} alt={"مقارنة صورة " + (index + 1)} style={{ width: "100%", display: "block", maxHeight: 420, objectFit: "contain", background: "#F8FAFC" }} /> : <div style={{ padding: 30, color: C.muted, fontSize: 11 }}>الصورة غير متاحة أو انتهت صلاحية رابطها.</div>}
             <div style={{ padding: 10, fontSize: 11 }}><b>{dateLabel(photo.date)}</b><div style={{ color: C.muted, marginTop: 4 }}>الإضاءة: {photo.lighting} · الزاوية: {photo.angle}</div></div>
           </div>)}
