@@ -18,29 +18,24 @@ assert.ok(sql.includes("array['image/jpeg','image/png','image/webp']"));
 for (const action of ["select", "insert", "delete"]) {
   assert.ok(sql.includes("create policy skincare_progress_" + action), "missing storage " + action + " policy");
 }
-assert.ok(sql.includes("ws_access_level(((storage.foldername(name))[1])::uuid, 'skincare', 'photos')"));
+assert.equal(sql.split("create policy skincare_progress_").length - 1, 3, "only select/insert/delete policies should exist");
 assert.ok(sql.includes("photo.collection = 'skin_photos'"));
 assert.ok(sql.includes("photo.data->>'objectPath' = name or photo.data->>'thumbnailPath' = name"));
 assert.ok(sql.includes("diary.collection = 'skin_diary'"));
 assert.ok(sql.includes("public = false"));
 assert.ok(sql.includes("drop policy if exists skincare_progress_update"));
 assert.ok(!sql.includes("create policy skincare_progress_update"));
-assert.ok(sql.includes("storage.filename(name) ~*"));
-assert.ok(sql.includes("begin;") && sql.includes("commit;"));
-assert.equal((sql.match(/\\bcreate policy skincare_progress_/g) || []).length, 3, "only select/insert/delete policies should exist");
-assert.equal((sql.match(/\\bcommit;/gi) || []).length, 1, "migration must have one terminal COMMIT");
-assert.match(sql, /for delete to authenticated[\\s\\S]*?ws_access_level\\(\\(\\(storage\\.foldername\\(name\\)\\)\\[1\\]\\)::uuid, 'skincare', 'photos'\\) = 'edit'/);
-assert.match(sql, /storage\\.filename\\(name\\) ~\\* '\\^\\[0-9a-f\\]\\{8\\}.*\\(\\\\\\.thumb\\)\\?\\\\\\.\\(jpg\\|png\\|webp\\)\\\
-assert.ok(storage.includes('storeApi.putStrict("skin_photos", record)'));
-assert.ok(storage.includes("createSignedUrl(row.data.objectPath, 300)"));
-assert.ok(storage.includes("expectedPaths.objectPath !== row.data?.objectPath"));
-assert.ok(storage.includes("removeObjects([row.data.objectPath, row.data.thumbnailPath])"));
-assert.ok(storage.includes("storagePurgePending: true"));
-assert.ok(records.includes("persist(coll, next, prev, false, false)"), "strict metadata writes must not enter the offline queue");
-console.log("Skincare storage and collection permission migration contract: PASS");
-/);
-assert.match(sql.trimEnd(), /commit;$/);
-assert.ok(!sql.includes("is not distinct from case"), "thumbnail reads must use the metadata thumbnailPath predicate only");
+assert.equal(sql.split("begin;").length - 1, 1, "migration must have one BEGIN");
+assert.equal(sql.split("commit;").length - 1, 1, "migration must have one COMMIT");
+assert.ok(sql.trimEnd().endsWith("commit;"), "migration must end at COMMIT without trailing SQL");
+assert.ok(!sql.includes("is not distinct from case"), "invalid thumbnail predicate must not return");
+const deletePolicy = sql.slice(sql.indexOf("create policy skincare_progress_delete"));
+assert.ok(deletePolicy.includes("for delete to authenticated"));
+assert.ok(deletePolicy.includes("storage.filename(name) ~*"));
+assert.ok(deletePolicy.includes("ws_access_level(((storage.foldername(name))[1])::uuid, 'skincare', 'photos') = 'edit'"));
+const insertPolicy = sql.slice(sql.indexOf("create policy skincare_progress_insert"), sql.indexOf("-- Uploads use upsert=false"));
+assert.ok(insertPolicy.includes("diary.id = (storage.foldername(name))[2]"));
+assert.ok(insertPolicy.includes("ws_access_level(((storage.foldername(name))[1])::uuid, 'skincare', 'photos') = 'edit'"));
 
 assert.ok(storage.includes('storeApi.putStrict("skin_photos", record)'));
 assert.ok(storage.includes("createSignedUrl(row.data.objectPath, 300)"));
