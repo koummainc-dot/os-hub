@@ -13,7 +13,7 @@ const dateAt = date => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cair
 const dateKey = () => dateAt(new Date());
 const Panel = ({ title, children, action }) => <section style={panel}><div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:12 }}><b>{title}</b>{action}</div>{children}</section>;
 
-export default function RoutinesView({ routines, logs, products, canEdit, busy, onSave, onArchive, onCopy, onLog, onUndo }) {
+export default function RoutinesView({ routines, logs, products, reactions = [], canEdit, busy, onSave, onArchive, onCopy, onLog, onUndo }) {
   const [draft, setDraft] = useState(EMPTY);
   const [editing, setEditing] = useState("");
   const [stepProduct, setStepProduct] = useState("");
@@ -110,11 +110,19 @@ export default function RoutinesView({ routines, logs, products, canEdit, busy, 
           <div style={{marginTop:8,display:"grid",gap:7}}>
             {(r.steps||[]).filter(step=>!step.archived).map(step=>{
               const log=todayLogs.find(x=>x.routineId===r.id&&x.stepId===step.id);
-              return <div key={step.id} style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",background:C.soft,borderRadius:9,padding:9}}>
-                <span style={{fontSize:12,flex:1}}>{productName(step.productId)} {log?.status==="done"?"✓":log?.status==="skipped"?"—":""}</span>
+              const openReactions=reactions.filter(item=>item.productId===step.productId&&item.status==="open");
+              return <div key={step.id} style={{display:"grid",gap:6,background:C.soft,borderRadius:9,padding:9}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span style={{fontSize:12,flex:1}}>{productName(step.productId)} {log?.status==="done"?"✓":log?.status==="skipped"?"—":""}</span>
                 {canEdit && r.status==="active" && dueToday && !log && <><button type="button" style={btn(true)} onClick={()=>onLog(r,step,"done")}>تم</button><button type="button" style={btn()} onClick={()=>onLog(r,step,"skipped")}>تخطي</button></>}
                 {canEdit && log && <span style={{fontSize:11,color:C.muted}}>تم تسجيل {log.status==="done"?"التنفيذ":"التخطي"}</span>}
                 {canEdit && r.status==="active" && !dueToday && !log && <span style={{fontSize:11,color:C.muted}}>غير مستحق اليوم أو اكتمل هدف الأسبوع</span>}
+                </div>
+                {openReactions.length>0 && <div style={{borderTop:"1px solid "+C.line,paddingTop:6,color:openReactions.some(item=>item.severity==="severe")?C.danger:"#B45309",fontSize:11}}>
+                  <b>تنبيه: يوجد تفاعل جلدي مفتوح مسجل لهذا المنتج</b>
+                  <div style={{marginTop:3}}>{openReactions.map(item=>(item.dateStarted+" · "+({mild:"خفيف",moderate:"متوسط",severe:"شديد"}[item.severity]||item.severity))).join(" | ")}</div>
+                  <span style={{color:C.muted}}>راجع سجل التفاعل وقرارك بشأن استخدام المنتج؛ لا يوقف التطبيق الخطوة تلقائيًا.</span>
+                </div>}
               </div>;
             })}
           </div>
