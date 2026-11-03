@@ -189,14 +189,13 @@ export default function HobbiesOS({access,ws,isDemo,demoStore,page="dashboard",s
  const runImport=async()=>{
   if(!canEdit||!importReport?.ok||!importReport.ops?.length)return;
   setImportBusy(true);setError("");
-  let saved=0;
   try{
-   for(const op of importReport.ops){const result=await store.api.put(op.coll,op.rec);if(!result)throw new Error("توقف الاستيراد عند "+op.coll+"/"+op.rec.id+".");saved++;}
+   const saved=await store.api.putBatchAtomic(importReport.ops);
    await store.api.reload?.();
-   setImportReport({...importReport,ok:true,ops:[],imported:saved,completed:true});
-   shell?.toast?.("اكتمل استيراد "+saved+" سجلًا جديدًا.");
+   setImportReport({...importReport,ok:true,ops:[],imported:saved.length,completed:true,partial:false});
+   shell?.toast?.("اكتمل الاستيراد الذري لـ "+saved.length+" سجلًا جديدًا.");
   }catch(err){
-   setImportReport({...importReport,ok:false,ops:[],imported:saved,partial:true,errors:["توقف الاستيراد بعد حفظ "+saved+" سجلًا. لم يُحذف ما تم حفظه؛ أعد تحميل البيانات وراجع السجلات قبل إعادة المحاولة. "+(err?.message||"")]});
+   setImportReport({...importReport,ok:false,ops:[],imported:0,completed:false,partial:false,errors:["فشل الاستيراد الذري؛ لم تُحفظ دفعة جزئية. أُعيد تحميل البيانات عند الحاجة. "+(err?.message||"")]});
   }finally{setImportBusy(false);}
  };
 
