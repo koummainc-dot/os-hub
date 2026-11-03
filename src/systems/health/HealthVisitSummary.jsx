@@ -11,7 +11,7 @@ const item=(id,title,meta,row,notes)=>({id,title,meta,row,notes:notes||""});
 
 export default function HealthVisitSummary({
  profile,conditions,allergies,symptomLogs,medications,medicationVersions,sideEffects,
- flareEvents,checkins,factors,factorLogs,canRead
+ flareEvents,checkins,factors,factorLogs,measurements,canRead
 }){
  const today=new Date().toISOString().slice(0,10);
  const initialFrom=new Date(Date.now()-30*86400000).toISOString().slice(0,10);
@@ -19,13 +19,13 @@ export default function HealthVisitSummary({
  const [visitDate,setVisitDate]=useState(today),[doctor,setDoctor]=useState(""),[facility,setFacility]=useState("");
  const [reason,setReason]=useState(""),[questions,setQuestions]=useState("");
  const [includeNotes,setIncludeNotes]=useState(false),[includeSensitive,setIncludeSensitive]=useState(false);
- const [sections,setSections]=useState({conditions:false,allergies:false,symptoms:false,medications:false,sideEffects:false,flares:false,checkins:false,trackers:false});
+ const [sections,setSections]=useState({conditions:false,allergies:false,symptoms:false,medications:false,sideEffects:false,flares:false,checkins:false,trackers:false,measurements:false});
  const [selected,setSelected]=useState({});
  const [reviewed,setReviewed]=useState(false);
  const readable={
   conditions:canRead("conditions","read"),symptoms:canRead("symptoms","read"),medications:canRead("medications","read"),
   flares:canRead("flare_events","read"),checkins:canRead("checkins","read"),trackers:canRead("trackers","read"),
-  sensitive:canRead("sensitive_trackers","read")
+  sensitive:canRead("sensitive_trackers","read"),measurements:canRead("measurements","read")
  };
  const groups=useMemo(()=>{
   const medicationItems=medications.map(m=>{
@@ -47,8 +47,8 @@ export default function HealthVisitSummary({
   };
   return data;
  },[conditions,allergies,symptomLogs,medications,medicationVersions,sideEffects,flareEvents,checkins,factors,factorLogs,from,to]);
- const labels={conditions:"الحالات الطبية",allergies:"الحساسيات",symptoms:"الأعراض خلال الفترة",medications:"الأدوية والعلاجات",sideEffects:"الآثار الجانبية المسجلة",flares:"نوبات التهيّج",checkins:"المتابعة اليومية",trackers:"المتتبّعات العادية"};
- const allowed={conditions:readable.conditions,allergies:readable.conditions,symptoms:readable.symptoms,medications:readable.medications,sideEffects:readable.medications,flares:readable.flares,checkins:readable.checkins,trackers:readable.trackers};
+ const labels={conditions:"الحالات الطبية",allergies:"الحساسيات",symptoms:"الأعراض خلال الفترة",medications:"الأدوية والعلاجات",sideEffects:"الآثار الجانبية المسجلة",flares:"نوبات التهيّج",checkins:"المتابعة اليومية",trackers:"المتتبّعات العادية",measurements:"القياسات الحيوية"};
+ const allowed={conditions:readable.conditions,allergies:readable.conditions,symptoms:readable.symptoms,medications:readable.medications,sideEffects:readable.medications,flares:readable.flares,checkins:readable.checkins,trackers:readable.trackers,measurements:readable.measurements};
  const selectedItems=Object.entries(sections).flatMap(([key,on])=>{
   if(!on)return [];
   if(key==="trackers")return [...groups.trackers,...(includeSensitive&&readable.sensitive?groups.sensitive:[])].filter(x=>selected[x.id]!==false);
