@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { analyzeINCI, productsContainingIngredient, validateSkinIngredient } from "./domain.js";
+import { INGREDIENT_CATALOG, INGREDIENT_CATALOG_VERSION, INGREDIENT_CATALOG_SOURCES } from "./ingredientCatalog.js";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", white: "#FFFFFF", accent: "#A855F7", soft: "#FAF5FF", danger: "#B91C1C" };
 const panel = { background: C.white, border: "1px solid " + C.line, borderRadius: 14, padding: 15, marginBottom: 12 };
@@ -9,13 +10,15 @@ const btn = (primary = false, danger = false) => ({ border: "1px solid " + (prim
 const EMPTY = { inciName: "", aliasesText: "", function: "", notes: "", flag: "none", source: "" };
 const FLAG_LABELS = { none: "بدون وسم", favorite: "مفضل", sensitive: "حساس", avoid: "تجنب" };
 
-export default function IngredientsView({ ingredients, deletedIngredients, products, canEdit, busy, onSave, onDelete, onRestore }) {
+export default function IngredientsView({ ingredients, deletedIngredients, products, canEdit, busy, onSave, onDelete, onRestore, onImportCatalog }) {
   const [draft, setDraft] = useState(EMPTY);
   const [editing, setEditing] = useState("");
   const [query, setQuery] = useState("");
   const [inciText, setInciText] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedIngredient, setSelectedIngredient] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState("");
   const analysis = useMemo(() => analyzeINCI(inciText, ingredients), [inciText, ingredients]);
   const filtered = useMemo(() => ingredients.filter(item => {
     const needle = query.trim().toLocaleLowerCase();
@@ -34,6 +37,25 @@ export default function IngredientsView({ ingredients, deletedIngredients, produ
   };
   const openProducts = item => setSelectedIngredient(selectedIngredient === item.id ? "" : item.id);
   return <>
+    <section style={panel}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div><b>الكتالوج المرجعي</b><div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>الإصدار {INGREDIENT_CATALOG_VERSION} · {INGREDIENT_CATALOG.length} اسمًا مرجعيًا</div></div>
+        {canEdit && <button type="button" style={btn(true)} disabled={busy || importing} onClick={async () => {
+          setImporting(true); setImportSummary("");
+          try {
+            const result = await onImportCatalog(INGREDIENT_CATALOG);
+            setImportSummary(result ? "أُضيف " + result.added + "، وتُرك " + result.skipped + " موجودًا دون تعديل." : "لم يكتمل الاستيراد؛ يمكنك المحاولة مرة أخرى.");
+          } finally { setImporting(false); }
+        }}>{importing ? "جارٍ الاستيراد…" : "استيراد الأسماء المرجعية"}</button>}
+      </div>
+      <p style={{ color: C.muted, fontSize: 11, lineHeight: 1.7, marginBottom: 6 }}>الاستيراد لا يغيّر المكونات الموجودة ولا وسومك أو ملاحظاتك. أضيفت الأسماء فقط؛ لم نضف تصنيف سلامة أو فعالية أو وظيفة غير موثقة.</p>
+      {importSummary && <div role="status" style={{ fontSize: 11, marginTop: 8 }}>{importSummary}</div>}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 11, marginTop: 8 }}>
+        <a href={INGREDIENT_CATALOG_SOURCES.cosing.url} target="_blank" rel="noreferrer">قاعدة CosIng التابعة للمفوضية الأوروبية</a>
+        <a href={INGREDIENT_CATALOG_SOURCES.glossary.url} target="_blank" rel="noreferrer">Glossary للأسماء الشائعة</a>
+        <a href={INGREDIENT_CATALOG_SOURCES.cir.url} target="_blank" rel="noreferrer">تقارير CIR لتقييمات المكونات</a>
+      </div>
+    </section>
     <section style={panel}>
       <b>{editing ? "تعديل المكوّن" : "إضافة مكوّن إلى مكتبتك"}</b>
       <p style={{ color: C.muted, fontSize: 11, lineHeight: 1.7 }}>المكتبة شخصية؛ الوسوم تخص تفضيلاتك وملاحظاتك ولا تمثل حكمًا طبيًا على سلامة المكوّن.</p>
@@ -100,6 +122,7 @@ export default function IngredientsView({ ingredients, deletedIngredients, produ
               <button type="button" style={{ ...btn(), marginTop: 7 }} onClick={() => openProducts(item)}>المنتجات المحتوية ({matchedProducts.length})</button>
               {selectedIngredient === item.id && <div style={{ marginTop: 7, padding: 8, background: C.soft, borderRadius: 8, fontSize: 11 }}>{matchedProducts.length ? matchedProducts.map(product => <div key={product.id}>{product.name}</div>) : "لا توجد منتجات مسجلة تحتوي على تطابق حرفي لهذا المكوّن."}</div>}
               {item.source && <div style={{ color: C.muted, fontSize: 10, marginTop: 5 }}>المصدر: {item.source}</div>}
+              {item.referenceUrl && <div style={{ fontSize: 10, marginTop: 4 }}><a href={item.referenceUrl} target="_blank" rel="noreferrer">فتح المرجع</a></div>}
             </div>
             {canEdit && <div style={{ display: "flex", gap: 6 }}>
               <button type="button" style={btn()} onClick={() => edit(item)}>تعديل</button>
