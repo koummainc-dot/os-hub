@@ -243,7 +243,15 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
       .filter(entry => entry.date >= new Date(Date.parse(todayKey + "T00:00:00Z") - 7 * 86400000).toISOString().slice(0, 10) &&
         entry.date < todayKey && entry.skinRating !== null && entry.skinRating !== undefined && entry.skinRating !== "")
       .map(entry => entry.id);
-    const checked = validateSkinTrial({ ...input, baselineDiaryIds, status: "running", verdict: "pending" }, todayKey);
+    const routineContext = routines.map(routine => ({
+      routineId: routine.id,
+      name: routine.name,
+      status: routine.status,
+      timeOfDay: routine.timeOfDay,
+      steps: (routine.steps || []).filter(step => !step.archived && step.productId === input.productId)
+        .map(step => ({ category: step.category, instruction: step.instruction || "" })),
+    })).filter(item => item.steps.length > 0);
+    const checked = validateSkinTrial({ ...input, baselineDiaryIds, routineContext, status: "running", verdict: "pending" }, todayKey);
     if (!checked.ok) return say(checked.error), false;
     setBusy(true);
     try {
