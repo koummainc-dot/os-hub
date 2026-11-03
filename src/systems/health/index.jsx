@@ -5,6 +5,7 @@ import HealthAnalytics from "./HealthAnalytics.jsx";
 import HealthVisitSummary from "./HealthVisitSummary.jsx";
 import HealthBodyMap, { BODY_REGION_LABELS } from "./HealthBodyMap.jsx";
 import HealthSearch from "./HealthSearch.jsx";
+import HealthTimeline from "./HealthTimeline.jsx";
 
 const COLORS = { ink: "#182230", muted: "#64748B", border: "#E2E8F0", blue: "#0EA5E9", bg: "#F8FAFC", green: "#047857", red: "#B91C1C" };
 const CARD = { background: "#fff", border: "1px solid " + COLORS.border, borderRadius: 16, padding: 20, boxShadow: "0 4px 14px rgba(15,23,42,.035)" };
@@ -730,7 +731,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
     <header style={{ ...CARD, marginBottom: 16, background: "linear-gradient(130deg,#FFFFFF,#F0F9FF)" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div style={{ minWidth: 220, flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}><span style={{ fontSize: 26 }}>🩺</span><span style={{ fontSize: 11, fontWeight: 900, color: COLORS.blue }}>HEALTH & WELLNESS OS · H2.2</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}><span style={{ fontSize: 26 }}>🩺</span><span style={{ fontSize: 11, fontWeight: 900, color: COLORS.blue }}>HEALTH & WELLNESS OS · H2.4</span></div>
           <h1 style={{ margin: "0 0 8px", fontSize: 25 }}>الصحة والعافية</h1>
           <p style={{ margin: 0, color: COLORS.muted, fontSize: 13, lineHeight: 1.9 }}>ملف صحي خاص، مع صلاحيات مشاركة صريحة وقابلة للإلغاء. لا تُشارك البيانات تلقائيًا مع مساحة العمل أو أي نظام آخر.</p>
         </div>
@@ -829,6 +830,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
         </form>)}
         {box("الحساسيات","تغيير الحالة هنا توثيق شخصي وليس إثباتًا لزوال الحساسية.",allergies.length?<div style={{display:"grid",gap:10}}>{allergies.map(row=><article key={row.id} style={{border:"1px solid "+COLORS.border,borderRadius:12,padding:13}}><div style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}><strong>{row.allergen}</strong><span style={{fontSize:12,color:row.severity==="severe"?COLORS.red:COLORS.muted}}>{({mild:"خفيفة",moderate:"متوسطة",severe:"شديدة",unknown:"الشدة غير معروفة"})[row.severity]||row.severity} · {row.status==="active"?"نشطة":"غير نشطة"}</span></div>{row.reaction&&<p style={{fontSize:13}}>التفاعل: {row.reaction}</p>}{row.notes&&<p style={{fontSize:12,color:COLORS.muted,whiteSpace:"pre-wrap"}}>{row.notes}</p>}<div style={{display:"flex",gap:8}}>{hasScopeAction("conditions","update")&&<button style={SECONDARY} disabled={busy} onClick={()=>toggleAllergy(row)}>{row.status==="active"?"تحديد كغير نشطة":"إعادة إلى نشطة"}</button>}{hasScopeAction("conditions","delete")&&<button style={{...SECONDARY,color:COLORS.red}} disabled={busy} onClick={()=>removeAllergy(row)}>حذف</button>}</div></article>)}</div>:<p style={{color:COLORS.muted,fontSize:13}}>لا توجد حساسيات مسجلة بعد.</p>)}
       </> : box("لا يوجد ملف صحي","أنشئ ملفًا صحيًا أولًا.",<button style={PRIMARY} onClick={()=>setPage?.("home")}>الرئيسية</button>))}
+      {page === "timeline" && (selected ? <HealthTimeline data={{conditions,allergies,symptomLogs,medications,medicationVersions,medicationEvents,sideEffects,flareEvents,measurements,dailyCheckins,documents}} canRead={hasScopeAction} timezone={selected.timezone||timezone||"Africa/Cairo"} onOpen={targetPage=>setPage?.(targetPage)} /> : box("لا يوجد ملف صحي","أنشئ ملفًا صحيًا أولًا.",<button style={PRIMARY} onClick={()=>setPage?.("home")}>الرئيسية</button>))}
       {page === "search" && (selected ? <HealthSearch data={{conditions,allergies,symptomDefinitions,symptomLogs,documents,medications,medicationVersions,medicationEvents,sideEffects,flareEvents,dailyCheckins,factors,factorLogs,measurements}} canRead={hasScopeAction} onOpen={(targetPage)=>setPage?.(targetPage)} /> : box("لا يوجد ملف صحي","أنشئ ملفًا صحيًا أولًا.",<button style={PRIMARY} onClick={()=>setPage?.("home")}>الرئيسية</button>))}
       {page === "body_map" && (selected ? <>
         {box("مخطط الجسم التفاعلي","اختر سجل أعراض لتعديل موضعه، ثم حدد المنطقة على المخطط الأمامي أو الخلفي. لا يستنتج النظام تشخيصًا من موقع العرض.",<>
