@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateSkinDiaryEntry } from "../src/systems/skincare/domain.js";
 
-assert.deepEqual(Object.values(SKINCARE_COLLECTIONS), ["skin_profile", "skin_products", "skin_units", "skin_routines", "skin_routine_logs", "skin_diary"]);
+assert.deepEqual(Object.values(SKINCARE_COLLECTIONS), ["skin_profile", "skin_products", "skin_units", "skin_routines", "skin_routine_logs", "skin_diary", "skin_photos"]);
 assert.equal(validateSkinProfile({ skinType: "oily", concerns: ["acne"] }).ok, true);
 assert.equal(validateSkinProfile({ skinType: "alien" }).ok, false);
 assert.equal(validateSkinProduct({ name: "غسول", category: "cleanser", status: "active" }).ok, true);
