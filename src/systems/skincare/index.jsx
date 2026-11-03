@@ -131,7 +131,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
       if (!saved) throw new Error("لم يؤكد النظام حفظ إدخال المفكرة.");
       setDiaryDate(result.value.date);
       setEditingDiary("");
-      setDiaryDraft({ date: today(), skinRating: "", issuesText: "", note: "", sleepHours: "", sleepQuality: "", mood: "", exerciseMinutes: "", waterGlasses: "", trialId: "" });
+      setDiaryDraft({ date: result.value.date, skinRating: "", issuesText: "", note: "", sleepHours: "", sleepQuality: "", mood: "", exerciseMinutes: "", waterGlasses: "", trialId: "" });
       say("تم حفظ إدخال المفكرة.");
     } catch (error) { say(error?.message || "تعذر حفظ إدخال المفكرة."); }
     finally { setBusy(false); }
