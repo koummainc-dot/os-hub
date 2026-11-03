@@ -162,6 +162,26 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
     return () => { cancelled = true; };
   }, [selected?.id,selected?.owner_user_id,selected?.cycle_tracking_enabled,isDemo,demoStore,userId]);
 
+  useEffect(() => {
+    const existing = dailyCheckins.find(row => row.entry_date === checkinDraft.entry_date);
+    if (existing) setCheckinDraft({
+      entry_date: existing.entry_date, mood_score: existing.mood_score ?? "", energy_score: existing.energy_score ?? "",
+      stress_score: existing.stress_score ?? "", sleep_hours: existing.sleep_hours ?? "", sleep_quality: existing.sleep_quality ?? "",
+      digestion_status: existing.digestion_status ?? "", digestion_severity: existing.digestion_severity ?? "", notes: existing.notes ?? ""
+    });
+    else setCheckinDraft(d => ({ ...d, mood_score:"",energy_score:"",stress_score:"",sleep_hours:"",sleep_quality:"",digestion_status:"",digestion_severity:"",notes:"" }));
+  }, [dailyCheckins, checkinDraft.entry_date]);
+
+  useEffect(() => {
+    const existing = cycleEntries.find(row => row.entry_date === cycleDraft.entry_date);
+    if (existing) setCycleDraft({
+      entry_date: existing.entry_date, flow_intensity: existing.flow_intensity || "unknown",
+      period_start: existing.period_start || "", period_end: existing.period_end || "",
+      symptoms: existing.symptoms || "", notes: existing.notes || ""
+    });
+    else setCycleDraft(d => ({ ...d, flow_intensity:"unknown",period_start:"",period_end:"",symptoms:"",notes:"" }));
+  }, [cycleEntries, cycleDraft.entry_date, selected?.id]);
+
   async function createProfile(e) {
     e?.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
@@ -449,6 +469,138 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
     if(!selected||!hasScopeAction("flare_events","delete")||!window.confirm("حذف سجل النوبة؟"))return;setBusy(true);setError("");
     try{if(isDemo){const rows=flareEvents.filter(x=>x.id!==row.id);storeDemoRows("flare-events",rows);setFlareEvents(rows);}else{await healthRepository.deleteFlareEvent({profileId:selected.id,actorUserId:userId,id:row.id});setFlareEvents(rows=>rows.filter(x=>x.id!==row.id));}setNotice("تم حذف سجل النوبة.");}
     catch(e){setError(e?.message||"تعذر حذف سجل النوبة.");}finally{setBusy(false);}
+  }
+
+  async function saveDailyCheckin(e) {
+    e?.preventDefault();
+    if(!selected||!hasScopeAction("checkins","create"))return;
+    setBusy(true);setError("");setNotice("");
+    try {
+      const d=checkinDraft;
+      const payload={
+        entry_date:d.entry_date,
+        mood_score:d.mood_score===""?null:Number(d.mood_score),
+        energy_score:d.energy_score===""?null:Number(d.energy_score),
+        stress_score:d.stress_score===""?null:Number(d.stress_score),
+        sleep_hours:d.sleep_hours===""?null:Number(d.sleep_hours),
+        sleep_quality:d.sleep_quality===""?null:Number(d.sleep_quality),
+        digestion_status:d.digestion_status||null,
+        digestion_severity:d.digestion_severity===""?null:Number(d.digestion_severity),
+        notes:d.notes.trim()||null,
+        recorded_at:new Date().toISOString()
+      };
+      if(!payload.entry_date||![payload.mood_score,payload.energy_score,payload.stress_score,payload.sleep_hours,payload.sleep_quality,payload.digestion_status,payload.digestion_severity,payload.notes].some(v=>v!==null)) throw new Error("أدخل قيمة واحدة على الأقل قبل الحفظ.");
+      let row;
+      if(isDemo) {
+        const existing=dailyCheckins.find(x=>x.entry_date===payload.entry_date);
+        row={...existing,...payload,id:existing?.id||"demo-checkin-"+Date.now(),profile_id:selected.id,created_by:userId,created_at:existing?.created_at||new Date().toISOString(),updated_at:new Date().toISOString()};
+      } else row=await healthRepository.upsertDailyCheckin({profileId:selected.id,actorUserId:userId,checkin:payload});
+      const rows=[row,...dailyCheckins.filter(x=>x.entry_date!==row.entry_date)].sort((a,b)=>b.entry_date.localeCompare(a.entry_date));
+      storeDemoRows("daily-checkins",rows);setDailyCheckins(rows);setNotice("تم حفظ المتابعة اليومية. لم تُضف سجلات للطعام أو التمرين أو الماء.");
+    } catch(e){setError(e?.message||"تعذر حفظ المتابعة اليومية.");}finally{setBusy(false);}
+  }
+  async function removeDailyCheckin(row) {
+    if(!selected||!hasScopeAction("checkins","delete")||!window.confirm("حذف متابعة هذا اليوم؟"))return;
+    setBusy(true);setError("");setNotice("");
+    try{const rows=dailyCheckins.filter(x=>x.id!==row.id);if(!isDemo)await healthRepository.deleteDailyCheckin({profileId:selected.id,actorUserId:userId,id:row.id});storeDemoRows("daily-checkins",rows);setDailyCheckins(rows);setNotice("تم حذف المتابعة اليومية.");}
+    catch(e){setError(e?.message||"تعذر حذف المتابعة.");}finally{setBusy(false);}
+  }
+
+  async function addFactor(e) {
+    e?.preventDefault();if(!selected)return;
+    const scope=factorDraft.is_sensitive?"sensitive_trackers":"trackers";
+    if(!hasScopeAction(scope,"create"))return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      const name=factorDraft.name.trim();if(!name)throw new Error("اكتب اسم العامل أو المتتبّع.");
+      const choices=factorDraft.value_type==="choice"?factorDraft.choice_options.split(",").map(x=>x.trim()).filter(Boolean).slice(0,30):[];
+      if(factorDraft.value_type==="choice"&&!choices.length)throw new Error("أدخل خيارًا واحدًا على الأقل، وافصل الخيارات بفواصل.");
+      const min=factorDraft.value_type==="scale"?Number(factorDraft.scale_min):null;
+      const max=factorDraft.value_type==="scale"?Number(factorDraft.scale_max):null;
+      if(factorDraft.value_type==="scale"&&(!Number.isFinite(min)||!Number.isFinite(max)||max<=min))throw new Error("حدود المقياس غير صحيحة.");
+      const payload={name,category:factorDraft.category,value_type:factorDraft.value_type,unit:factorDraft.unit.trim()||null,scale_min:min,scale_max:max,choice_options:choices,is_sensitive:!!factorDraft.is_sensitive,status:"active"};
+      let row;
+      if(isDemo)row={...payload,id:"demo-factor-"+Date.now(),profile_id:selected.id,created_by:userId,created_at:new Date().toISOString(),updated_at:new Date().toISOString()};
+      else row=await healthRepository.createFactor({profileId:selected.id,actorUserId:userId,factor:payload});
+      const rows=[row,...factors];storeDemoRows("factors",rows);setFactors(rows);
+      setFactorDraft({name:"",category:"general",value_type:"scale",unit:"",scale_min:"1",scale_max:"5",choice_options:"",is_sensitive:false});setNotice("تم إنشاء المتتبّع. لا تُعدّل القيم التاريخية عند تغيير حالته إلى مؤرشف.");
+    }catch(e){setError(e?.message||"تعذر إنشاء المتتبّع.");}finally{setBusy(false);}
+  }
+  function editFactorLog(log,factor) {
+    if(!hasScopeAction(factor.is_sensitive?"sensitive_trackers":"trackers","update"))return;
+    const date=new Date(new Date(log.recorded_at).getTime()-new Date(log.recorded_at).getTimezoneOffset()*60000).toISOString().slice(0,16);
+    const value=factor.value_type==="boolean"?String(log.value_boolean):factor.value_type==="text"?log.value_text:factor.value_type==="choice"?log.value_choice:log.value_numeric;
+    setFactorLogDraft({id:log.id,factor_id:factor.id,recorded_at:date,value:String(value??""),notes:log.notes||""});
+  }
+  async function saveFactorLog(e) {
+    e?.preventDefault();if(!selected)return;
+    const factor=factors.find(x=>x.id===factorLogDraft.factor_id);if(!factor)throw new Error("اختر متتبّعًا صالحًا.");
+    const scope=factor.is_sensitive?"sensitive_trackers":"trackers";
+    if(!hasScopeAction(scope,factorLogDraft.id?"update":"create"))return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      if(factorLogDraft.value==="")throw new Error("أدخل قيمة للسجل.");
+      const payload={factor_id:factor.id,recorded_at:new Date(factorLogDraft.recorded_at).toISOString(),value_numeric:null,value_boolean:null,value_text:null,value_choice:null,notes:factorLogDraft.notes.trim()||null};
+      if(factor.value_type==="scale"||factor.value_type==="number"){
+        const value=Number(factorLogDraft.value);if(!Number.isFinite(value))throw new Error("أدخل رقمًا صحيحًا.");
+        if(factor.value_type==="scale"&&(value<Number(factor.scale_min)||value>Number(factor.scale_max)))throw new Error("القيمة خارج حدود المقياس.");
+        payload.value_numeric=value;
+      }else if(factor.value_type==="boolean")payload.value_boolean=factorLogDraft.value==="true";
+      else if(factor.value_type==="text")payload.value_text=factorLogDraft.value;
+      else {if(!(factor.choice_options||[]).includes(factorLogDraft.value))throw new Error("اختر قيمة من الخيارات المتاحة.");payload.value_choice=factorLogDraft.value;}
+      let row;
+      if(isDemo){
+        const previous=factorLogs.find(x=>x.id===factorLogDraft.id);
+        row={...previous,...payload,id:factorLogDraft.id||"demo-factor-log-"+Date.now(),profile_id:selected.id,created_by:userId,created_at:previous?.created_at||new Date().toISOString(),updated_at:new Date().toISOString()};
+      }else if(factorLogDraft.id)row=await healthRepository.updateFactorLog({profileId:selected.id,actorUserId:userId,id:factorLogDraft.id,patch:payload});
+      else row=await healthRepository.createFactorLog({profileId:selected.id,actorUserId:userId,log:payload});
+      const rows=[row,...factorLogs.filter(x=>x.id!==row.id)].sort((a,b)=>new Date(b.recorded_at)-new Date(a.recorded_at));
+      storeDemoRows("factor-logs",rows);setFactorLogs(rows);setFactorLogDraft({id:"",factor_id:factor.id,recorded_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),value:"",notes:""});setNotice("تم حفظ سجل المتتبّع.");
+    }catch(e){setError(e?.message||"تعذر حفظ سجل المتتبّع.");}finally{setBusy(false);}
+  }
+  async function removeFactorLog(row,factor) {
+    if(!selected||!hasScopeAction(factor.is_sensitive?"sensitive_trackers":"trackers","delete")||!window.confirm("حذف قراءة المتتبّع؟"))return;
+    setBusy(true);setError("");setNotice("");
+    try{const rows=factorLogs.filter(x=>x.id!==row.id);if(!isDemo)await healthRepository.deleteFactorLog({profileId:selected.id,actorUserId:userId,id:row.id});storeDemoRows("factor-logs",rows);setFactorLogs(rows);if(factorLogDraft.id===row.id)setFactorLogDraft({id:"",factor_id:factor.id,recorded_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),value:"",notes:""});setNotice("تم حذف قراءة المتتبّع.");}
+    catch(e){setError(e?.message||"تعذر حذف القراءة.");}finally{setBusy(false);}
+  }
+  async function toggleFactorArchive(factor) {
+    const scope=factor.is_sensitive?"sensitive_trackers":"trackers";if(!selected||!hasScopeAction(scope,"update"))return;
+    setBusy(true);setError("");setNotice("");
+    try{const patch={status:factor.status==="active"?"archived":"active"};let row;
+      if(isDemo)row={...factor,...patch,updated_at:new Date().toISOString()};
+      else row=await healthRepository.updateFactor({profileId:selected.id,actorUserId:userId,id:factor.id,patch});
+      const rows=factors.map(x=>x.id===factor.id?row:x);storeDemoRows("factors",rows);setFactors(rows);setNotice(row.status==="archived"?"تم أرشفة المتتبّع مع الاحتفاظ بتاريخه.":"تمت إعادة تفعيل المتتبّع.");
+    }catch(e){setError(e?.message||"تعذر تحديث المتتبّع.");}finally{setBusy(false);}
+  }
+
+  async function toggleCycleTracking(enabled) {
+    if(!selected||!isOwner)return;setBusy(true);setError("");setNotice("");
+    try{let updated;
+      if(isDemo)updated={...selected,cycle_tracking_enabled:!!enabled,updated_at:new Date().toISOString()};
+      else updated=await healthRepository.updateCycleTrackingPreference({profileId:selected.id,ownerUserId:userId,enabled});
+      setProfiles(rows=>rows.map(p=>p.id===selected.id?updated:p));
+      if(!enabled)setCycleEntries([]);
+      setNotice(enabled?"تم تفعيل سجل الدورة الاختياري. لا يحسب التطبيق الخصوبة أو يتنبأ بالدورة.":"تم تعطيل سجل الدورة. ستبقى السجلات محفوظة وغير متاحة حتى إعادة التفعيل.");
+    }catch(e){setError(e?.message||"تعذر تحديث إعداد الدورة.");}finally{setBusy(false);}
+  }
+  async function saveCycleEntry(e) {
+    e?.preventDefault();if(!selected||!isOwner||!selected.cycle_tracking_enabled)return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      if(cycleDraft.period_start&&cycleDraft.period_end&&cycleDraft.period_end<cycleDraft.period_start)throw new Error("تاريخ نهاية الفترة لا يمكن أن يسبق تاريخ بدايتها.");
+      const payload={entry_date:cycleDraft.entry_date,flow_intensity:cycleDraft.flow_intensity,period_start:cycleDraft.period_start||null,period_end:cycleDraft.period_end||null,symptoms:cycleDraft.symptoms.trim()||null,notes:cycleDraft.notes.trim()||null};
+      let row;
+      if(isDemo){const old=cycleEntries.find(x=>x.entry_date===payload.entry_date);row={...old,...payload,id:old?.id||"demo-cycle-"+Date.now(),profile_id:selected.id,created_by:userId,created_at:old?.created_at||new Date().toISOString(),updated_at:new Date().toISOString()};}
+      else row=await healthRepository.upsertCycleEntry({profileId:selected.id,actorUserId:userId,entry:payload});
+      const rows=[row,...cycleEntries.filter(x=>x.entry_date!==row.entry_date)].sort((a,b)=>b.entry_date.localeCompare(a.entry_date));storeDemoRows("cycle-entries",rows);setCycleEntries(rows);setNotice("تم حفظ سجل الدورة.");
+    }catch(e){setError(e?.message||"تعذر حفظ سجل الدورة.");}finally{setBusy(false);}
+  }
+  async function removeCycleEntry(row) {
+    if(!selected||!isOwner||!selected.cycle_tracking_enabled||!window.confirm("حذف سجل هذا اليوم؟"))return;
+    setBusy(true);setError("");setNotice("");
+    try{const rows=cycleEntries.filter(x=>x.id!==row.id);if(!isDemo)await healthRepository.deleteCycleEntry({profileId:selected.id,actorUserId:userId,id:row.id});storeDemoRows("cycle-entries",rows);setCycleEntries(rows);setNotice("تم حذف سجل الدورة.");}
+    catch(e){setError(e?.message||"تعذر حذف السجل.");}finally{setBusy(false);}
   }
 
   async function uploadMedicalDocument(e) {
