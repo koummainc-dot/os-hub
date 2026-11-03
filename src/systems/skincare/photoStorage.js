@@ -4,6 +4,7 @@ import { buildSkinPhotoPaths, validateSkinPhotoFile, validateSkinPhotoMetadata }
 const BUCKET = "skincare-progress";
 const MAX_EDGE = 3200;
 const THUMB_EDGE = 480;
+const MAX_PIXELS = 40000000;
 
 function canvasBlob(canvas, type, quality) {
   return new Promise((resolve, reject) => {
@@ -15,6 +16,7 @@ async function prepareImageAssets(file) {
   if (typeof createImageBitmap !== "function") throw new Error("المتصفح لا يدعم معالجة الصور الآمنة المطلوبة.");
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   try {
+    if (!bitmap.width || !bitmap.height || bitmap.width * bitmap.height > MAX_PIXELS) throw new Error("أبعاد الصورة كبيرة جدًا؛ الحد الأقصى 40 ميجابكسل.");
     const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
     const width = Math.max(1, Math.round(bitmap.width * scale));
     const height = Math.max(1, Math.round(bitmap.height * scale));
