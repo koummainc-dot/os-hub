@@ -414,11 +414,14 @@ export function summarizeSkinTrial(trial, diaryEntries = [], reactions = [], oth
   );
   const average = rows => rows.length ? rows.reduce((sum, entry) => sum + Number(entry.skinRating), 0) / rows.length : null;
   const summarizePeriod = (startDate, endDate) => {
-    const rows = followup.filter(entry => entry.date >= startDate && entry.date <= endDate);
+    const active = startDate <= finish;
+    const boundedEnd = endDate > finish ? finish : endDate;
+    const rows = active ? followup.filter(entry => entry.date >= startDate && entry.date <= boundedEnd) : [];
     const value = average(rows);
     return {
       startDate,
-      endDate,
+      endDate: boundedEnd,
+      active,
       count: rows.length,
       daysRecorded: new Set(rows.map(entry => entry.date)).size,
       average: value === null ? null : Number(value.toFixed(2)),
