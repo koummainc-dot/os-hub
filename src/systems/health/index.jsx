@@ -11,7 +11,7 @@ const SECONDARY = { border: "1px solid #CBD5E1", borderRadius: 10, padding: "10p
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SCOPE_OPTIONS = [
   ["symptoms", "الأعراض"], ["flare_events", "نوبات التهيّج"], ["medications", "الأدوية والعلاجات"],
-  ["measurements", "القياسات"], ["conditions", "الحالات الطبية"], ["documents", "الوثائق الطبية"], ["reports", "التقارير"]
+  ["measurements", "القياسات"], ["conditions", "الحالات الطبية"], ["documents", "الوثائق الطبية"], ["reports", "التقارير"], ["checkins", "المتابعة اليومية"], ["trackers", "العوامل والمتتبعات"], ["sensitive_trackers", "المتتبعات الحساسة"]
 ];
 
 function fmtDate(value) {
@@ -54,11 +54,19 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
   const [sideEffects, setSideEffects] = useState([]);
   const [medicationReminders, setMedicationReminders] = useState([]);
   const [flareEvents, setFlareEvents] = useState([]);
+  const [dailyCheckins, setDailyCheckins] = useState([]);
+  const [factors, setFactors] = useState([]);
+  const [factorLogs, setFactorLogs] = useState([]);
+  const [cycleEntries, setCycleEntries] = useState([]);
   const [medicationDraft, setMedicationDraft] = useState({name:"",brand:"",medication_type:"medication",dose_amount:"",dose_unit:"mg",route:"oral",frequency:"once_daily",schedule_times:"08:00",effective_from:new Date().toISOString().slice(0,10),start_date:new Date().toISOString().slice(0,10),prescribed_by:"",instructions:""});
   const [versionDraft, setVersionDraft] = useState({medication_id:"",dose_amount:"",dose_unit:"mg",route:"oral",frequency:"once_daily",schedule_times:"08:00",effective_from:new Date().toISOString().slice(0,10),instructions:""});
   const [sideEffectDraft, setSideEffectDraft] = useState({medication_id:"",medication_event_id:"",name:"",severity:"unknown",occurred_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),notes:""});
   const [reminderDraft, setReminderDraft] = useState({medication_id:"",remind_at:""});
   const [flareDraft, setFlareDraft] = useState({title:"",severity:"3",started_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),symptoms:"",suspected_triggers:"",relief_actions:"",notes:""});
+  const [checkinDraft, setCheckinDraft] = useState({entry_date:new Date().toISOString().slice(0,10),mood_score:"",energy_score:"",stress_score:"",sleep_hours:"",sleep_quality:"",digestion_status:"",digestion_severity:"",notes:""});
+  const [factorDraft, setFactorDraft] = useState({name:"",category:"general",value_type:"scale",unit:"",scale_min:"1",scale_max:"5",choice_options:"",is_sensitive:false});
+  const [factorLogDraft, setFactorLogDraft] = useState({id:"",factor_id:"",recorded_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),value:"",notes:""});
+  const [cycleDraft, setCycleDraft] = useState({entry_date:new Date().toISOString().slice(0,10),flow_intensity:"unknown",period_start:"",period_end:"",symptoms:"",notes:""});
 
   const [documentFile, setDocumentFile] = useState(null);
   const [documentDraft, setDocumentDraft] = useState({ display_name:"", document_type:"other", document_date:"", notes:"" });
@@ -122,7 +130,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
 
 
   useEffect(() => {
-    if (!selected?.id) { setConditions([]); setAllergies([]); setSymptomDefinitions([]); setSymptomLogs([]); setDocuments([]); setMedications([]); setMedicationVersions([]); setMedicationEvents([]); setSideEffects([]); setMedicationReminders([]); setFlareEvents([]); return; }
+    if (!selected?.id) { setConditions([]); setAllergies([]); setSymptomDefinitions([]); setSymptomLogs([]); setDocuments([]); setMedications([]); setMedicationVersions([]); setMedicationEvents([]); setSideEffects([]); setMedicationReminders([]); setFlareEvents([]); setDailyCheckins([]); setFactors([]); setFactorLogs([]); setCycleEntries([]); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -138,17 +146,21 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
           events: readDemo(demoStore, demoKey("medication-events:" + selected.id, userId), []).map(x=>({...x})),
           sideEffects: readDemo(demoStore, demoKey("medication-side-effects:" + selected.id, userId), []).map(x=>({...x})),
           reminders: readDemo(demoStore, demoKey("medication-reminders:" + selected.id, userId), []).map(x=>({...x})),
-          flares: readDemo(demoStore, demoKey("flare-events:" + selected.id, userId), []).map(x=>({...x}))
+          flares: readDemo(demoStore, demoKey("flare-events:" + selected.id, userId), []).map(x=>({...x})),
+          checkins: readDemo(demoStore, demoKey("daily-checkins:" + selected.id, userId), []).map(x=>({...x})),
+          factors: readDemo(demoStore, demoKey("factors:" + selected.id, userId), []).map(x=>({...x})),
+          factorLogs: readDemo(demoStore, demoKey("factor-logs:" + selected.id, userId), []).map(x=>({...x})),
+          cycleEntries: (isOwner && selected.cycle_tracking_enabled) ? readDemo(demoStore, demoKey("cycle-entries:" + selected.id, userId), []).map(x=>({...x})) : []
         };
         else {
-          const result = await Promise.all([healthRepository.listConditions(selected.id),healthRepository.listAllergies(selected.id),healthRepository.listSymptomDefinitions(selected.id),healthRepository.listSymptomLogs(selected.id),healthRepository.listDocuments(selected.id),healthRepository.listMedications(selected.id),healthRepository.listMedicationVersions(selected.id),healthRepository.listMedicationEvents(selected.id),healthRepository.listMedicationSideEffects(selected.id),healthRepository.listMedicationReminders(selected.id),healthRepository.listFlareEvents(selected.id)]);
-          rows = {conditions:result[0],allergies:result[1],definitions:result[2],logs:result[3],documents:result[4],medications:result[5],versions:result[6],events:result[7],sideEffects:result[8],reminders:result[9],flares:result[10]};
+          const result = await Promise.all([healthRepository.listConditions(selected.id),healthRepository.listAllergies(selected.id),healthRepository.listSymptomDefinitions(selected.id),healthRepository.listSymptomLogs(selected.id),healthRepository.listDocuments(selected.id),healthRepository.listMedications(selected.id),healthRepository.listMedicationVersions(selected.id),healthRepository.listMedicationEvents(selected.id),healthRepository.listMedicationSideEffects(selected.id),healthRepository.listMedicationReminders(selected.id),healthRepository.listFlareEvents(selected.id),healthRepository.listDailyCheckins(selected.id),healthRepository.listFactors(selected.id),healthRepository.listFactorLogs(selected.id),(selected.owner_user_id===userId&&selected.cycle_tracking_enabled)?healthRepository.listCycleEntries(selected.id):Promise.resolve([])]);
+          rows = {conditions:result[0],allergies:result[1],definitions:result[2],logs:result[3],documents:result[4],medications:result[5],versions:result[6],events:result[7],sideEffects:result[8],reminders:result[9],flares:result[10],checkins:result[11],factors:result[12],factorLogs:result[13],cycleEntries:result[14]};
         }
-        if (!cancelled) { setConditions(rows.conditions); setAllergies(rows.allergies); setSymptomDefinitions(rows.definitions); setSymptomLogs(rows.logs); setDocuments(rows.documents || []); setMedications(rows.medications||[]); setMedicationVersions(rows.versions||[]); setMedicationEvents(rows.events||[]); setSideEffects(rows.sideEffects||[]); setMedicationReminders(rows.reminders||[]); setFlareEvents(rows.flares||[]); }
+        if (!cancelled) { setConditions(rows.conditions); setAllergies(rows.allergies); setSymptomDefinitions(rows.definitions); setSymptomLogs(rows.logs); setDocuments(rows.documents || []); setMedications(rows.medications||[]); setMedicationVersions(rows.versions||[]); setMedicationEvents(rows.events||[]); setSideEffects(rows.sideEffects||[]); setMedicationReminders(rows.reminders||[]); setFlareEvents(rows.flares||[]); setDailyCheckins(rows.checkins||[]); setFactors(rows.factors||[]); setFactorLogs(rows.factorLogs||[]); setCycleEntries(rows.cycleEntries||[]); }
       } catch(e) { if(!cancelled) setError(e?.message || "تعذر تحميل السجل الصحي."); }
     })();
     return () => { cancelled = true; };
-  }, [selected?.id,isDemo,demoStore,userId]);
+  }, [selected?.id,selected?.owner_user_id,selected?.cycle_tracking_enabled,isDemo,demoStore,userId]);
 
   async function createProfile(e) {
     e?.preventDefault(); setBusy(true); setError(""); setNotice("");
@@ -481,13 +493,13 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
 
   const box = (title, description, children) => <section style={{ ...CARD, marginBottom: 16 }}><h2 style={{ margin: "0 0 7px", fontSize: 17, color: COLORS.ink }}>{title}</h2>{description && <p style={{ margin: "0 0 16px", color: COLORS.muted, fontSize: 13, lineHeight: 1.8 }}>{description}</p>}{children}</section>;
   const field = (label, value, onChange, extra = {}) => <label style={{ display: "block", marginBottom: 13 }}><span style={LABEL}>{label}</span><input style={FIELD} value={value} onChange={e => onChange(e.target.value)} {...extra} /></label>;
-  const pageTitle = ({ home: "نظرة عامة", profile: "الملف الصحي", conditions: "الحالات والحساسيات", symptoms: "الأعراض", medications: "الأدوية والعلاجات", flare_events: "نوبات التهيّج", access: "المشاركة والتفويض", documents: "الوثائق الطبية", settings: "الإعدادات والخصوصية" })[page] || "نظرة عامة";
+  const pageTitle = ({ home: "نظرة عامة", profile: "الملف الصحي", conditions: "الحالات والحساسيات", symptoms: "الأعراض", medications: "الأدوية والعلاجات", flare_events: "نوبات التهيّج", checkins: "المتابعة اليومية", factors: "العوامل والمتتبعات", cycle_tracking: "متابعة الدورة الاختيارية", access: "المشاركة والتفويض", documents: "الوثائق الطبية", settings: "الإعدادات والخصوصية" })[page] || "نظرة عامة";
 
   return <div dir="rtl" style={{ maxWidth: 1050, margin: "0 auto", color: COLORS.ink }}>
     <header style={{ ...CARD, marginBottom: 16, background: "linear-gradient(130deg,#FFFFFF,#F0F9FF)" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div style={{ minWidth: 220, flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}><span style={{ fontSize: 26 }}>🩺</span><span style={{ fontSize: 11, fontWeight: 900, color: COLORS.blue }}>HEALTH & WELLNESS OS · H2</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}><span style={{ fontSize: 26 }}>🩺</span><span style={{ fontSize: 11, fontWeight: 900, color: COLORS.blue }}>HEALTH & WELLNESS OS · H4</span></div>
           <h1 style={{ margin: "0 0 8px", fontSize: 25 }}>الصحة والعافية</h1>
           <p style={{ margin: 0, color: COLORS.muted, fontSize: 13, lineHeight: 1.9 }}>ملف صحي خاص، مع صلاحيات مشاركة صريحة وقابلة للإلغاء. لا تُشارك البيانات تلقائيًا مع مساحة العمل أو أي نظام آخر.</p>
         </div>
@@ -496,7 +508,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
         </div>
       </div>
       <nav style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 18 }}>
-        {[["home","الرئيسية"],["profile","الملف الصحي"],["conditions","الحالات والحساسيات"],["symptoms","الأعراض"],["medications","الأدوية والعلاجات"],["flare_events","نوبات التهيّج"],["access","المشاركة"],["documents","الوثائق"],["settings","الخصوصية"]].map(([id,label]) => <button key={id} style={page===id?PRIMARY:SECONDARY} onClick={() => setPage?.(id)}>{label}</button>)}
+        {[["home","الرئيسية"],["profile","الملف الصحي"],["conditions","الحالات والحساسيات"],["symptoms","الأعراض"],["medications","الأدوية والعلاجات"],["flare_events","نوبات التهيّج"],["checkins","المتابعة اليومية"],["factors","العوامل والمتتبعات"],...(selected&&isOwner&&selected.cycle_tracking_enabled?[["cycle_tracking","الدورة الاختيارية"]]:[]),["access","المشاركة"],["documents","الوثائق"],["settings","الخصوصية"]].map(([id,label]) => <button key={id} style={page===id?PRIMARY:SECONDARY} onClick={() => setPage?.(id)}>{label}</button>)}
       </nav>
     </header>
 
