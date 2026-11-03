@@ -228,6 +228,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     if (!canEdit) return false;
     const product = products.find(item => item.id === input.productId && item.status === "active");
     if (!product) return say("اختر منتجًا نشطًا مسجلًا."), false;
+    if (product.suitability === "avoid") return say("هذا المنتج موسوم بأنه يُتجنب؛ لا تبدأ تجربة جديدة عليه."), false;
     if (trials.some(item => item.productId === input.productId && ["running", "paused"].includes(item.status))) {
       return say("يوجد بالفعل اختبار جارٍ أو متوقف مؤقتًا لهذا المنتج."), false;
     }
@@ -272,7 +273,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     if ((input.suspectedIngredientIds || []).some(id => !ingredients.some(item => item.id === id))) {
       return say("توجد مكونات مشتبه بها لم تعد موجودة في المكتبة."), false;
     }
-    const checked = validateSkinReaction(input);
+    const checked = validateSkinReaction(input, today());
     if (!checked.ok) return say(checked.error), false;
     setBusy(true);
     try {
@@ -286,7 +287,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
 
   const resolveReaction = async reaction => {
     if (!canEdit || reaction.status !== "open") return false;
-    const checked = validateSkinReaction({ ...reaction, resolvedDate: today(), status: "resolved" });
+    const checked = validateSkinReaction({ ...reaction, resolvedDate: today(), status: "resolved" }, today());
     if (!checked.ok) return say(checked.error), false;
     setBusy(true);
     try {
@@ -300,7 +301,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
 
   const archiveReaction = async reaction => {
     if (!canEdit || reaction.status !== "open") return false;
-    const checked = validateSkinReaction({ ...reaction, status: "archived" });
+    const checked = validateSkinReaction({ ...reaction, status: "archived" }, today());
     if (!checked.ok) return say(checked.error), false;
     setBusy(true);
     try {
