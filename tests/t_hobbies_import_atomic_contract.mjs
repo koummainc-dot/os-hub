@@ -21,7 +21,7 @@ assert.match(smoke, /must-rollback/);
 assert.match(smoke, /unique conflict unexpectedly succeeded/);
 assert.match(smoke, /partial import row survived a later unique conflict/);
 assert.match(smoke, /forged private audience unexpectedly succeeded/);
-assert.match(smoke, /another member can read imported private habit records/);
+assert.match(smoke, /another member can read imported private Hobbies records/);
 
 assert.match(records, /const putBatchAtomic = useCallback/);
 assert.match(records, /supabase\.rpc\("hobbies_import_records_batch"/);
