@@ -359,6 +359,9 @@ export function validateSkinReaction(input = {}) {
   if (!dateStarted) return { ok: false, error: "تاريخ بداية التفاعل غير صالح." };
   if (!SKIN_REACTION_SEVERITIES.includes(severity)) return { ok: false, error: "درجة شدة التفاعل غير صحيحة." };
   if (resolvedDate && resolvedDate < dateStarted) return { ok: false, error: "تاريخ الحل يسبق تاريخ بداية التفاعل." };
+  const status = text(input.status || (resolvedDate ? "resolved" : "open"), 20);
+  if (!["open", "resolved", "archived"].includes(status)) return { ok: false, error: "حالة التفاعل غير صحيحة." };
+  if (status === "resolved" && !resolvedDate) return { ok: false, error: "تحديد حالة محلول يتطلب تاريخ الحل." };
   const symptoms = Array.isArray(input.symptoms)
     ? [...new Set(input.symptoms.map(value => text(value, 100)).filter(Boolean))].slice(0, 30)
     : [];
@@ -376,7 +379,7 @@ export function validateSkinReaction(input = {}) {
     area: text(input.area, 200),
     actionTaken: text(input.actionTaken, 1000),
     resolvedDate: resolvedDate || null,
-    status: resolvedDate ? "resolved" : text(input.status || "open", 20),
+    status,
     suspectedIngredientIds,
     note: text(input.note, 2000),
     updatedAt: new Date().toISOString(),
@@ -389,7 +392,7 @@ export function canDeleteSkinReaction(reaction) {
 
 export function summarizeSkinTrial(trial, diaryEntries = [], reactions = [], otherTrials = []) {
   const baselineIds = new Set(trial?.baselineDiaryIds || []);
-  const baseline = diaryEntries.filter(entry => baselineIds.has(entry.id) && Number.isFinite(Number(entry.skinRating)));
+  const baseline = diaryEntries.filter(entry => baselineIds.has(entry.id) && entry.skinRating !== null && entry.skinRating !== undefined && entry.skinRating !== "" && Number.isFinite(Number(entry.skinRating)));
   const finish = trial?.endDate || new Date().toISOString().slice(0, 10);
   const followup = diaryEntries.filter(entry =>
     entry.date >= trial.startDate && entry.date <= finish &&
