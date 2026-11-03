@@ -10,7 +10,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   let fails=0; const ok=(c,m)=>{if(!c){fails++;console.log('  ✗',m);} else console.log('  ✓',m);};
   await click('جرّب الوضع التجريبي'); await sleep(200);
   // 1) every system: open from Today tile and walk all sections
-  const SYS=['Projects OS','Habit OS','Knowledge OS','Learning OS','Finance OS','Home OS','Personal Inventory OS','Shopping & Wishlist OS','Nutrition OS','Sports OS','Relationships OS','Travel & Experiences OS','Spiritual & Values OS','Content OS'];
+  const SYS=['Projects OS','Habits & Hobbies OS','Knowledge OS','Learning OS','Finance OS','Home OS','Personal Inventory OS','Shopping & Wishlist OS','Nutrition OS','Sports OS','Relationships OS','Travel & Experiences OS','Spiritual & Values OS','Content OS'];
   for(const s of SYS){
     await toToday();
     const tile=[...doc.querySelectorAll('main button')].find(b=>b.textContent.includes(s));

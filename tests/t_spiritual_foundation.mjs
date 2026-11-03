@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {publishOSEvent} from "../src/systems/integrationEvents.js";
 import {SPIRITUAL_COLLECTIONS,SPIRITUAL_SECTIONS,SENSITIVE_COLLECTIONS,createSpiritualRecord,validateSpiritualRecord,canShareSpiritualCollection,createSpiritualValue,validateSpiritualValue,createSpiritualPrinciple,validateSpiritualPrinciple,createSpiritualPractice,validateSpiritualPractice,validateFrequencyConfig,encodeSpiritualTypedRecord,decodeSpiritualTypedRecord,createSpiritualPracticeLog,validateSpiritualPracticeLog,getPracticeCompletionLevel,getPracticeDaySummary,isPracticeExpectedOnDate,createSpiritualSeason,validateSpiritualSeason,getSeasonPracticeOverrides} from "../src/systems/spiritual/domain.js";
 const domainSource=fs.readFileSync("src/systems/spiritual/domain.js","utf8"),core=fs.readFileSync("src/core/core.js","utf8"),moduleSource=fs.readFileSync("src/systems/spiritual/index.jsx","utf8"),sql=fs.readFileSync("supabase/migrations/20261101130000_spiritual_values_foundation.sql","utf8"),practiceSql=fs.readFileSync("supabase/migrations/20261101143000_spiritual_practice_logs.sql","utf8");
-assert.match(core,/id:"spiritual"[\s\S]*?status:"planned"/);
+assert.match(core,/id:"spiritual"[\s\S]*?status:"live"/);
 assert.doesNotMatch(domainSource,/\\\\n/);
 assert.equal(SPIRITUAL_SECTIONS.length,13);
 assert.ok(SPIRITUAL_COLLECTIONS.includes("reflections"));

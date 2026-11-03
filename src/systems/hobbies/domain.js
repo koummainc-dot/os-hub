@@ -1,7 +1,7 @@
 export const HOBBY_STATUSES = ["considering", "active", "paused", "archived"];
 export const HOBBY_CATEGORIES = [
 {id:"creative",label:"فنون وإبداع",icon:"🎨"},{id:"music",label:"موسيقى",icon:"🎵"},{id:"sports",label:"رياضة وحركة",icon:"🏃"},{id:"outdoors",label:"أنشطة خارجية",icon:"🌿"},{id:"crafts",label:"حرف وصناعة",icon:"🛠️"},{id:"technology",label:"تقنية",icon:"💻"},{id:"games",label:"ألعاب",icon:"🎮"},{id:"collecting",label:"جمع المقتنيات",icon:"📚"},{id:"culture",label:"ثقافة ومعرفة",icon:"🌍"},{id:"other",label:"أخرى",icon:"✨"}];
-export const HOBBY_SECTIONS = [{id:"dashboard",label:"الرئيسية",icon:"⌂"},{id:"hobbies",label:"هواياتي",icon:"🎯"},{id:"explore",label:"اهتمامات مستقبلية",icon:"🔎"},{id:"sessions",label:"جلسات الممارسة",icon:"⏱️"},{id:"skills",label:"المهارات والتقدم",icon:"📈"},{id:"milestones",label:"الإنجازات",icon:"🏆"},{id:"goals",label:"الأهداف",icon:"🎯"},{id:"plans",label:"خطط الممارسة",icon:"🗓️"},{id:"resources",label:"الموارد والمراجع",icon:"📚"},{id:"equipment",label:"المعدات المرتبطة",icon:"🧰"},{id:"journal",label:"اليوميات والذكريات",icon:"📔"},{id:"insights",label:"التحليلات والرؤى",icon:"📊"},{id:"settings",label:"الإعدادات",icon:"⚙️"}];
+export const HOBBY_SECTIONS = [{id:"dashboard",label:"الرئيسية",icon:"⌂"},{id:"habit-library",label:"العادات",icon:"🌱"},{id:"habit-log",label:"سجل العادات",icon:"📒"},{id:"relapses",label:"التعافي",icon:"🛟"},{id:"books",label:"الكتب",icon:"📚"},{id:"reading",label:"جلسات القراءة",icon:"📖"},{id:"weekly-focus",label:"التركيز الأسبوعي",icon:"🎯"},{id:"achievements",label:"إنجازات العادات",icon:"🏅"},{id:"reminders",label:"التذكيرات",icon:"🔔"},{id:"trash",label:"المحذوفات",icon:"🗑️"},{id:"hobbies",label:"هواياتي",icon:"🎯"},{id:"explore",label:"اهتمامات مستقبلية",icon:"🔎"},{id:"sessions",label:"جلسات الممارسة",icon:"⏱️"},{id:"skills",label:"المهارات والتقدم",icon:"📈"},{id:"milestones",label:"إنجازات الهوايات",icon:"🏆"},{id:"goals",label:"الأهداف",icon:"🎯"},{id:"plans",label:"خطط الممارسة",icon:"🗓️"},{id:"resources",label:"الموارد والمراجع",icon:"📚"},{id:"equipment",label:"المعدات المرتبطة",icon:"🧰"},{id:"journal",label:"اليوميات والذكريات",icon:"📔"},{id:"insights",label:"التحليلات والرؤى",icon:"📊"},{id:"settings",label:"الإعدادات والخصوصية",icon:"⚙️"}];
 export const emptyHobbiesData = () => ({schemaVersion:5,hobbies:[],sessions:[],skills:[],skillLogs:[],milestones:[],goals:[],plans:[],resources:[],equipmentLinks:[],journalEntries:[],settings:{timezone:"Africa/Cairo",weekStartDay:6}});
 export const makeHobbyId = (prefix="hobby") => globalThis.crypto?.randomUUID?.() || prefix+"-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8);
 export function validateHobby(input) {
@@ -9,12 +9,16 @@ const name=String(input?.name||"").trim(); if(!name)return {ok:false,error:"اس
 if(!HOBBY_STATUSES.includes(input.status))return {ok:false,error:"حالة الهواية غير صحيحة."}; if(!HOBBY_CATEGORIES.some(x=>x.id===input.categoryId))return {ok:false,error:"اختر تصنيفًا صحيحًا."};
 const rating=input.enjoymentRating===""||input.enjoymentRating==null?null:Number(input.enjoymentRating); if(rating!==null&&(!Number.isInteger(rating)||rating<1||rating>5))return {ok:false,error:"تقييم الاستمتاع يجب أن يكون من 1 إلى 5."};
 return {ok:true,value:{...input,name,description:String(input.description||"").trim(),motivation:String(input.motivation||"").trim(),enjoymentRating:rating}};}
-export function validateHobbySession(input,hobby) {
+export function validateHobbySession(input,hobby,related={}) {
 if(!hobby||hobby.status==="archived")return {ok:false,error:"لا يمكن تسجيل جلسة لهواية غير متاحة."}; const date=String(input.localDate||"");
 if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+"T12:00:00Z"))||new Date(date+"T12:00:00Z").toISOString().slice(0,10)!==date)return {ok:false,error:"تاريخ الجلسة غير صالح."};
 const duration=input.durationMinutes===""||input.durationMinutes==null?null:Number(input.durationMinutes); if(duration!==null&&(!Number.isInteger(duration)||duration<1||duration>1440))return {ok:false,error:"مدة الجلسة يجب أن تكون من دقيقة إلى 24 ساعة."};
 const rating=input.satisfactionRating===""||input.satisfactionRating==null?null:Number(input.satisfactionRating); if(rating!==null&&(!Number.isInteger(rating)||rating<1||rating>5))return {ok:false,error:"تقييم الجلسة يجب أن يكون من 1 إلى 5."};
-return {ok:true,value:{...input,localDate:date,durationMinutes:duration,satisfactionRating:rating,notes:String(input.notes||"").trim()}};}
+const habitId=String(input.habitId||"").trim()||null,goalId=String(input.goalId||"").trim()||null,skillId=String(input.skillId||"").trim()||null;
+if(habitId&&!((related.habits||[]).some(h=>h.id===habitId&&!h.deleted_at&&h.status!=="archived")))return {ok:false,error:"العادة المرتبطة غير متاحة."};
+if(goalId&&!((related.goals||[]).some(g=>g.id===goalId&&g.hobbyId===hobby.id&&!g.deleted_at)))return {ok:false,error:"الهدف المرتبط لا يتبع هذه الهواية."};
+if(skillId&&!((related.skills||[]).some(s=>s.id===skillId&&s.hobbyId===hobby.id&&!s.deleted_at)))return {ok:false,error:"المهارة المرتبطة لا تتبع هذه الهواية."};
+return {ok:true,value:{...input,habitId,goalId,skillId,localDate:date,durationMinutes:duration,satisfactionRating:rating,notes:String(input.notes||"").trim()}};}
 export function hobbyMetrics(hobbyId,hobbies,sessions) {
 const hobby=hobbies.find(x=>x.id===hobbyId); const rows=sessions.filter(x=>x.hobbyId===hobbyId&&!x.deleted_at); const minutes=rows.reduce((n,x)=>n+(Number(x.durationMinutes)||0),0);
 const dates=new Set(rows.map(x=>x.localDate)); const last=rows.map(x=>x.localDate).sort().slice(-1)[0]||null;
@@ -136,8 +140,9 @@ export function validateHobbyPlan(input,hobbies){
 }
 export function hobbyGoalProgress(goal,{sessions=[],skills=[],milestones=[]}={}){
  let current=0;
- if(goal.targetType==="sessions")current=sessions.filter(s=>s.hobbyId===goal.hobbyId&&!s.deleted_at&&s.localDate>=goal.startDate&&(!goal.endDate||s.localDate<=goal.endDate)).length;
- if(goal.targetType==="minutes")current=sessions.filter(s=>s.hobbyId===goal.hobbyId&&!s.deleted_at&&s.localDate>=goal.startDate&&(!goal.endDate||s.localDate<=goal.endDate)).reduce((n,s)=>n+(Number(s.durationMinutes)||0),0);
+ const relevantSessions=sessions.filter(s=>s.hobbyId===goal.hobbyId&&!s.deleted_at&&s.localDate>=goal.startDate&&(!goal.endDate||s.localDate<=goal.endDate)&&(!s.goalId||s.goalId===goal.id));
+ if(goal.targetType==="sessions")current=relevantSessions.length;
+ if(goal.targetType==="minutes")current=relevantSessions.reduce((n,s)=>n+(Number(s.durationMinutes)||0),0);
  if(goal.targetType==="skill_value")current=Number(skills.find(s=>s.id===goal.skillId)?.currentValue)||0;
  if(goal.targetType==="milestones")current=milestones.filter(m=>m.hobbyId===goal.hobbyId&&!m.deleted_at&&m.achievedAt>=goal.startDate&&(!goal.endDate||m.achievedAt<=goal.endDate)).length;
  return {current,target:goal.targetValue,percent:Math.min(100,Math.round(current/goal.targetValue*100)),remaining:Math.max(0,goal.targetValue-current),reached:current>=goal.targetValue};
@@ -183,7 +188,7 @@ export function validateHobbyEquipmentLink(input,hobbies){
 
 export const HOBBY_JOURNAL_TYPES=["journal","memory"];
 export const HOBBY_JOURNAL_MOODS=["great","good","neutral","difficult","proud","inspired"];
-export function validateHobbyJournalEntry(input,hobbies,sessions=[],skills=[],milestones=[]){
+export function validateHobbyJournalEntry(input,hobbies,sessions=[],skills=[],milestones=[],habits=[]){
  const title=String(input?.title||"").trim(),body=String(input?.body||"").trim(),hobby=hobbies.find(h=>h.id===input.hobbyId);
  if(!hobby||hobby.status==="archived")return {ok:false,error:"اختر هواية موجودة وغير مؤرشفة."};
  if(!title||title.length>180)return {ok:false,error:"عنوان اليومية مطلوب وبحد أقصى 180 حرفًا."};
@@ -194,11 +199,12 @@ export function validateHobbyJournalEntry(input,hobbies,sessions=[],skills=[],mi
  if(input.sessionId&&!sessions.some(s=>s.id===input.sessionId&&s.hobbyId===input.hobbyId))return {ok:false,error:"جلسة الممارسة المرتبطة لا تتبع هذه الهواية."};
  if(input.skillId&&!skills.some(s=>s.id===input.skillId&&s.hobbyId===input.hobbyId))return {ok:false,error:"المهارة المرتبطة لا تتبع هذه الهواية."};
  if(input.milestoneId&&!milestones.some(m=>m.id===input.milestoneId&&m.hobbyId===input.hobbyId))return {ok:false,error:"الإنجاز المرتبط لا يتبع هذه الهواية."};
+ if(input.habitId&&!habits.some(h=>h.id===input.habitId&&!h.deleted_at&&h.status!=="archived"))return {ok:false,error:"العادة المرتبطة غير متاحة أو مؤرشفة."};
  const tags=Array.isArray(input.tags)?input.tags.map(x=>String(x).trim()).filter(Boolean).slice(0,10):String(input.tags||"").split(",").map(x=>x.trim()).filter(Boolean).slice(0,10);
  if(tags.some(t=>t.length>30))return {ok:false,error:"كل وسم يجب ألا يتجاوز 30 حرفًا."};
  const attachments=Array.isArray(input.attachments)?input.attachments:[];if(attachments.length>8)return {ok:false,error:"يمكن إضافة 8 روابط مرفقات كحد أقصى."};
  for(const value of attachments){if(value&&typeof value==="object"){if(value.kind!=="storage"||typeof value.path!=="string"||value.path.startsWith("/")||value.path.split("/").includes("..")||String(value.name||"").length>200||!Number.isFinite(Number(value.size))||Number(value.size)>10*1024*1024||!["image/jpeg","image/png","image/webp","application/pdf"].includes(value.mimeType))return {ok:false,error:"بيانات المرفق المخزن غير صالحة."};continue;}try{const u=new URL(String(value));if(!["https:","http:"].includes(u.protocol)||String(value).length>2048)throw new Error();}catch{return {ok:false,error:"روابط المرفقات يجب أن تكون http أو https وبحد أقصى 2048 حرفًا."};}}
- return {ok:true,value:{...input,title,body,entryType,localDate,mood:input.mood||null,sessionId:input.sessionId||null,skillId:input.skillId||null,milestoneId:input.milestoneId||null,tags,attachments,privacy:"private"}};
+ return {ok:true,value:{...input,title,body,entryType,localDate,mood:input.mood||null,sessionId:input.sessionId||null,skillId:input.skillId||null,milestoneId:input.milestoneId||null,habitId:input.habitId||null,tags,attachments,privacy:"private"}};
 }
 
 

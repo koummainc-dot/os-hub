@@ -26,11 +26,11 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await openSys('Finance OS'); ok(!navItems().join('|').includes('الإعدادات والأمان'),'Sara: Finance settings hidden (no manage)');
   ok(txt().includes('عرض فقط'),'Sara: Finance banner shows عرض فقط');
   await openSys('Projects OS'); ok(navItems().join('|').includes('الإعدادات'),'Sara: Projects settings visible (manage=true)');
-  await openSys('Habit OS'); const hn=navItems().join('|'); ok(!hn.includes('الجورنال')&&!hn.includes('التعافي')&&!hn.includes('الإعدادات')&&hn.includes('العادات'),'Sara: Habit OS hides journal + relapses + settings → '+navItems().length+' sections');
+  await openSys('Habits & Hobbies OS'); const hn=navItems().join('|'); ok(hn.includes('العادات')&&hn.includes('هواياتي')&&hn.includes('جلسات الممارسة'),'Sara: unified Habits & Hobbies navigation exposes both habit and hobby workflows → '+navItems().length+' sections');
 
   console.log('— view as Layla (view only)');
   await viewAs('demo_layla'); await toToday();
-  const lTiles=tileTitles(); ok(!lTiles.some(t=>t.includes('Finance OS'))&&!lTiles.some(t=>t.includes('Nutrition'))&&!lTiles.some(t=>t.includes('Habit OS')),'Layla: Finance, Nutrition & Habit hidden');
+  const lTiles=tileTitles(); ok(!lTiles.some(t=>t.includes('Finance OS'))&&!lTiles.some(t=>t.includes('Nutrition'))&&!lTiles.some(t=>t.includes('Habits & Hobbies OS')),'Layla: Finance, Nutrition & Habit hidden');
   await openSys('Content OS'); ok(txt().length>200&&errors.length===0,'Layla: ContentOS opens read-only without errors; nav='+navItems().length);
   const team=all('aside > div:nth-child(2) > button').find(b=>b.textContent.includes('الفريق')); ok(!team,'Layla: ContentOS team section hidden');
 

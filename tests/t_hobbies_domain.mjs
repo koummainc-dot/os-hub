@@ -12,6 +12,7 @@ assert.equal(validateHobby({...hobby,enjoymentRating:6}).ok,false);
 assert.equal(validateHobbySession({localDate:"2026-11-01",durationMinutes:"45",satisfactionRating:"4"},hobby).ok,true);
 assert.equal(validateHobbySession({localDate:"2026-02-31",durationMinutes:"45"},hobby).ok,false);
 assert.equal(validateHobbySession({localDate:"2026-11-01",durationMinutes:"1441"},hobby).ok,false);
+assert.equal(validateHobbySession({localDate:"2026-11-01",durationMinutes:"30",habitId:"habit-1"},hobby,{habits:[{id:"habit-1",status:"active"}]}).value.habitId,"habit-1");
 assert.equal(validateHobbySession({localDate:"2026-11-01",durationMinutes:"30"},{...hobby,status:"archived"}).ok,false);
 const sessions=[{id:"s1",hobbyId:"h1",localDate:"2026-10-31",durationMinutes:30},{id:"s2",hobbyId:"h1",localDate:"2026-11-01",durationMinutes:45},{id:"s3",hobbyId:"h2",localDate:"2026-11-01",durationMinutes:20}];
 const metrics=hobbyMetrics("h1",[hobby],sessions);
@@ -85,6 +86,13 @@ const journalSkill={id:"skill-j1",hobbyId:"h1",name:"التكوين"};
 const journalMilestone={id:"mile-j1",hobbyId:"h1",title:"أول معرض"};
 const journalInput={id:"journal-j1",hobbyId:"h1",entryType:"journal",title:"تجربة جميلة",body:"تعلمت اليوم شيئًا جديدًا.",localDate:"2026-11-01",mood:"proud",sessionId:"session-j1",skillId:"skill-j1",milestoneId:"mile-j1",tags:["تصوير","تعلم"],attachments:["https://example.com/photo.jpg"]};
 assert.equal(validateHobbyJournalEntry(journalInput,[hobby],[journalSession],[journalSkill],[journalMilestone]).ok,true);
+
+const journalLinkedHabit = { id: "habit-j1", name: "القراءة", status: "active" };
+const linkedJournal = validateHobbyJournalEntry({ ...journalInput, habitId: "habit-j1" }, [hobby], [journalSession], [journalSkill], [journalMilestone], [journalLinkedHabit]);
+assert.equal(linkedJournal.ok, true);
+assert.equal(linkedJournal.value.habitId, "habit-j1");
+assert.equal(validateHobbyJournalEntry({ ...journalInput, habitId: "missing-habit" }, [hobby], [journalSession], [journalSkill], [journalMilestone], [journalLinkedHabit]).ok, false);
+
 assert.equal(validateHobbyJournalEntry({...journalInput,attachments:[{kind:"storage",path:"user/workspace/journal/file.webp",name:"file.webp",mimeType:"image/webp",size:1200}]},[hobby],[journalSession],[journalSkill],[journalMilestone]).ok,true);
 assert.equal(validateHobbyJournalEntry({...journalInput,attachments:[{kind:"storage",path:"user/../secret",name:"file.webp",mimeType:"image/webp",size:1200}]},[hobby],[journalSession],[journalSkill],[journalMilestone]).ok,false);
 assert.equal(validateHobbyJournalEntry({...journalInput,body:" "},[hobby],[journalSession],[journalSkill],[journalMilestone]).ok,false);

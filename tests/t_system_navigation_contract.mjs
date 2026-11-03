@@ -37,4 +37,5 @@ assert.deepEqual([...new Set(sportsNavIds)].sort(), [...new Set(sportsRegistryId
 
 assert.match(core, /id:"home"[\s\S]*?status:"live"/, "Home OS must be activated in the registry");
 assert.match(core, /id:"sports"[\s\S]*?status:"live"/, "Sports OS must be activated in the registry");
+assert.match(core, /id:"spiritual"[\s\S]*?status:"live"/, "Spiritual & Values OS must be activated in the registry");
 console.log("System internal navigation contract passed.");
