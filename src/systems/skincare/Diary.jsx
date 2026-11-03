@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", white: "#FFFFFF", accent: "#A855F7", danger: "#B91C1C", soft: "#FAF5FF" };
 const panel = { background: C.white, border: "1px solid " + C.line, borderRadius: 14, padding: 15, marginBottom: 12 };
@@ -48,6 +48,7 @@ export default function DiaryView({ entries, deletedEntries, selectedDate, setSe
       <label style={{ ...label, maxWidth: 260 }}>التاريخ المحدد<input type="date" style={field} value={selectedDate || draft.date} max={new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(new Date())} onChange={e => setDate(e.target.value)} /></label>
       {active && !editing && <p style={{ color: C.muted, fontSize: 12 }}>يوجد تسجيل لهذا اليوم. <button type="button" style={{ ...btn(true), marginInlineStart: 6 }} onClick={() => onEdit(active)}>تعديل تسجيل اليوم</button></p>}
     </section>
+    <CalendarInsights entries={entries} selectedDate={selectedDate} onSelect={setDate} />
     <section style={panel}>
       <b>{editing ? "تعديل إدخال المفكرة" : "تسجيل اليوم"}</b>
       <p style={{ color: C.muted, fontSize: 11, margin: "5px 0 13px" }}>{dateLabel(draft.date || selectedDate)}</p>
@@ -93,4 +94,89 @@ export default function DiaryView({ entries, deletedEntries, selectedDate, setSe
       </details>}
     </section>
   </>;
+}
+
+
+function CalendarInsights({ entries, selectedDate, onSelect }) {
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const [monthKey, setMonthKey] = useState((selectedDate || todayKey).slice(0, 7));
+  const byDate = useMemo(() => new Map(entries.map(entry => [entry.date, entry])), [entries]);
+  const [year, month] = monthKey.split("-").map(Number);
+  const first = new Date(Date.UTC(year, month - 1, 1));
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const offset = first.getUTCDay();
+  const monthTitle = first.toLocaleDateString("ar-EG", { month: "long", year: "numeric", timeZone: "UTC" });
+  const cells = [...Array(offset).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+  const moveMonth = delta => {
+    const next = new Date(Date.UTC(year, month - 1 + delta, 1));
+    const key = next.toISOString().slice(0, 7);
+    if (key <= todayKey.slice(0, 7)) setMonthKey(key);
+  };
+  const keyFor = day => year + "-" + String(month).padStart(2, "0") + "-" + String(day).padStart(2, "0");
+  const recent = entries.filter(entry => entry.date <= todayKey && entry.date >= addDays(todayKey, -29));
+  const rated = recent.filter(entry => Number.isFinite(Number(entry.skinRating)) && entry.skinRating !== null && entry.skinRating !== "");
+  const average = rated.length ? rated.reduce((sum, entry) => sum + Number(entry.skinRating), 0) / rated.length : null;
+  const last7 = rated.filter(entry => entry.date >= addDays(todayKey, -6));
+  const previous7 = rated.filter(entry => entry.date >= addDays(todayKey, -13) && entry.date <= addDays(todayKey, -7));
+  const avg7 = last7.length ? last7.reduce((sum, entry) => sum + Number(entry.skinRating), 0) / last7.length : null;
+  const prev7 = previous7.length ? previous7.reduce((sum, entry) => sum + Number(entry.skinRating), 0) / previous7.length : null;
+  const issueCounts = new Map();
+  recent.forEach(entry => (entry.issues || []).forEach(issue => issueCounts.set(issue, (issueCounts.get(issue) || 0) + 1)));
+  const topIssues = [...issueCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const weekdayLabels = ["أحد", "إثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"];
+  return <section style={panel}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <div><b>تقويم البشرة</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>الأيام المسجلة تظهر بعلامة، اختر أي يوم سابق لعرضه أو تسجيله</div></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+        <button type="button" style={btn()} onClick={() => moveMonth(-1)}>السابق</button>
+        <b style={{ fontSize: 12, minWidth: 115, textAlign: "center" }}>{monthTitle}</b>
+        <button type="button" style={btn()} disabled={monthKey >= todayKey.slice(0, 7)} onClick={() => moveMonth(1)}>التالي</button>
+      </div>
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 5 }}>
+      {weekdayLabels.map(day => <div key={day} style={{ textAlign: "center", color: C.muted, fontSize: 10, padding: "5px 0" }}>{day}</div>)}
+      {cells.map((day, index) => {
+        if (!day) return <div key={"blank-" + index} />;
+        const key = keyFor(day);
+        const entry = byDate.get(key);
+        const future = key > todayKey;
+        const selected = key === selectedDate;
+        return <button key={key} type="button" disabled={future} onClick={() => onSelect(key)} aria-label={key + (entry ? " — مسجل" : " — بدون تسجيل")} style={{
+          minHeight: 43, border: selected ? "2px solid " + C.accent : "1px solid " + C.line,
+          borderRadius: 9, background: entry ? C.soft : C.white, color: future ? "#CBD5E1" : C.ink,
+          opacity: future ? .45 : 1, cursor: future ? "not-allowed" : "pointer", display: "grid", placeItems: "center",
+          padding: 3, font: "inherit"
+        }}>
+          <span style={{ fontSize: 12, fontWeight: selected ? 800 : 600 }}>{day}</span>
+          <span style={{ width: 5, height: 5, borderRadius: 8, background: entry ? C.accent : "transparent" }} />
+        </button>;
+      })}
+    </div>
+    <div style={{ display: "flex", gap: 6, alignItems: "center", color: C.muted, fontSize: 10, marginTop: 8 }}><span style={{ width: 7, height: 7, borderRadius: 8, background: C.accent }} /> يوم به تسجيل</div>
+    <div style={{ borderTop: "1px solid " + C.line, marginTop: 14, paddingTop: 13 }}>
+      <b style={{ fontSize: 13 }}>ملخص آخر 30 يومًا</b>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 8, marginTop: 10 }}>
+        <Insight label="أيام مسجلة" value={recent.length + " / 30"} />
+        <Insight label="متوسط تقييم البشرة" value={average == null ? "—" : average.toFixed(1) + " / 5"} />
+        <Insight label="تغير آخر 7 أيام" value={avg7 == null || prev7 == null ? "بيانات غير كافية" : (avg7 - prev7 > 0 ? "+" : "") + (avg7 - prev7).toFixed(1) + " نقطة"} />
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <div style={{ color: C.muted, fontSize: 11, marginBottom: 7 }}>أكثر الملاحظات تكرارًا</div>
+        {topIssues.length ? <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>{topIssues.map(([issue, count]) => <span key={issue} style={{ border: "1px solid " + C.line, borderRadius: 20, padding: "5px 9px", fontSize: 11 }}>{issue} · {count}</span>)}</div> : <div style={{ color: C.muted, fontSize: 11 }}>لا توجد مشكلات متكررة مسجلة في الفترة.</div>}
+      </div>
+      <p style={{ color: C.muted, fontSize: 10, margin: "10px 0 0" }}>المؤشرات وصفية وتعتمد على الأيام التي أدخلتها فقط؛ لا تمثل تقييمًا طبيًا أو استنتاجًا لسبب تغير البشرة.</p>
+    </div>
+  </section>;
+}
+
+function Insight({ label, value }) {
+  return <div style={{ border: "1px solid " + C.line, borderRadius: 10, padding: 10 }}>
+    <div style={{ color: C.muted, fontSize: 10 }}>{label}</div>
+    <b style={{ display: "block", marginTop: 5, fontSize: 16 }}>{value}</b>
+  </div>;
+}
+
+function addDays(dateKey, delta) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + delta)).toISOString().slice(0, 10);
 }
