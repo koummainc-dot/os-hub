@@ -19,6 +19,7 @@ assert.ok(builder.includes("includeSensitive"),"Sensitive data must require expl
 assert.ok(builder.includes("setReviewed(false)"),"Changes must invalidate prior review confirmation");
 assert.ok(builder.includes("!reviewed"),"Export must be blocked until the user confirms review");
 assert.ok(builder.includes("window.print()"),"PDF output must use print/save flow");
+assert.ok(builder.includes("profile.timezone"),"Visit report dates must respect the health profile timezone");
 assert.ok(builder.includes("لا يتم حفظ هذا الملخص في قاعدة البيانات"),"Visit summary must not persist a second copy of health data");
 assert.ok(!builder.includes("cycleEntries"),"Cycle records must not be included");
 assert.ok(!builder.includes("documents.map"),"Medical documents must not be silently included");
