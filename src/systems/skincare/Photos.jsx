@@ -8,7 +8,7 @@ const label = { display: "grid", gap: 5, color: C.muted, fontSize: 12, fontWeigh
 const btn = (primary = false, danger = false) => ({ border: "1px solid " + (primary ? C.accent : danger ? "#FECACA" : C.line), background: primary ? C.accent : C.white, color: primary ? C.white : danger ? C.danger : C.ink, borderRadius: 9, padding: "8px 11px", font: "inherit", fontSize: 12, fontWeight: 700, cursor: "pointer" });
 const dateLabel = value => { try { return new Date(value + "T12:00:00Z").toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" }); } catch { return value; } };
 
-export default function PhotosView({ workspaceId, entries, photos, deletedPhotos, isDemo, canEdit, busy, onUpload, onDelete }) {
+export default function PhotosView({ workspaceId, entries, photos, deletedPhotos, isDemo, canEdit, busy, onUpload, onDelete, onPurge }) {
   const [diaryId, setDiaryId] = useState(entries[0]?.id || "");
   const [file, setFile] = useState(null);
   const [lighting, setLighting] = useState("natural");
@@ -136,7 +136,7 @@ export default function PhotosView({ workspaceId, entries, photos, deletedPhotos
     {!!deletedPhotos.length && <section style={panel}>
       <b>سجل الصور المحذوفة ({deletedPhotos.length})</b>
       <p style={{ color: C.muted, fontSize: 11 }}>تُحتفظ ببيانات السجل فقط لأغراض الأثر والتدقيق؛ ملفات الصور الأصلية والمصغرة تُحذف من التخزين ولا يمكن استعادتها.</p>
-      {deletedPhotos.map(photo => <div key={photo.id} style={{ borderTop: "1px solid " + C.line, padding: "8px 0", fontSize: 11, color: C.muted }}>{dateLabel(photo.date)} · {photo.storagePurgedAt ? "تم حذف الملفات" : "حالة التخزين تحتاج مراجعة"}</div>)}
+      {deletedPhotos.map(photo => <div key={photo.id} style={{ borderTop: "1px solid " + C.line, padding: "8px 0", fontSize: 11, color: C.muted }}>{dateLabel(photo.date)} · {photo.storagePurgedAt ? "تم حذف الملفات" : "حذف الملفات قيد الاستكمال"} {canEdit && !photo.storagePurgedAt && <button type="button" style={btn(false, true)} disabled={busy} onClick={() => onPurge(photo)}>إعادة محاولة تنظيف الملفات</button>}</div>)}
     </section>}
   </>;
 }
