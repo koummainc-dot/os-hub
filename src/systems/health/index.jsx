@@ -47,6 +47,10 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
   const [allergies, setAllergies] = useState([]);
   const [symptomDefinitions, setSymptomDefinitions] = useState([]);
   const [symptomLogs, setSymptomLogs] = useState([]);
+  const [documents, setDocuments] = useState([]);
+  const [documentFile, setDocumentFile] = useState(null);
+  const [documentDraft, setDocumentDraft] = useState({ display_name:"", document_type:"other", document_date:"", notes:"" });
+
   const [conditionDraft, setConditionDraft] = useState({ name:"", condition_type:"unknown", diagnosed_on:"", diagnosed_by:"", notes:"" });
   const [allergyDraft, setAllergyDraft] = useState({ allergen:"", reaction:"", severity:"unknown", first_observed_on:"", notes:"" });
   const [symptomDraft, setSymptomDraft] = useState({ name:"", category:"" });
@@ -106,7 +110,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
 
 
   useEffect(() => {
-    if (!selected?.id) { setConditions([]); setAllergies([]); setSymptomDefinitions([]); setSymptomLogs([]); return; }
+    if (!selected?.id) { setConditions([]); setAllergies([]); setSymptomDefinitions([]); setSymptomLogs([]); setDocuments([]); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -115,13 +119,14 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
           conditions: readDemo(demoStore, demoKey("conditions:" + selected.id, userId), []).map(x=>({...x})),
           allergies: readDemo(demoStore, demoKey("allergies:" + selected.id, userId), []).map(x=>({...x})),
           definitions: readDemo(demoStore, demoKey("symptoms:" + selected.id, userId), []).map(x=>({...x})),
-          logs: readDemo(demoStore, demoKey("symptom-logs:" + selected.id, userId), []).map(x=>({...x}))
+          logs: readDemo(demoStore, demoKey("symptom-logs:" + selected.id, userId), []).map(x=>({...x})),
+          documents: readDemo(demoStore, demoKey("documents:" + selected.id, userId), []).map(x=>({...x}))
         };
         else {
-          const result = await Promise.all([healthRepository.listConditions(selected.id),healthRepository.listAllergies(selected.id),healthRepository.listSymptomDefinitions(selected.id),healthRepository.listSymptomLogs(selected.id)]);
-          rows = {conditions:result[0],allergies:result[1],definitions:result[2],logs:result[3]};
+          const result = await Promise.all([healthRepository.listConditions(selected.id),healthRepository.listAllergies(selected.id),healthRepository.listSymptomDefinitions(selected.id),healthRepository.listSymptomLogs(selected.id),healthRepository.listDocuments(selected.id)]);
+          rows = {conditions:result[0],allergies:result[1],definitions:result[2],logs:result[3],documents:result[4]};
         }
-        if (!cancelled) { setConditions(rows.conditions); setAllergies(rows.allergies); setSymptomDefinitions(rows.definitions); setSymptomLogs(rows.logs); }
+        if (!cancelled) { setConditions(rows.conditions); setAllergies(rows.allergies); setSymptomDefinitions(rows.definitions); setSymptomLogs(rows.logs); setDocuments(rows.documents || []); }
       } catch(e) { if(!cancelled) setError(e?.message || "تعذر تحميل السجل الصحي."); }
     })();
     return () => { cancelled = true; };
@@ -284,6 +289,47 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
     catch(e){setError(e?.message||"تعذر حذف السجل.");}finally{setBusy(false);}
   }
 
+
+  async function uploadMedicalDocument(e) {
+    e?.preventDefault(); if (!selected || !hasScopeAction("documents","create")) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      if (isDemo) throw new Error("رفع الملفات متاح فقط في الحساب الفعلي، وليس في وضع Demo.");
+      if (!documentFile) throw new Error("اختر ملفًا أولًا.");
+      const row = await healthRepository.uploadDocument({
+        profileId:selected.id, actorUserId:userId, file:documentFile,
+        displayName:documentDraft.display_name || documentFile.name,
+        documentType:documentDraft.document_type, documentDate:documentDraft.document_date,
+        notes:documentDraft.notes
+      });
+      setDocuments(rows=>[row,...rows]); setDocumentFile(null);
+      setDocumentDraft({display_name:"",document_type:"other",document_date:"",notes:""});
+      setNotice("تم رفع الوثيقة إلى المخزن الخاص وتسجيل بياناتها.");
+    } catch(e) { setError(e?.message || "تعذر رفع الوثيقة."); }
+    finally { setBusy(false); }
+  }
+  async function downloadMedicalDocument(row) {
+    if (!selected || !hasScopeAction("documents","read")) return;
+    setBusy(true); setError("");
+    try {
+      if (isDemo) throw new Error("الوثائق الحقيقية غير متاحة في وضع Demo.");
+      const url = await healthRepository.createDocumentDownloadUrl({objectPath:row.object_path,downloadName:row.original_filename});
+      if (!url) throw new Error("لم يتم إنشاء رابط تنزيل.");
+      window.open(url,"_blank","noopener,noreferrer");
+    } catch(e) { setError(e?.message || "تعذر فتح الوثيقة."); }
+    finally { setBusy(false); }
+  }
+  async function removeMedicalDocument(row) {
+    if (!selected || !hasScopeAction("documents","delete") || !window.confirm("حذف الوثيقة نهائيًا من المخزن الخاص؟")) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      if (isDemo) { const rows=documents.filter(x=>x.id!==row.id); storeDemoRows("documents",rows); setDocuments(rows); }
+      else { await healthRepository.deleteDocument({profileId:selected.id,actorUserId:userId,document:row}); setDocuments(rows=>rows.filter(x=>x.id!==row.id)); }
+      setNotice("تم حذف الوثيقة من المخزن والسجل.");
+    } catch(e) { setError(e?.message || "تعذر حذف الوثيقة. إذا تعذر حذف بياناتها، أعد المحاولة بعد التحقق من حالة الملف."); }
+    finally { setBusy(false); }
+  }
+
   const box = (title, description, children) => <section style={{ ...CARD, marginBottom: 16 }}><h2 style={{ margin: "0 0 7px", fontSize: 17, color: COLORS.ink }}>{title}</h2>{description && <p style={{ margin: "0 0 16px", color: COLORS.muted, fontSize: 13, lineHeight: 1.8 }}>{description}</p>}{children}</section>;
   const field = (label, value, onChange, extra = {}) => <label style={{ display: "block", marginBottom: 13 }}><span style={LABEL}>{label}</span><input style={FIELD} value={value} onChange={e => onChange(e.target.value)} {...extra} /></label>;
   const pageTitle = ({ home: "نظرة عامة", profile: "الملف الصحي", conditions: "الحالات والحساسيات", symptoms: "الأعراض", access: "المشاركة والتفويض", documents: "الوثائق الطبية", settings: "الإعدادات والخصوصية" })[page] || "نظرة عامة";
@@ -389,7 +435,20 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
         {box("سجل الأعراض","أحدث السجلات أولًا. حذف اسم العَرَض لا يمحو السجلات السابقة.",symptomLogs.length?<div style={{display:"grid",gap:10}}>{symptomLogs.map(row=><article key={row.id} style={{border:"1px solid "+COLORS.border,borderRadius:12,padding:13}}><div style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}><strong>{row.symptom_name_snapshot}</strong><span style={{fontSize:12,color:COLORS.muted}}>{fmtDate(row.recorded_at)}</span></div><div style={{fontSize:13,marginTop:6}}>الشدة: <strong>{row.severity}/10</strong>{row.duration_minutes?(" · المدة "+row.duration_minutes+" دقيقة"):""}{row.body_location?(" · "+row.body_location):""}</div>{row.notes&&<p style={{fontSize:12,color:COLORS.muted,whiteSpace:"pre-wrap"}}>{row.notes}</p>}<div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>{hasScopeAction("symptoms","update")&&<label style={{fontSize:12}}>تعديل الشدة <select style={{...FIELD,width:85,padding:6}} value={row.severity} disabled={busy} onChange={e=>updateSymptomSeverity(row,e.target.value)}>{Array.from({length:10},(_,i)=>i+1).map(n=><option key={n} value={n}>{n}</option>)}</select></label>}{hasScopeAction("symptoms","delete")&&<button disabled={busy} style={{...SECONDARY,color:COLORS.red}} onClick={()=>removeSymptomLog(row)}>حذف السجل</button>}</div></article>)}</div>:<p style={{color:COLORS.muted,fontSize:13}}>لا توجد سجلات أعراض بعد.</p>)}
       </> : box("لا يوجد ملف صحي","أنشئ ملفًا صحيًا أولًا.",<button style={PRIMARY} onClick={()=>setPage?.("home")}>الرئيسية</button>))}
 
-      {page === "documents" && box("الوثائق الطبية", "تم إنشاء مخزن خاص بسياسات وصول على مستوى الملف الصحي. واجهة رفع/معاينة/تنزيل الوثائق ستُبنى في مرحلة السجلات الطبية، بعد اختبار سياسات Storage بحسابين.", <div style={{ border: "1px solid #BAE6FD", background: "#F0F9FF", borderRadius: 10, padding: 12, color: "#075985", fontSize: 13 }}>لا ترفع وثائق حقيقية في هذه المرحلة. لم يتم تفعيل واجهة رفع الملفات بعد.</div>)}
+      {page === "documents" && (selected ? <>
+        {hasScopeAction("documents","create") && box("رفع وثيقة طبية","الملفات تُحفظ في مخزن خاص، باسم كائن عشوائي لا يكشف اسم الملف. الأنواع المسموحة PDF/JPG/PNG/WEBP وبحد أقصى 10 ميجابايت.",<form onSubmit={uploadMedicalDocument}>
+          {field("اسم ظاهر للوثيقة",documentDraft.display_name,v=>setDocumentDraft(d=>({...d,display_name:v})),{maxLength:180,placeholder:"مثال: تحليل الدم"})
+          }
+          <label style={{display:"block",marginBottom:12}}><span style={LABEL}>نوع الوثيقة</span><select style={FIELD} value={documentDraft.document_type} onChange={e=>setDocumentDraft(d=>({...d,document_type:e.target.value}))}><option value="lab_result">نتيجة تحليل</option><option value="imaging">تصوير طبي</option><option value="prescription">وصفة طبية</option><option value="visit_summary">ملخص زيارة</option><option value="discharge_summary">ملخص خروج</option><option value="insurance">تأمين صحي</option><option value="other">أخرى</option></select></label>
+          {field("تاريخ الوثيقة (اختياري)",documentDraft.document_date,v=>setDocumentDraft(d=>({...d,document_date:v})),{type:"date"})}
+          <label style={{display:"block",marginBottom:12}}><span style={LABEL}>الملف</span><input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" style={{...FIELD,padding:8}} onChange={e=>setDocumentFile(e.target.files?.[0]||null)} /></label>
+          {documentFile && <div style={{fontSize:12,color:COLORS.muted,marginBottom:12}}>{documentFile.name} · {(documentFile.size/1024/1024).toFixed(2)} MB</div>}
+          <label style={{display:"block",marginBottom:12}}><span style={LABEL}>ملاحظات غير ضرورية (اختياري)</span><textarea style={{...FIELD,minHeight:60}} maxLength={3000} value={documentDraft.notes} onChange={e=>setDocumentDraft(d=>({...d,notes:e.target.value}))}/></label>
+          {isDemo&&<p style={{fontSize:12,color:COLORS.muted}}>وضع Demo يسمح باستعراض الشاشة فقط ولا يرفع ملفات حقيقية.</p>}
+          <button disabled={busy||isDemo||!documentFile} style={PRIMARY}>{busy?"جارٍ الرفع…":"رفع الوثيقة"}</button>
+        </form>)}
+        {box("الوثائق المحفوظة","تُنشأ روابط تنزيل مؤقتة لمدة 60 ثانية بعد التحقق من صلاحية القراءة. لا تشارك الرابط المؤقت.",hasScopeAction("documents","read")?(documents.length?<div style={{display:"grid",gap:10}}>{documents.map(row=><article key={row.id} style={{border:"1px solid "+COLORS.border,borderRadius:12,padding:13}}><div style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}><strong>{row.display_name}</strong><span style={{fontSize:12,color:COLORS.muted}}>{row.document_date||"التاريخ غير محدد"}</span></div><div style={{fontSize:12,color:COLORS.muted,marginTop:6}}>{({lab_result:"نتيجة تحليل",imaging:"تصوير طبي",prescription:"وصفة طبية",visit_summary:"ملخص زيارة",discharge_summary:"ملخص خروج",insurance:"تأمين صحي",other:"أخرى"})[row.document_type]||row.document_type} · {(Number(row.size_bytes)/1024/1024).toFixed(2)} MB · {fmtDate(row.created_at)}</div>{row.notes&&<p style={{fontSize:12,whiteSpace:"pre-wrap"}}>{row.notes}</p>}<div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button style={SECONDARY} disabled={busy||isDemo} onClick={()=>downloadMedicalDocument(row)}>تنزيل آمن</button>{hasScopeAction("documents","delete")&&<button style={{...SECONDARY,color:COLORS.red}} disabled={busy} onClick={()=>removeMedicalDocument(row)}>حذف الوثيقة</button>}</div></article>)}</div>:<p style={{color:COLORS.muted,fontSize:13}}>لا توجد وثائق محفوظة لهذا الملف.</p>):<p style={{color:COLORS.muted,fontSize:13}}>لا يملك هذا الحساب صلاحية قراءة الوثائق الطبية.</p>)}
+      </> : box("لا يوجد ملف صحي","أنشئ ملفًا صحيًا أولًا.",<button style={PRIMARY} onClick={()=>setPage?.("home")}>الرئيسية</button>))}
       {page === "settings" && <>
         {box("الخصوصية والأمان", "البيانات الصحية لا تستخدم صلاحيات مساحة العمل. كل ملف يملك مالكًا واحدًا، والتفويضات محددة النطاق وقابلة للإلغاء.", <ul style={{ margin: 0, paddingInlineStart: 20, lineHeight: 2, fontSize: 13 }}><li>المالك فقط يستطيع إنشاء ملف وتعديل إعداداته ومنح الصلاحيات.</li><li>لا توجد صلاحيات للزوار المجهولين.</li><li>الوثائق مخزنة في bucket خاص وليس عامًا.</li><li>لا نضع تفاصيل طبية داخل بيانات مساحة العمل أو سجلات التدقيق.</li><li>إلغاء التفويض يغيّر صلاحية الخادم، وليس شكل الواجهة فقط.</li></ul>)}
         {selected && isOwner && box("آخر أحداث التدقيق", "سجل تشغيلي لا يُفترض أن يحتوي على أعراض أو ملاحظات طبية أو تفاصيل تشخيصية.", auditEvents.length ? <div>{auditEvents.map(ev=><div key={ev.id} style={{ padding: "10px 0", borderBottom: "1px solid "+COLORS.border, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", fontSize: 12 }}><span>{ev.action} · {ev.resource_type}</span><span style={{ color: COLORS.muted }}>{fmtDate(ev.created_at)}</span></div>)}</div> : <div style={{ color: COLORS.muted, fontSize: 13 }}>لا توجد أحداث بعد أو لا توجد أحداث قابلة للعرض.</div>)}
