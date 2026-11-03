@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 const ui=fs.readFileSync("src/systems/health/index.jsx","utf8");
 const repository=fs.readFileSync("src/systems/health/repository.js","utf8");
 const core=fs.readFileSync("src/core/core.js","utf8");
-const migration=fs.readFileSync("supabase/migrations/20261103150000_health_h2_1_vital_measurements.sql","utf8");
-const hardening=fs.readFileSync("supabase/migrations/20261103150500_health_h2_1_measurement_audit_policy_hardening.sql","utf8");
+const migration=fs.readFileSync("supabase/migrations/20261103145907_health_h2_1_vital_measurements.sql","utf8");
+const hardening=fs.readFileSync("supabase/migrations/20261103150138_health_h2_1_measurement_audit_policy_hardening.sql","utf8");
 const plan=fs.readFileSync("plans/HEALTH_WELLNESS_OS_UNIFIED_MASTER_PLAN_v1_AR.md","utf8");
 
 assert.ok(ui.includes('const [measurements, setMeasurements] = useState([])'),"Measurements state must exist");
@@ -27,5 +27,5 @@ assert.ok(hardening.includes("health_factor_log")&&hardening.includes("sensitive
 assert.ok(hardening.includes("health_measurements_guard"),"Measurement identity fields must be immutable");
 assert.ok(core.includes("measurements:القياسات الحيوية:📏"),"Core OS must register the measurements section");
 assert.ok(plan.includes("H2.1 — القياسات الحيوية والجسمية"),"Master plan must document H2.1");
-assert.ok(plan.includes("H2.2 — مخطط الجسم (مفتوح)")&&plan.includes("H2.3 — البحث الصحي الموحّد (مفتوح)")&&plan.includes("H2.4 — الخط الزمني الصحي (مفتوح)"),"Remaining H2 gaps must remain tracked");
+assert.ok(plan.includes("H2.2 — مخطط الجسم (منفذ جزئيًا)")&&plan.includes("H2.3 — البحث الصحي الموحّد (مفتوح)")&&plan.includes("H2.4 — الخط الزمني الصحي (مفتوح)"),"Remaining H2 gaps must remain tracked");
 console.log("Health H2.1 measurements contract checks passed.");
