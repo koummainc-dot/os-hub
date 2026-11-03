@@ -162,6 +162,9 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     const todayKey = today();
     const targetDate = todayKey < trial.startDate ? trial.startDate : trial.endDate && todayKey > trial.endDate ? trial.endDate : todayKey;
     const existing = diaryEntries.find(entry => entry.date === targetDate);
+    if (existing?.trialId && existing.trialId !== trial.id) {
+      return say("يوجد إدخال لهذا اليوم مرتبط بتجربة أخرى. اختر يومًا آخر من مفكرة البشرة حتى لا نغيّر ارتباطًا قائمًا.");
+    }
     if (existing) {
       editDiaryEntry(existing);
       setDiaryDraft(current => ({ ...current, trialId: trial.id }));
