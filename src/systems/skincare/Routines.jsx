@@ -85,7 +85,7 @@ export default function RoutinesView({ routines, logs, products, canEdit, busy, 
         <div style={{gridColumn:"1 / -1",borderTop:"1px solid "+C.line,paddingTop:12}}>
           <b style={{fontSize:13}}>خطوات الروتين</b>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:8,marginTop:10}}>
-            <label style={label}>المنتج<select style={field} value={stepProduct} onChange={e=>setStepProduct(e.target.value)}><option value="">اختر منتجًا</option>{products.filter(p=>!["finished","discarded","stopped"].includes(p.status)).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+            <label style={label}>المنتج<select style={field} value={stepProduct} onChange={e=>setStepProduct(e.target.value)}><option value="">اختر منتجًا</option>{products.filter(p=>!["paused","finished","discarded","stopped"].includes(p.status)).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
             <label style={label}>نوع الخطوة<select style={field} value={stepType} onChange={e=>setStepType(e.target.value)}>{STEP_TYPES.map(([v,t])=><option key={v} value={v}>{t}</option>)}</select></label>
             <label style={label}>تعليمات<input style={field} value={stepInstruction} onChange={e=>setStepInstruction(e.target.value)} maxLength={500}/></label>
             <div style={{display:"flex",alignItems:"end"}}><button type="button" style={btn()} onClick={addStep}>إضافة خطوة</button></div>
