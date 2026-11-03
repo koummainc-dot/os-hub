@@ -150,16 +150,35 @@ export async function getSkinPhotoSignedUrls({ workspaceId, photo }) {
 export async function deleteSkinPhoto({ workspaceId, photo, storeApi }) {
   if (!workspaceId || !photo?.id || !photo.objectPath || !photo.thumbnailPath) throw new Error("بيانات الصورة غير صالحة للحذف.");
   const row = await readWorkspaceRecord({ workspaceId, collection: "skin_photos", id: photo.id });
-  if (!row || row.deleted || row.data?.deleted_at) throw new Error("الصورة غير موجودة أو سبق حذفها.");
+  if (!row || row.deleted) throw new Error("سجل الصورة غير موجود أو لم تعد تملك صلاحية الوصول.");
   const expectedPaths = buildSkinPhotoPaths({ workspaceId, diaryId: row.data?.diaryId, photoId: row.id, mimeType: row.data?.mimeType });
-  if (expectedPaths.objectPath !== row.data?.objectPath || expectedPaths.thumbnailPath !== row.data?.thumbnailPath || row.data?.objectPath !== photo.objectPath || row.data?.thumbnailPath !== photo.thumbnailPath) {
-    throw new Error("مسارات الملفات لا تطابق سجل الصورة؛ أوقفنا الحذف.");
+  if (
+    expectedPaths.objectPath !== row.data?.objectPath ||
+    expectedPaths.thumbnailPath !== row.data?.thumbnailPath ||
+    row.data?.objectPath !== photo.objectPath ||
+    row.data?.thumbnailPath !== photo.thumbnailPath
+  ) throw new Error("مسارات الملفات لا تطابق سجل الصورة؛ أوقفنا الحذف.");
+
+  let tombstone = photo;
+  if (!row.data?.deleted_at) {
+    tombstone = await storeApi.putStrict("skin_photos", {
+      ...photo,
+      deleted_at: new Date().toISOString(),
+      storagePurgePending: true,
+    });
+    if (!tombstone) throw new Error("تعذر أرشفة سجل الصورة؛ لم نحذف الملفات.");
   }
+  if (row.data?.storagePurgedAt || tombstone?.storagePurgedAt) return tombstone;
+
   await removeObjects([row.data.objectPath, row.data.thumbnailPath]);
-  const saved = await storeApi.putStrict("skin_photos", { ...photo, deleted_at: new Date().toISOString(), storagePurgedAt: new Date().toISOString() });
+  const saved = await storeApi.putStrict("skin_photos", {
+    ...tombstone,
+    storagePurgedAt: new Date().toISOString(),
+    storagePurgePending: false,
+  });
   if (!saved) {
     await storeApi.reload?.();
-    throw new Error("حُذفت ملفات الصورة من التخزين، لكن تعذر تحديث سجلها. أعد تحميل المفكرة للتحقق من الحالة.");
+    throw new Error("أُخفيت الصورة من المعرض، لكن تعذر تأكيد حذف ملفاتها. أعد محاولة التنظيف من سجل المحذوفات.");
   }
   return saved;
 }
