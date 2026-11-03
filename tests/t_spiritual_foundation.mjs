@@ -186,5 +186,7 @@ const encodedPractice=encodeSpiritualTypedRecord("practices",practiceModel);
 assert.equal(decodeSpiritualTypedRecord("practices",encodedPractice.record).kind,"typed");
 assert.equal(decodeSpiritualTypedRecord("values",{title:"قديم",body:"نص قديم"}).kind,"legacy");
 assert.equal(decodeSpiritualTypedRecord("values",{title:"تالف",body:"{not-json"}).kind,"legacy");
+assert.equal(decodeSpiritualTypedRecord("values",undefined).kind,"legacy","missing records are treated as legacy instead of crashing");
+assert.match(moduleSource,/function SpiritualRecordSummary\(\{collection,record\}\)\{if\(!record\|\|typeof record!=="object"\)return null;/,"Spiritual record summary safely ignores missing rows");
 assert.equal(decodeSpiritualTypedRecord("principles",encodedValue.record).kind,"legacy");
 console.log("Spiritual OS foundation contracts passed.");
