@@ -278,7 +278,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
       id: uid(),
       type: eventType,
       date: todayKey,
-      note: nextStatus === "completed" ? "إنهاء التجربة: " + (details.verdict || "نتيجة غير محددة") : nextStatus === "cancelled" ? "إلغاء التجربة" : nextStatus === "paused" ? "إيقاف مؤقت" : trial.status === "planned" ? "بدء التجربة" : "استكمال التجربة",
+      note: nextStatus === "completed" ? "النتيجة: " + ({ improved: "تحسن ملحوظ", unchanged: "لم يتغير بوضوح", worse: "تدهور ملحوظ", inconclusive: "نتيجة غير حاسمة" }[details.verdict] || "غير محددة") : nextStatus === "cancelled" ? "إلغاء التجربة" : nextStatus === "paused" ? "إيقاف مؤقت" : trial.status === "planned" ? "بدء التجربة" : "استكمال التجربة",
     }];
     const checked = transitionSkinTrial(trial, nextStatus, { ...details, timelineEvents }, todayKey);
     if (!checked.ok) return say(checked.error), false;
