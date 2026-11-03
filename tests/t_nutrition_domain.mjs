@@ -52,6 +52,8 @@ assert.equal(summary.variance.calories,-1705.5);
 assert.equal(summarizeNutritionDay({date:"2026-11-02",logs,water,goals:[]}).completion,"empty");
 
 assert.equal(normalizeSearch("أرز باللبن"),normalizeSearch("ارز باللبن"));
+assert.equal(normalizeSearch("ملوخية"),normalizeSearch("ملوخيـه".replace("ـ","")), "Arabic ta marbuta/ha variants should match common spelling variants");
+assert.equal(searchFoods([{...food,name:"ملوخية"}],"ملوخيـه".replace("ـ","")).length,1,"Arabic search should find foods despite ة/ه spelling variation");
 assert.equal(searchFoods([food,yogurt], "شوف").length,1);
 assert.equal(validateGoal({name:"هدف",type:"General",targets:{calories:0}}).ok,true);
 assert.equal(validateGoal({name:"",type:"General",targets:{}}).ok,false);
