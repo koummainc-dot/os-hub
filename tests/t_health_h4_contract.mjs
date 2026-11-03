@@ -16,8 +16,8 @@ for(const table of ["health_daily_checkins","health_factors","health_factor_logs
  assert.match(migration,new RegExp("alter table public\\."+table+" enable row level security"),"RLS missing on "+table);
 }
 assert.match(privacyMigration,/enabled boolean not null default false/,"Cycle tracker must be disabled by default");
-assert.match(privacyMigration,/public\\.health_cycle_settings cs on cs\\.profile_id=hp\\.id[\\s\\S]*?cs\\.enabled/,"Cycle data must be owner-only and inaccessible while disabled");
-assert.match(repo,/from\\("health_cycle_settings"\\)/,"Cycle setting must be read from the owner-only relation");
+assert.ok(privacyMigration.includes("join public.health_cycle_settings cs on cs.profile_id=hp.id") && privacyMigration.includes("and cs.enabled"),"Cycle data must be owner-only and inaccessible while disabled");
+assert.ok(repo.includes('from("health_cycle_settings")'),"Cycle setting must be read from the owner-only relation");
 assert.doesNotMatch(repo,/cycle_tracking_enabled,created_at/,"Cycle setting must not be selected from shareable profile rows");
 assert.match(migration,/case when is_sensitive then 'sensitive_trackers' else 'trackers' end/,"Sensitive custom factors must use a separate scope");
 assert.match(migration,/create trigger health_factor_logs_validate_value/,"Factor values must be validated against their definition in the database");
