@@ -315,6 +315,14 @@ export function validateSkinTrial(input = {}, todayKey) {
   const baselineDiaryIds = Array.isArray(input.baselineDiaryIds)
     ? [...new Set(input.baselineDiaryIds.map(value => text(value, 100)).filter(Boolean))].slice(0, 14)
     : [];
+  const allowedTimelineTypes = ["started", "resumed", "paused", "completed", "cancelled"];
+  const timelineEvents = Array.isArray(input.timelineEvents) ? input.timelineEvents.slice(-200).flatMap(event => {
+    const date = parseSkinDate(event?.date);
+    const type = text(event?.type, 20);
+    const id = text(event?.id, 100);
+    if (!date || !id || !allowedTimelineTypes.includes(type)) return [];
+    return [{ id, date, type, note: text(event?.note, 300) }];
+  }) : [];
   return { ok: true, value: {
     ...input,
     id: text(input.id, 100),
@@ -327,6 +335,7 @@ export function validateSkinTrial(input = {}, todayKey) {
     verdict,
     verdictNote: text(input.verdictNote, 2000),
     baselineDiaryIds,
+    timelineEvents,
     updatedAt: new Date().toISOString(),
   }};
 }
