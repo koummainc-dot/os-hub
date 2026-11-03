@@ -6,6 +6,8 @@ const repo=fs.readFileSync("src/systems/health/repository.js","utf8");
 const core=fs.readFileSync("src/core/core.js","utf8");
 const migration=fs.readFileSync("supabase/migrations/20261103142017_health_os_h4_daily_trackers_schema.sql","utf8");
 const privacyMigration=fs.readFileSync("supabase/migrations/20261103142324_health_os_h4_cycle_settings_owner_only.sql","utf8");
+const grantFix=fs.readFileSync("supabase/migrations/20261103142823_health_os_grant_rls_recursion_fix.sql","utf8");
+const scopeFix=fs.readFileSync("supabase/migrations/20261103142910_health_h4_grant_scope_allowlist.sql","utf8");
 
 assert.ok(core.includes('phase:"H4 · المتابعة اليومية والعوامل"'),"H4 must be the active Health phase");
 assert.ok(core.includes('checkins:المتابعة اليومية:📅|factors:العوامل والمتتبعات:📈|cycle_tracking:الدورة الاختيارية:🔒'),"H4 pages must be registered");
@@ -22,6 +24,10 @@ assert.doesNotMatch(repo,/cycle_tracking_enabled,created_at/,"Cycle setting must
 assert.match(migration,/case when is_sensitive then 'sensitive_trackers' else 'trackers' end/,"Sensitive custom factors must use a separate scope");
 assert.match(migration,/create trigger health_factor_logs_validate_value/,"Factor values must be validated against their definition in the database");
 assert.match(migration,/daily_checkin_created/,"Check-in audit action must be allowed");
+assert.match(grantFix,/health_private\.is_profile_owner\(profile_id\)/,"Grant mutations must avoid recursive RLS checks");
+assert.match(grantFix,/security definer[\s\S]*?set search_path = ''/,"Owner helper must be hardened and have an empty search path");
+assert.match(grantFix,/revoke all on schema health_private from public,anon,authenticated/,"Private helper schema must not be broadly exposed");
+assert.match(scopeFix,/'checkins','trackers','sensitive_trackers'/,"H4 scopes must be accepted by grant validation");
 assert.match(ui,/لم تُضف سجلات للطعام أو التمرين أو الماء/,"Check-ins must not duplicate Nutrition or Sports records");
 assert.match(ui,/لا يحسب التطبيق الخصوبة أو يتنبأ بالدورة/,"Cycle tracking must not make fertility predictions");
 assert.doesNotMatch(repo,/workspace_records|workspace_data/,"Health records must not use generic workspace storage");
