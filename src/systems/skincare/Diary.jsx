@@ -15,6 +15,7 @@ function NumberField({ title, value, onChange, min, max, step = 1 }) {
 export default function DiaryView({ entries, deletedEntries, selectedDate, setSelectedDate, draft, setDraft, editing, setEditing, onSave, onEdit, onDelete, onRestore, canEdit, busy }) {
   const active = entries.find(entry => entry.date === selectedDate);
   const setDate = value => {
+    if (value > todayKey) return;
     setSelectedDate(value);
     const found = entries.find(entry => entry.date === value);
     if (found) onEdit(found);
@@ -23,11 +24,12 @@ export default function DiaryView({ entries, deletedEntries, selectedDate, setSe
       setDraft({ ...EMPTY, date: value });
     }
   };
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const moveDate = delta => {
     const date = new Date((selectedDate || draft.date || new Date().toISOString().slice(0, 10)) + "T12:00:00");
     date.setDate(date.getDate() + delta);
     const key = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
-    setDate(key);
+    if (key <= todayKey) setDate(key);
   };
   const clearForm = () => {
     setEditing("");
@@ -40,7 +42,7 @@ export default function DiaryView({ entries, deletedEntries, selectedDate, setSe
         <div style={{ display: "flex", gap: 6 }}>
           <button type="button" style={btn()} onClick={() => moveDate(-1)}>اليوم السابق</button>
           <button type="button" style={btn()} onClick={() => setDate(new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(new Date()))}>اليوم</button>
-          <button type="button" style={btn()} onClick={() => moveDate(1)}>اليوم التالي</button>
+          <button type="button" style={btn()} disabled={(selectedDate || todayKey) >= todayKey} onClick={() => moveDate(1)}>اليوم التالي</button>
         </div>
       </div>
       <label style={{ ...label, maxWidth: 260 }}>التاريخ المحدد<input type="date" style={field} value={selectedDate || draft.date} max={new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(new Date())} onChange={e => setDate(e.target.value)} /></label>
