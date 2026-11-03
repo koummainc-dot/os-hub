@@ -419,6 +419,26 @@ export const healthRepository = {
     return row;
   },
 
+  async listMeasurements(profileId) {
+    return listScoped("health_measurements","id,profile_id,measurement_type,value_primary,value_secondary,unit,recorded_at,source,context,notes,created_by,created_at,updated_at",profileId,"recorded_at");
+  },
+  async createMeasurement({profileId,actorUserId,measurement}) {
+    const row=await insertScoped("health_measurements","id,profile_id,measurement_type,value_primary,value_secondary,unit,recorded_at,source,context,notes,created_by,created_at,updated_at",
+      {...measurement,profile_id:profileId,created_by:actorUserId});
+    await auditClinical(profileId,actorUserId,"measurement_created","measurement",row.id);
+    return row;
+  },
+  async updateMeasurement({profileId,actorUserId,id,patch}) {
+    const row=await updateScoped("health_measurements","id,profile_id,measurement_type,value_primary,value_secondary,unit,recorded_at,source,context,notes,created_by,created_at,updated_at",id,profileId,{...patch,updated_at:new Date().toISOString()});
+    await auditClinical(profileId,actorUserId,"measurement_updated","measurement",row.id);
+    return row;
+  },
+  async deleteMeasurement({profileId,actorUserId,id}) {
+    const row=await deleteScoped("health_measurements",id,profileId);
+    await auditClinical(profileId,actorUserId,"measurement_deleted","measurement",row.id);
+    return row;
+  },
+
   async listAuditEvents(profileId) {
     const { data, error } = await supabase.from("health_audit_events")
       .select("id,actor_user_id,action,resource_type,resource_id,metadata,created_at")
