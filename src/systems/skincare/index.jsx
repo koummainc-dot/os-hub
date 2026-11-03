@@ -164,8 +164,10 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     try {
       await uploadSkinPhoto({ workspaceId: ws?.id, ...payload, photoId: uid(), storeApi: store.api });
       say("تم رفع الصورة والنسخة المصغرة وربطهما بإدخال اليوم.");
+      return true;
     } catch (error) {
       say(error?.message || "تعذر رفع الصورة بأمان.");
+      return false;
     } finally { setBusy(false); }
   };
   const removePhoto = async photo => {
