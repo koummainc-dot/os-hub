@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId } from "./domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry } from "./domain.js";
+import DiaryView from "./Diary.jsx";
 import RoutinesView from "./Routines.jsx";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#A855F7", soft: "#FAF5FF", white: "#FFFFFF", danger: "#B91C1C" };
@@ -27,6 +28,7 @@ const SECTIONS = [
   ["products", "المنتجات", "🧪"],
   ["units", "العبوات", "📦"],
   ["routines", "الروتين", "🗓️"],
+  ["diary", "مفكرة البشرة", "📔"],
 ];
 const EMPTY_PRODUCT = { name: "", brand: "", category: "other", status: "active", suitability: "suitable", startDate: "", expiryDate: "", ingredients: "", instructions: "", notes: "" };
 const EMPTY_UNIT = { name: "", productId: "", openedOn: today(), expiresOn: "", notes: "" };
@@ -37,12 +39,17 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
   const units = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.units)), [store.recs]);
   const routines = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.routines)), [store.recs]);
   const routineLogs = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.routineLogs)), [store.recs]);
+  const diaryEntries = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.diary)).sort((a, b) => String(b.date).localeCompare(String(a.date))), [store.recs]);
+  const deletedDiaryEntries = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.diary).filter(x => x.deleted_at), [store.recs]);
   const deletedProducts = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.products).filter(x => x.deleted_at), [store.recs]);
   const deletedUnits = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.units).filter(x => x.deleted_at), [store.recs]);
   const profile = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.profile).find(x => x.id === "profile") || null, [store.recs]);
   const [profileDraft, setProfileDraft] = useState({ skinType: "unknown", concernsText: "", sensitivitiesText: "", notes: "" });
   const [productDraft, setProductDraft] = useState(EMPTY_PRODUCT);
   const [unitDraft, setUnitDraft] = useState(EMPTY_UNIT);
+  const [diaryDate, setDiaryDate] = useState(today());
+  const [diaryDraft, setDiaryDraft] = useState({ date: today(), skinRating: "", issuesText: "", note: "", sleepHours: "", sleepQuality: "", mood: "", exerciseMinutes: "", waterGlasses: "", trialId: "" });
+  const [editingDiary, setEditingDiary] = useState("");
   const [editingProduct, setEditingProduct] = useState("");
   const [editingUnit, setEditingUnit] = useState("");
   const [notice, setNotice] = useState("");
@@ -110,6 +117,42 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     if (result) say("تم نقل العبوة إلى المحذوفات.");
   };
   const restoreUnit = async unit => { const result = await store.api.restore(SKINCARE_COLLECTIONS.units, unit.id); if (result) say("تمت استعادة العبوة."); };
+  const saveDiaryEntry = async e => {
+    e.preventDefault();
+    if (!canEdit) return;
+    const result = validateSkinDiaryEntry({ ...diaryDraft, issues: diaryDraft.issuesText.split(/[,،\\n]/) }, today());
+    if (!result.ok) return say(result.error);
+    const existing = diaryEntries.find(entry => entry.date === result.value.date && entry.id !== editingDiary);
+    if (existing) return say("يوجد تسجيل لهذا اليوم بالفعل؛ افتحه من السجل لتعديله.");
+    setBusy(true);
+    try {
+      const id = editingDiary || diaryEntries.find(entry => entry.date === result.value.date)?.id || "diary-" + result.value.date;
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.diary, { ...result.value, id, updatedAt: new Date().toISOString() });
+      if (!saved) throw new Error("لم يؤكد النظام حفظ إدخال المفكرة.");
+      setDiaryDate(result.value.date);
+      setEditingDiary("");
+      setDiaryDraft({ date: today(), skinRating: "", issuesText: "", note: "", sleepHours: "", sleepQuality: "", mood: "", exerciseMinutes: "", waterGlasses: "", trialId: "" });
+      say("تم حفظ إدخال المفكرة.");
+    } catch (error) { say(error?.message || "تعذر حفظ إدخال المفكرة."); }
+    finally { setBusy(false); }
+  };
+  const editDiaryEntry = entry => {
+    setEditingDiary(entry.id);
+    setDiaryDate(entry.date);
+    setDiaryDraft({ date: entry.date, skinRating: entry.skinRating ?? "", issuesText: (entry.issues || []).join("، "), note: entry.note || "", sleepHours: entry.sleepHours ?? "", sleepQuality: entry.sleepQuality ?? "", mood: entry.mood ?? "", exerciseMinutes: entry.exerciseMinutes ?? "", waterGlasses: entry.waterGlasses ?? "", trialId: entry.trialId || "" });
+    setPage("diary");
+  };
+  const deleteDiaryEntry = async entry => {
+    if (!canEdit || !window.confirm("نقل إدخال هذا اليوم إلى المحذوفات؟")) return;
+    const result = await store.api.softDelete(SKINCARE_COLLECTIONS.diary, entry.id);
+    if (result) say("تم نقل إدخال اليوم إلى المحذوفات.");
+  };
+  const restoreDiaryEntry = async entry => {
+    if (!canEdit) return;
+    if (diaryEntries.some(item => item.date === entry.date)) return say("يوجد إدخال نشط لنفس التاريخ؛ احذفه أو ادمج البيانات قبل الاستعادة.");
+    const result = await store.api.restore(SKINCARE_COLLECTIONS.diary, entry.id);
+    if (result) say("تمت استعادة إدخال المفكرة.");
+  };
   const saveRoutine = async routine => {
     if (!canEdit) return;
     const checked = validateRoutine(routine);
@@ -186,6 +229,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     {store.ready && !store.error && page === "products" && <ProductsView products={products} deletedProducts={deletedProducts} onRestore={restoreProduct} draft={productDraft} setDraft={setProductDraft} onSave={saveProduct} onEdit={editProduct} onDelete={deleteProduct} editing={editingProduct} setEditing={setEditingProduct} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "units" && <UnitsView units={units} deletedUnits={deletedUnits} onRestore={restoreUnit} products={products} draft={unitDraft} setDraft={setUnitDraft} onSave={saveUnit} onEdit={editUnit} onDelete={deleteUnit} editing={editingUnit} setEditing={setEditingUnit} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "routines" && <RoutinesView routines={routines} logs={routineLogs} products={products} canEdit={canEdit} busy={busy} onSave={saveRoutine} onArchive={toggleRoutine} onCopy={copyRoutine} onLog={logRoutineStep} onUndo={undoRoutineLog} />}
+    {store.ready && !store.error && page === "diary" && <DiaryView entries={diaryEntries} deletedEntries={deletedDiaryEntries} selectedDate={diaryDate} setSelectedDate={setDiaryDate} draft={diaryDraft} setDraft={setDiaryDraft} editing={editingDiary} setEditing={setEditingDiary} onSave={saveDiaryEntry} onEdit={editDiaryEntry} onDelete={deleteDiaryEntry} onRestore={restoreDiaryEntry} canEdit={canEdit} busy={busy} />}
   </div>;
 }
 
