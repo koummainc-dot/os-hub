@@ -82,7 +82,7 @@ export function validateRoutine(input = {}) {
     return { ok: false, error: "عدد مرات الأسبوع يجب أن يكون من 1 إلى 7." };
   }
   const reminderTime = text(input.reminderTime, 5);
-  if (reminderTime && !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(reminderTime)) return { ok: false, error: "وقت التذكير غير صحيح." };
+  if (reminderTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(reminderTime)) return { ok: false, error: "وقت التذكير غير صحيح." };
   return { ok: true, value: {
     ...input, name, timeOfDay, frequency, days,
     timesPerWeek: frequency === "times_per_week" ? timesPerWeek : null,
@@ -151,7 +151,7 @@ export function routineLogId(routineId, dateKey, stepId) {
 export function validateSkinDiaryEntry(input = {}, todayKey) {
   const date = text(input.date, 10);
   const parseDate = value => {
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
     const parsed = new Date(value + "T12:00:00");
     return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
   };
