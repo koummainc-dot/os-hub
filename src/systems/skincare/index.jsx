@@ -107,6 +107,44 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     if (result) say("تم نقل العبوة إلى المحذوفات.");
   };
   const restoreUnit = async unit => { const result = await store.api.restore(SKINCARE_COLLECTIONS.units, unit.id); if (result) say("تمت استعادة العبوة."); };
+  const saveRoutine = async routine => {
+    if (!canEdit) return;
+    const checked = validateRoutine(routine);
+    if (!checked.ok) return say(checked.error);
+    setBusy(true);
+    try {
+      const saved = await store.api.put("skin_routines", { ...checked.value, id: routine.id || uid(), updatedAt: new Date().toISOString() });
+      if (!saved) throw new Error("لم يؤكد النظام حفظ الروتين.");
+      say(routine.id ? "تم تحديث الروتين." : "تم إنشاء الروتين.");
+    } catch (error) { say(error?.message || "تعذر حفظ الروتين."); }
+    finally { setBusy(false); }
+  };
+  const toggleRoutine = async routine => {
+    if (!canEdit) return;
+    const saved = await store.api.put("skin_routines", { ...routine, status: routine.status === "paused" ? "active" : "paused", updatedAt: new Date().toISOString() });
+    if (saved) say(routine.status === "paused" ? "تم تفعيل الروتين." : "تم إيقاف الروتين مؤقتًا.");
+  };
+  const copyRoutine = async routine => {
+    if (!canEdit) return;
+    const copy = { ...routine, id: uid(), name: routine.name + " (نسخة)", status: "paused", steps: (routine.steps || []).map(step => ({ ...step, id: uid() })), createdAt: new Date().toISOString() };
+    const saved = await store.api.put("skin_routines", copy);
+    if (saved) say("تم نسخ الروتين وخطواته.");
+  };
+  const logRoutineStep = async (routine, step, status) => {
+    if (!canEdit || routine.status !== "active") return;
+    const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const id = routineLogId(routine.id, date, step.id);
+    if (routineLogs.some(log => log.id === id || log.client_generated_id === id)) return say("تم تسجيل هذه الخطوة بالفعل اليوم.");
+    const saved = await store.api.put("skin_routine_logs", { id, client_generated_id: id, routineId: routine.id, stepId: step.id, date, status, createdAt: new Date().toISOString() });
+    if (saved) say(status === "done" ? "تم تسجيل تنفيذ الخطوة." : "تم تسجيل تخطي الخطوة.");
+  };
+  const undoRoutineLog = async () => {
+    if (!canEdit || !routineLogs.length) return;
+    const latest = [...routineLogs].sort((a, b) => String(b.createdAt || b.updated_at || "").localeCompare(String(a.createdAt || a.updated_at || "")))[0];
+    if (!latest || !window.confirm("هل تريد التراجع عن آخر تسجيل؟")) return;
+    const result = await store.api.softDelete("skin_routine_logs", latest.id);
+    if (result) say("تم التراجع عن آخر تسجيل.");
+  };
 
   React.useEffect(() => {
     if (profile) setProfileDraft({ skinType: profile.skinType || "unknown", concernsText: (profile.concerns || []).join("، "), sensitivitiesText: (profile.sensitivities || []).join("، "), notes: profile.notes || "" });
