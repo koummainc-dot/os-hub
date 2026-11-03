@@ -1,12 +1,5 @@
 import React,{useMemo,useState} from "react";
-export function normalizeHealthSearch(value){
- return String(value??"").normalize("NFKC").toLocaleLowerCase("ar")
- .replace(/[\u064B-\u065F\u0670\u0640]/g,"").replace(/[أإآٱ]/g,"ا")
- .replace(/ى/g,"ي").replace(/ة/g,"ه")
- .replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x0660))
- .replace(/[۰-۹]/g,d=>String(d.charCodeAt(0)-0x06F0))
- .replace(/[\s\u200e\u200f]+/g," ").trim();
-}
+import { normalizeHealthSearch } from "./healthSearchDomain.js";
 const LABELS={condition:"حالة طبية",allergy:"حساسية",symptom:"عرض",medication:"دواء",dose:"جرعة / خطة علاج",medication_event:"حدث دوائي",side_effect:"أثر جانبي",flare:"نوبة تهيّج",measurement:"قياس",checkin:"متابعة يومية",factor:"عامل / متتبّع",factor_log:"قراءة متتبّع",document:"وثيقة طبية"};
 const PAGES={condition:"conditions",allergy:"conditions",symptom:"symptoms",medication:"medications",dose:"medications",medication_event:"medications",side_effect:"medications",flare:"flare_events",measurement:"measurements",checkin:"checkins",factor:"factors",factor_log:"factors",document:"documents"};
 const dateOf=r=>r?.recorded_at||r?.started_at||r?.occurred_at||r?.effective_from||r?.document_date||r?.entry_date||r?.diagnosed_on||r?.first_observed_on||r?.start_date||r?.created_at||null;
