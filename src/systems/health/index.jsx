@@ -649,6 +649,52 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
     finally { setBusy(false); }
   }
 
+  const measurementMeta = {
+    weight:{label:"الوزن",unit:"kg",unitLabel:"كجم",min:0.1,max:1000,step:"0.1"},
+    height:{label:"الطول",unit:"cm",unitLabel:"سم",min:20,max:300,step:"0.1"},
+    blood_pressure:{label:"ضغط الدم",unit:"mmHg",unitLabel:"mmHg",min:20,max:300,step:"1",secondaryLabel:"الانبساطي",secondaryMin:10,secondaryMax:200},
+    heart_rate:{label:"معدل ضربات القلب",unit:"bpm",unitLabel:"نبضة/دقيقة",min:1,max:300,step:"1"},
+    body_temperature:{label:"درجة حرارة الجسم",unit:"°C",unitLabel:"°م",min:25,max:45,step:"0.1"},
+    oxygen_saturation:{label:"تشبع الأكسجين",unit:"%",unitLabel:"%",min:0,max:100,step:"0.1"},
+    respiratory_rate:{label:"معدل التنفس",unit:"breaths/min",unitLabel:"نفس/دقيقة",min:1,max:100,step:"1"},
+    waist_circumference:{label:"محيط الخصر",unit:"cm",unitLabel:"سم",min:10,max:300,step:"0.1"},
+    body_fat_percentage:{label:"نسبة دهون الجسم",unit:"%",unitLabel:"%",min:0,max:80,step:"0.1"}
+  };
+  async function saveMeasurement(e) {
+    e?.preventDefault();
+    const isUpdate=!!measurementDraft.id;
+    if(!selected||!hasScopeAction("measurements",isUpdate?"update":"create"))return;
+    setBusy(true);setError("");setNotice("");
+    try {
+      const meta=measurementMeta[measurementDraft.measurement_type];
+      if(!meta)throw new Error("اختر نوع قياس صحيحًا.");
+      const primary=Number(measurementDraft.value_primary);
+      const secondary=measurementDraft.measurement_type==="blood_pressure"?Number(measurementDraft.value_secondary):null;
+      if(!Number.isFinite(primary)||primary<meta.min||primary>meta.max)throw new Error("قيمة القياس خارج النطاق المسموح لهذا النوع.");
+      if(measurementDraft.measurement_type==="blood_pressure"&&(!Number.isFinite(secondary)||secondary<meta.secondaryMin||secondary>meta.secondaryMax||primary<=secondary))throw new Error("أدخل ضغطًا انقباضيًا وانبساطيًا صحيحين.");
+      const recorded=new Date(measurementDraft.recorded_at);
+      if(Number.isNaN(recorded.getTime()))throw new Error("تاريخ ووقت القياس غير صحيح.");
+      const payload={measurement_type:measurementDraft.measurement_type,value_primary:primary,value_secondary:secondary,unit:meta.unit,recorded_at:recorded.toISOString(),source:measurementDraft.source,context:measurementDraft.context.trim()||null,notes:measurementDraft.notes.trim()||null};
+      let row;
+      if(isDemo){row={...payload,id:measurementDraft.id||"demo-measurement-"+Date.now(),profile_id:selected.id,created_by:userId,created_at:new Date().toISOString(),updated_at:new Date().toISOString()};const rows=isUpdate?measurements.map(x=>x.id===row.id?row:x):[row,...measurements];storeDemoRows("measurements",rows);setMeasurements(rows);}
+      else if(isUpdate){row=await healthRepository.updateMeasurement({profileId:selected.id,actorUserId:userId,id:measurementDraft.id,patch:payload});setMeasurements(rows=>rows.map(x=>x.id===row.id?row:x));}
+      else{row=await healthRepository.createMeasurement({profileId:selected.id,actorUserId:userId,measurement:payload});setMeasurements(rows=>[row,...rows]);}
+      setMeasurementDraft({id:"",measurement_type:"weight",value_primary:"",value_secondary:"",recorded_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),source:"manual",context:"",notes:""});
+      setNotice(isUpdate?"تم تحديث القياس.":"تم تسجيل القياس.");
+    }catch(err){setError(err?.message||"تعذر حفظ القياس.");}finally{setBusy(false);}
+  }
+  async function removeMeasurement(row) {
+    if(!selected||!hasScopeAction("measurements","delete")||!window.confirm("حذف سجل القياس؟"))return;
+    setBusy(true);setError("");setNotice("");
+    try{if(isDemo){const rows=measurements.filter(x=>x.id!==row.id);storeDemoRows("measurements",rows);setMeasurements(rows);}else{await healthRepository.deleteMeasurement({profileId:selected.id,actorUserId:userId,id:row.id});setMeasurements(rows=>rows.filter(x=>x.id!==row.id));}setNotice("تم حذف سجل القياس.");}
+    catch(err){setError(err?.message||"تعذر حذف القياس.");}finally{setBusy(false);}
+  }
+  function editMeasurement(row) {
+    if(!hasScopeAction("measurements","update"))return;
+    setMeasurementDraft({id:row.id,measurement_type:row.measurement_type,value_primary:String(row.value_primary),value_secondary:row.value_secondary==null?"":String(row.value_secondary),recorded_at:new Date(new Date(row.recorded_at).getTime()-new Date(row.recorded_at).getTimezoneOffset()*60000).toISOString().slice(0,16),source:row.source||"manual",context:row.context||"",notes:row.notes||""});
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+
   const box = (title, description, children) => <section style={{ ...CARD, marginBottom: 16 }}><h2 style={{ margin: "0 0 7px", fontSize: 17, color: COLORS.ink }}>{title}</h2>{description && <p style={{ margin: "0 0 16px", color: COLORS.muted, fontSize: 13, lineHeight: 1.8 }}>{description}</p>}{children}</section>;
   const field = (label, value, onChange, extra = {}) => <label style={{ display: "block", marginBottom: 13 }}><span style={LABEL}>{label}</span><input style={FIELD} value={value} onChange={e => onChange(e.target.value)} {...extra} /></label>;
   const pageTitle = ({ home: "نظرة عامة", profile: "الملف الصحي", conditions: "الحالات والحساسيات", symptoms: "الأعراض", medications: "الأدوية والعلاجات", flare_events: "نوبات التهيّج", checkins: "المتابعة اليومية", factors: "العوامل والمتتبعات", cycle_tracking: "متابعة الدورة الاختيارية", access: "المشاركة والتفويض", documents: "الوثائق الطبية", settings: "الإعدادات والخصوصية" })[page] || "نظرة عامة";
