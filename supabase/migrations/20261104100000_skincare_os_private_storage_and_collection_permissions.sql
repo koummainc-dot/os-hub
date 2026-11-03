@@ -9,7 +9,7 @@ insert into public.collection_sections(system_id, collection, section_id) values
   ('skincare','skin_units','units'),
   ('skincare','skin_diary','diary'),
   ('skincare','skin_routines','routines'),
-  ('skincare','skin_routine_logs','routine_logs'),
+  ('skincare','skin_routine_logs','routines'),
   ('skincare','skin_ingredients','ingredients'),
   ('skincare','skin_trials','trials'),
   ('skincare','skin_reactions','reactions'),
