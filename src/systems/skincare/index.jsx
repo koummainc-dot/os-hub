@@ -53,7 +53,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
   const [productDraft, setProductDraft] = useState(EMPTY_PRODUCT);
   const [unitDraft, setUnitDraft] = useState(EMPTY_UNIT);
   const [diaryDate, setDiaryDate] = useState(today());
-  const [diaryDraft, setDiaryDraft] = useState({ date: today(), skinRating: "", issuesText: "", note: "", sleepHours: "", sleepQuality: "", mood: "", exerciseMinutes: "", waterGlasses: "", trialId: "" });
+  const [diaryDraft, setDiaryDraft] = useState({ date: today(), skinRating: "", issuesText: "", note: "", sleepHours: "", sleepQuality: "", mood: "", exerciseMinutes: "", waterGlasses: "", areaMeasurements: { forehead: "", leftCheek: "", rightCheek: "", nose: "", chin: "", jawline: "" }, trialId: "" });
   const [editingDiary, setEditingDiary] = useState("");
   const [editingProduct, setEditingProduct] = useState("");
   const [editingUnit, setEditingUnit] = useState("");
@@ -136,7 +136,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
       if (!saved) throw new Error("لم يؤكد النظام حفظ إدخال المفكرة.");
       setDiaryDate(result.value.date);
       setEditingDiary("");
-      setDiaryDraft({ date: result.value.date, skinRating: "", issuesText: "", note: "", sleepHours: "", sleepQuality: "", mood: "", exerciseMinutes: "", waterGlasses: "", trialId: "" });
+      setDiaryDraft({ date: result.value.date, skinRating: "", issuesText: "", note: "", sleepHours: "", sleepQuality: "", mood: "", exerciseMinutes: "", waterGlasses: "", areaMeasurements: { forehead: "", leftCheek: "", rightCheek: "", nose: "", chin: "", jawline: "" }, trialId: "" });
       say("تم حفظ إدخال المفكرة.");
     } catch (error) { say(error?.message || "تعذر حفظ إدخال المفكرة."); }
     finally { setBusy(false); }
@@ -144,7 +144,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
   const editDiaryEntry = entry => {
     setEditingDiary(entry.id);
     setDiaryDate(entry.date);
-    setDiaryDraft({ date: entry.date, skinRating: entry.skinRating ?? "", issuesText: (entry.issues || []).join("، "), note: entry.note || "", sleepHours: entry.sleepHours ?? "", sleepQuality: entry.sleepQuality ?? "", mood: entry.mood ?? "", exerciseMinutes: entry.exerciseMinutes ?? "", waterGlasses: entry.waterGlasses ?? "", trialId: entry.trialId || "" });
+    setDiaryDraft({ date: entry.date, skinRating: entry.skinRating ?? "", issuesText: (entry.issues || []).join("، "), note: entry.note || "", sleepHours: entry.sleepHours ?? "", sleepQuality: entry.sleepQuality ?? "", mood: entry.mood ?? "", exerciseMinutes: entry.exerciseMinutes ?? "", waterGlasses: entry.waterGlasses ?? "", areaMeasurements: entry.areaMeasurements || {}, trialId: entry.trialId || "" });
     setPage("diary");
   };
   const deleteDiaryEntry = async entry => {
