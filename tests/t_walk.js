@@ -10,7 +10,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   let fails=0; const ok=(c,m)=>{if(!c){fails++;console.log('  ✗',m);} else console.log('  ✓',m);};
   await click('جرّب الوضع التجريبي'); await sleep(200);
   // 1) every system: open from Today tile and walk all sections
-  const SYS=['Projects OS','Habits & Hobbies OS','Knowledge OS','Learning OS','Finance OS','Home OS','Personal Inventory OS','Shopping & Wishlist OS','Nutrition OS','Sports OS','Relationships OS','Travel & Experiences OS','Spiritual & Values OS','Content OS'];
+  const SYS=['Projects OS','Habits & Hobbies OS','Knowledge OS','Learning OS','Finance OS','Home OS','Personal Inventory OS','Shopping & Wishlist OS','Nutrition OS','Sports OS','Relationships OS','Travel & Experiences OS','Spiritual & Values OS','Health & Wellness OS','Content OS'];
   for(const s of SYS){
     await toToday();
     const tile=[...doc.querySelectorAll('main button')].find(b=>b.textContent.includes(s));
@@ -23,7 +23,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
       if(!cur[i])break; cur[i].click(); await sleep(s==='Content OS'?150:30); n++;
       const t=txt(); if(/حدث خطأ|Something went wrong|AppErrorBoundary/.test(t)){bad++;console.log('   boundary at',s,i,t.slice(0,200));}
     }
-    ok(n>=7&&bad===0&&errors.length===0,`${s}: ${n} sections walked, boundary=${bad}, errors=${errors.length}`);
+    ok(n>=(s==='Health & Wellness OS'?5:7)&&bad===0&&errors.length===0,`${s}: ${n} sections walked, boundary=${bad}, errors=${errors.length}`);
     if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
   }
   // 2) platform pages
