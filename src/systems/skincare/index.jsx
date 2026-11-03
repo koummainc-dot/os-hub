@@ -82,6 +82,9 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
   };
   const deleteProduct = async product => {
     if (!canEdit || !window.confirm("هل تريد نقل المنتج إلى المحذوفات؟")) return;
+    const hasUnits = units.some(unit => unit.productId === product.id);
+    const hasRoutineSteps = routines.some(routine => (routine.steps || []).some(step => step.productId === product.id));
+    if (hasUnits || hasRoutineSteps) return say("لا يمكن حذف المنتج لوجود عبوات أو خطوات روتين مرتبطة به. احتفظ بالتاريخ أو غيّر حالة المنتج بدل الحذف.");
     const result = await store.api.softDelete(SKINCARE_COLLECTIONS.products, product.id);
     if (result) say("تم نقل المنتج إلى المحذوفات ويمكن استعادته من سجل المحذوفات عند إضافته.");
   };
@@ -128,7 +131,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
   const copyRoutine = async routine => {
     if (!canEdit) return;
     const copy = { ...routine, id: uid(), name: routine.name + " (نسخة)", status: "paused", steps: (routine.steps || []).map(step => ({ ...step, id: uid() })), createdAt: new Date().toISOString() };
-    const saved = await store.api.put("skin_routines", copy);
+    const saved = await store.api.put(SKINCARE_COLLECTIONS.routines, copy);
     if (saved) say("تم نسخ الروتين وخطواته.");
   };
   const logRoutineStep = async (routine, step, status) => {
