@@ -492,11 +492,11 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
           <p style={{ margin: 0, color: COLORS.muted, fontSize: 13, lineHeight: 1.9 }}>ملف صحي خاص، مع صلاحيات مشاركة صريحة وقابلة للإلغاء. لا تُشارك البيانات تلقائيًا مع مساحة العمل أو أي نظام آخر.</p>
         </div>
         <div style={{ border: "1px solid #BAE6FD", background: "#F0F9FF", borderRadius: 12, padding: "10px 13px", fontSize: 12, color: "#075985", maxWidth: 240 }}>
-          <strong>الخصوصية أولًا</strong><div style={{ marginTop: 4, lineHeight: 1.7 }}>المرحلة الحالية تجهّز الملف والوصول فقط؛ لا تُعد تشخيصًا أو بديلًا للرعاية الطبية.</div>
+          <strong>الخصوصية أولًا</strong><div style={{ marginTop: 4, lineHeight: 1.7 }}>Health OS يوثّق معلوماتك فقط ولا يُعد تشخيصًا أو بديلًا للرعاية الطبية.</div>
         </div>
       </div>
       <nav style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 18 }}>
-        {[["home","الرئيسية"],["profile","الملف الصحي"],["conditions","الحالات والحساسيات"],["symptoms","الأعراض"],["access","المشاركة"],["documents","الوثائق"],["settings","الخصوصية"]].map(([id,label]) => <button key={id} style={page===id?PRIMARY:SECONDARY} onClick={() => setPage?.(id)}>{label}</button>)}
+        {[["home","الرئيسية"],["profile","الملف الصحي"],["conditions","الحالات والحساسيات"],["symptoms","الأعراض"],["medications","الأدوية والعلاجات"],["flare_events","نوبات التهيّج"],["access","المشاركة"],["documents","الوثائق"],["settings","الخصوصية"]].map(([id,label]) => <button key={id} style={page===id?PRIMARY:SECONDARY} onClick={() => setPage?.(id)}>{label}</button>)}
       </nav>
     </header>
 
