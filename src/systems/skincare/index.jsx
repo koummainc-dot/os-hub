@@ -251,7 +251,14 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
       steps: (routine.steps || []).filter(step => !step.archived && step.productId === input.productId)
         .map(step => ({ category: step.category, instruction: step.instruction || "" })),
     })).filter(item => item.steps.length > 0);
-    const checked = validateSkinTrial({ ...input, baselineDiaryIds, routineContext, status: "running", verdict: "pending" }, todayKey);
+    const checked = validateSkinTrial({
+      ...input,
+      baselineDiaryIds,
+      routineContext,
+      status: "running",
+      verdict: "pending",
+      timelineEvents: [{ id: uid(), type: "started", date: todayKey, note: "بدء التجربة وحفظ خط الأساس" }],
+    }, todayKey);
     if (!checked.ok) return say(checked.error), false;
     setBusy(true);
     try {
@@ -265,7 +272,15 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
 
   const updateTrialStatus = async (trial, nextStatus, details = {}) => {
     if (!canEdit) return false;
-    const checked = transitionSkinTrial(trial, nextStatus, details, today());
+    const todayKey = today();
+    const eventType = nextStatus === "paused" ? "paused" : nextStatus === "running" ? (trial.status === "planned" ? "started" : "resumed") : nextStatus;
+    const timelineEvents = [...(trial.timelineEvents || []), {
+      id: uid(),
+      type: eventType,
+      date: todayKey,
+      note: nextStatus === "completed" ? "إنهاء التجربة: " + (details.verdict || "نتيجة غير محددة") : nextStatus === "cancelled" ? "إلغاء التجربة" : nextStatus === "paused" ? "إيقاف مؤقت" : trial.status === "planned" ? "بدء التجربة" : "استكمال التجربة",
+    }];
+    const checked = transitionSkinTrial(trial, nextStatus, { ...details, timelineEvents }, todayKey);
     if (!checked.ok) return say(checked.error), false;
     setBusy(true);
     try {
