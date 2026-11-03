@@ -49,7 +49,7 @@ export default function TrialsView({ trials, products, diaryEntries, reactions, 
         <label style={label}>المنتج
           <select required style={field} value={productId} onChange={event => setProductId(event.target.value)}>
             <option value="">اختر منتجًا</option>
-            {products.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id} disabled={activeByProduct.has(item.id)}>{item.name}{activeByProduct.has(item.id) ? " — لديه تجربة نشطة" : ""}</option>)}
+            {products.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id} disabled={activeByProduct.has(item.id) || item.suitability === "avoid"}>{item.name}{item.suitability === "avoid" ? " — موسوم بالتجنب" : activeByProduct.has(item.id) ? " — لديه تجربة نشطة" : ""}</option>)}
           </select>
         </label>
         <label style={label}>المدة المخططة (يومًا)
