@@ -53,7 +53,7 @@ assert.match(records, /export const live = \(list\) => \(list \|\| \[\]\)\.filte
 // Journal has a separate trash route and a separate restore handler.
 assert.match(ui, /const restoreJournalEntry=async j=>/);
 assert.match(ui, /store\.api\.restore\("journalEntries",j\.id\)/);
-assert.match(ui, /if\\(journalShowTrash\\?\\!j\\.deleted_at:!!j\\.deleted_at\\)return false/);
+assert.match(ui, /if\(journalShowTrash\?\!j\.deleted_at:!!j\.deleted_at\)return false/);
 assert.match(ui, /journalShowTrash\?\<><Btn onClick=\{\(\)=>restoreJournalEntry\(j\)\}>استعادة/);
 
 console.log("Hobbies restore matrix contract passed: seven trash collections + Journal, restore persistence mapping, and active-screen filtering.");
