@@ -12,6 +12,37 @@ async function audit(profileId, actorUserId, action, resourceType, resourceId = 
   if (error) console.warn("Health audit event could not be recorded:", error.code || "unknown");
 }
 
+
+const CONDITION_FIELDS = "id,profile_id,name,condition_type,status,diagnosed_on,resolved_on,diagnosed_by,notes,created_by,created_at,updated_at";
+const ALLERGY_FIELDS = "id,profile_id,allergen,reaction,severity,status,first_observed_on,notes,created_by,created_at,updated_at";
+const SYMPTOM_FIELDS = "id,profile_id,name,category,is_active,created_by,created_at,updated_at";
+const SYMPTOM_LOG_FIELDS = "id,profile_id,symptom_definition_id,symptom_name_snapshot,severity,recorded_at,duration_minutes,body_location,notes,source,created_by,created_at,updated_at";
+
+async function auditClinical(profileId, actorUserId, action, resourceType, resourceId) {
+  // Deliberately omit symptom/condition names, reactions, severity, and notes from audit metadata.
+  await audit(profileId, actorUserId, action, resourceType, resourceId, {});
+}
+async function listScoped(table, fields, profileId, orderBy = "created_at") {
+  const { data, error } = await supabase.from(table).select(fields).eq("profile_id", profileId).order(orderBy, { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+async function insertScoped(table, fields, payload) {
+  const { data, error } = await supabase.from(table).insert(payload).select(fields).single();
+  if (error) throw error;
+  return data;
+}
+async function updateScoped(table, fields, id, profileId, patch) {
+  const { data, error } = await supabase.from(table).update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id).eq("profile_id", profileId).select(fields).single();
+  if (error) throw error;
+  return data;
+}
+async function deleteScoped(table, id, profileId) {
+  const { data, error } = await supabase.from(table).delete().eq("id", id).eq("profile_id", profileId).select("id").single();
+  if (error) throw error;
+  return data;
+}
+
 export const healthRepository = {
   async listProfiles() {
     const { data, error } = await supabase.from("health_profiles")
@@ -83,6 +114,75 @@ export const healthRepository = {
     if (error) throw error;
     await audit(profileId, ownerUserId, "grant_revoked", "health_profile_grant", data.id, {});
     return data;
+  },
+
+
+  async listConditions(profileId) { return listScoped("health_conditions", CONDITION_FIELDS, profileId); },
+  async createCondition({ profileId, actorUserId, condition }) {
+    const data = await insertScoped("health_conditions", CONDITION_FIELDS, { ...condition, profile_id: profileId, created_by: actorUserId });
+    await auditClinical(profileId, actorUserId, "condition_created", "condition", data.id);
+    return data;
+  },
+  async updateCondition({ profileId, actorUserId, id, patch }) {
+    const data = await updateScoped("health_conditions", CONDITION_FIELDS, id, profileId, patch);
+    await auditClinical(profileId, actorUserId, "condition_updated", "condition", data.id);
+    return data;
+  },
+  async deleteCondition({ profileId, actorUserId, id }) {
+    const deleted = await deleteScoped("health_conditions", id, profileId);
+    await auditClinical(profileId, actorUserId, "condition_deleted", "condition", deleted.id);
+    return deleted;
+  },
+
+  async listAllergies(profileId) { return listScoped("health_allergies", ALLERGY_FIELDS, profileId); },
+  async createAllergy({ profileId, actorUserId, allergy }) {
+    const data = await insertScoped("health_allergies", ALLERGY_FIELDS, { ...allergy, profile_id: profileId, created_by: actorUserId });
+    await auditClinical(profileId, actorUserId, "allergy_created", "allergy", data.id);
+    return data;
+  },
+  async updateAllergy({ profileId, actorUserId, id, patch }) {
+    const data = await updateScoped("health_allergies", ALLERGY_FIELDS, id, profileId, patch);
+    await auditClinical(profileId, actorUserId, "allergy_updated", "allergy", data.id);
+    return data;
+  },
+  async deleteAllergy({ profileId, actorUserId, id }) {
+    const deleted = await deleteScoped("health_allergies", id, profileId);
+    await auditClinical(profileId, actorUserId, "allergy_deleted", "allergy", deleted.id);
+    return deleted;
+  },
+
+  async listSymptomDefinitions(profileId) { return listScoped("health_symptom_definitions", SYMPTOM_FIELDS, profileId, "name"); },
+  async createSymptomDefinition({ profileId, actorUserId, name, category = null }) {
+    const data = await insertScoped("health_symptom_definitions", SYMPTOM_FIELDS, { profile_id: profileId, name: name.trim(), category: category?.trim() || null, created_by: actorUserId });
+    await auditClinical(profileId, actorUserId, "symptom_definition_created", "symptom_definition", data.id);
+    return data;
+  },
+  async updateSymptomDefinition({ profileId, actorUserId, id, patch }) {
+    const data = await updateScoped("health_symptom_definitions", SYMPTOM_FIELDS, id, profileId, patch);
+    await auditClinical(profileId, actorUserId, "symptom_definition_updated", "symptom_definition", data.id);
+    return data;
+  },
+  async deleteSymptomDefinition({ profileId, actorUserId, id }) {
+    const deleted = await deleteScoped("health_symptom_definitions", id, profileId);
+    await auditClinical(profileId, actorUserId, "symptom_definition_deleted", "symptom_definition", deleted.id);
+    return deleted;
+  },
+
+  async listSymptomLogs(profileId) { return listScoped("health_symptom_logs", SYMPTOM_LOG_FIELDS, profileId, "recorded_at"); },
+  async createSymptomLog({ profileId, actorUserId, log }) {
+    const data = await insertScoped("health_symptom_logs", SYMPTOM_LOG_FIELDS, { ...log, profile_id: profileId, created_by: actorUserId });
+    await auditClinical(profileId, actorUserId, "symptom_log_created", "symptom_log", data.id);
+    return data;
+  },
+  async updateSymptomLog({ profileId, actorUserId, id, patch }) {
+    const data = await updateScoped("health_symptom_logs", SYMPTOM_LOG_FIELDS, id, profileId, patch);
+    await auditClinical(profileId, actorUserId, "symptom_log_updated", "symptom_log", data.id);
+    return data;
+  },
+  async deleteSymptomLog({ profileId, actorUserId, id }) {
+    const deleted = await deleteScoped("health_symptom_logs", id, profileId);
+    await auditClinical(profileId, actorUserId, "symptom_log_deleted", "symptom_log", deleted.id);
+    return deleted;
   },
 
   async listAuditEvents(profileId) {
