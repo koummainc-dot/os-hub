@@ -188,5 +188,8 @@ assert.equal(decodeSpiritualTypedRecord("values",{title:"قديم",body:"نص ق
 assert.equal(decodeSpiritualTypedRecord("values",{title:"تالف",body:"{not-json"}).kind,"legacy");
 assert.equal(decodeSpiritualTypedRecord("values",undefined).kind,"legacy","missing records are treated as legacy instead of crashing");
 assert.match(moduleSource,/function SpiritualRecordSummary\(\{collection,record\}\)\{if\(!record\|\|typeof record!=="object"\)return null;/,"Spiritual record summary safely ignores missing rows");
+assert.match(moduleSource,/^function SpiritualRecordSummary\(/m,"record summary remains a helper, not the system entry point");
+assert.match(moduleSource,/export default SpiritualValuesOS;/,"Spiritual OS exports its platform system component as default");
+assert.doesNotMatch(moduleSource,/export default function SpiritualRecordSummary/,"record summary must not be the default system component");
 assert.equal(decodeSpiritualTypedRecord("principles",encodedValue.record).kind,"legacy");
 console.log("Spiritual OS foundation contracts passed.");
