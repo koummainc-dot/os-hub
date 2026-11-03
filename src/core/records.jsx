@@ -381,7 +381,80 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
   }, [put]);
   const putMany = useCallback(async (ops) => { const out = []; for (const o of ops) out.push(await put(o.coll, o.rec)); return out; }, [put]);
 
-  const api = useMemo(() => ({ put, putAtomic, purgeAtomic, softDelete, restore, putMany, reload: loadAll, sync: syncSince, flushQueue }), [put, putAtomic, purgeAtomic, softDelete, restore, putMany, loadAll, syncSince, flushQueue]);
+  // Insert-only atomic batch used by Hobbies JSON import. One RPC call means
+  // Postgres commits every row or rolls the complete batch back.
+  const putBatchAtomic = useCallback(async (ops) => {
+    const allowed = new Set(["hobbies","sessions","skills","skillLogs","milestones","goals","plans","resources","equipmentLinks","journalEntries","habits","habitLogs","relapses","books","readingSessions","weeklyFocus","habitReminders","habitAchievementRecords"]);
+    if (!Array.isArray(ops) || !ops.length || ops.length > 500) throw new Error("دفعة الاستيراد يجب أن تحتوي من سجل واحد إلى 500 سجل.");
+    if (systemId !== "hobbies") throw new Error("الاستيراد الجماعي متاح لقسم العادات والهوايات فقط.");
+    const seen = new Set();
+    const prepared = ops.map(({ coll, rec }) => {
+      if (!allowed.has(coll) || !rec?.id) throw new Error("تحتوي دفعة الاستيراد على سجل غير مسموح أو بلا معرّف.");
+      const k = key(coll, rec.id);
+      if (seen.has(k)) throw new Error("تحتوي دفعة الاستيراد على معرّف مكرر.");
+      seen.add(k);
+      if ((stateRef.current.recs[coll] || {})[rec.id]) throw new Error("أحد السجلات موجود بالفعل؛ أعد معاينة ملف الاستيراد.");
+      const now = nowIso();
+      const next = { ...rec, id: rec.id, v: 1, created_at: rec.created_at || now, updated_at: now };
+      return { coll, next };
+    });
+
+    if (isDemo) {
+      const k = "recs:" + wsId + ":" + systemId;
+      const m = demoStore.current[k] || (demoStore.current[k] = {});
+      for (const { coll, next } of prepared) {
+        if (m[coll]?.[next.id]) throw new Error("أحد السجلات موجود بالفعل في بيانات العرض؛ لم يتم الاستيراد.");
+      }
+      for (const { coll, next } of prepared) {
+        m[coll] = { ...(m[coll] || {}), [next.id]: next };
+        dispatch({ type: "put", coll, rec: next });
+      }
+      return prepared.map(({ next }) => next);
+    }
+
+    if (SUPABASE_SDK_FAILED || (typeof navigator !== "undefined" && navigator.onLine === false)) {
+      throw new Error("الاستيراد الذري يحتاج اتصالًا مباشرًا بالخادم؛ لم يتم حفظ أي سجل.");
+    }
+    if (!wsId) throw new Error("مساحة العمل غير محددة؛ لم يتم الاستيراد.");
+    dispatch({ type: "pending", d: 1 });
+    try {
+      const { data, error } = await supabase.rpc("hobbies_import_records_batch", {
+        p_workspace_id: wsId,
+        p_changes: prepared.map(({ coll, next }) => ({
+          collection: coll,
+          id: next.id,
+          data: stripMeta(next),
+          visible_to: next._vis || null,
+          deleted: !!next._deleted,
+        })),
+      });
+      if (error) throw error;
+      if (!Array.isArray(data) || data.length !== prepared.length) {
+        await loadAll();
+        throw new Error("لم يؤكد الخادم جميع سجلات الاستيراد؛ أُعيد تحميل البيانات للتحقق من الحالة.");
+      }
+      const returned = new Map(data.map(row => [key(row.collection, row.id), row.updated_at]));
+      for (const { coll, next } of prepared) {
+        const serverTs = returned.get(key(coll, next.id));
+        if (!serverTs) {
+          await loadAll();
+          throw new Error("استجابة الخادم لا تؤكد أحد السجلات؛ أُعيد تحميل البيانات للتحقق.");
+        }
+      }
+      for (const { coll, next } of prepared) {
+        meta.current[key(coll, next.id)] = returned.get(key(coll, next.id));
+        dispatch({ type: "put", coll, rec: { ...next, _syncPending: false } });
+      }
+      return prepared.map(({ coll, next }) => ({ ...next, _syncPending: false, _serverUpdatedAt: returned.get(key(coll, next.id)) }));
+    } catch (error) {
+      toast("❌ لم يُنفذ الاستيراد الذري: " + (error?.message || "فشل التحقق") + "؛ قاعدة البيانات تتراجع عن الدفعة كاملة عند فشل أي سجل.");
+      throw error;
+    } finally {
+      dispatch({ type: "pending", d: -1 });
+    }
+  }, [isDemo, systemId, wsId, demoStore, loadAll, toast]);
+
+  const api = useMemo(() => ({ put, putAtomic, putBatchAtomic, purgeAtomic, softDelete, restore, putMany, reload: loadAll, sync: syncSince, flushQueue }), [put, putAtomic, putBatchAtomic, purgeAtomic, softDelete, restore, putMany, loadAll, syncSince, flushQueue]);
   return { ...state, api };
 }
 
