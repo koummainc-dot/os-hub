@@ -120,7 +120,7 @@ class AppErrorBoundary extends React.Component {
           }}>
             <div style={{fontSize: 42, marginBottom: 10}}>⚠️</div>
             <h2 style={{margin: "0 0 10px", color: "#16181D", fontSize: 22}}>
-              حدث خطأ في ContentOS
+              حدث خطأ في التطبيق
             </h2>
             <p style={{margin: "0 0 20px", color: "#6E7781", lineHeight: 1.8}}>
               حدث خطأ غير متوقع أثناء عرض الصفحة. يمكنك إعادة تحميل التطبيق والمحاولة مرة أخرى.
