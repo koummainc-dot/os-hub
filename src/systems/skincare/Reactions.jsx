@@ -10,7 +10,7 @@ const EMPTY = { productId: "", unitId: "", dateStarted: today(), severity: "mild
 const SEVERITY = { mild: "خفيف", moderate: "متوسط", severe: "شديد" };
 const STATUS = { open: "مفتوح", resolved: "تم الحل", archived: "مؤرشف" };
 
-export default function ReactionsView({ reactions, products, units, ingredients, canEdit, busy, onCreate, onResolve, onArchive, setPage }) {
+export default function ReactionsView({ reactions, products, units, ingredients, routines = [], canEdit, busy, onCreate, onResolve, onArchive, setPage }) {
   const [draft, setDraft] = useState(EMPTY);
   const submit = async event => {
     event.preventDefault();
@@ -66,6 +66,10 @@ export default function ReactionsView({ reactions, products, units, ingredients,
       {reactions.slice().sort((a, b) => String(b.dateStarted).localeCompare(String(a.dateStarted))).map(reaction => {
         const product = products.find(item => item.id === reaction.productId);
         const suspected = ingredients.filter(item => (reaction.suspectedIngredientIds || []).includes(item.id));
+        const routineMatches = routines.map(routine => ({
+          routine,
+          steps: (routine.steps || []).filter(step => !step.archived && step.productId === reaction.productId),
+        })).filter(match => match.steps.length > 0);
         return <article key={reaction.id} style={{ borderTop: "1px solid " + C.line, padding: "12px 0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
             <div><b style={{ fontSize: 13 }}>{product?.name || "منتج غير موجود"}</b><div style={{ color: C.muted, fontSize: 10, marginTop: 3 }}>{reaction.dateStarted} · {SEVERITY[reaction.severity] || reaction.severity} · {STATUS[reaction.status] || reaction.status}</div></div>
@@ -74,6 +78,13 @@ export default function ReactionsView({ reactions, products, units, ingredients,
           {(reaction.symptoms || []).length > 0 && <div style={{ fontSize: 12, marginTop: 7 }}>الأعراض: {reaction.symptoms.join("، ")}</div>}
           {reaction.area && <div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>المنطقة: {reaction.area}</div>}
           {reaction.actionTaken && <div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>الإجراء: {reaction.actionTaken}</div>}
+          <div style={{ background: C.soft, borderRadius: 9, padding: 10, marginTop: 9 }}>
+            <b style={{ fontSize: 11 }}>ظهور المنتج في روتيناتك الحالية</b>
+            {routineMatches.length ? routineMatches.map(({ routine, steps }) => <div key={routine.id} style={{ fontSize: 11, marginTop: 6 }}>
+              <b>{routine.name}</b> <span style={{ color: C.muted }}>({routine.status === "active" ? "نشط" : routine.status === "paused" ? "متوقف مؤقتًا" : "غير نشط"})</span>
+              <div style={{ color: C.muted, marginTop: 2 }}>{steps.map(step => step.category + (step.instruction ? " — " + step.instruction : "")).join("، ")}</div>
+            </div>) : <div style={{ color: C.muted, fontSize: 11, marginTop: 5 }}>لا توجد خطوة حالية في الروتين تستخدم هذا المنتج. قد يكون الروتين قد تغير منذ تسجيل التفاعل.</div>}
+          </div>
           {suspected.length > 0 && <div style={{ color: C.warn, fontSize: 11, marginTop: 5 }}>مكونات مشتبه بها حسب تسجيلك: {suspected.map(item => item.inciName).join("، ")}</div>}
           {reaction.note && <div style={{ color: C.muted, fontSize: 11, marginTop: 5 }}>{reaction.note}</div>}
           {reaction.resolvedDate && <div style={{ color: C.muted, fontSize: 10, marginTop: 5 }}>تاريخ الحل: {reaction.resolvedDate}</div>}
