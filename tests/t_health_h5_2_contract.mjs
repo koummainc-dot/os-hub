@@ -1,0 +1,26 @@
+import fs from "node:fs";
+import assert from "node:assert/strict";
+
+const ui=fs.readFileSync("src/systems/health/index.jsx","utf8");
+const builder=fs.readFileSync("src/systems/health/HealthVisitSummary.jsx","utf8");
+const core=fs.readFileSync("src/core/core.js","utf8");
+const plan=fs.readFileSync("plans/HEALTH_WELLNESS_OS_UNIFIED_MASTER_PLAN_v1_AR.md","utf8");
+
+assert.ok(ui.includes('import HealthVisitSummary from "./HealthVisitSummary.jsx"'),"Visit summary component must be imported");
+assert.ok(ui.includes('page === "visit_summary"'),"Visit summary route must render");
+assert.ok(ui.includes('["visit_summary","ملخص زيارة الطبيب"]'),"Visit summary navigation must be visible");
+assert.ok(core.includes("visit_summary:ملخص زيارة الطبيب:📝"),"Visit summary must be registered in OS navigation");
+assert.ok(builder.includes('canRead("reports","read")'),"Visit summary must require reports read permission");
+assert.ok(builder.includes('canRead("sensitive_trackers","read")'),"Sensitive trackers must require separate permission");
+assert.ok(builder.includes('checked={!!sections[key]}'),"Sections must be explicitly opted into");
+assert.ok(builder.includes('checked={selected[x.id]!==false}'),"Individual records must be reviewable");
+assert.ok(builder.includes("includeNotes"),"Free-text notes must require explicit opt-in");
+assert.ok(builder.includes("includeSensitive"),"Sensitive data must require explicit opt-in");
+assert.ok(builder.includes("setReviewed(false)"),"Changes must invalidate prior review confirmation");
+assert.ok(builder.includes("!reviewed"),"Export must be blocked until the user confirms review");
+assert.ok(builder.includes("window.print()"),"PDF output must use print/save flow");
+assert.ok(builder.includes("لا يتم حفظ هذا الملخص في قاعدة البيانات"),"Visit summary must not persist a second copy of health data");
+assert.ok(!builder.includes("cycleEntries"),"Cycle records must not be included");
+assert.ok(!builder.includes("documents.map"),"Medical documents must not be silently included");
+assert.ok(plan.includes("H5.2"),"Master plan must document H5.2");
+console.log("Health H5.2 contract checks passed.");
