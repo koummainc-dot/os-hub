@@ -6,6 +6,7 @@ on:
       - "supabase/migrations/*hobbies_journal*"
       - "supabase/tests/hobbies_journal_privacy_smoke.sql"
       - "supabase/tests/hobbies_import_atomic_smoke.sql"
+      - "supabase/tests/hobbies_restore_matrix_smoke.sql"
       - "supabase/migrations/*hobbies_import_records_batch*"
       - "tests/hobbies_journal_sql_bootstrap.sql"
       - ".github/workflows/hobbies-journal-sql-smoke.yml"
@@ -61,3 +62,5 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103090000_hobbies_import_records_batch.sql
       - name: Verify atomic import rollback, success, and privacy
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/hobbies_import_atomic_smoke.sql
+      - name: Verify restore matrix for seven record types and Journal
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/hobbies_restore_matrix_smoke.sql
