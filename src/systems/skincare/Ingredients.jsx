@@ -14,6 +14,7 @@ export default function IngredientsView({ ingredients, deletedIngredients, produ
   const [editing, setEditing] = useState("");
   const [query, setQuery] = useState("");
   const [inciText, setInciText] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedIngredient, setSelectedIngredient] = useState("");
   const analysis = useMemo(() => analyzeINCI(inciText, ingredients), [inciText, ingredients]);
   const filtered = useMemo(() => ingredients.filter(item => {
@@ -53,6 +54,17 @@ export default function IngredientsView({ ingredients, deletedIngredients, produ
     <section style={panel}>
       <b>محلل قائمة INCI</b>
       <p style={{ color: C.muted, fontSize: 11, margin: "5px 0 10px" }}>الصق قائمة المكونات كما هي. تتم المطابقة بالاسم الكامل أو Alias مطابق بعد توحيد المسافات وحالة الأحرف؛ لا توجد مطابقة تخمينية.</p>
+      <label style={{ ...label, marginBottom: 8 }}>تحميل قائمة المكونات من منتج مسجل
+        <select style={field} value={selectedProductId} onChange={event => {
+          const id = event.target.value;
+          setSelectedProductId(id);
+          const product = products.find(item => item.id === id);
+          if (product) setInciText(product.ingredients || "");
+        }}>
+          <option value="">إدخال قائمة يدويًا</option>
+          {products.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}
+        </select>
+      </label>
       <textarea style={{ ...field, minHeight: 100, resize: "vertical" }} value={inciText} onChange={e => setInciText(e.target.value)} placeholder="Aqua, Glycerin, Niacinamide, ..." />
       {!!inciText.trim() && <div style={{ marginTop: 11 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", fontSize: 11, color: C.muted }}>
