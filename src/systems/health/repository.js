@@ -18,6 +18,12 @@ const ALLERGY_FIELDS = "id,profile_id,allergen,reaction,severity,status,first_ob
 const SYMPTOM_FIELDS = "id,profile_id,name,category,is_active,created_by,created_at,updated_at";
 const SYMPTOM_LOG_FIELDS = "id,profile_id,symptom_definition_id,symptom_name_snapshot,severity,recorded_at,duration_minutes,body_location,notes,source,created_by,created_at,updated_at";
 const DOCUMENT_FIELDS = "id,profile_id,object_path,display_name,original_filename,document_type,document_date,mime_type,size_bytes,notes,uploaded_by,created_at,updated_at";
+const MEDICATION_FIELDS = "id,profile_id,name,brand,medication_type,status,instructions,prescribed_by,start_date,end_date,created_by,created_at,updated_at";
+const MEDICATION_VERSION_FIELDS = "id,profile_id,medication_id,version_no,dose_amount,dose_unit,route,frequency,schedule_times,effective_from,instructions,created_by,created_at";
+const MEDICATION_EVENT_FIELDS = "id,profile_id,medication_id,medication_version_id,event_status,scheduled_for,occurred_at,dose_amount,dose_unit,medication_name_snapshot,notes,created_by,created_at,updated_at";
+const SIDE_EFFECT_FIELDS = "id,profile_id,medication_id,medication_event_id,name,severity,occurred_at,notes,created_by,created_at,updated_at";
+const FLARE_FIELDS = "id,profile_id,title,status,severity,started_at,ended_at,symptoms,suspected_triggers,relief_actions,notes,created_by,created_at,updated_at";
+const REMINDER_FIELDS = "id,profile_id,medication_id,medication_version_id,remind_at,status,completed_at,linked_event_id,created_by,created_at,updated_at";
 
 async function auditClinical(profileId, actorUserId, action, resourceType, resourceId) {
   // Deliberately omit symptom/condition names, reactions, severity, and notes from audit metadata.
@@ -231,6 +237,105 @@ export const healthRepository = {
     if (error) throw error;
     await audit(profileId, actorUserId, "document_deleted", "document", data.id, {});
     return data;
+  },
+
+
+  async listMedications(profileId) { return listScoped("health_medications", MEDICATION_FIELDS, profileId); },
+  async listMedicationVersions(profileId) { return listScoped("health_medication_versions", MEDICATION_VERSION_FIELDS, profileId, "version_no"); },
+  async listMedicationEvents(profileId) { return listScoped("health_medication_events", MEDICATION_EVENT_FIELDS, profileId, "created_at"); },
+  async listMedicationSideEffects(profileId) { return listScoped("health_medication_side_effects", SIDE_EFFECT_FIELDS, profileId, "occurred_at"); },
+  async listMedicationReminders(profileId) { return listScoped("health_medication_reminders", REMINDER_FIELDS, profileId, "remind_at"); },
+  async createMedication({ profileId, actorUserId, medication, version }) {
+    const row = await insertScoped("health_medications", MEDICATION_FIELDS, { ...medication, profile_id: profileId, created_by: actorUserId });
+    let dose;
+    try {
+      dose = await insertScoped("health_medication_versions", MEDICATION_VERSION_FIELDS, {
+        ...version, profile_id: profileId, medication_id: row.id, version_no: 1, created_by: actorUserId
+      });
+    } catch (error) {
+      await supabase.from("health_medications").delete().eq("id", row.id).eq("profile_id", profileId);
+      throw error;
+    }
+    await auditClinical(profileId, actorUserId, "medication_created", "medication", row.id);
+    await auditClinical(profileId, actorUserId, "medication_version_created", "medication_version", dose.id);
+    return { medication: row, version: dose };
+  },
+  async updateMedication({ profileId, actorUserId, id, patch }) {
+    const row = await updateScoped("health_medications", MEDICATION_FIELDS, id, profileId, patch);
+    await auditClinical(profileId, actorUserId, "medication_updated", "medication", row.id);
+    return row;
+  },
+  async createMedicationVersion({ profileId, actorUserId, medicationId, version }) {
+    const { data: previous, error: listError } = await supabase.from("health_medication_versions").select("version_no")
+      .eq("profile_id", profileId).eq("medication_id", medicationId).order("version_no", { ascending: false }).limit(1);
+    if (listError) throw listError;
+    const nextVersion = Number(previous?.[0]?.version_no || 0) + 1;
+    const row = await insertScoped("health_medication_versions", MEDICATION_VERSION_FIELDS, {
+      ...version, profile_id: profileId, medication_id: medicationId, version_no: nextVersion, created_by: actorUserId
+    });
+    await auditClinical(profileId, actorUserId, "medication_version_created", "medication_version", row.id);
+    return row;
+  },
+  async createMedicationEvent({ profileId, actorUserId, event }) {
+    const row = await insertScoped("health_medication_events", MEDICATION_EVENT_FIELDS, { ...event, profile_id: profileId, created_by: actorUserId });
+    await auditClinical(profileId, actorUserId, "medication_event_created", "medication_event", row.id);
+    return row;
+  },
+  async updateMedicationEvent({ profileId, actorUserId, id, patch }) {
+    const row = await updateScoped("health_medication_events", MEDICATION_EVENT_FIELDS, id, profileId, patch);
+    await auditClinical(profileId, actorUserId, "medication_event_updated", "medication_event", row.id);
+    return row;
+  },
+  async deleteMedicationEvent({ profileId, actorUserId, id }) {
+    const row = await deleteScoped("health_medication_events", id, profileId);
+    await auditClinical(profileId, actorUserId, "medication_event_deleted", "medication_event", row.id);
+    return row;
+  },
+  async createMedicationSideEffect({ profileId, actorUserId, sideEffect }) {
+    const row = await insertScoped("health_medication_side_effects", SIDE_EFFECT_FIELDS, { ...sideEffect, profile_id: profileId, created_by: actorUserId });
+    await auditClinical(profileId, actorUserId, "medication_side_effect_created", "medication_side_effect", row.id);
+    return row;
+  },
+  async updateMedicationSideEffect({ profileId, actorUserId, id, patch }) {
+    const row = await updateScoped("health_medication_side_effects", SIDE_EFFECT_FIELDS, id, profileId, patch);
+    await auditClinical(profileId, actorUserId, "medication_side_effect_updated", "medication_side_effect", row.id);
+    return row;
+  },
+  async deleteMedicationSideEffect({ profileId, actorUserId, id }) {
+    const row = await deleteScoped("health_medication_side_effects", id, profileId);
+    await auditClinical(profileId, actorUserId, "medication_side_effect_deleted", "medication_side_effect", row.id);
+    return row;
+  },
+  async createMedicationReminder({ profileId, actorUserId, reminder }) {
+    const row = await insertScoped("health_medication_reminders", REMINDER_FIELDS, { ...reminder, profile_id: profileId, created_by: actorUserId });
+    await auditClinical(profileId, actorUserId, "medication_reminder_created", "medication_reminder", row.id);
+    return row;
+  },
+  async updateMedicationReminder({ profileId, actorUserId, id, patch }) {
+    const row = await updateScoped("health_medication_reminders", REMINDER_FIELDS, id, profileId, patch);
+    await auditClinical(profileId, actorUserId, "medication_reminder_updated", "medication_reminder", row.id);
+    return row;
+  },
+  async deleteMedicationReminder({ profileId, actorUserId, id }) {
+    const row = await deleteScoped("health_medication_reminders", id, profileId);
+    await auditClinical(profileId, actorUserId, "medication_reminder_deleted", "medication_reminder", row.id);
+    return row;
+  },
+  async listFlareEvents(profileId) { return listScoped("health_flare_events", FLARE_FIELDS, profileId, "started_at"); },
+  async createFlareEvent({ profileId, actorUserId, flare }) {
+    const row = await insertScoped("health_flare_events", FLARE_FIELDS, { ...flare, profile_id: profileId, created_by: actorUserId });
+    await auditClinical(profileId, actorUserId, "flare_event_created", "flare_event", row.id);
+    return row;
+  },
+  async updateFlareEvent({ profileId, actorUserId, id, patch }) {
+    const row = await updateScoped("health_flare_events", FLARE_FIELDS, id, profileId, patch);
+    await auditClinical(profileId, actorUserId, "flare_event_updated", "flare_event", row.id);
+    return row;
+  },
+  async deleteFlareEvent({ profileId, actorUserId, id }) {
+    const row = await deleteScoped("health_flare_events", id, profileId);
+    await auditClinical(profileId, actorUserId, "flare_event_deleted", "flare_event", row.id);
+    return row;
   },
 
   async listAuditEvents(profileId) {
