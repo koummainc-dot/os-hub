@@ -4,6 +4,7 @@ import { healthRepository } from "./repository.js";
 import HealthAnalytics from "./HealthAnalytics.jsx";
 import HealthVisitSummary from "./HealthVisitSummary.jsx";
 import HealthBodyMap, { BODY_REGION_LABELS } from "./HealthBodyMap.jsx";
+import HealthSearch from "./HealthSearch.jsx";
 
 const COLORS = { ink: "#182230", muted: "#64748B", border: "#E2E8F0", blue: "#0EA5E9", bg: "#F8FAFC", green: "#047857", red: "#B91C1C" };
 const CARD = { background: "#fff", border: "1px solid " + COLORS.border, borderRadius: 16, padding: 20, boxShadow: "0 4px 14px rgba(15,23,42,.035)" };
@@ -828,6 +829,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
         </form>)}
         {box("الحساسيات","تغيير الحالة هنا توثيق شخصي وليس إثباتًا لزوال الحساسية.",allergies.length?<div style={{display:"grid",gap:10}}>{allergies.map(row=><article key={row.id} style={{border:"1px solid "+COLORS.border,borderRadius:12,padding:13}}><div style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}><strong>{row.allergen}</strong><span style={{fontSize:12,color:row.severity==="severe"?COLORS.red:COLORS.muted}}>{({mild:"خفيفة",moderate:"متوسطة",severe:"شديدة",unknown:"الشدة غير معروفة"})[row.severity]||row.severity} · {row.status==="active"?"نشطة":"غير نشطة"}</span></div>{row.reaction&&<p style={{fontSize:13}}>التفاعل: {row.reaction}</p>}{row.notes&&<p style={{fontSize:12,color:COLORS.muted,whiteSpace:"pre-wrap"}}>{row.notes}</p>}<div style={{display:"flex",gap:8}}>{hasScopeAction("conditions","update")&&<button style={SECONDARY} disabled={busy} onClick={()=>toggleAllergy(row)}>{row.status==="active"?"تحديد كغير نشطة":"إعادة إلى نشطة"}</button>}{hasScopeAction("conditions","delete")&&<button style={{...SECONDARY,color:COLORS.red}} disabled={busy} onClick={()=>removeAllergy(row)}>حذف</button>}</div></article>)}</div>:<p style={{color:COLORS.muted,fontSize:13}}>لا توجد حساسيات مسجلة بعد.</p>)}
       </> : box("لا يوجد ملف صحي","أنشئ ملفًا صحيًا أولًا.",<button style={PRIMARY} onClick={()=>setPage?.("home")}>الرئيسية</button>))}
+      {page === "search" && (selected ? <HealthSearch data={{conditions,allergies,symptomDefinitions,symptomLogs,documents,medications,medicationVersions,medicationEvents,sideEffects,flareEvents,dailyCheckins,factors,factorLogs,measurements}} canRead={hasScopeAction} onOpen={(targetPage)=>setPage?.(targetPage)} /> : box("لا يوجد ملف صحي","أنشئ ملفًا صحيًا أولًا.",<button style={PRIMARY} onClick={()=>setPage?.("home")}>الرئيسية</button>))}
       {page === "body_map" && (selected ? <>
         {box("مخطط الجسم التفاعلي","اختر سجل أعراض لتعديل موضعه، ثم حدد المنطقة على المخطط الأمامي أو الخلفي. لا يستنتج النظام تشخيصًا من موقع العرض.",<>
           <label style={{display:"block",marginBottom:12}}><span style={LABEL}>سجل العَرَض المراد ربطه بالمخطط</span><select style={FIELD} value={bodyMapTargetId} onChange={e=>selectBodyMapTarget(e.target.value)}><option value="">اختر سجلًا محفوظًا</option>{symptomLogs.map(row=><option key={row.id} value={row.id}>{row.symptom_name_snapshot} · {fmtDate(row.recorded_at)} · الشدة {row.severity}/10</option>)}</select></label>
