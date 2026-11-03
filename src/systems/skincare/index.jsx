@@ -157,6 +157,26 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     } catch (error) { say(error?.message || "تعذر حفظ إدخال المفكرة."); }
     finally { setBusy(false); }
   };
+  const openTrialDiary = trial => {
+    if (!trial || !canEdit) return;
+    const todayKey = today();
+    const targetDate = todayKey < trial.startDate ? trial.startDate : trial.endDate && todayKey > trial.endDate ? trial.endDate : todayKey;
+    const existing = diaryEntries.find(entry => entry.date === targetDate);
+    if (existing) {
+      editDiaryEntry(existing);
+      setDiaryDraft(current => ({ ...current, trialId: trial.id }));
+    } else {
+      setDiaryDate(targetDate);
+      setEditingDiary("");
+      setDiaryDraft({
+        date: targetDate, skinRating: "", issuesText: "", note: "", sleepHours: "",
+        sleepQuality: "", mood: "", exerciseMinutes: "", waterGlasses: "",
+        areaMeasurements: { forehead: "", leftCheek: "", rightCheek: "", nose: "", chin: "", jawline: "" },
+        trialId: trial.id,
+      });
+      setPage("diary");
+    }
+  };
   const editDiaryEntry = entry => {
     setEditingDiary(entry.id);
     setDiaryDate(entry.date);
@@ -443,7 +463,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     {store.ready && !store.error && page === "diary" && <DiaryView entries={diaryEntries} deletedEntries={deletedDiaryEntries} trials={trials} selectedDate={diaryDate} setSelectedDate={setDiaryDate} draft={diaryDraft} setDraft={setDiaryDraft} editing={editingDiary} setEditing={setEditingDiary} onSave={saveDiaryEntry} onEdit={editDiaryEntry} onDelete={deleteDiaryEntry} onRestore={restoreDiaryEntry} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "photos" && <PhotosView workspaceId={ws?.id} entries={diaryEntries} photos={photos} deletedPhotos={deletedPhotos} isDemo={isDemo} canEdit={canEdit} busy={busy} onUpload={uploadPhoto} onDelete={removePhoto} onPurge={removePhoto} />}
     {store.ready && !store.error && page === "ingredients" && <IngredientsView ingredients={ingredients} deletedIngredients={deletedIngredients} products={products} canEdit={canEdit} busy={busy} onSave={saveIngredient} onDelete={deleteIngredient} onRestore={restoreIngredient} onImportCatalog={importIngredientCatalog} />}
-    {store.ready && !store.error && page === "trials" && <TrialsView trials={trials} products={products} diaryEntries={diaryEntries} reactions={reactions} canEdit={canEdit} busy={busy} onCreate={createTrial} onTransition={updateTrialStatus} />}
+    {store.ready && !store.error && page === "trials" && <TrialsView trials={trials} products={products} diaryEntries={diaryEntries} reactions={reactions} photos={photos} canEdit={canEdit} busy={busy} onCreate={createTrial} onTransition={updateTrialStatus} onAddDiary={openTrialDiary} />}
     {store.ready && !store.error && page === "reactions" && <ReactionsView reactions={reactions} products={products} units={units} ingredients={ingredients} routines={routines} canEdit={canEdit} busy={busy} onCreate={createReaction} onResolve={resolveReaction} onArchive={archiveReaction} setPage={setPage} />}
   </div>;
 }
