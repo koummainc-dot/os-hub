@@ -5,6 +5,7 @@ const ui=fs.readFileSync("src/systems/health/index.jsx","utf8");
 const repo=fs.readFileSync("src/systems/health/repository.js","utf8");
 const core=fs.readFileSync("src/core/core.js","utf8");
 const migration=fs.readFileSync("supabase/migrations/20261103142017_health_os_h4_daily_trackers_schema.sql","utf8");
+const privacyMigration=fs.readFileSync("supabase/migrations/20261103142324_health_os_h4_cycle_settings_owner_only.sql","utf8");
 
 assert.ok(core.includes('phase:"H4 · المتابعة اليومية والعوامل"'),"H4 must be the active Health phase");
 assert.ok(core.includes('checkins:المتابعة اليومية:📅|factors:العوامل والمتتبعات:📈|cycle_tracking:الدورة الاختيارية:🔒'),"H4 pages must be registered");
