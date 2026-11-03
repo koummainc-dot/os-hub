@@ -1,0 +1,35 @@
+import fs from "node:fs";
+import assert from "node:assert/strict";
+
+const ui=fs.readFileSync("src/systems/health/index.jsx","utf8");
+const picker=fs.readFileSync("src/systems/health/HealthBodyMap.jsx","utf8");
+const repository=fs.readFileSync("src/systems/health/repository.js","utf8");
+const core=fs.readFileSync("src/core/core.js","utf8");
+const migration=fs.readFileSync("supabase/migrations/20261103151035_health_h2_2_body_map_symptom_locations.sql","utf8");
+const summary=fs.readFileSync("src/systems/health/HealthVisitSummary.jsx","utf8");
+const plan=fs.readFileSync("plans/HEALTH_WELLNESS_OS_UNIFIED_MASTER_PLAN_v1_AR.md","utf8");
+
+assert.ok(ui.includes('import HealthBodyMap, { BODY_REGION_LABELS } from "./HealthBodyMap.jsx"'),"Interactive body map must be imported");
+assert.ok(ui.includes('page === "body_map"'),"Dedicated body map route must render");
+assert.ok(ui.includes('body_map: "مخطط الجسم"'),"Body map page title must be registered");
+assert.ok(ui.includes('<HealthBodyMap view={symptomMapView}'),"New symptom form must support anatomical selection");
+assert.ok(ui.includes('onClick={saveSymptomBodyLocation}'),"Existing symptom locations must be editable");
+assert.ok(ui.includes('healthRepository.updateSymptomLog'),"Location updates must reuse existing symptom repository");
+assert.ok(ui.includes('healthRepository.listSymptomLogs(selected.id)'),"Symptom locations must reload from original symptom logs");
+assert.ok(ui.includes('body_region_code:symptomLogDraft.body_region_code'),"New symptom logs must persist structured body region");
+assert.ok(ui.includes('bodyMapTargetId'),"Existing symptom record selection must be available");
+assert.ok(picker.includes('front:')&&picker.includes('back:'),"Both front and back body views must exist");
+assert.ok(picker.includes("custom_point"),"Custom anatomical points must be supported");
+assert.ok(picker.includes("body_x")&&picker.includes("body_y"),"Relative point coordinates must be recorded");
+assert.ok(picker.includes("الاتجاه يمين/يسار هو يمين ويسار الشخص نفسه"),"Body side convention must be explicit");
+assert.ok(repository.includes("body_region_code,body_view,body_x,body_y"),"Repository must select structured body map columns");
+assert.ok(migration.includes("alter table public.health_symptom_logs"),"Migration must extend existing symptom logs");
+assert.ok(migration.includes("health_symptom_logs_body_map_complete_check"),"Database must enforce complete or empty body map fields");
+assert.ok(migration.includes("health_symptom_logs_profile_body_region_recorded_idx"),"Body region timeline index must exist");
+assert.ok(!migration.includes("create table"),"Body map must not duplicate symptom storage");
+assert.ok(core.includes("body_map:مخطط الجسم:🧍"),"Core OS navigation must register body map");
+assert.ok(core.includes('phase:"H2.2 · مخطط الجسم"'),"H2.2 must be active");
+assert.ok(summary.includes("x.body_region_code"),"Visit summary must include anatomical region");
+assert.ok(plan.includes("H2.2 — مخطط الجسم (منفذ جزئيًا)"),"Master plan must document H2.2 status");
+assert.ok(plan.includes("H2.3 — البحث الصحي الموحّد (مفتوح)")&&plan.includes("H2.4 — الخط الزمني الصحي (مفتوح)"),"Remaining H2 gaps must remain open");
+console.log("Health H2.2 body map contract checks passed.");
