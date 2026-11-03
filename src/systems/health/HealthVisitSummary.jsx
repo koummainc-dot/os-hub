@@ -3,7 +3,7 @@ import React, { useMemo, useState } from "react";
 const card={background:"#fff",border:"1px solid #E2E8F0",borderRadius:14,padding:16,marginBottom:14};
 const muted={color:"#64748B",fontSize:12};
 const field={width:"100%",boxSizing:"border-box",padding:10,border:"1px solid #CBD5E1",borderRadius:9};
-const dateOf=(value,timezone)=>{if(!value)return "";const raw=String(value);if(raw.length>=10&&raw[4]==="-"&&raw[7]==="-")return raw.slice(0,10);const parts=new Intl.DateTimeFormat("en-CA",{timeZone:timezone||"Africa/Cairo",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(value));const p=Object.fromEntries(parts.map(x=>[x.type,x.value]));return p.year+"-"+p.month+"-"+p.day;};
+const dateOf=(value,timezone)=>{if(!value)return "";const raw=String(value);if(raw.length===10&&raw[4]==="-"&&raw[7]==="-")return raw.slice(0,10);const parts=new Intl.DateTimeFormat("en-CA",{timeZone:timezone||"Africa/Cairo",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(value));const p=Object.fromEntries(parts.map(x=>[x.type,x.value]));return p.year+"-"+p.month+"-"+p.day;};
 const inRange=(value,from,to,timezone)=>{const d=dateOf(value,timezone);return !d||(d>=from&&d<=to);};
 const dateLabel=(value,timezone)=>value?new Intl.DateTimeFormat("ar-EG",{dateStyle:"medium",timeZone:timezone||"Africa/Cairo"}).format(new Date(String(value).length===10?String(value)+"T12:00:00":value)):"غير محدد";
 const noteOf=(row)=>row?.notes||row?.instructions||"";
