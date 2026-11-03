@@ -18,8 +18,12 @@ export function buildSkinPhotoPaths({ workspaceId, diaryId, photoId, mimeType })
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(workspaceId || ""))) {
     throw new Error("معرّف مساحة العمل غير صالح.");
   }
-  if (!/^diary-\d{4}-\d{2}-\d{2}$/.test(String(diaryId || ""))) {
-    throw new Error("يجب ربط الصورة بإدخال يومي صالح.");
+  const diaryMatch = /^diary-(\d{4}-\d{2}-\d{2})$/.exec(String(diaryId || ""));
+  if (!diaryMatch) throw new Error("يجب ربط الصورة بإدخال يومي صالح.");
+  const [year, month, day] = diaryMatch[1].split("-").map(Number);
+  const diaryDate = new Date(Date.UTC(year, month - 1, day));
+  if (diaryDate.getUTCFullYear() !== year || diaryDate.getUTCMonth() !== month - 1 || diaryDate.getUTCDate() !== day) {
+    throw new Error("تاريخ إدخال اليوم غير صالح.");
   }
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(photoId || ""))) {
     throw new Error("معرّف الصورة غير صالح.");
