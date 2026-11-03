@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, routineLogId } from "./domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId } from "./domain.js";
 import RoutinesView from "./Routines.jsx";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#A855F7", soft: "#FAF5FF", white: "#FFFFFF", danger: "#B91C1C" };
@@ -114,6 +114,13 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     if (!canEdit) return;
     const checked = validateRoutine(routine);
     if (!checked.ok) return say(checked.error);
+    const seenSteps = new Set();
+    for (const step of checked.value.steps || []) {
+      if (seenSteps.has(step.id)) return say("يوجد معرف مكرر لإحدى خطوات الروتين.");
+      seenSteps.add(step.id);
+      const stepCheck = validateRoutineStep(step, products);
+      if (!stepCheck.ok) return say(stepCheck.error);
+    }
     setBusy(true);
     try {
       const saved = await store.api.put(SKINCARE_COLLECTIONS.routines, { ...checked.value, id: routine.id || uid(), updatedAt: new Date().toISOString() });
@@ -137,6 +144,9 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
   const logRoutineStep = async (routine, step, status) => {
     if (!canEdit || routine.status !== "active") return;
     const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const currentProduct = products.find(product => product.id === step.productId);
+    if (!currentProduct || ["paused", "finished", "discarded", "stopped"].includes(currentProduct.status)) return say("لا يمكن تسجيل خطوة بمنتج غير متاح أو متوقف.");
+    if (currentProduct.suitability === "avoid" && !step.avoidConfirmed) return say("هذا المنتج مصنف للتجنب؛ أعد مراجعة الخطوة قبل تسجيلها.");
     const id = routineLogId(routine.id, date, step.id);
     if (routineLogs.some(log => log.id === id || log.client_generated_id === id)) return say("تم تسجيل هذه الخطوة بالفعل اليوم.");
     const saved = await store.api.put(SKINCARE_COLLECTIONS.routineLogs, { id, client_generated_id: id, routineId: routine.id, stepId: step.id, date, status, createdAt: new Date().toISOString() });
