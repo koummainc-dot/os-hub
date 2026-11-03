@@ -109,6 +109,7 @@ export default function DiaryView({ entries, deletedEntries, selectedDate, setSe
 function CalendarInsights({ entries, selectedDate, onSelect }) {
   const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const [monthKey, setMonthKey] = useState((selectedDate || todayKey).slice(0, 7));
+  React.useEffect(() => setMonthKey((selectedDate || todayKey).slice(0, 7)), [selectedDate]);
   const byDate = useMemo(() => new Map(entries.map(entry => [entry.date, entry])), [entries]);
   const [year, month] = monthKey.split("-").map(Number);
   const first = new Date(Date.UTC(year, month - 1, 1));
