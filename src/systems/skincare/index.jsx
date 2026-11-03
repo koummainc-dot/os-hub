@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry } from "./domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient } from "./domain.js";
 import DiaryView from "./Diary.jsx";
 import RoutinesView from "./Routines.jsx";
 import PhotosView from "./Photos.jsx";
+import IngredientsView from "./Ingredients.jsx";
 import { uploadSkinPhoto, deleteSkinPhoto } from "./photoStorage.js";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#A855F7", soft: "#FAF5FF", white: "#FFFFFF", danger: "#B91C1C" };
@@ -32,6 +33,7 @@ const SECTIONS = [
   ["routines", "الروتين", "🗓️"],
   ["diary", "مفكرة البشرة", "📔"],
   ["photos", "صور التقدم", "📷"],
+  ["ingredients", "المكونات", "🧬"],
 ];
 const EMPTY_PRODUCT = { name: "", brand: "", category: "other", status: "active", suitability: "suitable", startDate: "", expiryDate: "", ingredients: "", instructions: "", notes: "" };
 const EMPTY_UNIT = { name: "", productId: "", openedOn: today(), expiresOn: "", notes: "" };
@@ -39,6 +41,8 @@ const EMPTY_UNIT = { name: "", productId: "", openedOn: today(), expiresOn: "", 
 export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home", setPage = () => {}, shell }) {
   const store = useRecordStore({ wsId: ws?.id || "demo", systemId: "skincare", isDemo, demoStore: demoStore || { current: {} }, seed: () => ({}) , onToast: message => shell?.toast?.(message) });
   const products = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.products)), [store.recs]);
+  const ingredients = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.ingredients)).sort((a, b) => String(a.inciName).localeCompare(String(b.inciName))), [store.recs]);
+  const deletedIngredients = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.ingredients).filter(x => x.deleted_at), [store.recs]);
   const units = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.units)), [store.recs]);
   const routines = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.routines)), [store.recs]);
   const routineLogs = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.routineLogs)), [store.recs]);
@@ -158,6 +162,34 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     const result = await store.api.restore(SKINCARE_COLLECTIONS.diary, entry.id);
     if (result) say("تمت استعادة إدخال المفكرة.");
   };
+  const saveIngredient = async ingredient => {
+    if (!canEdit) return false;
+    const checked = validateSkinIngredient(ingredient);
+    if (!checked.ok) return say(checked.error), false;
+    const duplicate = ingredients.find(item => item.id !== ingredient.id && String(item.inciName).trim().toLocaleLowerCase() === checked.value.inciName.toLocaleLowerCase());
+    if (duplicate) return say("يوجد مكوّن بهذا الاسم بالفعل في مكتبتك."), false;
+    setBusy(true);
+    try {
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.ingredients, { ...checked.value, id: ingredient.id || uid() });
+      if (!saved) throw new Error("لم يؤكد النظام حفظ المكوّن.");
+      say(ingredient.id ? "تم تحديث المكوّن." : "تمت إضافة المكوّن.");
+      return true;
+    } catch (error) { say(error?.message || "تعذر حفظ المكوّن."); return false; }
+    finally { setBusy(false); }
+  };
+  const deleteIngredient = async ingredient => {
+    if (!canEdit || !window.confirm("نقل هذا المكوّن إلى المحذوفات؟")) return;
+    const result = await store.api.softDelete(SKINCARE_COLLECTIONS.ingredients, ingredient.id);
+    if (result) say("تم نقل المكوّن إلى المحذوفات.");
+  };
+  const restoreIngredient = async ingredient => {
+    if (!canEdit) return;
+    const duplicate = ingredients.some(item => item.id !== ingredient.id && String(item.inciName).trim().toLocaleLowerCase() === String(ingredient.inciName).trim().toLocaleLowerCase());
+    if (duplicate) return say("يوجد مكوّن نشط بنفس الاسم؛ عالج التكرار قبل الاستعادة.");
+    const result = await store.api.restore(SKINCARE_COLLECTIONS.ingredients, ingredient.id);
+    if (result) say("تمت استعادة المكوّن.");
+  };
+
   const uploadPhoto = async payload => {
     if (!canEdit || isDemo) return say("رفع الصور يتطلب صلاحية تعديل واتصالًا بمساحة عمل فعلية.");
     setBusy(true);
@@ -258,6 +290,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     {store.ready && !store.error && page === "routines" && <RoutinesView routines={routines} logs={routineLogs} products={products} canEdit={canEdit} busy={busy} onSave={saveRoutine} onArchive={toggleRoutine} onCopy={copyRoutine} onLog={logRoutineStep} onUndo={undoRoutineLog} />}
     {store.ready && !store.error && page === "diary" && <DiaryView entries={diaryEntries} deletedEntries={deletedDiaryEntries} selectedDate={diaryDate} setSelectedDate={setDiaryDate} draft={diaryDraft} setDraft={setDiaryDraft} editing={editingDiary} setEditing={setEditingDiary} onSave={saveDiaryEntry} onEdit={editDiaryEntry} onDelete={deleteDiaryEntry} onRestore={restoreDiaryEntry} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "photos" && <PhotosView workspaceId={ws?.id} entries={diaryEntries} photos={photos} deletedPhotos={deletedPhotos} isDemo={isDemo} canEdit={canEdit} busy={busy} onUpload={uploadPhoto} onDelete={removePhoto} onPurge={removePhoto} />}
+    {store.ready && !store.error && page === "ingredients" && <IngredientsView ingredients={ingredients} deletedIngredients={deletedIngredients} products={products} canEdit={canEdit} busy={busy} onSave={saveIngredient} onDelete={deleteIngredient} onRestore={restoreIngredient} />}
   </div>;
 }
 
