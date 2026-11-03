@@ -67,6 +67,7 @@ export default function DiaryView({ entries, deletedEntries, trials = [], select
             <option value="">بدون ربط بتجربة</option>
             {trials.filter(trial => trial.status !== "cancelled" && draft.date >= trial.startDate && (!trial.endDate || draft.date <= trial.endDate)).map(trial => <option key={trial.id} value={trial.id}>{trial.question}</option>)}
           </select>
+          {draft.trialId && <span style={{ color: C.accent, fontSize: 10, lineHeight: 1.6 }}>هذا الإدخال مرتبط بتجربة محددة، وسيظهر ضمن يومياتها. أضف الملاحظات والتقييمات أدناه، ويمكنك إرفاق الصور من معرض صور البشرة.</span>}
         </label>
         <div style={{ gridColumn: "1 / -1", border: "1px solid " + C.line, borderRadius: 10, padding: 11 }}>
           <b style={{ fontSize: 12 }}>قياسات مناطق الوجه</b>
