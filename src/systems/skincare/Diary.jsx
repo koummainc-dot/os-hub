@@ -7,6 +7,7 @@ const label = { display: "grid", gap: 5, color: C.muted, fontSize: 12, fontWeigh
 const btn = (primary = false, danger = false) => ({ border: "1px solid " + (primary ? C.accent : danger ? "#FECACA" : C.line), background: primary ? C.accent : C.white, color: primary ? C.white : danger ? C.danger : C.ink, borderRadius: 9, padding: "8px 11px", font: "inherit", fontSize: 12, fontWeight: 700, cursor: "pointer" });
 const dateLabel = value => { try { return new Date(value + "T12:00:00Z").toLocaleDateString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }); } catch { return value; } };
 const EMPTY = { date: "", skinRating: "", issuesText: "", note: "", sleepHours: "", sleepQuality: "", mood: "", exerciseMinutes: "", waterGlasses: "", trialId: "" };
+const AREA_FIELDS = [["forehead", "الجبهة"], ["leftCheek", "الخد الأيسر"], ["rightCheek", "الخد الأيمن"], ["nose", "الأنف"], ["chin", "الذقن"], ["jawline", "الفك"]];
 
 function NumberField({ title, value, onChange, min, max, step = 1 }) {
   return <label style={label}>{title}<input type="number" min={min} max={max} step={step} style={field} value={value ?? ""} onChange={e => onChange(e.target.value)} /></label>;
@@ -61,6 +62,13 @@ export default function DiaryView({ entries, deletedEntries, selectedDate, setSe
         <NumberField title="المزاج (1–5)" value={draft.mood} min={1} max={5} onChange={v => setDraft(d => ({ ...d, mood: v }))} />
         <NumberField title="النشاط بالدقائق" value={draft.exerciseMinutes} min={0} max={1440} onChange={v => setDraft(d => ({ ...d, exerciseMinutes: v }))} />
         <NumberField title="أكواب المياه" value={draft.waterGlasses} min={0} max={100} onChange={v => setDraft(d => ({ ...d, waterGlasses: v }))} />
+        <div style={{ gridColumn: "1 / -1", border: "1px solid " + C.line, borderRadius: 10, padding: 11 }}>
+          <b style={{ fontSize: 12 }}>قياسات مناطق الوجه</b>
+          <p style={{ color: C.muted, fontSize: 10, margin: "4px 0 10px" }}>سجّل شدة المشكلة في كل منطقة من 0 إلى 5؛ اتركها فارغة إذا لم تقيّم المنطقة، واستخدم 0 عند عدم وجود مشكلة.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 9 }}>
+            {AREA_FIELDS.map(([key, title]) => <NumberField key={key} title={title + " (0–5)"} value={draft.areaMeasurements?.[key] ?? ""} min={0} max={5} onChange={value => setDraft(d => ({ ...d, areaMeasurements: { ...(d.areaMeasurements || {}), [key]: value } }))} />)}
+          </div>
+        </div>
         <label style={{ ...label, gridColumn: "1 / -1" }}>ملاحظات اليوم<textarea style={{ ...field, minHeight: 85, resize: "vertical" }} value={draft.note || ""} maxLength={3000} onChange={e => setDraft(d => ({ ...d, note: e.target.value }))} /></label>
         <div style={{ display: "flex", gap: 8, gridColumn: "1 / -1" }}>
           <button type="submit" style={btn(true)} disabled={busy || !draft.date}>{busy ? "جارٍ الحفظ…" : editing ? "حفظ التعديل" : "حفظ اليوم"}</button>
@@ -82,6 +90,7 @@ export default function DiaryView({ entries, deletedEntries, selectedDate, setSe
             {entry.mood != null ? " · المزاج " + entry.mood + "/5" : ""}
             {entry.waterGlasses != null ? " · المياه " + entry.waterGlasses + " أكواب" : ""}
           </div>
+          {entry.areaMeasurements && Object.values(entry.areaMeasurements).some(value => value !== null && value !== undefined && value !== "") && <div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>شدة المناطق: {AREA_FIELDS.filter(([key]) => entry.areaMeasurements[key] !== null && entry.areaMeasurements[key] !== undefined && entry.areaMeasurements[key] !== "").map(([key, title]) => title + " " + entry.areaMeasurements[key] + "/5").join(" · ")}</div>}
           {entry.note && <p style={{ fontSize: 12, margin: "7px 0 0", whiteSpace: "pre-wrap" }}>{entry.note}</p>}
         </div>
         {canEdit && <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
