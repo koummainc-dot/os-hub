@@ -1,0 +1,18 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+const ui=fs.readFileSync("src/systems/health/index.jsx","utf8");
+const core=fs.readFileSync("src/core/core.js","utf8");
+const plan=fs.readFileSync("plans/HEALTH_WELLNESS_OS_UNIFIED_MASTER_PLAN_v1_AR.md","utf8");
+const component=fs.readFileSync("src/systems/health/HealthTimeline.jsx","utf8");
+assert.ok(ui.includes('import HealthTimeline from "./HealthTimeline.jsx"'));
+assert.ok(ui.includes('page === "timeline"'));
+assert.ok(ui.includes('timezone={selected.timezone||timezone||"Africa/Cairo"}'));
+assert.ok(core.includes('timeline:الخط الزمني الصحي:🕒'));
+assert.ok(component.includes('canRead(x.scope,"read")'));
+assert.ok(component.includes('timeZone:timezone'));
+assert.ok(component.includes('data.medicationEvents'));
+assert.ok(component.includes('data.measurements'));
+assert.ok(component.includes('data.documents'));
+assert.ok(!/cycleEntries|nutrition|sports|habit/i.test(component));
+assert.ok(plan.includes("H2.4 — الخط الزمني الصحي (منفذ جزئيًا)"));
+console.log("Health H2.4 timeline contract checks passed");
