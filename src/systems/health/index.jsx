@@ -3,6 +3,7 @@ import { supabase } from "../../core/supabase.js";
 import { healthRepository } from "./repository.js";
 import HealthAnalytics from "./HealthAnalytics.jsx";
 import HealthVisitSummary from "./HealthVisitSummary.jsx";
+import HealthBodyMap, { BODY_REGION_LABELS } from "./HealthBodyMap.jsx";
 
 const COLORS = { ink: "#182230", muted: "#64748B", border: "#E2E8F0", blue: "#0EA5E9", bg: "#F8FAFC", green: "#047857", red: "#B91C1C" };
 const CARD = { background: "#fff", border: "1px solid " + COLORS.border, borderRadius: 16, padding: 20, boxShadow: "0 4px 14px rgba(15,23,42,.035)" };
@@ -78,7 +79,9 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
   const [conditionDraft, setConditionDraft] = useState({ name:"", condition_type:"unknown", diagnosed_on:"", diagnosed_by:"", notes:"" });
   const [allergyDraft, setAllergyDraft] = useState({ allergen:"", reaction:"", severity:"unknown", first_observed_on:"", notes:"" });
   const [symptomDraft, setSymptomDraft] = useState({ name:"", category:"" });
-  const [symptomLogDraft, setSymptomLogDraft] = useState({ symptom_definition_id:"", severity:"3", recorded_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16), duration_minutes:"", body_location:"", notes:"" });
+  const [symptomLogDraft, setSymptomLogDraft] = useState({ symptom_definition_id:"", severity:"3", recorded_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16), duration_minutes:"", body_location:"", body_region_code:null, body_view:null, body_x:null, body_y:null, notes:"" });
+  const [bodyMapTargetId,setBodyMapTargetId] = useState("");
+  const [bodyMapDraft,setBodyMapDraft] = useState({body_region_code:null,body_view:"front",body_x:null,body_y:null,body_location:""});
 
 
   const selected = useMemo(() => profiles.find(p => p.id === selectedId) || profiles[0] || null, [profiles, selectedId]);
