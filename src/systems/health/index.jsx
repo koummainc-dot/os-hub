@@ -139,7 +139,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
 
 
   useEffect(() => {
-    if (!selected?.id) { setConditions([]); setAllergies([]); setSymptomDefinitions([]); setSymptomLogs([]); setDocuments([]); setMedications([]); setMedicationVersions([]); setMedicationEvents([]); setSideEffects([]); setMedicationReminders([]); setFlareEvents([]); setDailyCheckins([]); setFactors([]); setFactorLogs([]); setCycleEntries([]); setMeasurements([]); setMeasurements([]); return; }
+    if (!selected?.id) { setConditions([]); setAllergies([]); setSymptomDefinitions([]); setSymptomLogs([]); setDocuments([]); setMedications([]); setMedicationVersions([]); setMedicationEvents([]); setSideEffects([]); setMedicationReminders([]); setFlareEvents([]); setDailyCheckins([]); setFactors([]); setFactorLogs([]); setCycleEntries([]); setMeasurements([]); setBodyMapTargetId(""); setBodyMapDraft({body_region_code:null,body_view:"front",body_x:null,body_y:null,body_location:""}); setMeasurements([]); setBodyMapTargetId(""); setBodyMapDraft({body_region_code:null,body_view:"front",body_x:null,body_y:null,body_location:""}); return; }
     let cancelled = false;
     setDailyCheckins([]); setFactors([]); setFactorLogs([]); setCycleEntries([]);
     (async () => {
@@ -729,7 +729,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
     <header style={{ ...CARD, marginBottom: 16, background: "linear-gradient(130deg,#FFFFFF,#F0F9FF)" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div style={{ minWidth: 220, flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}><span style={{ fontSize: 26 }}>🩺</span><span style={{ fontSize: 11, fontWeight: 900, color: COLORS.blue }}>HEALTH & WELLNESS OS · H2.1</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}><span style={{ fontSize: 26 }}>🩺</span><span style={{ fontSize: 11, fontWeight: 900, color: COLORS.blue }}>HEALTH & WELLNESS OS · H2.2</span></div>
           <h1 style={{ margin: "0 0 8px", fontSize: 25 }}>الصحة والعافية</h1>
           <p style={{ margin: 0, color: COLORS.muted, fontSize: 13, lineHeight: 1.9 }}>ملف صحي خاص، مع صلاحيات مشاركة صريحة وقابلة للإلغاء. لا تُشارك البيانات تلقائيًا مع مساحة العمل أو أي نظام آخر.</p>
         </div>
