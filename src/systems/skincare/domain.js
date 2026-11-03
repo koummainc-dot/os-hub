@@ -96,7 +96,7 @@ export function validateRoutineStep(input = {}, products = []) {
   const productId = text(input.productId, 100);
   const product = products.find(p => p.id === productId);
   if (!product) return { ok: false, error: "اختر منتجًا موجودًا." };
-  if (["finished", "discarded", "stopped"].includes(product.status)) return { ok: false, error: "لا يمكن إضافة منتج منتهيًا أو متوقفًا." };
+  if (["paused", "finished", "discarded", "stopped"].includes(product.status)) return { ok: false, error: "لا يمكن إضافة منتج منتهيًا أو متوقفًا." };
   const suitability = text(product.suitability || "suitable", 20);
   if (suitability === "avoid" && !input.avoidConfirmed) return { ok: false, requiresConfirmation: true, error: "هذا المنتج مصنف للتجنب. أكد أنك تريد إضافته رغم التحذير." };
   const category = text(input.category || product.category || "other", 30);
