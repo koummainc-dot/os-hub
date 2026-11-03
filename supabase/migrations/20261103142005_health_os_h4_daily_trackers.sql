@@ -1,0 +1,1 @@
+-- Reserved migration history entry. The complete H4 schema is applied in 20261103142017_health_os_h4_daily_trackers_schema.sql.
