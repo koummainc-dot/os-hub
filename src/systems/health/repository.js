@@ -17,6 +17,7 @@ const CONDITION_FIELDS = "id,profile_id,name,condition_type,status,diagnosed_on,
 const ALLERGY_FIELDS = "id,profile_id,allergen,reaction,severity,status,first_observed_on,notes,created_by,created_at,updated_at";
 const SYMPTOM_FIELDS = "id,profile_id,name,category,is_active,created_by,created_at,updated_at";
 const SYMPTOM_LOG_FIELDS = "id,profile_id,symptom_definition_id,symptom_name_snapshot,severity,recorded_at,duration_minutes,body_location,notes,source,created_by,created_at,updated_at";
+const DOCUMENT_FIELDS = "id,profile_id,object_path,display_name,original_filename,document_type,document_date,mime_type,size_bytes,notes,uploaded_by,created_at,updated_at";
 
 async function auditClinical(profileId, actorUserId, action, resourceType, resourceId) {
   // Deliberately omit symptom/condition names, reactions, severity, and notes from audit metadata.
@@ -183,6 +184,53 @@ export const healthRepository = {
     const deleted = await deleteScoped("health_symptom_logs", id, profileId);
     await auditClinical(profileId, actorUserId, "symptom_log_deleted", "symptom_log", deleted.id);
     return deleted;
+  },
+
+
+  async listDocuments(profileId) {
+    const { data, error } = await supabase.from("health_documents").select(DOCUMENT_FIELDS).eq("profile_id", profileId).order("created_at", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+  async uploadDocument({ profileId, actorUserId, file, displayName, documentType = "other", documentDate = null, notes = null }) {
+    const extensions = { "application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
+    if (!file || !extensions[file.type]) throw new Error("نوع الملف غير مدعوم. استخدم PDF أو JPG أو PNG أو WEBP.");
+    if (file.size < 1 || file.size > 10 * 1024 * 1024) throw new Error("حجم الملف يجب ألا يتجاوز 10 ميجابايت.");
+    const title = String(displayName || "").trim();
+    if (!title || title.length > 180) throw new Error("اكتب اسمًا للوثيقة لا يتجاوز 180 حرفًا.");
+    const randomId = globalThis.crypto?.randomUUID?.() || (Date.now().toString(36) + Math.random().toString(36).slice(2));
+    const objectPath = profileId + "/" + randomId + extensions[file.type];
+    const { error: uploadError } = await supabase.storage.from("health-documents").upload(objectPath, file, { contentType: file.type, upsert: false, cacheControl: "60" });
+    if (uploadError) throw uploadError;
+    const payload = {
+      profile_id: profileId, object_path: objectPath, display_name: title,
+      original_filename: String(file.name || "document").slice(0, 255),
+      document_type: documentType, document_date: documentDate || null,
+      mime_type: file.type, size_bytes: file.size, notes: String(notes || "").trim() || null,
+      uploaded_by: actorUserId
+    };
+    const { data, error } = await supabase.from("health_documents").insert(payload).select(DOCUMENT_FIELDS).single();
+    if (error) {
+      // Compensate if metadata registration fails after the private object upload.
+      await supabase.storage.from("health-documents").remove([objectPath]);
+      throw error;
+    }
+    await audit(profileId, actorUserId, "document_uploaded", "document", data.id, {});
+    return data;
+  },
+  async createDocumentDownloadUrl({ objectPath, downloadName }) {
+    const { data, error } = await supabase.storage.from("health-documents").createSignedUrl(objectPath, 60, { download: downloadName || true });
+    if (error) throw error;
+    return data?.signedUrl;
+  },
+  async deleteDocument({ profileId, actorUserId, document }) {
+    if (!document?.id || !document?.object_path) throw new Error("الوثيقة غير صالحة للحذف.");
+    const { error: storageError } = await supabase.storage.from("health-documents").remove([document.object_path]);
+    if (storageError) throw storageError;
+    const { data, error } = await supabase.from("health_documents").delete().eq("id", document.id).eq("profile_id", profileId).select("id").single();
+    if (error) throw error;
+    await audit(profileId, actorUserId, "document_deleted", "document", data.id, {});
+    return data;
   },
 
   async listAuditEvents(profileId) {
