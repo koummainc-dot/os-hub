@@ -426,3 +426,47 @@
 - [ ] تفعيل الصور بعد إثبات العزل بين workspaceين.
 
 **الحالة الحالية:** S0 اكتمل من ناحية فحص المصدر وقرارات التكامل. S1 بدأ بإعداد صلاحيات السجلات والتخزين على مستوى ملفات المستودع فقط. لا يوجد نشر أو تغيير إنتاجي.
+
+
+
+
+## 11.1 مراجعة تنفيذية مستقلة لـS1 — 2026-11-03
+
+تمت مراجعة ملفات المصدر وقراءة حالة Supabase المتصل قراءة فقط. لا تمثل هذه المراجعة تطبيق migration أو اختبار تشغيل.
+
+### ما تأكد من المصدر
+
+1. `OSSystemHost` يستخدم `import.meta.glob("../systems/*/index.jsx")`، ويحمل النظام من `src/systems/<systemId>/index.jsx` ويمرر له `access/ws/isDemo/demoStore/shell`. لذلك لا نحتاج إلى تسجيل دخول أو Workspace أو host جديد.
+2. `useRecordStore` في `src/core/records.jsx` يقيد القراءة والكتابة بـ`workspace_id + system_id`، ويدعم Demo منفصلًا في الذاكرة، وعمليات `put/softDelete/restore` عبر RLS وRealtime. يجب ألا تستخدم Skincare `osMakeApi` كبديل لسجلاته.
+3. `softDelete` و`restore` ينفذان تحديثًا للسجل عبر `put`، وهو متوافق مبدئيًا مع سياسة `wr_update` للمحررين؛ لا تستخدم الواجهة حذف SQL مباشرًا.
+4. `putAtomic` و`putBatchAtomic` لديهما allowlists مقيدة بأنظمة أخرى. يمنع استخدامهما في Skincare حتى تُصمم RPC وعقودها واختباراتها بشكل مستقل.
+5. `OS_SYSTEMS` لا يحتوي حاليًا على `skincare`، ولا ينبغي إضافته قبل وجود شاشة صالحة وصلاحيات قابلة للاختبار.
+
+### ما تأكد من قاعدة الإنتاج — دون تعديل
+
+- `workspace_records` و`collection_sections` موجودان، وسياسات RLS الفعلية على `workspace_records` تستدعي `ws_access_level(workspace_id, system_id, collection)` في SELECT/INSERT/UPDATE.
+- سياسة DELETE المباشر على `workspace_records` مقيدة بمالك مساحة العمل، بينما UPDATE يتطلب مستوى `edit`؛ لذلك يبقى soft-delete هو المسار المناسب للمحررين.
+- لا توجد أي صفوف `skincare` في `collection_sections`.
+- الـBuckets الحالية ثلاثة فقط: `health-documents` و`knowledge-attachments` و`sports-body-progress`. لا يوجد `skincare-progress`.
+- لا توجد migration باسم Skincare في سجل Storage migrations. لم تُنفذ أي كتابة SQL خلال هذا الفحص.
+
+### مراجعة migration الموجودة في GitHub
+
+- ملف migration المقترح يربط 12 collection بأقسامها، ويعرّف bucket خاصًا وسياسات منفصلة للقراءة والإضافة والتعديل والحذف. هذه إعدادات مستودع فقط وليست إعدادات إنتاج.
+- اسم الملف الحالي `20261104100000_...sql` يحمل تاريخ 4 نوفمبر، أي تاريخًا لاحقًا لتاريخ هذا الفحص (3 نوفمبر 2026). يجب ضبط ترتيب/اسم migration بعد مراجعة آخر migration في المستودع وقبل أي تطبيق.
+- اختبار `t_skincare_storage_permissions_contract.mjs` اختبار نصي ثابت لعقد الملف؛ لا يثبت صحة RLS وقت التشغيل ولا عزل مستخدمين أو Workspaces.
+- سياسة Storage تعتمد على `ws_access_level(..., 'skincare', 'photos')`، لذا لن تعمل صلاحيات الأعضاء كما هو مقصود إلا بعد تسجيل mapping الصحيح. يلزم أيضًا اختبار أن مسارات الملفات لا تمنح الوصول خارج Workspace المقصود، وأن إصدار signed URL لا يتم إلا بعد التحقق من سجل الصورة.
+
+### ملاحظات Advisors
+
+أعاد فحص Supabase Security Advisors تحذيرات قائمة مسبقًا، منها جداول RLS بلا سياسات ودوال SECURITY DEFINER قابلة للتنفيذ بواسطة authenticated. هذه النتائج ليست ناتجة عن Skincare ولم أغيرها ضمن هذا العمل؛ يجب عدم خلط إصلاحاتها مع نطاق S1، مع مراجعة `ws_access_level` ضمن تدقيق صلاحيات المنصة قبل الإطلاق.
+
+### بوابة التنفيذ التالية
+
+1. تثبيت ترتيب migration الصحيح، ومراجعة كل سياسة Storage مع `ws_access_level`.
+2. إنشاء `src/systems/skincare/index.jsx` وطبقة repository صغيرة تستخدم `useRecordStore`، مع `access` على مستوى كل قسم، دون localStorage مباشر للبيانات الحساسة.
+3. بناء أول شاشات قابلة للاستخدام: الملف الجلدي، المنتجات، والعبوات؛ لا تُظهر صور التقدم قبل اعتماد واختبار Storage.
+4. تشغيل `npm test` و`npm run build` و`npm run lint` في بيئة المشروع. لم تتوفر بيئة تشغيل المستودع في جلسة الفحص الحالية، لذلك لم تُعلن هذه الاختبارات ناجحة.
+5. تنفيذ اختبارات RLS فعلية بحسابات owner/editor/viewer وحسابين وWorkspaceين قبل تطبيق migration أو تفعيل النظام في الإنتاج.
+
+**حالة S1 بعد المراجعة:** ملفات التأسيس موجودة في GitHub، لكن migration غير مطبقة، والواجهات غير منشأة، والاختبارات التشغيلية غير منفذة. قاعدة الإنتاج لم تتغير.
