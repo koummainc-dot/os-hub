@@ -5,7 +5,7 @@ const panel = { background: C.white, border: "1px solid " + C.line, borderRadius
 const field = { width: "100%", boxSizing: "border-box", padding: "9px 10px", border: "1px solid " + C.line, borderRadius: 9, font: "inherit", color: C.ink, background: C.white };
 const label = { display: "grid", gap: 5, color: C.muted, fontSize: 12, fontWeight: 650 };
 const btn = (primary = false, danger = false) => ({ border: "1px solid " + (primary ? C.accent : danger ? "#FECACA" : C.line), background: primary ? C.accent : C.white, color: primary ? C.white : danger ? C.danger : C.ink, borderRadius: 9, padding: "8px 11px", font: "inherit", fontSize: 12, fontWeight: 700, cursor: "pointer" });
-const dateLabel = value => { try { return new Date(value + "T12:00:00").toLocaleDateString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }); } catch { return value; } };
+const dateLabel = value => { try { return new Date(value + "T12:00:00Z").toLocaleDateString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" }); } catch { return value; } };
 const EMPTY = { date: "", skinRating: "", issuesText: "", note: "", sleepHours: "", sleepQuality: "", mood: "", exerciseMinutes: "", waterGlasses: "", trialId: "" };
 
 function NumberField({ title, value, onChange, min, max, step = 1 }) {
@@ -26,8 +26,8 @@ export default function DiaryView({ entries, deletedEntries, selectedDate, setSe
   };
   const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const moveDate = delta => {
-    const date = new Date((selectedDate || draft.date || new Date().toISOString().slice(0, 10)) + "T12:00:00");
-    date.setDate(date.getDate() + delta);
+    const [year, month, day] = (selectedDate || draft.date || todayKey).split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day + delta, 12));
     const key = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
     if (key <= todayKey) setDate(key);
   };
