@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient } from "./domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName } from "./domain.js";
 import DiaryView from "./Diary.jsx";
 import RoutinesView from "./Routines.jsx";
 import PhotosView from "./Photos.jsx";
@@ -162,6 +162,34 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     const result = await store.api.restore(SKINCARE_COLLECTIONS.diary, entry.id);
     if (result) say("تمت استعادة إدخال المفكرة.");
   };
+  const importIngredientCatalog = async catalog => {
+    if (!canEdit) return { added: 0, skipped: catalog.length, failed: true };
+    const allIngredients = arr(store.recs, SKINCARE_COLLECTIONS.ingredients);
+    const knownNames = new Set(allIngredients.map(item => normalizeINCIName(item.inciName)).filter(Boolean));
+    let added = 0;
+    let skipped = 0;
+    setBusy(true);
+    try {
+      for (const item of catalog) {
+        const key = normalizeINCIName(item.inciName);
+        if (!key || knownNames.has(key)) { skipped++; continue; }
+        const checked = validateSkinIngredient({ ...item, id: "catalog:" + item.catalogKey });
+        if (!checked.ok) throw new Error(checked.error);
+        const saved = await store.api.put(SKINCARE_COLLECTIONS.ingredients, checked.value);
+        if (!saved) throw new Error("توقف استيراد الكتالوج عند " + item.inciName + ".");
+        knownNames.add(key);
+        added++;
+      }
+      say("اكتمل استيراد الأسماء المرجعية دون تعديل السجلات الموجودة.");
+      return { added, skipped, failed: false };
+    } catch (error) {
+      say("توقف الاستيراد بعد إضافة " + added + "؛ يمكنك إعادة المحاولة وسيتم تجاوز الموجود: " + (error?.message || ""));
+      return { added, skipped, failed: true };
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const saveIngredient = async ingredient => {
     if (!canEdit) return false;
     const checked = validateSkinIngredient(ingredient);
@@ -290,7 +318,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     {store.ready && !store.error && page === "routines" && <RoutinesView routines={routines} logs={routineLogs} products={products} canEdit={canEdit} busy={busy} onSave={saveRoutine} onArchive={toggleRoutine} onCopy={copyRoutine} onLog={logRoutineStep} onUndo={undoRoutineLog} />}
     {store.ready && !store.error && page === "diary" && <DiaryView entries={diaryEntries} deletedEntries={deletedDiaryEntries} selectedDate={diaryDate} setSelectedDate={setDiaryDate} draft={diaryDraft} setDraft={setDiaryDraft} editing={editingDiary} setEditing={setEditingDiary} onSave={saveDiaryEntry} onEdit={editDiaryEntry} onDelete={deleteDiaryEntry} onRestore={restoreDiaryEntry} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "photos" && <PhotosView workspaceId={ws?.id} entries={diaryEntries} photos={photos} deletedPhotos={deletedPhotos} isDemo={isDemo} canEdit={canEdit} busy={busy} onUpload={uploadPhoto} onDelete={removePhoto} onPurge={removePhoto} />}
-    {store.ready && !store.error && page === "ingredients" && <IngredientsView ingredients={ingredients} deletedIngredients={deletedIngredients} products={products} canEdit={canEdit} busy={busy} onSave={saveIngredient} onDelete={deleteIngredient} onRestore={restoreIngredient} />}
+    {store.ready && !store.error && page === "ingredients" && <IngredientsView ingredients={ingredients} deletedIngredients={deletedIngredients} products={products} canEdit={canEdit} busy={busy} onSave={saveIngredient} onDelete={deleteIngredient} onRestore={restoreIngredient} onImportCatalog={importIngredientCatalog} />}
   </div>;
 }
 
