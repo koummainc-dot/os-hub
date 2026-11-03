@@ -350,15 +350,17 @@ export function transitionSkinTrial(trial, nextStatus, details = {}, todayKey) {
   return validateSkinTrial(candidate, todayKey);
 }
 
-export function validateSkinReaction(input = {}) {
+export function validateSkinReaction(input = {}, todayKey) {
   const productId = text(input.productId, 100);
   const dateStarted = parseSkinDate(input.dateStarted);
   const severity = text(input.severity, 20);
   const resolvedDate = input.resolvedDate ? parseSkinDate(input.resolvedDate) : "";
   if (!productId) return { ok: false, error: "اربط التفاعل بمنتج مسجل." };
   if (!dateStarted) return { ok: false, error: "تاريخ بداية التفاعل غير صالح." };
+  if (todayKey && dateStarted > todayKey) return { ok: false, error: "لا يمكن تسجيل تفاعل بتاريخ مستقبلي." };
   if (!SKIN_REACTION_SEVERITIES.includes(severity)) return { ok: false, error: "درجة شدة التفاعل غير صحيحة." };
   if (resolvedDate && resolvedDate < dateStarted) return { ok: false, error: "تاريخ الحل يسبق تاريخ بداية التفاعل." };
+  if (resolvedDate && todayKey && resolvedDate > todayKey) return { ok: false, error: "تاريخ الحل لا يمكن أن يكون في المستقبل." };
   const status = text(input.status || (resolvedDate ? "resolved" : "open"), 20);
   if (!["open", "resolved", "archived"].includes(status)) return { ok: false, error: "حالة التفاعل غير صحيحة." };
   if (status === "resolved" && !resolvedDate) return { ok: false, error: "تحديد حالة محلول يتطلب تاريخ الحل." };
