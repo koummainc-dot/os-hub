@@ -82,8 +82,24 @@ create policy skincare_progress_delete on storage.objects for delete to authenti
 using (
   bucket_id = 'skincare-progress'
   and case
-    when (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-      and (storage.foldername(name))[2] ~ '^diary-[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+    when (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(((storage.foldername(name))[1])::uuid, 'skincare', 'photos') = 'edit'
+    else false
+  end
+);
+commit;
+
+      and (storage.foldername(name))[2] ~ '^diary-[0-9]{4}-[0-9]{2}-[0-9]{2}(((storage.foldername(name))[1])::uuid, 'skincare', 'photos') = 'edit'
+    else false
+  end
+);
+commit;
+
+      and storage.filename(name) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(\\.thumb)?\\.(jpg|png|webp)(((storage.foldername(name))[1])::uuid, 'skincare', 'photos') = 'edit'
+    else false
+  end
+);
+commit;
+
     then public.ws_access_level(((storage.foldername(name))[1])::uuid, 'skincare', 'photos') = 'edit'
     else false
   end
