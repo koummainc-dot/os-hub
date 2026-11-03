@@ -14,6 +14,8 @@ const registeredSections = registry[1].split("|").map(item => item.split(":")[0]
 const renderedSections = [...moduleSource.matchAll(/\["(home|profile|access|documents|settings)","[^"]+"\]/g)].map(m => m[1]);
 assert.deepEqual([...new Set(renderedSections)].sort(), [...new Set(registeredSections)].sort(), "Health internal navigation must match registry sections");
 assert.match(core, /id:"health"[\s\S]*?scope:"personal"[\s\S]*?sensitive:true/, "Health OS must be personal and sensitive");
+assert.match(platform, /s\.id==="health"\|\|osAccess\(ws,s\.id\)\.level!=="none"/, "Health OS must be discoverable independently of workspace membership");
+assert.match(platform, /sys\.id==="health"\?\{level:"edit",manage:true,sections:\{\},owner:true\}:osAccess\(ws,sys\.id\)/, "Health OS shell access must be independent of workspace grants");
 assert.match(moduleSource, /healthRepository\.listProfiles\(\)/, "Health UI must load from the dedicated repository");
 assert.match(repository, /from\("health_profiles"\)/, "Repository must use dedicated health tables");
 assert.doesNotMatch(repository, /workspace_records|workspace_data/, "Health repository must not use the shared workspace record store");
