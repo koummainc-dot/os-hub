@@ -14,7 +14,7 @@ const addDays = (key, delta) => {
 const STATUS = { planned: "مخططة", running: "جارية", paused: "متوقفة مؤقتًا", completed: "مكتملة", cancelled: "ملغاة" };
 const VERDICTS = [["improved", "تحسن ملحوظ"], ["unchanged", "لم يتغير بوضوح"], ["worse", "تدهور ملحوظ"], ["inconclusive", "نتيجة غير حاسمة"]];
 
-export default function TrialsView({ trials, products, diaryEntries, reactions, canEdit, busy, onCreate, onTransition }) {
+export default function TrialsView({ trials, products, diaryEntries, reactions, photos = [], canEdit, busy, onCreate, onTransition, onAddDiary }) {
   const [productId, setProductId] = useState("");
   const [question, setQuestion] = useState("");
   const [plannedDays, setPlannedDays] = useState("28");
@@ -102,7 +102,7 @@ export default function TrialsView({ trials, products, diaryEntries, reactions, 
               {selectedTrialId === trial.id ? "إخفاء تفاصيل التجربة" : "فتح تفاصيل التجربة والسجل الزمني"}
             </button>
           </div>
-          {selectedTrialId === trial.id && <TrialDetail trial={trial} diaryEntries={diaryEntries} reactions={reactions} summary={summary} />}
+          {selectedTrialId === trial.id && <TrialDetail trial={trial} diaryEntries={diaryEntries} reactions={reactions} photos={photos} summary={summary} onAddDiary={onAddDiary} canEdit={canEdit} />}
           {canEdit && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
             {trial.status === "planned" && <button type="button" style={btn()} disabled={busy} onClick={() => onTransition(trial, "running", {})}>بدء</button>}
             {trial.status === "running" && <button type="button" style={btn()} disabled={busy} onClick={() => onTransition(trial, "paused", {})}>إيقاف مؤقت</button>}
@@ -121,16 +121,21 @@ export default function TrialsView({ trials, products, diaryEntries, reactions, 
   </>;
 }
 
-function TrialDetail({ trial, diaryEntries, reactions, summary }) {
+function TrialDetail({ trial, diaryEntries, reactions, photos, summary, onAddDiary, canEdit }) {
   const finish = trial.endDate || today();
+  const linkedDiaryEntries = diaryEntries.filter(entry => entry.trialId === trial.id)
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const contextualDiaryEntries = diaryEntries.filter(entry =>
+    !entry.trialId && entry.date >= trial.startDate && entry.date <= finish
+  );
   const diaryEvents = diaryEntries
     .filter(entry => entry.date >= trial.startDate && entry.date <= finish)
     .map(entry => ({
       id: "diary-" + entry.id,
       date: entry.date,
       type: "diary",
-      title: "إدخال في مفكرة البشرة",
-      detail: entry.skinRating === null || entry.skinRating === undefined || entry.skinRating === "" ? "دون تقييم عام" : "تقييم البشرة: " + entry.skinRating + " / 5",
+      title: entry.trialId === trial.id ? "يومية مرتبطة بهذه التجربة" : entry.trialId ? "يومية مرتبطة بتجربة أخرى" : "إدخال مفكرة ضمن نفس الفترة (غير مربوط)",
+      detail: entry.skinRating === null || entry.skinRating === undefined || entry.skinRating === "" ? (entry.note || "دون تقييم عام") : "تقييم البشرة: " + entry.skinRating + " / 5" + (entry.note ? " · " + entry.note.slice(0, 180) : ""),
     }));
   const reactionEvents = reactions
     .filter(item => item.productId === trial.productId && item.dateStarted >= trial.startDate && item.dateStarted <= finish)
@@ -163,6 +168,33 @@ function TrialDetail({ trial, diaryEntries, reactions, summary }) {
   const events = [...lifecycleEvents, ...diaryEvents, ...reactionEvents]
     .sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.id.localeCompare(b.id));
   return <section style={{ background: C.white, border: "1px solid " + C.line, borderRadius: 10, padding: 11, marginTop: 10 }}>
+    <div style={{ border: "1px solid " + C.line, borderRadius: 9, padding: 10, marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div><b style={{ fontSize: 12 }}>يوميات هذه التجربة</b><div style={{ color: C.muted, fontSize: 10, marginTop: 3 }}>تظهر هنا إدخالات المفكرة المرتبطة صراحةً بهذه التجربة فقط.</div></div>
+        {canEdit && <button type="button" style={btn(true)} onClick={() => onAddDiary?.(trial)}>إضافة يومية للتجربة</button>}
+      </div>
+      {!linkedDiaryEntries.length && <div style={{ color: C.muted, fontSize: 11, marginTop: 9 }}>لا توجد يوميات مرتبطة مباشرة حتى الآن.</div>}
+      <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+        {linkedDiaryEntries.map(entry => {
+          const entryPhotos = photos.filter(photo => photo.diaryId === entry.id);
+          const areas = Object.entries(entry.areaMeasurements || {}).filter(([, value]) => value !== null && value !== undefined && value !== "");
+          return <article key={entry.id} style={{ borderTop: "1px solid " + C.line, paddingTop: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+              <b style={{ fontSize: 11 }}>{entry.date}</b>
+              <span style={{ color: C.muted, fontSize: 10 }}>{entry.skinRating == null ? "دون تقييم" : "التقييم " + entry.skinRating + " / 5"} · {entryPhotos.length} صورة</span>
+            </div>
+            {!!entry.issues?.length && <div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>الملاحظات السريعة: {entry.issues.join("، ")}</div>}
+            {entry.note && <div style={{ fontSize: 11, whiteSpace: "pre-wrap", marginTop: 5 }}>{entry.note}</div>}
+            {!!areas.length && <div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>قياسات المناطق: {areas.map(([key, value]) => key + " " + value + "/5").join(" · ")}</div>}
+            {entryPhotos.length > 0 && <div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>الصور محفوظة في معرض صور البشرة المرتبط بهذا اليوم.</div>}
+          </article>;
+        })}
+      </div>
+      {!!contextualDiaryEntries.length && <details style={{ borderTop: "1px solid " + C.line, marginTop: 9, paddingTop: 8 }}>
+        <summary style={{ cursor: "pointer", color: C.muted, fontSize: 10 }}>إدخالات أخرى في نفس الفترة غير مرتبطة بهذه التجربة ({contextualDiaryEntries.length})</summary>
+        {contextualDiaryEntries.map(entry => <div key={entry.id} style={{ color: C.muted, fontSize: 10, marginTop: 5 }}>{entry.date} · {entry.skinRating == null ? "دون تقييم" : entry.skinRating + "/5"}</div>)}
+      </details>}
+    </div>
     <b style={{ fontSize: 12 }}>المقارنة حسب مراحل التجربة</b>
     <div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>تُحسب المتوسطات من التقييمات الفعلية المسجلة في كل فترة، وتقارن بخط الأساس المحفوظ قبل البداية.</div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 7, marginTop: 9 }}>
