@@ -5,7 +5,7 @@ const muted={color:"#64748B",fontSize:12};
 const fmt=(v)=>new Intl.DateTimeFormat("ar-EG",{dateStyle:"medium"}).format(new Date(v));
 const csvCell=(v)=>'"'+String(v??"").replace(/"/g,'""')+'"';
 function downloadCsv(rows, filename){
-  const csv="\\uFEFF"+rows.map(row=>row.map(csvCell).join(",")).join("\\r\\n");
+  const csv="\uFEFF"+rows.map(row=>row.map(csvCell).join(",")).join("\r\n");
   const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
   const a=document.createElement("a");a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);
 }
