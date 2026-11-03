@@ -33,6 +33,8 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
   const store = useRecordStore({ wsId: ws?.id || "demo", systemId: "skincare", isDemo, demoStore: demoStore || { current: {} }, seed: () => ({}) , onToast: message => shell?.toast?.(message) });
   const products = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.products)), [store.recs]);
   const units = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.units)), [store.recs]);
+  const deletedProducts = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.products).filter(x => x.deleted_at), [store.recs]);
+  const deletedUnits = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.units).filter(x => x.deleted_at), [store.recs]);
   const profile = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.profile).find(x => x.id === "profile") || null, [store.recs]);
   const [profileDraft, setProfileDraft] = useState({ skinType: "unknown", concernsText: "", sensitivitiesText: "", notes: "" });
   const [productDraft, setProductDraft] = useState(EMPTY_PRODUCT);
@@ -79,6 +81,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     const result = await store.api.softDelete(SKINCARE_COLLECTIONS.products, product.id);
     if (result) say("تم نقل المنتج إلى المحذوفات ويمكن استعادته من سجل المحذوفات عند إضافته.");
   };
+  const restoreProduct = async product => { const result = await store.api.restore(SKINCARE_COLLECTIONS.products, product.id); if (result) say("تمت استعادة المنتج."); };
   const saveUnit = async e => {
     e.preventDefault();
     if (!canEdit) return;
@@ -99,6 +102,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     const result = await store.api.softDelete(SKINCARE_COLLECTIONS.units, unit.id);
     if (result) say("تم نقل العبوة إلى المحذوفات.");
   };
+  const restoreUnit = async unit => { const result = await store.api.restore(SKINCARE_COLLECTIONS.units, unit.id); if (result) say("تمت استعادة العبوة."); };
 
   React.useEffect(() => {
     if (profile) setProfileDraft({ skinType: profile.skinType || "unknown", concernsText: (profile.concerns || []).join("، "), sensitivitiesText: (profile.sensitivities || []).join("، "), notes: profile.notes || "" });
@@ -123,8 +127,8 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     {store.error && <Panel title="تعذر تحميل البيانات"><p style={{ color: C.danger, fontSize: 13 }}>{store.error.message || "حدث خطأ أثناء الاتصال."}</p><button style={button()} onClick={() => store.api.reload()}>إعادة المحاولة</button></Panel>}
     {store.ready && !store.error && page === "home" && <HomeView profile={profile} products={products} units={units} setPage={setPage} />}
     {store.ready && !store.error && page === "settings" && <ProfileView profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={saveProfile} canEdit={canEdit} busy={busy} />}
-    {store.ready && !store.error && page === "products" && <ProductsView products={products} draft={productDraft} setDraft={setProductDraft} onSave={saveProduct} onEdit={editProduct} onDelete={deleteProduct} editing={editingProduct} setEditing={setEditingProduct} canEdit={canEdit} busy={busy} />}
-    {store.ready && !store.error && page === "units" && <UnitsView units={units} products={products} draft={unitDraft} setDraft={setUnitDraft} onSave={saveUnit} onEdit={editUnit} onDelete={deleteUnit} editing={editingUnit} setEditing={setEditingUnit} canEdit={canEdit} busy={busy} />}
+    {store.ready && !store.error && page === "products" && <ProductsView products={products} deletedProducts={deletedProducts} onRestore={restoreProduct} draft={productDraft} setDraft={setProductDraft} onSave={saveProduct} onEdit={editProduct} onDelete={deleteProduct} editing={editingProduct} setEditing={setEditingProduct} canEdit={canEdit} busy={busy} />}
+    {store.ready && !store.error && page === "units" && <UnitsView units={units} deletedUnits={deletedUnits} onRestore={restoreUnit} products={products} draft={unitDraft} setDraft={setUnitDraft} onSave={saveUnit} onEdit={editUnit} onDelete={deleteUnit} editing={editingUnit} setEditing={setEditingUnit} canEdit={canEdit} busy={busy} />}
   </div>;
 }
 
@@ -150,7 +154,7 @@ function ProfileView({ profile, draft, setDraft, onSave, canEdit, busy }) {
   </Panel>;
 }
 
-function ProductsView({ products, draft, setDraft, onSave, onEdit, onDelete, editing, setEditing, canEdit, busy }) {
+function ProductsView({ products, deletedProducts, onRestore, draft, setDraft, onSave, onEdit, onDelete, editing, setEditing, canEdit, busy }) {
   return <><Panel title={editing ? "تعديل منتج" : "إضافة منتج"}>
     {canEdit ? <form onSubmit={onSave} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 11 }}>
       <Field title="اسم المنتج" value={draft.name} onChange={v => setDraft(d => ({ ...d, name: v }))} required />
@@ -170,10 +174,11 @@ function ProductsView({ products, draft, setDraft, onSave, onEdit, onDelete, edi
       {canEdit && <div style={{ display: "flex", gap: 6 }}><button style={button()} onClick={() => onEdit(p)}>تعديل</button><button style={{ ...button(), color: C.danger }} onClick={() => onDelete(p)}>حذف</button></div>}
     </article>)}
     {!products.length && <p style={{ color: C.muted, fontSize: 12 }}>لم تتم إضافة منتجات بعد.</p>}
+    {!!deletedProducts.length && <details style={{ marginTop: 12 }}><summary style={{ cursor: "pointer", color: C.muted, fontSize: 12 }}>المحذوفات ({deletedProducts.length})</summary>{deletedProducts.map(p => <div key={p.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "9px 0", borderTop: "1px solid " + C.line }}><span style={{ fontSize: 12 }}>{p.name}</span>{canEdit && <button type="button" style={button()} onClick={() => onRestore(p)}>استعادة</button>}</div>)}</details>}
   </Panel></>;
 }
 
-function UnitsView({ units, products, draft, setDraft, onSave, onEdit, onDelete, editing, setEditing, canEdit, busy }) {
+function UnitsView({ units, deletedUnits, onRestore, products, draft, setDraft, onSave, onEdit, onDelete, editing, setEditing, canEdit, busy }) {
   return <><Panel title={editing ? "تعديل عبوة" : "تسجيل عبوة"}>
     {canEdit ? <form onSubmit={onSave} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 11 }}>
       <Field title="اسم العبوة" value={draft.name} onChange={v => setDraft(d => ({ ...d, name: v }))} required />
@@ -189,5 +194,6 @@ function UnitsView({ units, products, draft, setDraft, onSave, onEdit, onDelete,
       {canEdit && <div style={{ display: "flex", gap: 6 }}><button style={button()} onClick={() => onEdit(u)}>تعديل</button><button style={{ ...button(), color: C.danger }} onClick={() => onDelete(u)}>حذف</button></div>}
     </article>)}
     {!units.length && <p style={{ color: C.muted, fontSize: 12 }}>لا توجد عبوات مسجلة.</p>}
+    {!!deletedUnits.length && <details style={{ marginTop: 12 }}><summary style={{ cursor: "pointer", color: C.muted, fontSize: 12 }}>العبوات المحذوفة ({deletedUnits.length})</summary>{deletedUnits.map(u => <div key={u.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "9px 0", borderTop: "1px solid " + C.line }}><span style={{ fontSize: 12 }}>{u.name}</span>{canEdit && <button type="button" style={button()} onClick={() => onRestore(u)}>استعادة</button>}</div>)}</details>}
   </Panel></>;
 }
