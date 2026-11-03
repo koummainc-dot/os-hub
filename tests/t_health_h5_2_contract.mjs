@@ -20,6 +20,9 @@ assert.ok(builder.includes("setReviewed(false)"),"Changes must invalidate prior 
 assert.ok(builder.includes("!reviewed"),"Export must be blocked until the user confirms review");
 assert.ok(builder.includes("window.print()"),"PDF output must use print/save flow");
 assert.ok(builder.includes("profile.timezone"),"Visit report dates must respect the health profile timezone");
+assert.ok(builder.includes("measurements:readable.measurements"),"Vital measurements must require their dedicated permission");
+assert.ok(builder.includes("measurements:measurements.filter"),"Vital measurements must be selectable in the visit report");
+assert.ok(ui.includes("measurements={measurements}"),"Visit summary must receive the vital measurement records");
 assert.ok(builder.includes("لا يتم حفظ هذا الملخص في قاعدة البيانات"),"Visit summary must not persist a second copy of health data");
 assert.ok(!builder.includes("cycleEntries"),"Cycle records must not be included");
 assert.ok(!builder.includes("documents.map"),"Medical documents must not be silently included");
