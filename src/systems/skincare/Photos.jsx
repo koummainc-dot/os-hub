@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { getSkinPhotoSignedUrls } from "./photoStorage.js";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", white: "#FFFFFF", accent: "#A855F7", danger: "#B91C1C", soft: "#FAF5FF" };
@@ -22,15 +22,16 @@ export default function PhotosView({ workspaceId, entries, photos, deletedPhotos
   const [urlVersion, setUrlVersion] = useState(0);
 
   const selectedDiary = entries.find(entry => entry.id === diaryId) || null;
-  const signatureKey = useMemo(() => photos.map(photo => photo.id + ":" + (photo.updated_at || photo.createdAt || "")).join("|"), [photos]);
 
   useEffect(() => {
     if (!entries.some(entry => entry.id === diaryId)) setDiaryId(entries[0]?.id || "");
   }, [entries, diaryId]);
 
   useEffect(() => {
-    if (!photos.length || isDemo || !workspaceId) { setSigned({}); setSignErrors({}); return; }
+    if (!photos.length || isDemo || !workspaceId) { setSigned({}); setSignErrors({}); setLoadingUrls(false); return; }
     let cancelled = false;
+    setSigned({});
+    setSignErrors({});
     setLoadingUrls(true);
     Promise.all(photos.map(async photo => {
       try {
@@ -51,7 +52,7 @@ export default function PhotosView({ workspaceId, entries, photos, deletedPhotos
       setSignErrors(nextErrors);
     }).finally(() => { if (!cancelled) setLoadingUrls(false); });
     return () => { cancelled = true; };
-  }, [workspaceId, isDemo, signatureKey, urlVersion]);
+  }, [workspaceId, isDemo, photos, urlVersion]);
 
   const compareLeft = photos.find(photo => photo.id === leftId) || null;
   const compareRight = photos.find(photo => photo.id === rightId) || null;
