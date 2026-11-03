@@ -14,7 +14,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await clickBtn('جرّب الوضع التجريبي'); await sleep(200);
 
   console.log('— owner');
-  ok(tileTitles().filter(t=>/OS/.test(t)).length===14,'owner sees 14 system tiles');
+  ok(tileTitles().filter(t=>/OS/.test(t)).length===15,'owner sees 15 system tiles (includes personal Health OS)');
   await openSys('Content OS'); const ownerNav=navItems(); ok(ownerNav.length===11,'owner: ContentOS nav has 11 sections ('+ownerNav.length+')');
 
   console.log('— view as Sara (edit; finance=view; spiritual/relationships none; content hides analytics/team/settings)');
@@ -54,7 +54,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await clickBtn('✓ قبول'); await sleep(300);
   const wsSel=all('aside select')[0]; ok(!!wsSel&&[...wsSel.options].length===2,'workspace switcher now has 2 workspaces');
   ok(txt().includes('مساحة أحمد'),'switched into Ahmed workspace');
-  const t2=tileTitles(); ok(t2.filter(t=>/OS/.test(t)).length===3,'Ahmed workspace: only 3 systems visible (projects/knowledge/content) → '+t2.filter(t=>/OS/.test(t)).length);
+  const t2=tileTitles(); ok(t2.filter(t=>/OS/.test(t)).length===4,'Ahmed workspace: 3 granted systems plus personal Health OS → '+t2.filter(t=>/OS/.test(t)).length);
   await openSys('Content OS'); const n2=navItems().join('|'); ok(!n2.includes('الفريق')&&!n2.includes('الإعدادات'),'Ahmed/ContentOS: team+settings hidden, view-only');
   all('aside > div:nth-child(2) > button')[0]&&0;
   console.log('ERRORS',errors.slice(0,5));
