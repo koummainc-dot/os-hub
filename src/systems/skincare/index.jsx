@@ -224,6 +224,94 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     if (result) say("تمت استعادة المكوّن.");
   };
 
+  const createTrial = async input => {
+    if (!canEdit) return false;
+    const product = products.find(item => item.id === input.productId && item.status === "active");
+    if (!product) return say("اختر منتجًا نشطًا مسجلًا."), false;
+    if (trials.some(item => item.productId === input.productId && ["running", "paused"].includes(item.status))) {
+      return say("يوجد بالفعل اختبار جارٍ أو متوقف مؤقتًا لهذا المنتج."), false;
+    }
+    const todayKey = today();
+    const baselineDiaryIds = diaryEntries
+      .filter(entry => entry.date >= new Date(Date.parse(todayKey + "T00:00:00Z") - 7 * 86400000).toISOString().slice(0, 10) &&
+        entry.date < todayKey && entry.skinRating !== null && entry.skinRating !== undefined && entry.skinRating !== "")
+      .map(entry => entry.id);
+    const checked = validateSkinTrial({ ...input, baselineDiaryIds, status: "running", verdict: "pending" }, todayKey);
+    if (!checked.ok) return say(checked.error), false;
+    setBusy(true);
+    try {
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.trials, { ...checked.value, id: uid() });
+      if (!saved) throw new Error("لم يؤكد النظام حفظ التجربة.");
+      say("بدأت التجربة وحُفظ خط الأساس من المفكرة.");
+      return true;
+    } catch (error) { say(error?.message || "تعذر بدء التجربة."); return false; }
+    finally { setBusy(false); }
+  };
+
+  const updateTrialStatus = async (trial, nextStatus, details = {}) => {
+    if (!canEdit) return false;
+    const checked = transitionSkinTrial(trial, nextStatus, details, today());
+    if (!checked.ok) return say(checked.error), false;
+    setBusy(true);
+    try {
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.trials, { ...checked.value, id: trial.id });
+      if (!saved) throw new Error("لم يؤكد النظام تحديث التجربة.");
+      say(nextStatus === "completed" ? "تم إنهاء التجربة وحفظ النتيجة التي اخترتها." : "تم تحديث حالة التجربة.");
+      return true;
+    } catch (error) { say(error?.message || "تعذر تحديث التجربة."); return false; }
+    finally { setBusy(false); }
+  };
+
+  const createReaction = async input => {
+    if (!canEdit) return false;
+    const product = products.find(item => item.id === input.productId);
+    if (!product) return say("اختر منتجًا مسجلًا."), false;
+    if (input.unitId && !units.some(unit => unit.id === input.unitId && unit.productId === input.productId)) {
+      return say("العبوة المختارة لا تتبع المنتج المحدد."), false;
+    }
+    if ((input.suspectedIngredientIds || []).some(id => !ingredients.some(item => item.id === id))) {
+      return say("توجد مكونات مشتبه بها لم تعد موجودة في المكتبة."), false;
+    }
+    const checked = validateSkinReaction(input);
+    if (!checked.ok) return say(checked.error), false;
+    setBusy(true);
+    try {
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.reactions, { ...checked.value, id: uid() });
+      if (!saved) throw new Error("لم يؤكد النظام حفظ التفاعل.");
+      say("تم تسجيل التفاعل. راجع المنتج والروتين يدويًا، ولم يتم إيقاف أي خطوة تلقائيًا.");
+      return true;
+    } catch (error) { say(error?.message || "تعذر تسجيل التفاعل."); return false; }
+    finally { setBusy(false); }
+  };
+
+  const resolveReaction = async reaction => {
+    if (!canEdit || reaction.status !== "open") return false;
+    const checked = validateSkinReaction({ ...reaction, resolvedDate: today(), status: "resolved" });
+    if (!checked.ok) return say(checked.error), false;
+    setBusy(true);
+    try {
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.reactions, { ...checked.value, id: reaction.id });
+      if (!saved) throw new Error("لم يؤكد النظام حفظ التحديث.");
+      say("تم تسجيل تاريخ حل التفاعل.");
+      return true;
+    } catch (error) { say(error?.message || "تعذر تحديث التفاعل."); return false; }
+    finally { setBusy(false); }
+  };
+
+  const archiveReaction = async reaction => {
+    if (!canEdit || reaction.status !== "open") return false;
+    const checked = validateSkinReaction({ ...reaction, status: "archived" });
+    if (!checked.ok) return say(checked.error), false;
+    setBusy(true);
+    try {
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.reactions, { ...checked.value, id: reaction.id });
+      if (!saved) throw new Error("لم يؤكد النظام أرشفة التفاعل.");
+      say("تمت أرشفة التفاعل مع الاحتفاظ بسجله.");
+      return true;
+    } catch (error) { say(error?.message || "تعذرت أرشفة التفاعل."); return false; }
+    finally { setBusy(false); }
+  };
+
   const uploadPhoto = async payload => {
     if (!canEdit || isDemo) return say("رفع الصور يتطلب صلاحية تعديل واتصالًا بمساحة عمل فعلية.");
     setBusy(true);
