@@ -4,6 +4,7 @@ export const SKINCARE_COLLECTIONS = Object.freeze({
   units: "skin_units",
   routines: "skin_routines",
   routineLogs: "skin_routine_logs",
+  diary: "skin_diary",
 });
 
 const text = (value, max = 160) => String(value ?? "").trim().slice(0, max);
@@ -144,4 +145,47 @@ export function routineAdherence(logs = [], dueCount = 0) {
 
 export function routineLogId(routineId, dateKey, stepId) {
   return [routineId, dateKey, stepId].join(":");
+}
+
+
+export function validateSkinDiaryEntry(input = {}, todayKey) {
+  const date = text(input.date, 10);
+  const parseDate = value => {
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+    const parsed = new Date(value + "T12:00:00");
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  };
+  if (!parseDate(date)) return { ok: false, error: "تاريخ اليوم غير صالح." };
+  if (todayKey && date > todayKey) return { ok: false, error: "لا يمكن تسجيل يوم في المستقبل." };
+  const bounded = (key, label, min, max, integer = false) => {
+    if (input[key] === "" || input[key] === null || input[key] === undefined) return { ok: true, value: null };
+    const value = Number(input[key]);
+    if (!Number.isFinite(value) || value < min || value > max || (integer && !Number.isInteger(value))) {
+      return { ok: false, error: label + " خارج النطاق المسموح." };
+    }
+    return { ok: true, value };
+  };
+  const fields = [
+    ["skinRating", "تقييم البشرة", 1, 5, true],
+    ["sleepHours", "ساعات النوم", 0, 24, false],
+    ["sleepQuality", "جودة النوم", 1, 5, true],
+    ["mood", "المزاج", 1, 5, true],
+    ["exerciseMinutes", "مدة النشاط", 0, 1440, true],
+    ["waterGlasses", "أكواب المياه", 0, 100, true],
+  ];
+  const values = {};
+  for (const [key, label, min, max, integer] of fields) {
+    const checked = bounded(key, label, min, max, integer);
+    if (!checked.ok) return checked;
+    values[key] = checked.value;
+  }
+  const issues = Array.isArray(input.issues)
+    ? [...new Set(input.issues.map(x => text(x, 60)).filter(Boolean))].slice(0, 20)
+    : [];
+  return { ok: true, value: {
+    ...input, date, ...values, issues,
+    moodLabel: text(input.moodLabel, 40),
+    note: text(input.note, 3000),
+    trialId: text(input.trialId, 100) || null,
+  }};
 }
