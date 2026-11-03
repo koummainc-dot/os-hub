@@ -13,7 +13,7 @@ function NumberField({ title, value, onChange, min, max, step = 1 }) {
   return <label style={label}>{title}<input type="number" min={min} max={max} step={step} style={field} value={value ?? ""} onChange={e => onChange(e.target.value)} /></label>;
 }
 
-export default function DiaryView({ entries, deletedEntries, selectedDate, setSelectedDate, draft, setDraft, editing, setEditing, onSave, onEdit, onDelete, onRestore, canEdit, busy }) {
+export default function DiaryView({ entries, deletedEntries, trials = [], selectedDate, setSelectedDate, draft, setDraft, editing, setEditing, onSave, onEdit, onDelete, onRestore, canEdit, busy }) {
   const active = entries.find(entry => entry.date === selectedDate);
   const setDate = value => {
     if (value > todayKey) return;
@@ -62,6 +62,12 @@ export default function DiaryView({ entries, deletedEntries, selectedDate, setSe
         <NumberField title="المزاج (1–5)" value={draft.mood} min={1} max={5} onChange={v => setDraft(d => ({ ...d, mood: v }))} />
         <NumberField title="النشاط بالدقائق" value={draft.exerciseMinutes} min={0} max={1440} onChange={v => setDraft(d => ({ ...d, exerciseMinutes: v }))} />
         <NumberField title="أكواب المياه" value={draft.waterGlasses} min={0} max={100} onChange={v => setDraft(d => ({ ...d, waterGlasses: v }))} />
+        <label style={label}>التجربة المرتبطة بهذا اليوم (اختياري)
+          <select style={field} value={draft.trialId || ""} onChange={event => setDraft(d => ({ ...d, trialId: event.target.value }))}>
+            <option value="">بدون ربط بتجربة</option>
+            {trials.filter(trial => trial.status !== "cancelled" && draft.date >= trial.startDate && (!trial.endDate || draft.date <= trial.endDate)).map(trial => <option key={trial.id} value={trial.id}>{trial.question}</option>)}
+          </select>
+        </label>
         <div style={{ gridColumn: "1 / -1", border: "1px solid " + C.line, borderRadius: 10, padding: 11 }}>
           <b style={{ fontSize: 12 }}>قياسات مناطق الوجه</b>
           <p style={{ color: C.muted, fontSize: 10, margin: "4px 0 10px" }}>سجّل شدة المشكلة في كل منطقة من 0 إلى 5؛ اتركها فارغة إذا لم تقيّم المنطقة، واستخدم 0 عند عدم وجود مشكلة.</p>
