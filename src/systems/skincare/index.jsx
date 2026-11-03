@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName } from "./domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, validateSkinTrial, transitionSkinTrial, summarizeSkinTrial, validateSkinReaction } from "./domain.js";
 import DiaryView from "./Diary.jsx";
 import RoutinesView from "./Routines.jsx";
 import PhotosView from "./Photos.jsx";
 import IngredientsView from "./Ingredients.jsx";
+import TrialsView from "./Trials.jsx";
+import ReactionsView from "./Reactions.jsx";
 import { uploadSkinPhoto, deleteSkinPhoto } from "./photoStorage.js";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#A855F7", soft: "#FAF5FF", white: "#FFFFFF", danger: "#B91C1C" };
@@ -34,6 +36,8 @@ const SECTIONS = [
   ["diary", "مفكرة البشرة", "📔"],
   ["photos", "صور التقدم", "📷"],
   ["ingredients", "المكونات", "🧬"],
+  ["trials", "التجارب", "🧫"],
+  ["reactions", "التفاعلات", "⚠️"],
 ];
 const EMPTY_PRODUCT = { name: "", brand: "", category: "other", status: "active", suitability: "suitable", startDate: "", expiryDate: "", ingredients: "", instructions: "", notes: "" };
 const EMPTY_UNIT = { name: "", productId: "", openedOn: today(), expiresOn: "", notes: "" };
@@ -43,6 +47,8 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
   const products = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.products)), [store.recs]);
   const ingredients = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.ingredients)).sort((a, b) => String(a.inciName).localeCompare(String(b.inciName))), [store.recs]);
   const deletedIngredients = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.ingredients).filter(x => x.deleted_at), [store.recs]);
+  const trials = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.trials)).sort((a, b) => String(b.startDate).localeCompare(String(a.startDate))), [store.recs]);
+  const reactions = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.reactions)).sort((a, b) => String(b.dateStarted).localeCompare(String(a.dateStarted))), [store.recs]);
   const units = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.units)), [store.recs]);
   const routines = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.routines)), [store.recs]);
   const routineLogs = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.routineLogs)), [store.recs]);
