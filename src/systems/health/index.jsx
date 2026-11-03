@@ -60,6 +60,8 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
   const [factors, setFactors] = useState([]);
   const [factorLogs, setFactorLogs] = useState([]);
   const [cycleEntries, setCycleEntries] = useState([]);
+  const [measurements, setMeasurements] = useState([]);
+  const [measurementDraft, setMeasurementDraft] = useState({id:"",measurement_type:"weight",value_primary:"",value_secondary:"",recorded_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),source:"manual",context:"",notes:""});
   const [medicationDraft, setMedicationDraft] = useState({name:"",brand:"",medication_type:"medication",dose_amount:"",dose_unit:"mg",route:"oral",frequency:"once_daily",schedule_times:"08:00",effective_from:new Date().toISOString().slice(0,10),start_date:new Date().toISOString().slice(0,10),prescribed_by:"",instructions:""});
   const [versionDraft, setVersionDraft] = useState({medication_id:"",dose_amount:"",dose_unit:"mg",route:"oral",frequency:"once_daily",schedule_times:"08:00",effective_from:new Date().toISOString().slice(0,10),instructions:""});
   const [sideEffectDraft, setSideEffectDraft] = useState({medication_id:"",medication_event_id:"",name:"",severity:"unknown",occurred_at:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),notes:""});
@@ -132,7 +134,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
 
 
   useEffect(() => {
-    if (!selected?.id) { setConditions([]); setAllergies([]); setSymptomDefinitions([]); setSymptomLogs([]); setDocuments([]); setMedications([]); setMedicationVersions([]); setMedicationEvents([]); setSideEffects([]); setMedicationReminders([]); setFlareEvents([]); setDailyCheckins([]); setFactors([]); setFactorLogs([]); setCycleEntries([]); return; }
+    if (!selected?.id) { setConditions([]); setAllergies([]); setSymptomDefinitions([]); setSymptomLogs([]); setDocuments([]); setMedications([]); setMedicationVersions([]); setMedicationEvents([]); setSideEffects([]); setMedicationReminders([]); setFlareEvents([]); setDailyCheckins([]); setFactors([]); setFactorLogs([]); setCycleEntries([]); setMeasurements([]); setMeasurements([]); return; }
     let cancelled = false;
     setDailyCheckins([]); setFactors([]); setFactorLogs([]); setCycleEntries([]);
     (async () => {
@@ -153,13 +155,14 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
           checkins: readDemo(demoStore, demoKey("daily-checkins:" + selected.id, userId), []).map(x=>({...x})),
           factors: readDemo(demoStore, demoKey("factors:" + selected.id, userId), []).map(x=>({...x})),
           factorLogs: readDemo(demoStore, demoKey("factor-logs:" + selected.id, userId), []).map(x=>({...x})),
-          cycleEntries: (isOwner && selected.cycle_tracking_enabled) ? readDemo(demoStore, demoKey("cycle-entries:" + selected.id, userId), []).map(x=>({...x})) : []
+          cycleEntries: (isOwner && selected.cycle_tracking_enabled) ? readDemo(demoStore, demoKey("cycle-entries:" + selected.id, userId), []).map(x=>({...x})),
+          measurements: readDemo(demoStore, demoKey("measurements:" + selected.id, userId), []).map(x=>({...x}))
         };
         else {
-          const result = await Promise.all([healthRepository.listConditions(selected.id),healthRepository.listAllergies(selected.id),healthRepository.listSymptomDefinitions(selected.id),healthRepository.listSymptomLogs(selected.id),healthRepository.listDocuments(selected.id),healthRepository.listMedications(selected.id),healthRepository.listMedicationVersions(selected.id),healthRepository.listMedicationEvents(selected.id),healthRepository.listMedicationSideEffects(selected.id),healthRepository.listMedicationReminders(selected.id),healthRepository.listFlareEvents(selected.id),healthRepository.listDailyCheckins(selected.id),healthRepository.listFactors(selected.id),healthRepository.listFactorLogs(selected.id),(selected.owner_user_id===userId&&selected.cycle_tracking_enabled)?healthRepository.listCycleEntries(selected.id):Promise.resolve([])]);
-          rows = {conditions:result[0],allergies:result[1],definitions:result[2],logs:result[3],documents:result[4],medications:result[5],versions:result[6],events:result[7],sideEffects:result[8],reminders:result[9],flares:result[10],checkins:result[11],factors:result[12],factorLogs:result[13],cycleEntries:result[14]};
+          const result = await Promise.all([healthRepository.listConditions(selected.id),healthRepository.listAllergies(selected.id),healthRepository.listSymptomDefinitions(selected.id),healthRepository.listSymptomLogs(selected.id),healthRepository.listDocuments(selected.id),healthRepository.listMedications(selected.id),healthRepository.listMedicationVersions(selected.id),healthRepository.listMedicationEvents(selected.id),healthRepository.listMedicationSideEffects(selected.id),healthRepository.listMedicationReminders(selected.id),healthRepository.listFlareEvents(selected.id),healthRepository.listDailyCheckins(selected.id),healthRepository.listFactors(selected.id),healthRepository.listFactorLogs(selected.id),(selected.owner_user_id===userId&&selected.cycle_tracking_enabled)?healthRepository.listCycleEntries(selected.id):Promise.resolve([]),healthRepository.listMeasurements(selected.id)]);
+          rows = {conditions:result[0],allergies:result[1],definitions:result[2],logs:result[3],documents:result[4],medications:result[5],versions:result[6],events:result[7],sideEffects:result[8],reminders:result[9],flares:result[10],checkins:result[11],factors:result[12],factorLogs:result[13],cycleEntries:result[14],measurements:result[15]};
         }
-        if (!cancelled) { setConditions(rows.conditions); setAllergies(rows.allergies); setSymptomDefinitions(rows.definitions); setSymptomLogs(rows.logs); setDocuments(rows.documents || []); setMedications(rows.medications||[]); setMedicationVersions(rows.versions||[]); setMedicationEvents(rows.events||[]); setSideEffects(rows.sideEffects||[]); setMedicationReminders(rows.reminders||[]); setFlareEvents(rows.flares||[]); setDailyCheckins(rows.checkins||[]); setFactors(rows.factors||[]); setFactorLogs(rows.factorLogs||[]); setCycleEntries(rows.cycleEntries||[]); }
+        if (!cancelled) { setConditions(rows.conditions); setAllergies(rows.allergies); setSymptomDefinitions(rows.definitions); setSymptomLogs(rows.logs); setDocuments(rows.documents || []); setMedications(rows.medications||[]); setMedicationVersions(rows.versions||[]); setMedicationEvents(rows.events||[]); setSideEffects(rows.sideEffects||[]); setMedicationReminders(rows.reminders||[]); setFlareEvents(rows.flares||[]); setDailyCheckins(rows.checkins||[]); setFactors(rows.factors||[]); setFactorLogs(rows.factorLogs||[]); setCycleEntries(rows.cycleEntries||[]); setMeasurements(rows.measurements||[]); }
       } catch(e) { if(!cancelled) setError(e?.message || "تعذر تحميل السجل الصحي."); }
     })();
     return () => { cancelled = true; };
@@ -663,7 +666,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
         </div>
       </div>
       <nav style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 18 }}>
-        {[["home","الرئيسية"],["profile","الملف الصحي"],["conditions","الحالات والحساسيات"],["symptoms","الأعراض"],["medications","الأدوية والعلاجات"],["flare_events","نوبات التهيّج"],["checkins","المتابعة اليومية"],["factors","العوامل والمتتبعات"],["reports","التقارير"],["visit_summary","ملخص زيارة الطبيب"],...(selected&&isOwner&&selected.cycle_tracking_enabled?[["cycle_tracking","الدورة الاختيارية"]]:[]),["access","المشاركة"],["documents","الوثائق"],["settings","الخصوصية"]].map(([id,label]) => <button key={id} style={page===id?PRIMARY:SECONDARY} onClick={() => setPage?.(id)}>{label}</button>)}
+        {[["home","الرئيسية"],["profile","الملف الصحي"],["measurements","القياسات الحيوية"],["conditions","الحالات والحساسيات"],["symptoms","الأعراض"],["medications","الأدوية والعلاجات"],["flare_events","نوبات التهيّج"],["checkins","المتابعة اليومية"],["factors","العوامل والمتتبعات"],["reports","التقارير"],["visit_summary","ملخص زيارة الطبيب"],...(selected&&isOwner&&selected.cycle_tracking_enabled?[["cycle_tracking","الدورة الاختيارية"]]:[]),["access","المشاركة"],["documents","الوثائق"],["settings","الخصوصية"]].map(([id,label]) => <button key={id} style={page===id?PRIMARY:SECONDARY} onClick={() => setPage?.(id)}>{label}</button>)}
       </nav>
     </header>
 
