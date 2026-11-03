@@ -206,3 +206,68 @@ export function validateSkinDiaryEntry(input = {}, todayKey) {
     trialId: text(input.trialId, 100) || null,
   }};
 }
+
+
+export function normalizeINCIName(value) {
+  return text(value, 120).normalize("NFKC").toLocaleLowerCase("en").replace(/[\s_-]+/g, " ").trim();
+}
+
+export function parseINCIList(raw = "") {
+  return [...new Set(String(raw ?? "")
+    .split(/[,،;؛\n\r·•]+/)
+    .map(item => text(item, 120))
+    .filter(Boolean))];
+}
+
+export function validateSkinIngredient(input = {}) {
+  const inciName = text(input.inciName || input.name, 120);
+  if (!inciName) return { ok: false, error: "اسم INCI للمكوّن مطلوب." };
+  const flag = text(input.flag || "none", 20);
+  if (!["none", "favorite", "sensitive", "avoid"].includes(flag)) return { ok: false, error: "وسم المكوّن غير صحيح." };
+  const aliases = Array.isArray(input.aliases)
+    ? [...new Set(input.aliases.map(value => text(value, 120)).filter(Boolean))]
+    : parseINCIList(input.aliasesText || "");
+  return { ok: true, value: {
+    id: text(input.id, 100),
+    inciName,
+    aliases: aliases.slice(0, 30),
+    function: text(input.function, 300),
+    notes: text(input.notes, 1200),
+    flag,
+    source: text(input.source, 500),
+    updatedAt: new Date().toISOString(),
+  }};
+}
+
+export function analyzeINCI(raw, ingredientLibrary = []) {
+  const names = parseINCIList(raw);
+  const index = new Map();
+  ingredientLibrary.forEach(ingredient => {
+    [ingredient.inciName, ...(ingredient.aliases || [])].forEach(alias => {
+      const key = normalizeINCIName(alias);
+      if (key && !index.has(key)) index.set(key, ingredient);
+    });
+  });
+  const matches = [];
+  const unknown = [];
+  names.forEach(name => {
+    const ingredient = index.get(normalizeINCIName(name));
+    if (ingredient) matches.push({ inputName: name, ingredient });
+    else unknown.push(name);
+  });
+  return {
+    total: names.length,
+    matched: matches.length,
+    matches,
+    unknown,
+    flagged: matches.filter(item => ["sensitive", "avoid"].includes(item.ingredient.flag)),
+  };
+}
+
+export function productsContainingIngredient(products = [], ingredient) {
+  const aliases = [ingredient?.inciName, ...(ingredient?.aliases || [])]
+    .map(normalizeINCIName).filter(Boolean);
+  if (!aliases.length) return [];
+  return products.filter(product => parseINCIList(product.ingredients || "")
+    .some(name => aliases.includes(normalizeINCIName(name))));
+}
