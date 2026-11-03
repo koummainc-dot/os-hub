@@ -19,6 +19,8 @@ assert.equal(validateSkinDiaryEntry({ date: "2026-11-04" }, "2026-11-03").ok, fa
 assert.equal(validateSkinDiaryEntry({ date: "2026-02-30" }, "2026-11-03").ok, false);
 assert.equal(validateSkinDiaryEntry({ date: "2026-11-03", skinRating: 6 }, "2026-11-03").ok, false);
 assert.equal(validateSkinDiaryEntry({ date: "2026-11-03", sleepHours: -1 }, "2026-11-03").ok, false);
+assert.equal(validateSkinDiaryEntry({ date: "2026-11-03", trialId: "trial-123", note: "ملاحظة مرتبطة بالتجربة" }, "2026-11-03").value.trialId, "trial-123");
+assert.equal(validateSkinDiaryEntry({ date: "2026-11-03", trialId: "" }, "2026-11-03").value.trialId, null);
 console.log("Skincare diary contracts passed.");
 
 const workspaceId = "123e4567-e89b-42d3-a456-426614174000";
@@ -84,3 +86,15 @@ const shortTrialComparison = summarizeSkinTrial({
 }, trialDiary, trialReactions, []);
 assert.equal(shortTrialComparison.periodsOverlap, true);
 console.log("Skincare trial comparison contracts added.");
+
+
+const linkedTrialDiary = [
+  { id: "linked-1", date: "2026-10-04", trialId: "trial-main", skinRating: 3, note: "ملاحظة يومية" },
+  { id: "linked-2", date: "2026-10-05", trialId: "trial-main", skinRating: 4 },
+  { id: "unlinked-1", date: "2026-10-06", trialId: null, skinRating: 2 },
+  { id: "other-trial-1", date: "2026-10-07", trialId: "trial-other", skinRating: 5 },
+];
+assert.equal(linkedTrialDiary.filter(entry => entry.trialId === "trial-main").length, 2);
+assert.equal(linkedTrialDiary.filter(entry => !entry.trialId && entry.date >= trial.startDate && entry.date <= trial.endDate).length, 1);
+assert.equal(linkedTrialDiary.some(entry => entry.trialId === "trial-other"), true);
+console.log("Skincare trial-linked diary association contracts added.");
