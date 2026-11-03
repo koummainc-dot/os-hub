@@ -5,8 +5,8 @@ const core = fs.readFileSync("src/core/core.js", "utf8");
 const moduleSource = fs.readFileSync("src/systems/health/index.jsx", "utf8");
 const platform = fs.readFileSync("src/platform/Platform.jsx", "utf8");
 const repository = fs.readFileSync("src/systems/health/repository.js", "utf8");
-const migration = fs.readFileSync("supabase/migrations/20261103140000_health_os_h1_foundation.sql", "utf8");
-const storageFix = fs.readFileSync("supabase/migrations/20261103141500_health_os_h1_storage_scope_fix.sql", "utf8");
+const migration = fs.readFileSync("supabase/migrations/20261103134221_health_os_h1_foundation.sql", "utf8");
+const storageFix = fs.readFileSync("supabase/migrations/20261103134401_health_os_h1_storage_scope_fix.sql", "utf8");
 
 const registry = core.match(/id:"health"[\s\S]*?sections:osSec\("([^"]+)"\)/);
 assert.ok(registry, "Health OS must be registered in the unified OS registry");
