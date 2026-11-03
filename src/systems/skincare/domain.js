@@ -302,6 +302,7 @@ export function validateSkinTrial(input = {}, todayKey) {
   const status = text(input.status || "planned", 20);
   const verdict = text(input.verdict || "pending", 20);
   const endDate = input.endDate ? parseSkinDate(input.endDate) : "";
+  if (input.endDate && !endDate) return { ok: false, error: "تاريخ نهاية التجربة غير صالح." };
   if (!productId) return { ok: false, error: "اختر المنتج المرتبط بالتجربة." };
   if (!question) return { ok: false, error: "اكتب سؤالًا واضحًا للتجربة." };
   if (!startDate) return { ok: false, error: "تاريخ بداية التجربة غير صالح." };
@@ -355,6 +356,7 @@ export function validateSkinReaction(input = {}, todayKey) {
   const dateStarted = parseSkinDate(input.dateStarted);
   const severity = text(input.severity, 20);
   const resolvedDate = input.resolvedDate ? parseSkinDate(input.resolvedDate) : "";
+  if (input.resolvedDate && !resolvedDate) return { ok: false, error: "تاريخ حل التفاعل غير صالح." };
   if (!productId) return { ok: false, error: "اربط التفاعل بمنتج مسجل." };
   if (!dateStarted) return { ok: false, error: "تاريخ بداية التفاعل غير صالح." };
   if (todayKey && dateStarted > todayKey) return { ok: false, error: "لا يمكن تسجيل تفاعل بتاريخ مستقبلي." };
