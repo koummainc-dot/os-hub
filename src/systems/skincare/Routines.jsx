@@ -9,7 +9,8 @@ const btn = (primary = false) => ({ border: "1px solid " + (primary ? C.accent :
 const EMPTY = { name: "", timeOfDay: "am", frequency: "daily", days: [], timesPerWeek: 3, reminderEnabled: false, reminderTime: "08:00", status: "active", steps: [] };
 const DAY_NAMES = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 const STEP_TYPES = [["cleanser","غسول"],["toner","تونر"],["treatment","علاج"],["serum","سيروم"],["eye","العين"],["moisturizer","مرطب"],["sunscreen","واقي شمس"],["oil","زيت/بلسم"],["other","أخرى"]];
-const dateKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+const dateAt = date => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+const dateKey = () => dateAt(new Date());
 const Panel = ({ title, children, action }) => <section style={panel}><div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:12 }}><b>{title}</b>{action}</div>{children}</section>;
 
 export default function RoutinesView({ routines, logs, products, canEdit, busy, onSave, onArchive, onCopy, onLog, onUndo }) {
@@ -20,10 +21,11 @@ export default function RoutinesView({ routines, logs, products, canEdit, busy, 
   const [stepInstruction, setStepInstruction] = useState("");
   const [preview, setPreview] = useState(false);
   const today = dateKey();
-  const weekLogs = useMemo(() => logs.filter(x => x.date >= today && x.date <= today), [logs, today]);
-  const weekDone = logs.filter(x => x.status === "done").length;
+  const weekStartDate = new Date(); weekStartDate.setDate(weekStartDate.getDate() - weekStartDate.getDay());
+  const weekStart = dateAt(weekStartDate);
+  const weekLogs = useMemo(() => logs.filter(x => x.date >= weekStart && x.date <= today), [logs, weekStart, today]);
   const weekDue = routines.filter(x => x.status === "active").reduce((n, r) => n + (r.frequency === "times_per_week" ? (r.timesPerWeek || 0) : r.frequency === "selected_days" ? (r.days || []).length : 7) * (r.steps || []).length, 0);
-  const adherence = routineAdherence(logs.filter(x => x.status === "done" || x.status === "skipped"), weekDue);
+  const adherence = routineAdherence(weekLogs, weekDue);
 
   const reset = () => { setDraft(EMPTY); setEditing(""); setStepProduct(""); setStepInstruction(""); setPreview(false); };
   const save = async e => {
@@ -35,10 +37,10 @@ export default function RoutinesView({ routines, logs, products, canEdit, busy, 
     reset();
   };
   const addStep = () => {
-    const checked = validateRoutineStep({ productId: stepProduct, category: stepType, instruction: stepInstruction, order: draft.steps.length }, products);
+    const checked = validateRoutineStep({ id: "step-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8), productId: stepProduct, category: stepType, instruction: stepInstruction, order: draft.steps.length }, products);
     if (!checked.ok) {
       if (checked.requiresConfirmation && window.confirm(checked.error + "\nهل تريد الإضافة رغم التحذير؟")) {
-        const confirmed = validateRoutineStep({ productId: stepProduct, category: stepType, instruction: stepInstruction, order: draft.steps.length, avoidConfirmed: true }, products);
+        const confirmed = validateRoutineStep({ id: "step-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8), productId: stepProduct, category: stepType, instruction: stepInstruction, order: draft.steps.length, avoidConfirmed: true }, products);
         if (confirmed.ok) setDraft(d => ({ ...d, steps: [...d.steps, confirmed.value] }));
       } else if (!checked.requiresConfirmation) window.alert(checked.error);
       return;
