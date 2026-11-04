@@ -76,7 +76,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   const followupItems = useMemo(() => buildSkinFollowUps({
     today: today(settings?.timezone || "Africa/Cairo"), timezone: settings?.timezone || "Africa/Cairo", products, units, routines, routineLogs, trials, reactions,
     expiryWindowDays: settings?.expirySoonDays || 30,
-    trialWindowDays: settings?.trialDays ? Math.min(30, settings.trialDays) : 7,
+    trialWindowDays: 7,
   }), [products,units,routines,routineLogs,trials,reactions,settings]);
   const syncedIntegrationKeys = useRef(new Set());
   useEffect(() => {
@@ -95,6 +95,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
           dueAt, priority: item.priority || "normal",
           entityType: item.type, entityId: item.sourceId || item.id,
           action: { system: "skincare", section: item.page, recordId: item.sourceId || null },
+          quietHours: { start: settings?.quietStart || "22:00", end: settings?.quietEnd || "08:00", timezone: settings?.timezone || "Africa/Cairo" },
         };
         const [notification, calendar] = await Promise.all([
           integrations.notifications.upsert(common),
@@ -130,6 +131,13 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   const [editingUnit, setEditingUnit] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const previousTodayRef = useRef(todayKey);
+  useEffect(() => {
+    const previous = previousTodayRef.current;
+    if (diaryDate === previous) setDiaryDate(todayKey);
+    setDiaryDraft(current => current.date === previous ? { ...current, date: todayKey } : current);
+    previousTodayRef.current = todayKey;
+  }, [todayKey]);
 
   const level = osSectionLevel(access, page);
   const canEdit = level === "edit";
@@ -167,7 +175,10 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     if (!canEdit || !window.confirm("هل تريد نقل المنتج إلى المحذوفات؟")) return;
     const hasUnits = units.some(unit => unit.productId === product.id);
     const hasRoutineSteps = routines.some(routine => (routine.steps || []).some(step => step.productId === product.id));
-    if (hasUnits || hasRoutineSteps) return say("لا يمكن حذف المنتج لوجود عبوات أو خطوات روتين مرتبطة به. احتفظ بالتاريخ أو غيّر حالة المنتج بدل الحذف.");
+    const hasTrials = trials.some(item => item.productId === product.id);
+    const hasReactions = reactions.some(item => item.productId === product.id);
+    const hasLists = lists.some(item => (item.productIds || []).includes(product.id));
+    if (hasUnits || hasRoutineSteps || hasTrials || hasReactions || hasLists) return say("لا يمكن حذف المنتج لوجود عبوات أو روتينات أو تجارب أو تفاعلات أو قوائم مرتبطة به. غيّر حالته بدل الحذف للحفاظ على التاريخ.");
     const result = await store.api.softDelete(SKINCARE_COLLECTIONS.products, product.id);
     if (result) say("تم نقل المنتج إلى المحذوفات ويمكن استعادته من سجل المحذوفات عند إضافته.");
   };
@@ -372,6 +383,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     })).filter(item => item.steps.length > 0);
     const checked = validateSkinTrial({
       ...input,
+      plannedDays: input.plannedDays || settings?.trialDays || 28,
       baselineDiaryIds,
       routineContext,
       status: "running",
@@ -491,7 +503,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     for (const step of checked.value.steps || []) {
       if (seenSteps.has(step.id)) return say("يوجد معرف مكرر لإحدى خطوات الروتين.");
       seenSteps.add(step.id);
-      const stepCheck = validateRoutineStep(step, products);
+      const stepCheck = validateRoutineStep({ ...step, avoidConfirmed: settings?.requireConfirmAvoid === false ? true : step.avoidConfirmed }, products);
       if (!stepCheck.ok) return say(stepCheck.error);
     }
     setBusy(true);
