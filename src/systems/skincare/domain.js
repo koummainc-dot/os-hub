@@ -567,6 +567,19 @@ export function buildSkinDashboardData({
     (item.endDate ? item.endDate >= startDate : ["running", "paused"].includes(item.status) || item.startDate >= startDate));
   const openReactions = reactions.filter(item => item.status === "open");
   const rangeReactions = reactions.filter(item => inRange(item.dateStarted));
+  const reactionTimeline = Object.values(rangeReactions.reduce((groups, item) => {
+    const key = item.dateStarted;
+    if (!groups[key]) groups[key] = { date: key, count: 0, severe: 0, moderate: 0, mild: 0 };
+    groups[key].count += 1;
+    if (groups[key][item.severity] !== undefined) groups[key][item.severity] += 1;
+    return groups;
+  }, {})).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
+  const trialSummaries = rangeTrials.slice().sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)))
+    .slice(0, 8).map(trial => ({
+      id: trial.id, productId: trial.productId, status: trial.status,
+      startDate: trial.startDate, endDate: trial.endDate || null,
+      summary: summarizeSkinTrial(trial, entries, reactions, trials),
+    }));
   const rangePhotos = photos.filter(item => inRange(item.date));
   const rangeLogs = routineLogs.filter(item => inRange(item.date));
   const doneLogs = rangeLogs.filter(item => item.status === "done").length;
@@ -581,6 +594,8 @@ export function buildSkinDashboardData({
     areas,
     openReactionCount: openReactions.length,
     rangeReactionCount: rangeReactions.length,
+    reactionTimeline,
+    trialSummaries,
     severeReactionCount: rangeReactions.filter(item => item.severity === "severe").length,
     runningTrialCount: trials.filter(item => item.status === "running").length,
     pausedTrialCount: trials.filter(item => item.status === "paused").length,
