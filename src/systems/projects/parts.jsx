@@ -142,13 +142,14 @@ export function TaskSheet() {
   if (!view.taskId) return null; if (!t) return null;
   const project = projectsById[t.project_id]; const d = idx.derived[t.id]; const leaf = d.isLeaf; const canW = can("task.write", project);
   const sessions = data.sessions.filter((s) => s.task_id === t.id || idx.descendants(t.id).includes(s.task_id)).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  const outs = data.outputs.filter((o) => o.task_id === t.id); const linkedIssues = data.issues.filter((i) => (i.task_ids || []).includes(t.id) || (t.issue_ids || []).includes(i.id)); const canOut = can("output.write", project); const status = leaf ? t.status : d.status;
+  const outs = data.outputs.filter((o) => o.task_id === t.id); const linkedIssues = data.issues.filter((i) => (i.task_ids || []).includes(t.id) || (t.issue_ids || []).includes(i.id)); const linkedKrs = data.krs.filter((k) => (k.task_ids || []).some((id) => id === t.id || idx.descendants(id).includes(t.id))); const linkedDecisions = data.decisions.filter((x) => (x.affected_task_ids || []).includes(t.id) || (x.implementation_task_ids || []).includes(t.id)); const linkedRisks = data.risks.filter((x) => (x.task_ids || []).includes(t.id)); const linkedWins = data.wins.filter((x) => x.task_id === t.id || (x.task_ids || []).includes(t.id)); const linkedUpdates = data.updates.filter((x) => (x.related_task_ids || []).includes(t.id)); const linkedDiscoveries = data.discovery.filter((x) => (x.resolution_links || []).some((link) => link.kind === "task" && link.id === t.id) || (t.discovery_ids || []).includes(x.id)); const canOut = can("output.write", project); const status = leaf ? t.status : d.status;
   const acts = data.activity.filter((a) => a.entity_id === t.id).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 15);
   const tabs = [{ id: "details", label: "التفاصيل" }, { id: "time", label: "الوقت", count: sessions.length }, { id: "outputs", label: "المخرجات", count: outs.length }, { id: "links", label: "الروابط" }, { id: "activity", label: "النشاط" }];
   async function saveOutput(v) {
     if (!String(v.name || "").trim()) throw new Error("اسم المخرج مطلوب");
     const prd = v.prd_id ? data.prds.find((x) => x.id === v.prd_id) : null;
     if (prd && prd.project_id !== t.project_id) throw new Error("المواصفة يجب أن تتبع نفس مشروع المهمة");
+    if (v.prd_requirement_id && (!prd || !(prd.requirements || []).some((x) => x.id === v.prd_requirement_id))) throw new Error("المتطلب المختار لا ينتمي إلى المواصفة المحددة");
     const existing = v.id ? data.outputs.find((x) => x.id === v.id) : null;
     if (existing?.approval === "Final") throw new Error("المخرج النهائي مقفل؛ أنشئ مخرجاً جديداً بدل تعديل النسخة المعتمدة.");
     if (v.approval === "Final" && !can("output.approve", project)) throw new Error("لا تملك صلاحية اعتماد المخرج نهائياً");
