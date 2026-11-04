@@ -9,11 +9,9 @@ const btn = (primary = false) => ({ border: "1px solid " + (primary ? C.accent :
 const EMPTY = { name: "", timeOfDay: "am", frequency: "daily", days: [], timesPerWeek: 3, reminderEnabled: false, reminderTime: "08:00", status: "active", steps: [] };
 const DAY_NAMES = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 const STEP_TYPES = [["cleanser","غسول"],["toner","تونر"],["treatment","علاج"],["serum","سيروم"],["eye","العين"],["moisturizer","مرطب"],["sunscreen","واقي شمس"],["oil","زيت/بلسم"],["other","أخرى"]];
-const dateAt = date => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
-const dateKey = () => dateAt(new Date());
 const Panel = ({ title, children, action }) => <section style={panel}><div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:12 }}><b>{title}</b>{action}</div>{children}</section>;
 
-export default function RoutinesView({ routines, logs, products, reactions = [], canEdit, busy, onSave, onArchive, onCopy, onLog, onUndo }) {
+export default function RoutinesView({ routines, logs, products, reactions = [], canEdit, busy, onSave, onArchive, onCopy, onLog, onUndo, todayKey, timezone = "Africa/Cairo", weekStartDay = 6, requireConfirmAvoid = true }) {
   const [draft, setDraft] = useState(EMPTY);
   const [editing, setEditing] = useState("");
   const [stepProduct, setStepProduct] = useState("");
@@ -21,9 +19,12 @@ export default function RoutinesView({ routines, logs, products, reactions = [],
   const [stepInstruction, setStepInstruction] = useState("");
   const [preview, setPreview] = useState(false);
   const [previewSteps, setPreviewSteps] = useState([]);
-  const today = dateKey();
-  const weekStartDate = new Date(); weekStartDate.setDate(weekStartDate.getDate() - weekStartDate.getDay());
-  const weekStart = dateAt(weekStartDate);
+  const today = todayKey || new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const [year, month, dayOfMonth] = today.split("-").map(Number);
+  const dayIndex = new Date(Date.UTC(year, month - 1, dayOfMonth)).getUTCDay();
+  const weekStartDate = new Date(Date.UTC(year, month - 1, dayOfMonth));
+  weekStartDate.setUTCDate(weekStartDate.getUTCDate() - ((dayIndex - weekStartDay + 7) % 7));
+  const weekStart = weekStartDate.toISOString().slice(0,10);
   const weekLogs = useMemo(() => logs.filter(x => x.date >= weekStart && x.date <= today), [logs, weekStart, today]);
   const weekDue = routines.filter(x => x.status === "active").reduce((n, r) => n + (r.frequency === "times_per_week" ? (r.timesPerWeek || 0) : r.frequency === "selected_days" ? (r.days || []).length : 7) * (r.steps || []).length, 0);
   const adherence = routineAdherence(weekLogs, weekDue);
@@ -38,7 +39,7 @@ export default function RoutinesView({ routines, logs, products, reactions = [],
     if (saved) reset();
   };
   const addStep = () => {
-    const checked = validateRoutineStep({ id: "step-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8), productId: stepProduct, category: stepType, instruction: stepInstruction, order: draft.steps.length }, products);
+    const checked = validateRoutineStep({ id: "step-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8), productId: stepProduct, category: stepType, instruction: stepInstruction, order: draft.steps.length, avoidConfirmed: !requireConfirmAvoid }, products);
     if (!checked.ok) {
       if (checked.requiresConfirmation && window.confirm(checked.error + "\nهل تريد الإضافة رغم التحذير؟")) {
         const confirmed = validateRoutineStep({ id: "step-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8), productId: stepProduct, category: stepType, instruction: stepInstruction, order: draft.steps.length, avoidConfirmed: true }, products);
@@ -81,7 +82,7 @@ export default function RoutinesView({ routines, logs, products, reactions = [],
         {draft.frequency==="selected_days" && <div style={{gridColumn:"1 / -1",display:"flex",gap:8,flexWrap:"wrap"}}>{DAY_NAMES.map((day,i)=><label key={day} style={{fontSize:12,color:C.muted}}><input type="checkbox" checked={draft.days.includes(i)} onChange={e=>setDraft(d=>({...d,days:e.target.checked?[...d.days,i]:d.days.filter(x=>x!==i)}))}/> {day}</label>)}</div>}
         {draft.frequency==="times_per_week" && <label style={label}>مرات أسبوعيًا<input style={field} type="number" min="1" max="7" value={draft.timesPerWeek} onChange={e=>setDraft(d=>({...d,timesPerWeek:Number(e.target.value)}))}/></label>}
         <label style={label}>وقت التذكير (اختياري)<input style={field} type="time" value={draft.reminderTime || ""} onChange={e=>setDraft(d=>({...d,reminderTime:e.target.value}))}/></label>
-        <label style={{...label,display:"flex",alignItems:"center",gap:8}}><input type="checkbox" checked={draft.reminderEnabled} onChange={e=>setDraft(d=>({...d,reminderEnabled:e.target.checked}))}/> تفعيل التذكير (موعد محفوظ؛ خدمة الإشعارات لم تُربط بعد)</label>
+        <label style={{...label,display:"flex",alignItems:"center",gap:8}}><input type="checkbox" checked={draft.reminderEnabled} onChange={e=>setDraft(d=>({...d,reminderEnabled:e.target.checked}))}/> تفعيل التذكير (يظهر في المتابعة ويتزامن مع خدمات OS Hub)</label>
         <div style={{gridColumn:"1 / -1",borderTop:"1px solid "+C.line,paddingTop:12}}>
           <b style={{fontSize:13}}>خطوات الروتين</b>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:8,marginTop:10}}>
@@ -104,7 +105,7 @@ export default function RoutinesView({ routines, logs, products, reactions = [],
       {!routines.length && <p style={{fontSize:12,color:C.muted}}>لا توجد روتينات بعد. ابدأ بإنشاء روتين صباحي أو مسائي.</p>}
       {routines.map(r=>{
         const rlogs=logs.filter(x=>x.routineId===r.id);
-        const dueToday=isRoutineDue(r,new Date(),logs);
+        const dueToday=isRoutineDue(r,today,logs,timezone,weekStartDay);
         return <article key={r.id} style={{borderTop:"1px solid "+C.line,padding:"13px 0"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><b>{r.name}</b><span style={{fontSize:11,color:C.muted}}>{r.timeOfDay==="am"?"صباح":r.timeOfDay==="pm"?"مساء":"مخصص"} · {r.status==="paused"?"متوقف مؤقتًا":"نشط"}</span><span style={{flex:1}}/>{canEdit && <><button type="button" style={btn()} onClick={()=>startEdit(r)}>تعديل</button><button type="button" style={btn()} onClick={()=>onCopy(r)}>نسخ</button><button type="button" style={btn()} onClick={()=>onArchive(r)}>{r.status==="paused"?"تفعيل":"إيقاف مؤقت"}</button></>}</div>
           <div style={{marginTop:8,display:"grid",gap:7}}>
