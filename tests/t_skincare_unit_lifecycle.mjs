@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {
   effectiveSkinUnitExpiry, skinUnitStatus, validateSkinUnit,
-  validateSkinProduct, validateSkinList, validateSkinSettings, canRestoreSkinUnit, hasDuplicateSkinListName,
+  validateSkinProduct, validateSkinList, validateSkinSettings, canRestoreSkinUnit, canRestoreSkinRoutineLog, canRestoreSkinList, hasDuplicateSkinListName,
 } from "../src/systems/skincare/domain.js";
 
 assert.equal(effectiveSkinUnitExpiry({ openedOn: "2026-01-31", paoMonths: 1 }), "2026-02-28");
@@ -32,8 +32,6 @@ assert.equal(hasDuplicateSkinListName({ id: "new", name: "قائمة الصبا�
 
 console.log("Skincare unit lifecycle and settings tests passed.");
 
-
-import { canRestoreSkinRoutineLog, canRestoreSkinList } from "../src/systems/skincare/domain.js";
 const log = { id: "l1", client_generated_id: "r1:2026-11-04:s1", routineId: "r1", stepId: "s1", date: "2026-11-04", status: "done" };
 const routines = [{ id: "r1", steps: [{ id: "s1", productId: "p1" }] }];
 const products = [{ id: "p1" }];
