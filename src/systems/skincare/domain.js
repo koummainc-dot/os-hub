@@ -125,6 +125,12 @@ export function canRestoreSkinUnit(unit = {}, products = []) {
   return !productId || products.some(product => product.id === productId && !product.deleted_at);
 }
 
+export function hasDuplicateSkinListName(list = {}, activeLists = []) {
+  const name = normalizeINCIName(list.name);
+  if (!name) return false;
+  return activeLists.some(item => item.id !== list.id && normalizeINCIName(item.name) === name);
+}
+
 export function validateSkinList(input = {}) {
   const name = text(input.name, 100);
   const kind = text(input.kind || "custom", 20);
