@@ -520,3 +520,77 @@ function addSkinDays(dateKey, delta) {
 function laterSkinDate(first, second) {
   return first > second ? first : second;
 }
+
+
+const SKIN_DASHBOARD_AREAS = Object.freeze([
+  ["forehead", "الجبهة"], ["leftCheek", "الخد الأيسر"], ["rightCheek", "الخد الأيمن"],
+  ["nose", "الأنف"], ["chin", "الذقن"], ["jawline", "الفك"],
+]);
+
+function dashboardDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return year + "-" + month + "-" + day;
+}
+
+function shiftDashboardDate(dateKey, delta) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return dashboardDateKey(new Date(year, month - 1, day + delta, 12));
+}
+
+export function buildSkinDashboardData({
+  entries = [], trials = [], reactions = [], photos = [], routines = [], routineLogs = [],
+  endDate = dashboardDateKey(new Date()), days = 30,
+} = {}) {
+  const safeDays = [30, 90, 180].includes(Number(days)) ? Number(days) : 30;
+  const startDate = shiftDashboardDate(endDate, -(safeDays - 1));
+  const inRange = date => typeof date === "string" && date >= startDate && date <= endDate;
+  const rangeEntries = entries.filter(entry => inRange(entry.date));
+  const ratedEntries = rangeEntries.filter(entry => entry.skinRating !== null &&
+    entry.skinRating !== undefined && entry.skinRating !== "" && Number.isFinite(Number(entry.skinRating)));
+  const byDate = new Map(ratedEntries.map(entry => [entry.date, entry]));
+  const timeline = Array.from({ length: safeDays }, (_, index) => {
+    const date = shiftDashboardDate(startDate, index);
+    const entry = byDate.get(date);
+    return { date, recorded: Boolean(entry), rating: entry ? Number(entry.skinRating) : null };
+  });
+  const mean = values => values.length
+    ? Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2)) : null;
+  const areas = SKIN_DASHBOARD_AREAS.map(([key, label]) => {
+    const values = rangeEntries.map(entry => entry.areaMeasurements?.[key])
+      .filter(value => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)))
+      .map(Number);
+    return { key, label, average: mean(values), count: values.length };
+  });
+  const rangeTrials = trials.filter(item => item.startDate && item.startDate <= endDate &&
+    (item.endDate || ["running", "paused"].includes(item.status) || item.startDate >= startDate) >= startDate);
+  const openReactions = reactions.filter(item => item.status === "open");
+  const rangeReactions = reactions.filter(item => inRange(item.dateStarted));
+  const rangePhotos = photos.filter(item => inRange(item.date));
+  const rangeLogs = routineLogs.filter(item => inRange(item.date));
+  const doneLogs = rangeLogs.filter(item => item.status === "done").length;
+  const skippedLogs = rangeLogs.filter(item => item.status === "skipped").length;
+  const loggedSteps = doneLogs + skippedLogs;
+  const factorAnalysis = analyzeSkinFactors(rangeEntries);
+  return {
+    startDate, endDate, days: safeDays, timeline,
+    daysWithRating: new Set(ratedEntries.map(entry => entry.date)).size,
+    daysWithoutRating: safeDays - new Set(ratedEntries.map(entry => entry.date)).size,
+    averageRating: mean(ratedEntries.map(entry => Number(entry.skinRating))),
+    areas,
+    openReactionCount: openReactions.length,
+    rangeReactionCount: rangeReactions.length,
+    severeReactionCount: rangeReactions.filter(item => item.severity === "severe").length,
+    runningTrialCount: trials.filter(item => item.status === "running").length,
+    pausedTrialCount: trials.filter(item => item.status === "paused").length,
+    rangeTrialCount: rangeTrials.length,
+    photoCount: rangePhotos.length,
+    routineLogCount: loggedSteps,
+    routineDoneCount: doneLogs,
+    routineSkippedCount: skippedLogs,
+    routineCompletionAmongLogged: loggedSteps ? Number((doneLogs / loggedSteps * 100).toFixed(1)) : null,
+    activeRoutineCount: routines.filter(item => item.status === "active").length,
+    factorAnalysis,
+  };
+}
