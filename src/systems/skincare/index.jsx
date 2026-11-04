@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus } from "./domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus, buildSkinFollowUps } from "./domain.js";
 import { SkinCompareView, SkinListsView, RoutineLogsView, SkinSettingsView } from "./WorkspaceTools.jsx";
 import DiaryView from "./Diary.jsx";
 import RoutinesView from "./Routines.jsx";
@@ -70,6 +70,52 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   const deletedProducts = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.products).filter(x => x.deleted_at), [store.recs]);
   const deletedUnits = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.units).filter(x => x.deleted_at), [store.recs]);
   const profile = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.profile).find(x => x.id === "profile") || null, [store.recs]);
+  const followupItems = useMemo(() => buildSkinFollowUps({
+    today: today(), products, units, routines, routineLogs, trials, reactions,
+    expiryWindowDays: settings?.expirySoonDays || 30,
+    trialWindowDays: settings?.trialDays ? Math.min(30, settings.trialDays) : 7,
+  }), [products,units,routines,routineLogs,trials,reactions,settings]);
+  const syncedIntegrationKeys = useRef(new Set());
+  useEffect(() => {
+    const integrations = api?.integrations;
+    if (!ws?.id || !integrations?.notifications || !integrations?.calendar) return;
+    let cancelled = false;
+    const current = new Set(followupItems.map(item => "skincare:" + item.id));
+    (async () => {
+      for (const item of followupItems) {
+        if (cancelled) return;
+        const sourceKey = "skincare:" + item.id;
+        const dueAt = String(item.dueDate || today()) + "T" + String(item.reminderTime || "09:00") + ":00";
+        const common = {
+          workspaceId: ws.id, sourceSystem: "skincare", sourceKey,
+          title: item.title, description: item.description,
+          dueAt, priority: item.priority || "normal",
+          entityType: item.type, entityId: item.sourceId || item.id,
+          action: { system: "skincare", section: item.page, recordId: item.sourceId || null },
+        };
+        const [notification, calendar] = await Promise.all([
+          integrations.notifications.upsert(common),
+          integrations.calendar.upsert({ ...common, date: item.dueDate || today(), sourceRecordId: item.sourceId || item.id, eventType: item.type }),
+        ]);
+        if (cancelled) return;
+        if (notification?.ok === false || calendar?.ok === false) {
+          shell?.toast?.("تعذر مزامنة أحد تذكيرات Skincare مع خدمات OS Hub؛ ستظل ظاهرة داخل صفحة المتابعة.");
+        }
+      }
+      for (const oldKey of syncedIntegrationKeys.current) {
+        if (current.has(oldKey) || cancelled) continue;
+        const sourceKey = oldKey;
+        await Promise.all([
+          integrations.notifications.cancel({ workspaceId: ws.id, sourceKey }),
+          integrations.calendar.remove({ workspaceId: ws.id, sourceKey }),
+        ]);
+      }
+      if (!cancelled) syncedIntegrationKeys.current = current;
+    })().catch(() => {
+      if (!cancelled) shell?.toast?.("تعذر الوصول إلى خدمات التكامل الموحدة؛ تظل تنبيهات Skincare متاحة داخل النظام.");
+    });
+    return () => { cancelled = true; };
+  }, [api, ws?.id, followupItems, shell]);
   const [profileDraft, setProfileDraft] = useState({ skinType: "unknown", concernsText: "", sensitivitiesText: "", notes: "" });
   const [productDraft, setProductDraft] = useState(EMPTY_PRODUCT);
   const [unitDraft, setUnitDraft] = useState(EMPTY_UNIT);
