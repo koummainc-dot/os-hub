@@ -75,7 +75,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   const profile = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.profile).find(x => x.id === "profile") || null, [store.recs]);
   const followupItems = useMemo(() => buildSkinFollowUps({
     today: today(settings?.timezone || "Africa/Cairo"), timezone: settings?.timezone || "Africa/Cairo", weekStartDay: settings?.weekStartDay ?? 6, products, units, routines, routineLogs, trials, reactions,
-    expiryWindowDays: settings?.expirySoonDays || 30,
+    expiryWindowDays: settings?.expirySoonDays ?? 30,
     trialWindowDays: 7,
   }), [products,units,routines,routineLogs,trials,reactions,settings]);
   const syncedIntegrationKeys = useRef(new Set());
