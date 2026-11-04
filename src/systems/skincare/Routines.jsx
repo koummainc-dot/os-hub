@@ -115,7 +115,7 @@ export default function RoutinesView({ routines, logs, products, reactions = [],
               return <div key={step.id} style={{display:"grid",gap:6,background:C.soft,borderRadius:9,padding:9}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                   <span style={{fontSize:12,flex:1}}>{productName(step.productId)} {log?.status==="done"?"✓":log?.status==="skipped"?"—":""}</span>
-                {canEdit && r.status==="active" && dueToday && !log && <><button type="button" style={btn(true)} onClick={()=>onLog(r,step,"done")}>تم</button><button type="button" style={btn()} onClick={()=>onLog(r,step,"skipped")}>تخطي</button></>}
+                {canEdit && r.status==="active" && dueToday && !log && <><button type="button" style={btn(true)} disabled={busy} onClick={()=>onLog(r,step,"done")}>تم</button><button type="button" style={btn()} disabled={busy} onClick={()=>onLog(r,step,"skipped")}>تخطي</button></>}
                 {canEdit && log && <span style={{fontSize:11,color:C.muted}}>تم تسجيل {log.status==="done"?"التنفيذ":"التخطي"}</span>}
                 {canEdit && r.status==="active" && !dueToday && !log && <span style={{fontSize:11,color:C.muted}}>غير مستحق اليوم أو اكتمل هدف الأسبوع</span>}
                 </div>
