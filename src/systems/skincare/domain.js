@@ -213,17 +213,22 @@ export function sortRoutineSteps(steps = []) {
   }).map((step, index) => ({ ...step, order: index }));
 }
 
-export function isRoutineDue(routine, date = new Date(), logs = [], timezone = "Africa/Cairo") {
+export function isRoutineDue(routine, date = new Date(), logs = [], timezone = "Africa/Cairo", weekStartDay = 0) {
   if (!routine || routine.status !== "active") return false;
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
-  const dateKey = parts.filter(part => ["year","month","day"].includes(part.type)).map(part => part.value);
-  const localDateKey = dateKey[0] + "-" + dateKey[1] + "-" + dateKey[2];
+  let localDateKey;
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) localDateKey = date;
+  else {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+    const values = Object.fromEntries(parts.filter(part => ["year","month","day"].includes(part.type)).map(part => [part.type,part.value]));
+    localDateKey = values.year + "-" + values.month + "-" + values.day;
+  }
   const [year,month,dayOfMonth] = localDateKey.split("-").map(Number);
   const day = new Date(Date.UTC(year,month-1,dayOfMonth)).getUTCDay();
   if (routine.frequency === "selected_days") return (routine.days || []).includes(day);
   if (routine.frequency === "times_per_week") {
     const start = new Date(Date.UTC(year,month-1,dayOfMonth));
-    start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+    const startDay = Number.isInteger(weekStartDay) && weekStartDay >= 0 && weekStartDay <= 6 ? weekStartDay : 0;
+    start.setUTCDate(start.getUTCDate() - ((day - startDay + 7) % 7));
     const weekStart = start.toISOString().slice(0,10);
     const completedDays = new Set(logs.filter(x => x.routineId === routine.id && x.status === "done" && x.date >= weekStart && x.date <= localDateKey).map(x => x.date));
     return completedDays.size < Number(routine.timesPerWeek || 0);
@@ -712,7 +717,7 @@ const skincareDateDistance = (from, to) => {
 export function buildSkinFollowUps({
   today = new Date().toISOString().slice(0, 10),
   products = [], units = [], routines = [], routineLogs = [], trials = [], reactions = [],
-  expiryWindowDays = 30, trialWindowDays = 7, timezone = "Africa/Cairo",
+  expiryWindowDays = 30, trialWindowDays = 7, timezone = "Africa/Cairo", weekStartDay = 0,
 } = {}) {
   const items = [];
   const add = item => items.push({ ...item, id: item.id || [item.type, item.sourceId, item.dueDate || today].join(":") });
@@ -737,11 +742,11 @@ export function buildSkinFollowUps({
       dueDate: effectiveExpiry, daysRemaining: distance, priority: distance < 0 ? "high" : "normal",
       productName: product?.name || "", page: "units", action: "مراجعة العبوة" });
   }
-  const localDate = new Date(String(today) + "T12:00:00Z");
+  const localDate = String(today);
   const dayLogs = routineLogs.filter(log => log.date === today);
   for (const routine of routines) {
     if (routine.status !== "active" || !routine.reminderEnabled || !routine.reminderTime) continue;
-    if (!isRoutineDue(routine, localDate, routineLogs, timezone)) continue;
+    if (!isRoutineDue(routine, localDate, routineLogs, timezone, weekStartDay)) continue;
     const steps = (routine.steps || []).filter(step => !step.archived);
     const pending = steps.filter(step => !dayLogs.some(log => log.routineId === routine.id && log.stepId === step.id && ["done", "skipped"].includes(log.status)));
     if (!pending.length) continue;
