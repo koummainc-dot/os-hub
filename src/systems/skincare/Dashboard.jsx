@@ -90,6 +90,25 @@ export default function SkinDashboard({ endDate, diaryEntries, trials, reactions
         <span>{dateLabel(item.date)}</span><span>{item.count} تفاعل · شديد: {item.severe} · متوسط: {item.moderate} · خفيف: {item.mild}</span>
       </div>)}
     </section>
+    <section style={panel}><b>مقارنة فترات التجارب</b><p style={{ color: C.muted, fontSize: 11, margin: "5px 0 10px" }}>متوسطات وصفية من السجلات المتاحة؛ لا تثبت أن المنتج سبب التغير.</p>
+      {!data.trialSummaries.length && <div style={{ color: C.muted, fontSize: 12 }}>لا توجد تجارب متقاطعة مع هذه الفترة.</div>}
+      {data.trialSummaries.map(item => {
+        const product = products.find(value => value.id === item.productId);
+        const summary = item.summary;
+        const values = [["خط الأساس", summary.baselineAverage, summary.baselineCount], ["الأسبوع الأول", summary.firstWeek.average, summary.firstWeek.count], ["الأسبوع الثاني", summary.secondWeek.average, summary.secondWeek.count], ["آخر فترة", summary.finalWeek.average, summary.finalWeek.count]];
+        return <div key={item.id} style={{ borderTop: "1px solid " + C.line, padding: "10px 0" }}>
+          <b style={{ fontSize: 12 }}>{product?.name || "منتج غير متاح"}</b><small style={{ color: C.muted, marginInlineStart: 8 }}>{item.status === "running" ? "جارية" : item.status === "paused" ? "متوقفة مؤقتًا" : item.status === "completed" ? "مكتملة" : item.status === "planned" ? "مخططة" : "ملغاة"}</small>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(105px,1fr))", gap: 6, marginTop: 8 }}>
+            {values.map(([label, value, count]) => <div key={label} style={{ background: C.soft, borderRadius: 8, padding: 8 }}><div style={{ color: C.muted, fontSize: 10 }}>{label}</div><b>{value ?? "—"}</b><div style={{ color: C.muted, fontSize: 9 }}>{count} تقييم</div></div>)}
+          </div>
+          {summary.periodsOverlap && <div style={{ color: "#B45309", fontSize: 10, marginTop: 6 }}>بعض الفترات متداخلة؛ لا تعاملها كعينات مستقلة.</div>}
+        </div>;
+      })}
+    </section>
+    <section style={panel}><b>السجل الزمني للتفاعلات</b>
+      {!data.reactionTimeline.length && <div style={{ color: C.muted, fontSize: 12, marginTop: 8 }}>لا توجد تفاعلات مسجلة خلال الفترة.</div>}
+      {data.reactionTimeline.map(item => <div key={item.date} style={{ display: "flex", justifyContent: "space-between", gap: 10, borderTop: "1px solid " + C.line, padding: "8px 0", fontSize: 11 }}><span>{dateLabel(item.date)}</span><span>{item.count} تفاعل · شديد: {item.severe} · متوسط: {item.moderate} · خفيف: {item.mild}</span></div>)}
+    </section>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 10 }}>
       <section style={panel}><b>التفاعلات خلال الفترة</b><div style={{ fontSize: 24, fontWeight: 800, marginTop: 8 }}>{data.rangeReactionCount}</div><div style={{ color: C.muted, fontSize: 11 }}>منها {data.severeReactionCount} بتصنيف شدة «شديد»</div></section>
       <section style={panel}><b>التجارب ضمن النطاق</b><div style={{ fontSize: 24, fontWeight: 800, marginTop: 8 }}>{data.rangeTrialCount}</div><div style={{ color: C.muted, fontSize: 11 }}>جارية الآن: {data.runningTrialCount}</div></section>
