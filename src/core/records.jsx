@@ -144,7 +144,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
   }, [wsId, systemId, isDemo, syncSince]);
 
   // ── writes
-  const persist = useCallback((coll, rec, prev, fromQueue = false) => {
+  const persist = useCallback((coll, rec, prev, fromQueue = false, allowQueue = true) => {
     const k = key(coll, rec.id);
     const run = async () => {
       const row = { data: stripMeta(rec), deleted: !!rec._deleted, visible_to: rec._vis || null };
@@ -164,7 +164,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
         return true;
       } catch (e) {
         console.error("record save failed", e);
-        if (!fromQueue && isNetworkFailure(e)) {
+        if (!fromQueue && allowQueue && isNetworkFailure(e)) {
           const items = readQueue();
           const existing = items.findIndex((x) => x.coll === coll && x.rec.id === rec.id);
           const item = { coll, rec: { ...rec, _syncPending: true }, baseTs: meta.current[k] || null, queuedAt: nowIso() };
@@ -243,6 +243,22 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     if (isDemo) { const k = "recs:" + wsId + ":" + systemId; const m = demoStore.current[k] || (demoStore.current[k] = {}); m[coll] = { ...(m[coll] || {}), [next.id]: next }; return Promise.resolve(next); }
     return persist(coll, next, prev).then((ok) => (ok ? { ...next, _syncPending: ok === "queued" } : null));
   }, [isDemo, persist, wsId, systemId]);
+
+  // Strict writes are for binary workflows that cannot safely leave a queued metadata
+  // record behind (for example, a private Storage upload). They never enter the offline queue.
+  const putStrict = useCallback((coll, rec) => {
+    const prev = (stateRef.current.recs[coll] || {})[rec.id] || null;
+    const now = nowIso();
+    const next = { ...prev, ...rec, id: rec.id || uid(), v: ((prev && prev.v) || 0) + 1, updated_at: now, created_at: (prev && prev.created_at) || rec.created_at || now };
+    dispatch({ type: "put", coll, rec: next });
+    if (isDemo) {
+      const k = "recs:" + wsId + ":" + systemId;
+      const m = demoStore.current[k] || (demoStore.current[k] = {});
+      m[coll] = { ...(m[coll] || {}), [next.id]: next };
+      return Promise.resolve(next);
+    }
+    return persist(coll, next, prev, false, false).then(ok => ok === true ? { ...next, _syncPending: false } : null);
+  }, [isDemo, persist, wsId, systemId, demoStore]);
 
   // Atomic multi-record write for operations whose records must move together.
   // Unlike put(), this deliberately does not enqueue offline changes: a partially replayed
@@ -454,7 +470,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     }
   }, [isDemo, systemId, wsId, demoStore, loadAll, toast]);
 
-  const api = useMemo(() => ({ put, putAtomic, putBatchAtomic, purgeAtomic, softDelete, restore, putMany, reload: loadAll, sync: syncSince, flushQueue }), [put, putAtomic, putBatchAtomic, purgeAtomic, softDelete, restore, putMany, loadAll, syncSince, flushQueue]);
+  const api = useMemo(() => ({ put, putStrict, putAtomic, putBatchAtomic, purgeAtomic, softDelete, restore, putMany, reload: loadAll, sync: syncSince, flushQueue }), [put, putStrict, putAtomic, putBatchAtomic, purgeAtomic, softDelete, restore, putMany, loadAll, syncSince, flushQueue]);
   return { ...state, api };
 }
 
