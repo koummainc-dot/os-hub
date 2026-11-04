@@ -15,14 +15,14 @@ const records = {
 };
 const created = createSkinBackup({ records, exportedAt: "2026-11-04T00:00:00.000Z" });
 assert.equal(created.ok, true);
-assert.equal(created.totalRecords, 8);
+assert.equal(created.totalRecords, 9);
 const checked = validateSkinBackup(created.backup);
 assert.equal(checked.ok, true);
 assert.equal(checked.includesPhotoFiles, false);
 assert.equal(checked.warnings.length, 1);
 const compared = compareSkinBackupWithCurrent(checked, { [C.products]: { p1: { id: "p1" } } });
 assert.equal(compared.existingRecords, 1);
-assert.equal(compared.newRecords, 7);
+assert.equal(compared.newRecords, 8);
 
 const pending = createSkinBackup({ records: { [C.products]: { p1: { id: "p1", _syncPending: true } } } });
 assert.equal(pending.ok, false);
