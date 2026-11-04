@@ -1,0 +1,49 @@
+name: OS Integration Events SQL smoke tests
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/20261101150000_os_integration_events.sql"
+      - "supabase/tests/os_integration_events_smoke.sql"
+      - "tests/os_integration_events_sql_bootstrap.sql"
+      - ".github/workflows/os-integration-events-sql-smoke.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261101150000_os_integration_events.sql"
+      - "supabase/tests/os_integration_events_smoke.sql"
+      - "tests/os_integration_events_sql_bootstrap.sql"
+      - ".github/workflows/os-integration-events-sql-smoke.yml"
+
+jobs:
+  os-integration-events-postgres-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: integration_events_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d integration_events_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: integration_events_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Bootstrap disposable schema and realtime publication
+        run: psql -v ON_ERROR_STOP=1 -f tests/os_integration_events_sql_bootstrap.sql
+      - name: Apply integration events migration to disposable database
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101150000_os_integration_events.sql
+      - name: Verify idempotency, RLS isolation, RPC grants and realtime publication
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/os_integration_events_smoke.sql
