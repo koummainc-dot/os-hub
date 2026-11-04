@@ -153,3 +153,37 @@ assert.equal(dashboard.reactionTimeline[0].severe, 1);
 assert.equal(dashboard.routineCompletionAmongLogged, 50);
 assert.equal(buildSkinDashboardData({ endDate: "2026-11-04", days: 7 }).averageRating, null);
 console.log("Skincare dashboard contracts added.");
+
+
+const followUps = buildSkinFollowUps({
+  today: "2026-11-04",
+  products: [
+    { id: "p-expired", name: "Expired cream", status: "active", expiryDate: "2026-11-03" },
+    { id: "p-soon", name: "Soon cream", status: "active", expiryDate: "2026-11-20" },
+    { id: "p-paused", name: "Paused cream", status: "paused", expiryDate: "2026-11-01" },
+  ],
+  units: [{ id: "u1", name: "Opened bottle", productId: "p-soon", expiresOn: "2026-11-04" }],
+  routines: [
+    { id: "routine-due", name: "Morning", status: "active", frequency: "daily", reminderEnabled: true, reminderTime: "08:00", steps: [{ id: "s1" }, { id: "s2" }] },
+    { id: "routine-done", name: "Evening", status: "active", frequency: "daily", reminderEnabled: true, reminderTime: "20:00", steps: [{ id: "s3" }] },
+  ],
+  routineLogs: [{ id: "log1", routineId: "routine-done", stepId: "s3", date: "2026-11-04", status: "done" }],
+  trials: [
+    { id: "trial-start", status: "planned", startDate: "2026-11-07" },
+    { id: "trial-review", status: "running", startDate: "2026-10-01", plannedDays: 28 },
+  ],
+  reactions: [
+    { id: "reaction-open", status: "open", productId: "p-soon", dateStarted: "2026-11-02", severity: "severe" },
+    { id: "reaction-resolved", status: "resolved", productId: "p-soon", dateStarted: "2026-11-01", severity: "mild" },
+  ],
+});
+assert.ok(followUps.some(item => item.type === "product-expiry" && item.sourceId === "p-expired"));
+assert.ok(followUps.some(item => item.type === "unit-expiry" && item.sourceId === "u1"));
+assert.ok(followUps.some(item => item.type === "routine-reminder" && item.sourceId === "routine-due"));
+assert.ok(!followUps.some(item => item.type === "routine-reminder" && item.sourceId === "routine-done"));
+assert.ok(followUps.some(item => item.type === "trial-start" && item.sourceId === "trial-start"));
+assert.ok(followUps.some(item => item.type === "trial-review" && item.sourceId === "trial-review"));
+assert.ok(followUps.some(item => item.type === "reaction-followup" && item.sourceId === "reaction-open"));
+assert.ok(!followUps.some(item => item.sourceId === "p-paused" || item.sourceId === "reaction-resolved"));
+assert.equal(followUps[0].priority, "high");
+console.log("Skincare follow-up contracts added.");
