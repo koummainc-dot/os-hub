@@ -14,6 +14,7 @@ on:
       - "supabase/migrations/**"
       - "supabase/tests/projects_prd_requirement_traceability_smoke.sql"
       - "tests/projects_sql_bootstrap.sql"
+      - "supabase/tests/projects_atomic_discovery_batch_smoke.sql"
       - ".github/workflows/projects-sql-smoke.yml"
 
 jobs:
