@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, normalizeSkinSearchText, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus, skinUnitCostPerDay, canRestoreSkinUnit, canRestoreSkinRoutineLog, canRestoreSkinList, hasDuplicateSkinListName, buildSkinFollowUps, parseSkinProductsCsv, serializeSkinProductsCsv } from "./domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, normalizeSkinSearchText, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus, skinUnitCostPerDay, canRestoreSkinUnit, skinProductDeletionBlockers, canRestoreSkinRoutineLog, canRestoreSkinList, hasDuplicateSkinListName, buildSkinFollowUps, parseSkinProductsCsv, serializeSkinProductsCsv } from "./domain.js";
 import { SkinCompareView, SkinListsView, RoutineLogsView, SkinSettingsView } from "./WorkspaceTools.jsx";
 import DiaryView from "./Diary.jsx";
 import RoutinesView from "./Routines.jsx";
@@ -201,12 +201,8 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   };
   const deleteProduct = async product => {
     if (!canEdit || busy || !window.confirm("هل تريد نقل المنتج إلى المحذوفات؟")) return;
-    const hasUnits = units.some(unit => unit.productId === product.id);
-    const hasRoutineSteps = routines.some(routine => (routine.steps || []).some(step => step.productId === product.id));
-    const hasTrials = trials.some(item => item.productId === product.id);
-    const hasReactions = reactions.some(item => item.productId === product.id);
-    const hasLists = lists.some(item => (item.productIds || []).includes(product.id));
-    if (hasUnits || hasRoutineSteps || hasTrials || hasReactions || hasLists) return say("لا يمكن حذف المنتج لوجود عبوات أو روتينات أو تجارب أو تفاعلات أو قوائم مرتبطة به. غيّر حالته بدل الحذف للحفاظ على التاريخ.");
+    const blockers = skinProductDeletionBlockers(product.id, { units, routines, routineLogs, trials, reactions, lists });
+    if (blockers.length) return say("لا يمكن حذف المنتج لوجود سجلات مرتبطة (" + blockers.join("، ") + "). غيّر حالته بدل الحذف للحفاظ على التاريخ.");
     setBusy(true);
     try {
       const result = await store.api.softDelete(SKINCARE_COLLECTIONS.products, product.id);
