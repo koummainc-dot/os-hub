@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { buildSkinDashboardData } from "./domain.js";
+import { buildSkinDashboardData, buildSkinDashboardExportMatrix, serializeSkinComparisonCsv } from "./domain.js";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", white: "#FFFFFF", accent: "#A855F7", soft: "#FAF5FF" };
 const panel = { background: C.white, border: "1px solid " + C.line, borderRadius: 14, padding: 15, marginBottom: 12 };
@@ -39,11 +39,11 @@ export default function SkinDashboard({ endDate, diaryEntries, trials, reactions
   const [days, setDays] = useState(30);
   const data = useMemo(() => buildSkinDashboardData({ entries: diaryEntries, trials, reactions, photos, routines, routineLogs, products, deletedProducts, endDate, days }), [diaryEntries, trials, reactions, photos, routines, routineLogs, products, deletedProducts, endDate, days]);
   const factorNames = { sleepHours: "ساعات النوم", sleepQuality: "جودة النوم", mood: "المزاج", exerciseMinutes: "النشاط", waterGlasses: "أكواب المياه" };
-  const coefficient = value => value === null ? "—" : (value > 0 ? "+" : "") + value.toFixed(2);
+  const coefficient = value => value === null ? "—" : (value > 0 ? "+" : "") + value.toFixed(2);\n  const exportReport = () => {\n    const matrix = buildSkinDashboardExportMatrix({ data, trials, reactions, routineLogs, products, deletedProducts });\n    const blob = new Blob([serializeSkinComparisonCsv(matrix)], { type: "text/csv;charset=utf-8" });\n    const url = URL.createObjectURL(blob);\n    const anchor = document.createElement("a");\n    anchor.href = url; anchor.download = "skincare-report-" + data.startDate + "-to-" + data.endDate + ".csv";\n    document.body.appendChild(anchor); anchor.click(); anchor.remove();\n    setTimeout(() => URL.revokeObjectURL(url), 1000);\n  };
   return <div>
     <section style={{ ...panel, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
       <div><b style={{ fontSize: 16 }}>لوحة صحة البشرة</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>من {dateLabel(data.startDate)} إلى {dateLabel(data.endDate)}</div></div>
-      <div style={{ display: "flex", gap: 6 }} aria-label="الفترة الزمنية">
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }} aria-label="الفترة الزمنية">\n        <button type="button" onClick={exportReport} style={{ border: "1px solid " + C.line, background: C.white, color: C.ink, borderRadius: 9, padding: "8px 11px", cursor: "pointer", fontWeight: 700 }}>تصدير التقرير والسجل CSV</button>
         {[30,90,180].map(value => <button key={value} type="button" onClick={() => setDays(value)} aria-pressed={days === value} style={{ border: "1px solid " + (days === value ? C.accent : C.line), background: days === value ? C.soft : C.white, color: C.ink, borderRadius: 9, padding: "8px 11px", cursor: "pointer", fontWeight: 700 }}>{value} يوم</button>)}
       </div>
     </section>
