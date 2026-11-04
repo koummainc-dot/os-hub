@@ -3,7 +3,7 @@ import {
   emptyNutritionData,normalizeNutritionData,nutritionToday,validateFood,scaleNutrients,snapshotFoodLog,
   validateFoodLog,calculateRecipeNutrition,summarizeNutritionDay,normalizeSearch,searchFoods,validateGoal,
   validateWater,buildGroceryNeeds,validateNutritionImport,validateRecipe,validateCookingBatch,remainingBatchServings,nutritionAnalytics,nutritionDeletionBlocker,
-  buildQuickNutritionLog,buildOutsideHomeLog,convertFoodQuantity
+  buildQuickNutritionLog,buildOutsideHomeLog,convertFoodQuantity,parseHouseholdPortions
 } from "../src/systems/nutrition/domain.js";
 
 const base=emptyNutritionData();
@@ -92,6 +92,15 @@ const scaledNeeds=buildGroceryNeeds({planSlots:[{id:"s1",recipeId:"r-multi",port
 assert.equal(scaledNeeds.find(x=>x.foodId==="f1").amount,300);
 assert.equal(scaledNeeds.find(x=>x.foodId==="f2").amount,600);
 assert.deepEqual(scaledNeeds.find(x=>x.foodId==="f1").sourceSlotIds,["s1","s2"]);
+const household=parseHouseholdPortions("كوب = 240\nملعقة كبيرة = 15","g");
+assert.equal(household.ok,true);
+assert.equal(household.value.length,2);
+const portionFood={...food,portions:household.value};
+assert.equal(convertFoodQuantity(portionFood,2,"portion:"+household.value[0].id),480);
+const portionSnapshot=snapshotFoodLog(portionFood,1,"portion:"+household.value[0].id,{id:"portion-log"});
+assert.equal(portionSnapshot.quantityBase,240);
+assert.equal(parseHouseholdPortions("كوب = 0","g").ok,false);
+assert.equal(parseHouseholdPortions("كوب = 240\nكوب = 120","g").ok,false,"duplicate household portion labels are rejected");
 const denseFood={...food,densityGPerMl:1.03,servingAmount:30};
 assert.equal(convertFoodQuantity(denseFood,50,"ml"),51.5);
 assert.equal(convertFoodQuantity(denseFood,2,"serving"),60);
