@@ -181,8 +181,8 @@ export function IssuesView({ projectId }) {
 
 // ═════ Decisions ═════
 export function DecisionsView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast } = useP();
-  const [form, setForm] = useState(null);
+  const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, setPage } = useP();
+  const [form, setForm] = useState(null); const [creating, setCreating] = useState({});
   const list = data.decisions.filter((d) => !projectId || d.project_id === projectId).sort((a, b) => (b.decided_at || "").localeCompare(a.decided_at || ""));
   const canNew = projectId ? can("decision.write", projectsById[projectId]) : data.projects.some((p) => can("decision.write", p));
   return (
@@ -328,7 +328,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
         {(d.reviewer_ids || []).includes(me) && d.status === "Ready for Review" && <div style={{ display: "flex", gap: 6, marginTop: 8 }}><Btn small kind="primary" onClick={() => review("approve")}>✔ أوافق</Btn><Btn small danger onClick={() => setRejectForm(true)}>✖ أرفض</Btn>{myApproval && <span style={{ fontSize: 11, color: C.muted }}>ردّك الحالي: {myApproval.decision}</span>}</div>}
         {!ready.ok && <div style={{ fontSize: 11.5, color: C.warn, marginTop: 8 }}>متطلبات الاعتماد الناقصة: {[...ready.missing, ...ready.pendingReviewers.map((x) => "موافقة " + nameOf(x))].join("، ")}</div>}
       </div>}
-      {tab === "tasks" && (!linkedTasks.length ? <Empty icon="✅" title="لا مهام مرتبطة" sub="اربط المهام بهذه المواصفة من نموذج المهمة (حقل المواصفة)." /> : linkedTasks.map((t) => <div key={t.id} onClick={() => openTask(t.id)} style={{ padding: "6px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13, cursor: "pointer" }}>{D.cat(t.status) === "done" ? "✅" : "⬜"} {t.title}</div>))}
+      {tab === "tasks" && (!linkedTasks.length ? <Empty icon="✅" title="لا مهام مرتبطة" sub="اربط المهام بهذه المواصفة من نموذج المهمة (حقل المواصفة)." /> : linkedTasks.map((t) => { const req = requirements.find((x) => x.id === t.prd_requirement_id); return <div key={t.id} onClick={() => openTask(t.id)} style={{ padding: "6px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13, cursor: "pointer" }}>{D.cat(t.status) === "done" ? "✅" : "⬜"} {t.title}{req && <span style={{ color: C.muted }}> · {req.title}</span>}</div>; }))}
       {rejectForm && <FormModal title="رفض المواصفة" initial={{ comment: "" }} onClose={() => setRejectForm(false)} onSubmit={async (v) => { if (!String(v.comment || "").trim()) throw new Error("اكتب سبب الرفض أو ملاحظات المراجعة."); await review("reject", v.comment.trim()); }} fields={[{ key: "comment", label: "سبب الرفض / الملاحظات", type: "textarea", required: true, rows: 3 }]} />}
     </Modal>
   );
