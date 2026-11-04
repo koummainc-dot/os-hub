@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateSkinDiaryEntry, summarizeSkinTrial } from "../src/systems/skincare/domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateSkinDiaryEntry, summarizeSkinTrial, analyzeSkinFactors } from "../src/systems/skincare/domain.js";
 import { buildSkinPhotoPaths, validateSkinPhotoFile, validateSkinPhotoMetadata } from "../src/systems/skincare/photoDomain.js";
 
 assert.deepEqual(Object.values(SKINCARE_COLLECTIONS), ["skin_profile", "skin_products", "skin_units", "skin_routines", "skin_routine_logs", "skin_diary", "skin_photos"]);
@@ -98,3 +98,21 @@ assert.equal(linkedTrialDiary.filter(entry => entry.trialId === "trial-main").le
 assert.equal(linkedTrialDiary.filter(entry => !entry.trialId && entry.date >= trial.startDate && entry.date <= trial.endDate).length, 1);
 assert.equal(linkedTrialDiary.some(entry => entry.trialId === "trial-other"), true);
 console.log("Skincare trial-linked diary association contracts added.");
+
+
+const factorRows = [
+  { id: "factor-1", date: "2026-10-01", skinRating: 1, sleepHours: 4, sleepQuality: 1, mood: 1, exerciseMinutes: 0, waterGlasses: 2, issues: ["جفاف"] },
+  { id: "factor-2", date: "2026-10-02", skinRating: 2, sleepHours: 5, sleepQuality: 2, mood: 2, exerciseMinutes: 10, waterGlasses: 3, issues: ["جفاف"] },
+  { id: "factor-3", date: "2026-10-03", skinRating: 2, sleepHours: 6, sleepQuality: 2, mood: 2, exerciseMinutes: 20, waterGlasses: 4, issues: ["جفاف"] },
+  { id: "factor-4", date: "2026-10-04", skinRating: 4, sleepHours: 7, sleepQuality: 4, mood: 4, exerciseMinutes: 30, waterGlasses: 5, issues: [] },
+  { id: "factor-5", date: "2026-10-05", skinRating: 4, sleepHours: 8, sleepQuality: 4, mood: 4, exerciseMinutes: 40, waterGlasses: 6, issues: [] },
+  { id: "factor-6", date: "2026-10-06", skinRating: 5, sleepHours: 9, sleepQuality: 5, mood: 5, exerciseMinutes: 50, waterGlasses: 7, issues: [] },
+];
+const factorResult = analyzeSkinFactors(factorRows);
+assert.equal(factorResult.ratedCount, 6);
+assert.equal(factorResult.correlations.find(item => item.key === "sleepHours").status, "computed");
+assert.ok(factorResult.correlations.find(item => item.key === "sleepHours").coefficient > 0);
+assert.equal(factorResult.issueComparisons.find(item => item.issue === "جفاف").difference, -2.67);
+assert.equal(analyzeSkinFactors(factorRows.slice(0, 4)).correlations.find(item => item.key === "sleepHours").status, "insufficient");
+assert.equal(analyzeSkinFactors([]).ratedCount, 0);
+console.log("Skincare factor analysis contracts added.");
