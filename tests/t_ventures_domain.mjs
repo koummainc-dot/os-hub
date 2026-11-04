@@ -14,3 +14,12 @@ const summary=summarizeVentures({keywords:[{id:"1"}],content:[{id:"2",_deleted_a
 assert.equal(summary.records,2);
 assert.equal(summary.contentRecords,1);
 console.log("Ventures domain contract: PASS");
+
+const expectedOperational=["phases","team","members","calendar","notes","tech","assets","email","distribution","health","kpi","alerts","priority","finance","cro"];
+assert.ok(expectedOperational.every(id=>VENTURES_MODULES.some(x=>x.id===id)));
+const summary2=summarizeVentures({phases:[{id:"p1"}],notes:[{id:"n1"}],kpi:[{id:"k1",_deleted_at:"x"}],finance:[{id:"f1"}]});
+assert.equal(summary2.moduleCounts.phases,1);
+assert.equal(summary2.moduleCounts.notes,1);
+assert.equal(summary2.moduleCounts.kpi,0);
+assert.equal(summary2.moduleCounts.finance,1);
+console.log("Ventures operations/insights contract: PASS");
