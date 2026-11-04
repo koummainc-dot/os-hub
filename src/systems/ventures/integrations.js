@@ -46,6 +46,16 @@ export async function loadVenturesSourceSnapshot(workspaceId) {
   return { ok:Object.keys(sources).length>0, sources, errors };
 }
 
+export function requestVenturesSourceWrite({workspaceId, systemId, action, recordId=null, payload={}}={}) {
+  if (!systemId || typeof window === "undefined") return false;
+  try {
+    window.dispatchEvent(new CustomEvent("os:source-write", {
+      detail: { workspaceId: workspaceId || null, systemId, action: action || "update", recordId: recordId || null, payload: payload || {}, source: "ventures" }
+    }));
+    return true;
+  } catch { return false; }
+}
+
 export function requestVenturesSourceNavigation({workspaceId, systemId, section, recordId=null}={}) {
   if (!systemId || typeof window === "undefined") return false;
   try {
