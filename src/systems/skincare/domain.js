@@ -753,23 +753,30 @@ export function buildSkinDashboardData({
 
 
 export function buildSkinDashboardExportMatrix({ data = {}, trials = [], reactions = [], routineLogs = [], products = [], deletedProducts = [] } = {}) {
+  const startDate = data.startDate || "";
+  const endDate = data.endDate || "";
+  const inRange = date => typeof date === "string" && date >= startDate && date <= endDate;
+  const rangeTrials = trials.filter(item => item.startDate && item.startDate <= endDate &&
+    (item.endDate ? item.endDate >= startDate : ["running", "paused"].includes(item.status) || item.startDate >= startDate));
+  const rangeReactions = reactions.filter(item => inRange(item.dateStarted || item.date));
+  const rangeRoutineLogs = routineLogs.filter(item => inRange(item.date));
   const rows = [
     ["نوع السجل", "المعرّف", "اسم المنتج", "الحالة", "التاريخ / البداية", "تاريخ النهاية", "التفاصيل"],
-    ["ملخص", "product.active", "المنتجات النشطة", data.productSummary?.activeCount ?? 0, data.startDate || "", data.endDate || "", "ضمن الكتالوج الحالي"],
-    ["ملخص", "product.inactive", "المنتجات المحفوظة غير النشطة", data.productSummary?.inactiveCount ?? 0, data.startDate || "", data.endDate || "", "متوقفة أو منتهية أو تم التخلص منها"],
-    ["ملخص", "product.deleted", "المنتجات في المحذوفات", data.productSummary?.deletedCount ?? 0, data.startDate || "", data.endDate || "", "مستبعدة من أرقام الكتالوج الحالي"],
-    ["ملخص", "product.saved", "إجمالي المنتجات المحفوظة", data.productSummary?.savedCount ?? 0, data.startDate || "", data.endDate || "", "نشطة + غير نشطة، دون المحذوفات"],
-    ["ملخص", "trial.running", "التجارب الجارية لمنتجات نشطة", data.runningTrialCount ?? 0, data.startDate || "", data.endDate || "", "عداد حالي لا يشمل التجارب التاريخية لمنتجات غير نشطة"],
-    ["ملخص", "trial.paused", "التجارب المتوقفة لمنتجات نشطة", data.pausedTrialCount ?? 0, data.startDate || "", data.endDate || "", "عداد حالي لا يشمل التجارب التاريخية لمنتجات غير نشطة"],
-    ["ملخص", "trial.history", "التجارب التاريخية ضمن الفترة", data.rangeTrialCount ?? 0, data.startDate || "", data.endDate || "", "تُحفظ حتى عند توقف المنتج أو حذفه"],
-    ["ملخص", "reaction.count", "التفاعلات خلال الفترة", data.rangeReactionCount ?? 0, data.startDate || "", data.endDate || "", "سجلات تاريخية"],
-    ["ملخص", "routine.logs", "سجلات خطوات الروتين", data.routineLogCount ?? 0, data.startDate || "", data.endDate || "", "تم: " + (data.routineDoneCount ?? 0) + "؛ تخطي: " + (data.routineSkippedCount ?? 0)],
-    ["ملخص", "rating.average", "متوسط التقييم", data.averageRating ?? "—", data.startDate || "", data.endDate || "", "من الإدخالات المسجلة فقط؛ الأيام المفقودة ليست صفرًا"],
+    ["ملخص", "product.active", "المنتجات النشطة", data.productSummary?.activeCount ?? 0, startDate, endDate, "ضمن الكتالوج الحالي"],
+    ["ملخص", "product.inactive", "المنتجات المحفوظة غير النشطة", data.productSummary?.inactiveCount ?? 0, startDate, endDate, "متوقفة أو منتهية أو تم التخلص منها"],
+    ["ملخص", "product.deleted", "المنتجات في المحذوفات", data.productSummary?.deletedCount ?? 0, startDate, endDate, "مستبعدة من أرقام الكتالوج الحالي"],
+    ["ملخص", "product.saved", "إجمالي المنتجات المحفوظة", data.productSummary?.savedCount ?? 0, startDate, endDate, "نشطة + غير نشطة، دون المحذوفات"],
+    ["ملخص", "trial.running", "التجارب الجارية لمنتجات نشطة", data.runningTrialCount ?? 0, startDate, endDate, "عداد حالي لا يشمل التجارب التاريخية لمنتجات غير نشطة"],
+    ["ملخص", "trial.paused", "التجارب المتوقفة لمنتجات نشطة", data.pausedTrialCount ?? 0, startDate, endDate, "عداد حالي لا يشمل التجارب التاريخية لمنتجات غير نشطة"],
+    ["ملخص", "trial.history", "التجارب التاريخية ضمن الفترة", data.rangeTrialCount ?? 0, startDate, endDate, "تُحفظ حتى عند توقف المنتج أو حذفه"],
+    ["ملخص", "reaction.count", "التفاعلات خلال الفترة", data.rangeReactionCount ?? 0, startDate, endDate, "سجلات تاريخية"],
+    ["ملخص", "routine.logs", "سجلات خطوات الروتين", data.routineLogCount ?? 0, startDate, endDate, "تم: " + (data.routineDoneCount ?? 0) + "؛ تخطي: " + (data.routineSkippedCount ?? 0)],
+    ["ملخص", "rating.average", "متوسط التقييم", data.averageRating ?? "—", startDate, endDate, "من الإدخالات المسجلة فقط؛ الأيام المفقودة ليست صفرًا"],
   ];
   const productNames = new Map([...products, ...deletedProducts].map(item => [item.id, item.name || item.productNameSnapshot || "منتج غير مسمى"]));
-  for (const trial of trials) rows.push(["تجربة تاريخية", trial.id || "", trial.productNameSnapshot || productNames.get(trial.productId) || "منتج غير متاح (سجل تاريخي)", trial.status || "", trial.startDate || "", trial.endDate || "", "المنتج المرتبط: " + (trial.productId || "")]);
-  for (const reaction of reactions) rows.push(["تفاعل تاريخي", reaction.id || "", reaction.productNameSnapshot || productNames.get(reaction.productId) || "منتج غير متاح (سجل تاريخي)", reaction.status || "", reaction.dateStarted || reaction.date || "", reaction.dateEnded || "", "الشدة: " + (reaction.severity || "غير محددة")]);
-  for (const log of routineLogs) rows.push(["سجل روتين تاريخي", log.id || "", log.productNameSnapshot || productNames.get(log.productIdSnapshot || log.productId) || "منتج غير متاح (سجل تاريخي)", log.status || "", log.date || "", "", "الروتين: " + (log.routineNameSnapshot || log.routineName || "روتين") + "؛ الخطوة: " + (log.stepCategorySnapshot || log.stepCategory || "")]);
+  for (const trial of rangeTrials) rows.push(["تجربة تاريخية", trial.id || "", trial.productNameSnapshot || productNames.get(trial.productId) || "منتج غير متاح (سجل تاريخي)", trial.status || "", trial.startDate || "", trial.endDate || "", "المنتج المرتبط: " + (trial.productId || "")]);
+  for (const reaction of rangeReactions) rows.push(["تفاعل تاريخي", reaction.id || "", reaction.productNameSnapshot || productNames.get(reaction.productId) || "منتج غير متاح (سجل تاريخي)", reaction.status || "", reaction.dateStarted || reaction.date || "", reaction.dateEnded || "", "الشدة: " + (reaction.severity || "غير محددة")]);
+  for (const log of rangeRoutineLogs) rows.push(["سجل روتين تاريخي", log.id || "", log.productNameSnapshot || productNames.get(log.productIdSnapshot || log.productId) || "منتج غير متاح (سجل تاريخي)", log.status || "", log.date || "", "", "الروتين: " + (log.routineNameSnapshot || log.routineName || "روتين") + "؛ الخطوة: " + (log.stepCategorySnapshot || log.stepCategory || "")]);
   return rows;
 }
 
