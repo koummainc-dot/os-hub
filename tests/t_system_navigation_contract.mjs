@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 const core = fs.readFileSync("src/core/core.js", "utf8");
 const shopping = fs.readFileSync("src/systems/shopping/index.jsx", "utf8");
 const sports = fs.readFileSync("src/systems/sports/index.jsx", "utf8");
+const skincare = fs.readFileSync("src/systems/skincare/index.jsx", "utf8");
 const home = fs.readFileSync("src/systems/home/index.jsx", "utf8");
 const sportsDomain = fs.readFileSync("src/systems/sports/domain.js", "utf8");
 
@@ -37,5 +38,12 @@ assert.deepEqual([...new Set(sportsNavIds)].sort(), [...new Set(sportsRegistryId
 
 assert.match(core, /id:"home"[\s\S]*?status:"live"/, "Home OS must be activated in the registry");
 assert.match(core, /id:"sports"[\s\S]*?status:"live"/, "Sports OS must be activated in the registry");
+const skincareSectionSource = skincare.match(/const SECTIONS = \[(.*?)\];/s)?.[1] || "";
+const skincareNavIds = [...skincareSectionSource.matchAll(/\["([^"]+)"/g)].map((m) => m[1]);
+const skincareRegistryIds = registryIds("skincare");
+assert.ok(skincare.includes("onClick={() => setPage(id)}"), "Skincare navigation buttons must change page");
+assert.deepEqual([...new Set(skincareNavIds)].sort(), [...new Set(skincareRegistryIds)].sort(), "Skincare internal navigation and registry IDs must match");
+assert.match(core, /id:"skincare"[\s\S]*?status:"live"/, "Skincare OS must be activated in the registry");
+
 assert.match(core, /id:"spiritual"[\s\S]*?status:"live"/, "Spiritual & Values OS must be activated in the registry");
 console.log("System internal navigation contract passed.");
