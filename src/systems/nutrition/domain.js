@@ -73,7 +73,7 @@ export function convertFoodQuantity(food, amount, unit=food?.basisUnit) {
   if(unit===food?.basisUnit) return qty;
   if(unit==="serving") { if(!(Number(food?.servingAmount)>0)) throw new Error("لم تُحدد كمية الحصة المعتادة لهذا الغذاء."); return qty*Number(food.servingAmount); }
   const density=Number(food?.densityGPerMl)||0;
-  if(density<=0) throw new Error("يلزم إدخال كثافة الغذاء لتحويل الجرام والملليلتر.");
+  if(density<=0) throw new Error("يلزم إدخال الكثافة لتحويل الجرام والملليلتر.");
   if(food?.basisUnit==="g"&&unit==="ml") return qty*density;
   if(food?.basisUnit==="ml"&&unit==="g") return qty/density;
   throw new Error("وحدة الكمية غير متوافقة مع وحدة أساس الغذاء.");
