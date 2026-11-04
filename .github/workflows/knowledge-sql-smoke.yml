@@ -44,7 +44,7 @@ jobs:
       - name: Bootstrap disposable schema
         run: psql -v ON_ERROR_STOP=1 -f tests/knowledge_sql_bootstrap.sql
       - name: Apply Knowledge migration to disposable database
-        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261030140000_knowledge_resource_os.sql
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261030150615_knowledge_resource_os.sql
       - name: Verify RLS workspace isolation and attachment permissions
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/knowledge_resource_os_smoke.sql
       - name: Run read-only migration preview against fixture
