@@ -788,3 +788,75 @@ export function buildSkinFollowUps({
   return items.sort((a, b) => rank[a.priority] - rank[b.priority] ||
     String(a.dueDate).localeCompare(String(b.dueDate)) || a.title.localeCompare(b.title, "ar"));
 }
+
+const SKIN_PRODUCT_CSV_FIELDS = [
+  "name", "brand", "category", "status", "suitability", "startDate",
+  "expiryDate", "ingredients", "instructions", "notes", "url", "stepSlot",
+];
+
+function parseCsvMatrix(input) {
+  const source = String(input || "").replace(/^\\uFEFF/, "");
+  if (source.length > 5 * 1024 * 1024) return { ok: false, error: "ملف CSV أكبر من 5 ميجابايت." };
+  const rows = [];
+  let row = [], cell = "", quoted = false;
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i];
+    if (quoted) {
+      if (char === '"' && source[i + 1] === '"') { cell += '"'; i++; }
+      else if (char === '"') quoted = false;
+      else cell += char;
+    } else if (char === '"' && cell.length === 0) quoted = true;
+    else if (char === ",") { row.push(cell); cell = ""; }
+    else if (char === "\\n" || char === "\\r") {
+      if (char === "\\r" && source[i + 1] === "\\n") i++;
+      row.push(cell); cell = "";
+      if (row.some(value => String(value).trim() !== "")) rows.push(row);
+      row = [];
+    } else cell += char;
+  }
+  if (quoted) return { ok: false, error: "يوجد حقل نصي غير مغلق بعلامة اقتباس في ملف CSV." };
+  row.push(cell);
+  if (row.some(value => String(value).trim() !== "")) rows.push(row);
+  return { ok: true, rows };
+}
+
+export function parseSkinProductsCsv(input) {
+  const parsed = parseCsvMatrix(input);
+  if (!parsed.ok) return parsed;
+  if (parsed.rows.length < 2) return { ok: false, error: "ملف CSV فارغ أو لا يحتوي صفوف منتجات." };
+  const headers = parsed.rows[0].map(value => String(value).trim().replace(/^"|"$/g, "").toLowerCase());
+  if (!headers.includes("name")) return { ok: false, error: "يجب أن يحتوي الصف الأول على عمود name." };
+  const allowed = new Set(SKIN_PRODUCT_CSV_FIELDS);
+  const unknownHeaders = headers.filter(header => !allowed.has(header));
+  const rows = [];
+  const errors = [];
+  for (let index = 1; index < parsed.rows.length; index++) {
+    const values = parsed.rows[index];
+    const item = {};
+    headers.forEach((header, column) => {
+      if (allowed.has(header)) {
+        let value = String(values[column] ?? "").trim();
+        if (/^'[=+@-]/.test(value)) value = value.slice(1);
+        item[header] = value;
+      }
+    });
+    if (!item.name) errors.push("السطر " + (index + 1) + ": اسم المنتج مطلوب.");
+    else rows.push({
+      ...item,
+      category: item.category || "other",
+      status: item.status || "active",
+      suitability: item.suitability || "suitable",
+    });
+  }
+  return { ok: errors.length === 0, rows, errors, unknownHeaders };
+}
+
+export function serializeSkinProductsCsv(products = []) {
+  const escape = value => {
+    let text = String(value ?? "");
+    if (/^[=+@-]/.test(text)) text = "'" + text;
+    return '"' + text.replace(/"/g, '""') + '"';
+  };
+  return "\\uFEFF" + [SKIN_PRODUCT_CSV_FIELDS, ...products.map(product => SKIN_PRODUCT_CSV_FIELDS.map(field => product[field] ?? ""))]
+    .map(row => row.map(escape).join(",")).join("\\r\\n");
+}
