@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 
-const sql = await readFile(new URL("../supabase/migrations/20261101160000_spiritual_practice_log_integrity.sql", import.meta.url), "utf8");
+const sql = await readFile(new URL("../supabase/migrations/20261103090436_spiritual_practice_log_integrity.sql", import.meta.url), "utf8");
 assert.match(sql, /begin;[\s\S]*commit;/i);
 assert.match(sql, /left join public\.spiritual_private_records p/i);
 assert.match(sql, /p\.user_id = l\.user_id[\s\S]*p\.workspace_id = l\.workspace_id[\s\S]*p\.id = l\.practice_id[\s\S]*p\.collection = 'practices'/i);
