@@ -112,7 +112,7 @@ const factorResult = analyzeSkinFactors(factorRows);
 assert.equal(factorResult.ratedCount, 6);
 assert.equal(factorResult.correlations.find(item => item.key === "sleepHours").status, "computed");
 assert.ok(factorResult.correlations.find(item => item.key === "sleepHours").coefficient > 0);
-assert.equal(factorResult.issueComparisons.find(item => item.issue === "جفاف").difference, -2.67);
+assert.equal(factorResult.issueComparisons.find(item => item.issue === "جفاف").difference, -2.66, "difference is calculated from the displayed two-decimal group averages");
 assert.equal(analyzeSkinFactors(factorRows.slice(0, 4)).correlations.find(item => item.key === "sleepHours").status, "insufficient");
 assert.equal(analyzeSkinFactors([]).ratedCount, 0);
 console.log("Skincare factor analysis contracts added.");
