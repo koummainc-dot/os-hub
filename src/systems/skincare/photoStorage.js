@@ -206,7 +206,7 @@ function dataUrlToBlob(value, expectedType) {
 
 export async function exportSkinPhotoFiles({workspaceId,photos=[],maxBytes=32*1024*1024}={}) {
   const files={};let totalBytes=0;
-  for(const photo of photos.filter(item=>!item.deleted_at&&!item.storagePurgedAt)){
+  for(const photo of photos.filter(item=>!item.deleted_at&&!item._deleted&&!item.storagePurgedAt)){
     const urls=await getSkinPhotoSignedUrls({workspaceId,photo});
     const [originalResponse,thumbResponse]=await Promise.all([fetch(urls.originalUrl),fetch(urls.thumbnailUrl)]);
     if(!originalResponse.ok||!thumbResponse.ok) throw new Error("تعذر تنزيل صورة أو مصغرها أثناء إنشاء النسخة الاحتياطية.");
@@ -238,7 +238,6 @@ export async function restoreSkinPhotoFiles({workspaceId,photo,assets}={}) {
     return {ok:true,photoId:photo.id,bytes:original.size+thumbnail.size};
   }catch(error){
     if(originalUploaded){try{await removeObjects([expected.objectPath]);}catch{}}
-    if(String(error?.message||"").toLowerCase().includes("already exists")) return {ok:true,photoId:photo.id,alreadyPresent:true};
     throw error;
   }
 }
