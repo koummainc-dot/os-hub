@@ -10,6 +10,7 @@ import TrialsView from "./Trials.jsx";
 import ReactionsView from "./Reactions.jsx";
 import SkinDashboard from "./Dashboard.jsx";
 import SkinFollowUps from "./FollowUps.jsx";
+import SkincareBackup from "./Backup.jsx";
 import { uploadSkinPhoto, deleteSkinPhoto } from "./photoStorage.js";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#A855F7", soft: "#FAF5FF", white: "#FFFFFF", danger: "#B91C1C" };
@@ -465,7 +466,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     {store.ready && !store.error && page === "home" && <HomeView profile={profile} products={products} units={units} setPage={setPage} />}
     {store.ready && !store.error && page === "dashboard" && <SkinDashboard endDate={today()} diaryEntries={diaryEntries} trials={trials} reactions={reactions} photos={photos} routines={routines} routineLogs={routineLogs} products={products} />}
     {store.ready && !store.error && page === "followups" && <SkinFollowUps today={today()} products={products} units={units} routines={routines} routineLogs={routineLogs} trials={trials} reactions={reactions} setPage={setPage} />}
-    {store.ready && !store.error && page === "settings" && <ProfileView profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={saveProfile} canEdit={canEdit} busy={busy} />}
+    {store.ready && !store.error && page === "settings" && <><ProfileView profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={saveProfile} canEdit={canEdit} busy={busy} /><SkincareBackup records={store.recs} canEdit={canEdit} pending={store.pending > 0} /></>}
     {store.ready && !store.error && page === "products" && <ProductsView products={products} deletedProducts={deletedProducts} onRestore={restoreProduct} draft={productDraft} setDraft={setProductDraft} onSave={saveProduct} onEdit={editProduct} onDelete={deleteProduct} editing={editingProduct} setEditing={setEditingProduct} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "units" && <UnitsView units={units} deletedUnits={deletedUnits} onRestore={restoreUnit} products={products} draft={unitDraft} setDraft={setUnitDraft} onSave={saveUnit} onEdit={editUnit} onDelete={deleteUnit} editing={editingUnit} setEditing={setEditingUnit} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "routines" && <RoutinesView routines={routines} logs={routineLogs} products={products} reactions={reactions.filter(item => item.status === "open")} canEdit={canEdit} busy={busy} onSave={saveRoutine} onArchive={toggleRoutine} onCopy={copyRoutine} onLog={logRoutineStep} onUndo={undoRoutineLog} />}
