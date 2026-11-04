@@ -17,7 +17,9 @@ create table if not exists public.finance_family_cash_advances (
   updated_at timestamptz not null default now(),
   foreign key (workspace_id,family_member_id) references public.finance_family_members(workspace_id,id) on delete restrict,
   foreign key (workspace_id,disbursement_transaction_id) references public.finance_transactions(workspace_id,id) on delete restrict,
-  unique (workspace_id,disbursement_transaction_id)
+  unique (workspace_id,disbursement_transaction_id),
+  -- Required by the composite FK from cash entries; the UUID PK alone is not enough.
+  unique (workspace_id,id)
 );
 create index if not exists finance_family_cash_advances_member_idx
   on public.finance_family_cash_advances(workspace_id,family_member_id,disbursed_on desc);
