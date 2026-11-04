@@ -187,3 +187,24 @@ assert.ok(followUps.some(item => item.type === "reaction-followup" && item.sourc
 assert.ok(!followUps.some(item => item.sourceId === "p-paused" || item.sourceId === "reaction-resolved"));
 assert.equal(followUps[0].priority, "high");
 console.log("Skincare follow-up contracts added.");
+
+const configuredExpiryFollowups = buildSkinFollowUps({
+  today: "2026-11-04",
+  expiryWindowDays: 5,
+  products: [
+    { id: "p-window-in", name: "Window product", status: "active", expiryDate: "2026-11-09" },
+    { id: "p-window-out", name: "Outside product", status: "active", expiryDate: "2026-11-10" },
+    { id: "p-invalid", name: "Invalid date", status: "active", expiryDate: "2026-02-30" },
+  ],
+  units: [
+    { id: "u-window-in", name: "Window bottle", expiresOn: "2026-11-09" },
+    { id: "u-window-out", name: "Outside bottle", expiresOn: "2026-11-10" },
+    { id: "u-finished", name: "Finished bottle", expiresOn: "2026-11-05", status: "finished" },
+    { id: "u-invalid", name: "Invalid bottle", expiresOn: "2026-02-30" },
+  ],
+});
+assert.ok(configuredExpiryFollowups.some(item => item.sourceId === "p-window-in"));
+assert.ok(!configuredExpiryFollowups.some(item => item.sourceId === "p-window-out" || item.sourceId === "p-invalid"));
+assert.ok(configuredExpiryFollowups.some(item => item.sourceId === "u-window-in"));
+assert.ok(!configuredExpiryFollowups.some(item => item.sourceId === "u-window-out" || item.sourceId === "u-finished" || item.sourceId === "u-invalid"));
+console.log("Skincare configured expiry follow-up contracts added.");
