@@ -81,7 +81,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   const syncedIntegrationKeys = useRef(new Set());
   useEffect(() => {
     const integrations = api?.integrations;
-    if (!ws?.id || !integrations?.notifications || !integrations?.calendar) return;
+    if (!store.ready || store.error || !ws?.id || !integrations?.notifications || !integrations?.calendar) return;
     let cancelled = false;
     const current = new Set(followupItems.map(item => "skincare:" + item.id));
     (async () => {
@@ -119,7 +119,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
       if (!cancelled) shell?.toast?.("تعذر الوصول إلى خدمات التكامل الموحدة؛ تظل تنبيهات Skincare متاحة داخل النظام.");
     });
     return () => { cancelled = true; };
-  }, [api, ws?.id, followupItems, shell]);
+  }, [api, ws?.id, followupItems, shell, store.ready, store.error]);
   const todayKey = today(settings?.timezone || "Africa/Cairo");
   const [profileDraft, setProfileDraft] = useState({ skinType: "unknown", concernsText: "", sensitivitiesText: "", notes: "" });
   const [productDraft, setProductDraft] = useState(EMPTY_PRODUCT);
