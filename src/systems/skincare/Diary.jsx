@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { analyzeSkinFactors } from "./domain.js";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", white: "#FFFFFF", accent: "#A855F7", danger: "#B91C1C", soft: "#FAF5FF" };
 const panel = { background: C.white, border: "1px solid " + C.line, borderRadius: 14, padding: 15, marginBottom: 12 };
@@ -140,6 +141,7 @@ function CalendarInsights({ entries, selectedDate, onSelect }) {
   const issueCounts = new Map();
   recent.forEach(entry => (entry.issues || []).forEach(issue => issueCounts.set(issue, (issueCounts.get(issue) || 0) + 1)));
   const topIssues = [...issueCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const factorAnalysis = analyzeSkinFactors(recent);
   const weekdayLabels = ["أحد", "إثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"];
   return <section style={panel}>
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
@@ -180,6 +182,25 @@ function CalendarInsights({ entries, selectedDate, onSelect }) {
       <div style={{ marginTop: 12 }}>
         <div style={{ color: C.muted, fontSize: 11, marginBottom: 7 }}>أكثر الملاحظات تكرارًا</div>
         {topIssues.length ? <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>{topIssues.map(([issue, count]) => <span key={issue} style={{ border: "1px solid " + C.line, borderRadius: 20, padding: "5px 9px", fontSize: 11 }}>{issue} · {count}</span>)}</div> : <div style={{ color: C.muted, fontSize: 11 }}>لا توجد مشكلات متكررة مسجلة في الفترة.</div>}
+      </div>
+      <div style={{ borderTop: "1px solid " + C.line, marginTop: 13, paddingTop: 11 }}>
+        <b style={{ fontSize: 12 }}>العوامل المرتبطة بتقييم البشرة</b>
+        <div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>تحليل وصفي لآخر 30 يومًا باستخدام الأيام التي تحتوي على تقييم وعامل مسجل معًا.</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 7, marginTop: 9 }}>
+          {factorAnalysis.correlations.map(item => <div key={item.key} style={{ border: "1px solid " + C.line, borderRadius: 9, padding: 9 }}>
+            <div style={{ color: C.muted, fontSize: 10 }}>{item.label}</div>
+            <b style={{ display: "block", marginTop: 4, fontSize: 14 }}>{item.coefficient == null ? (item.status === "no-variation" ? "لا يوجد تباين" : "بيانات غير كافية") : "r = " + item.coefficient}</b>
+            <div style={{ color: C.muted, fontSize: 9, marginTop: 3 }}>{item.count} أيام مشتركة</div>
+          </div>)}
+        </div>
+        {!!factorAnalysis.issueComparisons.length && <div style={{ marginTop: 10 }}>
+          <div style={{ color: C.muted, fontSize: 10, marginBottom: 6 }}>مقارنة الأيام التي سُجلت فيها المشكلة بالأيام التي لم تُسجل فيها</div>
+          {factorAnalysis.issueComparisons.map(item => <div key={item.issue} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 0", borderTop: "1px solid " + C.line, fontSize: 10 }}>
+            <span>{item.issue} · {item.withCount} أيام</span>
+            <span style={{ color: C.muted }}>{item.difference == null ? "بيانات غير كافية" : "فرق المتوسط " + (item.difference > 0 ? "+" : "") + item.difference}</span>
+          </div>)}
+        </div>}
+        <div style={{ color: C.muted, fontSize: 9, marginTop: 7 }}>r يصف قوة واتجاه الارتباط الرقمي فقط، ولا يعني أن عاملًا تسبب في تغير البشرة. يلزم 5 أيام مشتركة لحساب الارتباط، و3 أيام على الأقل في كل مجموعة لمقارنة المشكلات.</div>
       </div>
       <p style={{ color: C.muted, fontSize: 10, margin: "10px 0 0" }}>المؤشرات وصفية وتعتمد على الأيام التي أدخلتها فقط؛ لا تمثل تقييمًا طبيًا أو استنتاجًا لسبب تغير البشرة.</p>
     </div>
