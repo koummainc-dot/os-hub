@@ -451,6 +451,8 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
       plannedDays: input.plannedDays || settings?.trialDays || 28,
       baselineDiaryIds,
       routineContext,
+      productNameSnapshot: product.name,
+      productBrandSnapshot: product.brand || "",
       status: "running",
       verdict: "pending",
       timelineEvents: [{ id: uid(), type: "started", date: todayKey, note: "بدء التجربة وحفظ خط الأساس" }],
@@ -498,7 +500,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     if ((input.suspectedIngredientIds || []).some(id => !ingredients.some(item => item.id === id))) {
       return say("توجد مكونات مشتبه بها لم تعد موجودة في المكتبة."), false;
     }
-    const checked = validateSkinReaction(input, todayKey);
+    const checked = validateSkinReaction({ ...input, productNameSnapshot: product.name, productBrandSnapshot: product.brand || "" }, todayKey);
     if (!checked.ok) return say(checked.error), false;
     setBusy(true);
     try {
@@ -614,7 +616,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     if (routineLogs.some(log => log.id === id || log.client_generated_id === id || (log.routineId === routine.id && log.stepId === step.id && log.date === date))) return say("تم تسجيل هذه الخطوة بالفعل اليوم.");
     setBusy(true);
     try {
-      const saved = await store.api.put(SKINCARE_COLLECTIONS.routineLogs, { id, client_generated_id: id, routineId: routine.id, stepId: step.id, date, status, createdAt: new Date().toISOString() });
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.routineLogs, { id, client_generated_id: id, routineId: routine.id, routineNameSnapshot: routine.name, stepId: step.id, stepCategorySnapshot: step.category, productIdSnapshot: currentProduct.id, productNameSnapshot: currentProduct.name, productBrandSnapshot: currentProduct.brand || "", date, status, createdAt: new Date().toISOString() });
       if (saved) say(status === "done" ? "تم تسجيل تنفيذ الخطوة." : "تم تسجيل تخطي الخطوة.");
       else say("لم يؤكد النظام تسجيل الخطوة.");
     } catch (error) { say(error?.message || "تعذر تسجيل خطوة الروتين."); }
