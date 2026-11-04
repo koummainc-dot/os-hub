@@ -71,8 +71,14 @@ const FIELDS={
   {k:"price",l:"السعر",t:"in"},{k:"cost",l:"التكلفة",t:"in"},{k:"margin",l:"الهامش",t:"in"},
   {k:"url",l:"الرابط",t:"in"},{k:"status",l:"الحالة",t:"in"},{k:"notes",l:"ملاحظات",t:"ta"}
  ],
+ finance:[
+  {k:"type",l:"النوع",t:"in",required:true,p:"Revenue / Expense"},{k:"category",l:"التصنيف",t:"in"},{k:"revenue",l:"الإيراد",t:"in"},{k:"expense",l:"المصروف",t:"in"},{k:"date",l:"التاريخ",t:"in"},{k:"note",l:"ملاحظة",t:"ta"},{k:"currency",l:"العملة",t:"in",p:"USD / EGP"}
+ ],
+ cro:[
+  {k:"page",l:"الصفحة",t:"in",required:true},{k:"zone",l:"المكان",t:"in",p:"Top / Middle / Bottom"},{k:"affiliate",l:"نسبة نقر الأفلييت %",t:"in"},{k:"cta",l:"نسبة نقر CTA %",t:"in"},{k:"table",l:"نسبة نقر الجدول %",t:"in"},{k:"outbound",l:"نسبة النقر الخارجي %",t:"in"},{k:"signup",l:"نسبة التسجيل %",t:"in"},{k:"rps",l:"الربح لكل جلسة",t:"in"}
+ ],
  affiliate:[
-  {k:"name",l:"الجهة / البرنامج",t:"in",required:true},{k:"contact_id",l:"جهة الاتصال",t:"in"},{k:"network",l:"الشبكة",t:"in"},
+  {k:"type",l:"النوع",t:"in",required:true,p:"Program / Network"},{k:"name",l:"اسم البرنامج / الشبكة",t:"in",required:true},{k:"category",l:"التصنيف",t:"in"},{k:"network",l:"الشبكة / المنصة",t:"in"},
   {k:"commission",l:"العمولة",t:"in"},{k:"cookie",l:"مدة Cookie",t:"in"},{k:"balance",l:"الرصيد",t:"in"},
   {k:"status",l:"الحالة",t:"in"},{k:"notes",l:"ملاحظات",t:"ta"}
  ],
