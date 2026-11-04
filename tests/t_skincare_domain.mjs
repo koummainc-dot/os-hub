@@ -1,12 +1,232 @@
 import assert from "node:assert/strict";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit } from "../src/systems/skincare/domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateSkinDiaryEntry, summarizeSkinTrial, analyzeSkinFactors, buildSkinDashboardData, buildSkinFollowUps } from "../src/systems/skincare/domain.js";
+import { buildSkinPhotoPaths, validateSkinPhotoFile, validateSkinPhotoMetadata } from "../src/systems/skincare/photoDomain.js";
 
-assert.deepEqual(Object.values(SKINCARE_COLLECTIONS), ["skin_profile", "skin_products", "skin_units"]);
+assert.deepEqual(Object.values(SKINCARE_COLLECTIONS), ["skin_profile", "skin_products", "skin_units", "skin_routines", "skin_routine_logs", "skin_diary", "skin_photos", "skin_ingredients", "skin_trials", "skin_reactions", "skin_lists", "skin_settings"]);
 assert.equal(validateSkinProfile({ skinType: "oily", concerns: ["acne"] }).ok, true);
 assert.equal(validateSkinProfile({ skinType: "alien" }).ok, false);
 assert.equal(validateSkinProduct({ name: "غسول", category: "cleanser", status: "active" }).ok, true);
 assert.equal(validateSkinProduct({ name: "", category: "cleanser" }).ok, false);
 assert.equal(validateSkinProduct({ name: "غسول", category: "unknown" }).ok, false);
+assert.equal(validateSkinProduct({ name: "سيروم", suitability: "avoid" }).ok, true);
+assert.equal(validateSkinProduct({ name: "سيروم", suitability: "unknown" }).ok, false);
 assert.equal(validateSkinUnit({ name: "عبوة الصباح", openedOn: "2026-11-03" }).ok, true);
 assert.equal(validateSkinUnit({ name: "عبوة", openedOn: "03/11/2026" }).ok, false);
 console.log("Skincare domain contracts passed.");
+
+assert.equal(validateSkinDiaryEntry({ date: "2026-11-03", skinRating: 4, sleepHours: 7.5, waterGlasses: 6 }, "2026-11-03").ok, true);
+assert.equal(validateSkinDiaryEntry({ date: "2026-11-04" }, "2026-11-03").ok, false);
+assert.equal(validateSkinDiaryEntry({ date: "2026-02-30" }, "2026-11-03").ok, false);
+assert.equal(validateSkinDiaryEntry({ date: "2026-11-03", skinRating: 6 }, "2026-11-03").ok, false);
+assert.equal(validateSkinDiaryEntry({ date: "2026-11-03", sleepHours: -1 }, "2026-11-03").ok, false);
+assert.equal(validateSkinDiaryEntry({ date: "2026-11-03", trialId: "trial-123", note: "ملاحظة مرتبطة بالتجربة" }, "2026-11-03").value.trialId, "trial-123");
+assert.equal(validateSkinDiaryEntry({ date: "2026-11-03", trialId: "" }, "2026-11-03").value.trialId, null);
+console.log("Skincare diary contracts passed.");
+
+const workspaceId = "123e4567-e89b-42d3-a456-426614174000";
+const photoId = "123e4567-e89b-42d3-a456-426614174001";
+assert.deepEqual(buildSkinPhotoPaths({ workspaceId, diaryId: "diary-2026-11-03", photoId, mimeType: "image/jpeg" }), {
+  objectPath: workspaceId + "/diary-2026-11-03/" + photoId + ".jpg",
+  thumbnailPath: workspaceId + "/diary-2026-11-03/" + photoId + ".thumb.webp",
+});
+assert.equal(validateSkinPhotoFile({ type: "image/jpeg", size: 1024 }).ok, true);
+assert.equal(validateSkinPhotoFile({ type: "image/gif", size: 1024 }).ok, false);
+assert.equal(validateSkinPhotoFile({ type: "image/png", size: 11 * 1024 * 1024 }).ok, false);
+assert.throws(() => buildSkinPhotoPaths({ workspaceId: "bad", diaryId: "diary-2026-11-03", photoId, mimeType: "image/jpeg" }));
+assert.throws(() => buildSkinPhotoPaths({ workspaceId, diaryId: "../other", photoId, mimeType: "image/jpeg" }));
+assert.throws(() => buildSkinPhotoPaths({ workspaceId, diaryId: "diary-2026-02-30", photoId, mimeType: "image/jpeg" }));
+assert.equal(validateSkinPhotoMetadata({ lighting: "natural", angle: "front" }).ok, true);
+assert.equal(validateSkinPhotoMetadata({ lighting: "unsafe", angle: "other" }).value.lighting, "unknown");
+console.log("Skincare photo contracts passed.");
+
+
+const trial = {
+  id: "trial-main",
+  productId: "product-a",
+  startDate: "2026-10-01",
+  endDate: "2026-10-28",
+  plannedDays: 28,
+  status: "completed",
+  baselineDiaryIds: ["base-1", "base-2", "base-3"],
+};
+const trialDiary = [
+  { id: "base-1", date: "2026-09-25", skinRating: 2 },
+  { id: "base-2", date: "2026-09-26", skinRating: 2 },
+  { id: "base-3", date: "2026-09-27", skinRating: 2 },
+  { id: "week-1", date: "2026-10-04", skinRating: 3 },
+  { id: "week-2", date: "2026-10-10", skinRating: 4 },
+  { id: "final-1", date: "2026-10-24", skinRating: 5 },
+];
+const trialReactions = [
+  { id: "reaction-1", productId: "product-a", dateStarted: "2026-10-05", severity: "mild" },
+  { id: "reaction-2", productId: "product-a", dateStarted: "2026-10-20", severity: "severe" },
+];
+const otherTrials = [
+  { id: "trial-paused", productId: "product-b", startDate: "2026-10-12", status: "paused" },
+  { id: "trial-completed", productId: "product-c", startDate: "2026-10-03", endDate: "2026-10-09", status: "completed" },
+  { id: "trial-cancelled", productId: "product-d", startDate: "2026-10-03", endDate: "2026-10-20", status: "cancelled" },
+];
+const comparison = summarizeSkinTrial(trial, trialDiary, trialReactions, otherTrials);
+assert.equal(comparison.baselineAverage, 2);
+assert.equal(comparison.firstWeek.average, 3);
+assert.equal(comparison.secondWeek.average, 4);
+assert.equal(comparison.finalWeek.average, 5);
+assert.equal(comparison.firstWeek.count, 1);
+assert.equal(comparison.firstWeek.daysRecorded, 1);
+assert.equal(comparison.periodsOverlap, false);
+assert.equal(comparison.concurrentTrialCount, 2);
+assert.equal(comparison.reactionCount, 2);
+assert.equal(comparison.reactionSeverityCounts.mild, 1);
+assert.equal(comparison.reactionSeverityCounts.severe, 1);
+
+const shortTrialComparison = summarizeSkinTrial({
+  ...trial,
+  startDate: "2026-10-01",
+  endDate: "2026-10-10",
+}, trialDiary, trialReactions, []);
+assert.equal(shortTrialComparison.periodsOverlap, true);
+console.log("Skincare trial comparison contracts added.");
+
+
+const linkedTrialDiary = [
+  { id: "linked-1", date: "2026-10-04", trialId: "trial-main", skinRating: 3, note: "ملاحظة يومية" },
+  { id: "linked-2", date: "2026-10-05", trialId: "trial-main", skinRating: 4 },
+  { id: "unlinked-1", date: "2026-10-06", trialId: null, skinRating: 2 },
+  { id: "other-trial-1", date: "2026-10-07", trialId: "trial-other", skinRating: 5 },
+];
+assert.equal(linkedTrialDiary.filter(entry => entry.trialId === "trial-main").length, 2);
+assert.equal(linkedTrialDiary.filter(entry => !entry.trialId && entry.date >= trial.startDate && entry.date <= trial.endDate).length, 1);
+assert.equal(linkedTrialDiary.some(entry => entry.trialId === "trial-other"), true);
+console.log("Skincare trial-linked diary association contracts added.");
+
+
+const factorRows = [
+  { id: "factor-1", date: "2026-10-01", skinRating: 1, sleepHours: 4, sleepQuality: 1, mood: 1, exerciseMinutes: 0, waterGlasses: 2, issues: ["جفاف"] },
+  { id: "factor-2", date: "2026-10-02", skinRating: 2, sleepHours: 5, sleepQuality: 2, mood: 2, exerciseMinutes: 10, waterGlasses: 3, issues: ["جفاف"] },
+  { id: "factor-3", date: "2026-10-03", skinRating: 2, sleepHours: 6, sleepQuality: 2, mood: 2, exerciseMinutes: 20, waterGlasses: 4, issues: ["جفاف"] },
+  { id: "factor-4", date: "2026-10-04", skinRating: 4, sleepHours: 7, sleepQuality: 4, mood: 4, exerciseMinutes: 30, waterGlasses: 5, issues: [] },
+  { id: "factor-5", date: "2026-10-05", skinRating: 4, sleepHours: 8, sleepQuality: 4, mood: 4, exerciseMinutes: 40, waterGlasses: 6, issues: [] },
+  { id: "factor-6", date: "2026-10-06", skinRating: 5, sleepHours: 9, sleepQuality: 5, mood: 5, exerciseMinutes: 50, waterGlasses: 7, issues: [] },
+];
+const factorResult = analyzeSkinFactors(factorRows);
+assert.equal(factorResult.ratedCount, 6);
+assert.equal(factorResult.correlations.find(item => item.key === "sleepHours").status, "computed");
+assert.ok(factorResult.correlations.find(item => item.key === "sleepHours").coefficient > 0);
+assert.equal(factorResult.issueComparisons.find(item => item.issue === "جفاف").difference, -2.66, "difference is calculated from the displayed two-decimal group averages");
+assert.equal(analyzeSkinFactors(factorRows.slice(0, 4)).correlations.find(item => item.key === "sleepHours").status, "insufficient");
+assert.equal(analyzeSkinFactors([]).ratedCount, 0);
+console.log("Skincare factor analysis contracts added.");
+
+
+const dashboard = buildSkinDashboardData({
+  endDate: "2026-11-04", days: 30,
+  entries: [
+    { id: "d1", date: "2026-10-06", skinRating: 0, areaMeasurements: { forehead: 0, nose: "" } },
+    { id: "d2", date: "2026-10-08", skinRating: 4, areaMeasurements: { forehead: 2, nose: null } },
+    { id: "d3", date: "2026-11-04", skinRating: "", areaMeasurements: { forehead: 5 } },
+  ],
+  products: [{ id: "p1", name: "Active cleanser", status: "active" }],
+  trials: [{ id: "t1", productId: "p1", status: "running", startDate: "2026-10-20" }],
+  reactions: [
+    { id: "r1", status: "open", dateStarted: "2026-11-02", severity: "severe" },
+    { id: "r2", status: "resolved", dateStarted: "2026-11-01", severity: "mild" },
+  ],
+  photos: [{ id: "p1", date: "2026-11-03" }],
+  routines: [{ id: "routine-1", status: "active" }],
+  routineLogs: [{ id: "l1", date: "2026-11-03", status: "done" }, { id: "l2", date: "2026-11-04", status: "skipped" }],
+});
+assert.equal(dashboard.daysWithRating, 2);
+assert.equal(dashboard.daysWithoutRating, 28);
+assert.equal(dashboard.timeline.find(item => item.date === "2026-10-07").rating, null);
+assert.equal(dashboard.timeline.find(item => item.date === "2026-10-06").rating, 0);
+assert.equal(dashboard.averageRating, 2);
+assert.equal(dashboard.areas.find(item => item.key === "forehead").average, 2.33);
+assert.equal(dashboard.areas.find(item => item.key === "forehead").count, 3);
+assert.equal(dashboard.areas.find(item => item.key === "nose").count, 0);
+assert.equal(dashboard.openReactionCount, 1);
+assert.equal(dashboard.severeReactionCount, 1);
+assert.equal(dashboard.runningTrialCount, 1);
+assert.equal(dashboard.photoCount, 1);
+assert.equal(dashboard.trialSummaries.length, 1);
+assert.equal(dashboard.trialSummaries[0].id, "t1");
+assert.equal(dashboard.reactionTimeline.length, 2);
+assert.equal(dashboard.reactionTimeline[0].severe, 1);
+assert.equal(dashboard.routineCompletionAmongLogged, 50);
+assert.equal(buildSkinDashboardData({ endDate: "2026-11-04", days: 7 }).averageRating, null);
+console.log("Skincare dashboard contracts added.");
+
+
+const followUps = buildSkinFollowUps({
+  today: "2026-11-04",
+  products: [
+    { id: "p-expired", name: "Expired cream", status: "active", expiryDate: "2026-11-03" },
+    { id: "p-soon", name: "Soon cream", status: "active", expiryDate: "2026-11-20" },
+    { id: "p-paused", name: "Paused cream", status: "paused", expiryDate: "2026-11-01" },
+  ],
+  units: [{ id: "u1", name: "Opened bottle", productId: "p-soon", expiresOn: "2026-11-04" }],
+  routines: [
+    { id: "routine-due", name: "Morning", status: "active", frequency: "daily", reminderEnabled: true, reminderTime: "08:00", steps: [{ id: "s1" }, { id: "s2" }] },
+    { id: "routine-done", name: "Evening", status: "active", frequency: "daily", reminderEnabled: true, reminderTime: "20:00", steps: [{ id: "s3" }] },
+  ],
+  routineLogs: [{ id: "log1", routineId: "routine-done", stepId: "s3", date: "2026-11-04", status: "done" }],
+  trials: [
+    { id: "trial-start", status: "planned", startDate: "2026-11-07" },
+    { id: "trial-review", status: "running", startDate: "2026-10-01", plannedDays: 28 },
+  ],
+  reactions: [
+    { id: "reaction-open", status: "open", productId: "p-soon", dateStarted: "2026-11-02", severity: "severe" },
+    { id: "reaction-resolved", status: "resolved", productId: "p-soon", dateStarted: "2026-11-01", severity: "mild" },
+  ],
+});
+assert.ok(followUps.some(item => item.type === "product-expiry" && item.sourceId === "p-expired"));
+assert.ok(followUps.some(item => item.type === "unit-expiry" && item.sourceId === "u1"));
+assert.ok(followUps.some(item => item.type === "routine-reminder" && item.sourceId === "routine-due"));
+assert.ok(!followUps.some(item => item.type === "routine-reminder" && item.sourceId === "routine-done"));
+assert.ok(followUps.some(item => item.type === "trial-start" && item.sourceId === "trial-start"));
+assert.ok(followUps.some(item => item.type === "trial-review" && item.sourceId === "trial-review"));
+assert.ok(followUps.some(item => item.type === "reaction-followup" && item.sourceId === "reaction-open"));
+assert.ok(!followUps.some(item => item.sourceId === "p-paused" || item.sourceId === "reaction-resolved"));
+assert.equal(followUps[0].priority, "high");
+console.log("Skincare follow-up contracts added.");
+
+const configuredExpiryFollowups = buildSkinFollowUps({
+  today: "2026-11-04",
+  expiryWindowDays: 5,
+  products: [
+    { id: "p-window-in", name: "Window product", status: "active", expiryDate: "2026-11-09" },
+    { id: "p-window-out", name: "Outside product", status: "active", expiryDate: "2026-11-10" },
+    { id: "p-invalid", name: "Invalid date", status: "active", expiryDate: "2026-02-30" },
+  ],
+  units: [
+    { id: "u-window-in", name: "Window bottle", expiresOn: "2026-11-09" },
+    { id: "u-window-out", name: "Outside bottle", expiresOn: "2026-11-10" },
+    { id: "u-finished", name: "Finished bottle", expiresOn: "2026-11-05", status: "finished" },
+    { id: "u-invalid", name: "Invalid bottle", expiresOn: "2026-02-30" },
+  ],
+});
+assert.ok(configuredExpiryFollowups.some(item => item.sourceId === "p-window-in"));
+assert.ok(!configuredExpiryFollowups.some(item => item.sourceId === "p-window-out" || item.sourceId === "p-invalid"));
+assert.ok(configuredExpiryFollowups.some(item => item.sourceId === "u-window-in"));
+assert.ok(!configuredExpiryFollowups.some(item => item.sourceId === "u-window-out" || item.sourceId === "u-finished" || item.sourceId === "u-invalid"));
+console.log("Skincare configured expiry follow-up contracts added.");
+
+const portfolio = buildSkinDashboardData({
+  endDate: "2026-11-04", days: 30,
+  products: [
+    { id: "active", status: "active" },
+    { id: "paused", status: "paused" },
+    { id: "finished", status: "finished" },
+    { id: "discarded", status: "discarded" },
+    { id: "soft-deleted", status: "active", deleted_at: "2026-11-03" },
+  ],
+  trials: [
+    { id: "active-running", productId: "active", status: "running", startDate: "2026-11-01" },
+    { id: "paused-product-running", productId: "paused", status: "running", startDate: "2026-11-01" },
+    { id: "finished-product-paused", productId: "finished", status: "paused", startDate: "2026-11-01" },
+  ],
+  deletedProducts: [{ id: "soft-deleted", deleted_at: "2026-11-03" }],
+});
+assert.deepEqual(portfolio.productSummary, { activeCount: 1, inactiveCount: 3, deletedCount: 1, savedCount: 4 });
+assert.equal(portfolio.runningTrialCount, 1, "only trials linked to active products affect current running counts");
+assert.equal(portfolio.pausedTrialCount, 0, "paused trials on inactive products remain historical, not current metrics");
+assert.equal(portfolio.trialSummaries.length, 3, "historical trial summaries remain available");

@@ -18,7 +18,7 @@ assert.ok(ui.includes("healthRepository.updateMeasurement"),"Update flow must us
 assert.ok(ui.includes("healthRepository.deleteMeasurement"),"Delete flow must use repository");
 assert.ok(ui.includes("blood_pressure"),"Blood pressure must support systolic and diastolic values");
 assert.ok(ui.includes("مؤشر كتلة الجسم المحسوب"),"BMI must be derived rather than stored");
-assert.ok(repository.includes('from("health_measurements")'),"Repository must use the normalized measurements table");
+assert.ok(repository.includes('listScoped("health_measurements"'),"Repository must use the normalized measurements table");
 assert.ok(migration.includes("enable row level security"),"Measurements table must enable RLS");
 assert.ok(migration.includes("health_has_access(profile_id,'measurements'"),"Measurements must use the dedicated grant scope");
 for(const type of ["weight","height","blood_pressure","heart_rate","body_temperature","oxygen_saturation","respiratory_rate","waist_circumference","body_fat_percentage"])assert.ok(migration.includes("'"+type+"'"),"Missing measurement type "+type);
@@ -27,5 +27,5 @@ assert.ok(hardening.includes("health_factor_log")&&hardening.includes("sensitive
 assert.ok(hardening.includes("health_measurements_guard"),"Measurement identity fields must be immutable");
 assert.ok(core.includes("measurements:القياسات الحيوية:📏"),"Core OS must register the measurements section");
 assert.ok(plan.includes("H2.1 — القياسات الحيوية والجسمية"),"Master plan must document H2.1");
-assert.ok(plan.includes("H2.2 — مخطط الجسم (منفذ جزئيًا)")&&plan.includes("H2.3 — البحث الصحي الموحّد (مفتوح)")&&plan.includes("H2.4 — الخط الزمني الصحي (مفتوح)"),"Remaining H2 gaps must remain tracked");
+assert.ok(plan.includes("H2.2 — مخطط الجسم (منفذ جزئيًا)")&&plan.includes("H2.3 — البحث الصحي الموحّد (منفذ جزئيًا)")&&plan.includes("H2.4 — الخط الزمني الصحي (منفذ جزئيًا)"),"Remaining H2 gaps must remain tracked");
 console.log("Health H2.1 measurements contract checks passed.");

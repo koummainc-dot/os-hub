@@ -9,14 +9,14 @@ const plan=fs.readFileSync("plans/HEALTH_WELLNESS_OS_UNIFIED_MASTER_PLAN_v1_AR.m
 assert.ok(ui.includes('import HealthAnalytics from "./HealthAnalytics.jsx"'),"H5 component must be integrated");
 assert.ok(ui.includes('page === "reports"'),"Reports route must render");
 assert.ok(ui.includes('["reports","التقارير"]'),"Reports navigation must be visible");
-assert.ok(core.includes('phase:"H2.2 · مخطط الجسم"'),"H2.2 is the active Health phase");
+assert.ok(core.includes('phase:"H2.4 · الخط الزمني الصحي"'),"H2.2 is the active Health phase");
 assert.ok(core.includes("reports:التقارير الصحية:📊"),"Previously completed H5 reports must remain registered");
 assert.ok(core.includes("reports:التقارير الصحية:📊"),"H5 section must be registered in OS navigation");
 assert.ok(component.includes('canRead("reports","read")'),"Reports must require explicit reports read scope");
 assert.ok(component.includes('canRead("sensitive_trackers","read")'),"Sensitive factors must require the separate sensitive scope");
 assert.ok(component.includes("window.print()"),"PDF output must use the browser print/save flow");
 assert.ok(component.includes('type:"text/csv;charset=utf-8"'),"CSV must be UTF-8");
-assert.ok(component.includes("source"),"Report rows must include data source metadata");
+assert.ok(component.includes("المصدر"),"Report rows must include data source metadata");
 assert.ok(component.includes("لا تُستنتج علاقة سببية"),"Analytics must not imply causation");
 assert.ok(component.includes("لا يتم استيراد أو نسخ الوجبات أو الماء أو التمارين"),"Nutrition and Sports records must not be duplicated");
 assert.ok(!component.includes("cycleEntries"),"Cycle records must not enter H5 reports");
