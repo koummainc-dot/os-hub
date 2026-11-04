@@ -878,7 +878,7 @@ function parseCsvMatrix(input) {
     } else if (char === '"' && cell.length === 0) quoted = true;
     else if (char === ",") { row.push(cell); cell = ""; }
     else if (char === "\n" || char === "\r") {
-      if (char === "\\r" && source[i + 1] === "\n") i++;
+      if (char === "\r" && source[i + 1] === "\n") i++;
       row.push(cell); cell = "";
       if (row.some(value => String(value).trim() !== "")) rows.push(row);
       row = [];
