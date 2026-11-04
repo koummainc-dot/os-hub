@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateSkinDiaryEntry, summarizeSkinTrial, analyzeSkinFactors } from "../src/systems/skincare/domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateSkinDiaryEntry, summarizeSkinTrial, analyzeSkinFactors, buildSkinDashboardData } from "../src/systems/skincare/domain.js";
 import { buildSkinPhotoPaths, validateSkinPhotoFile, validateSkinPhotoMetadata } from "../src/systems/skincare/photoDomain.js";
 
 assert.deepEqual(Object.values(SKINCARE_COLLECTIONS), ["skin_profile", "skin_products", "skin_units", "skin_routines", "skin_routine_logs", "skin_diary", "skin_photos"]);
@@ -116,3 +116,36 @@ assert.equal(factorResult.issueComparisons.find(item => item.issue === "جفاف
 assert.equal(analyzeSkinFactors(factorRows.slice(0, 4)).correlations.find(item => item.key === "sleepHours").status, "insufficient");
 assert.equal(analyzeSkinFactors([]).ratedCount, 0);
 console.log("Skincare factor analysis contracts added.");
+
+
+const dashboard = buildSkinDashboardData({
+  endDate: "2026-11-04", days: 30,
+  entries: [
+    { id: "d1", date: "2026-10-06", skinRating: 0, areaMeasurements: { forehead: 0, nose: "" } },
+    { id: "d2", date: "2026-10-08", skinRating: 4, areaMeasurements: { forehead: 2, nose: null } },
+    { id: "d3", date: "2026-11-04", skinRating: "", areaMeasurements: { forehead: 5 } },
+  ],
+  trials: [{ id: "t1", status: "running", startDate: "2026-10-20" }],
+  reactions: [
+    { id: "r1", status: "open", dateStarted: "2026-11-02", severity: "severe" },
+    { id: "r2", status: "resolved", dateStarted: "2026-11-01", severity: "mild" },
+  ],
+  photos: [{ id: "p1", date: "2026-11-03" }],
+  routines: [{ id: "routine-1", status: "active" }],
+  routineLogs: [{ id: "l1", date: "2026-11-03", status: "done" }, { id: "l2", date: "2026-11-04", status: "skipped" }],
+});
+assert.equal(dashboard.daysWithRating, 2);
+assert.equal(dashboard.daysWithoutRating, 28);
+assert.equal(dashboard.timeline.find(item => item.date === "2026-10-07").rating, null);
+assert.equal(dashboard.timeline.find(item => item.date === "2026-10-06").rating, 0);
+assert.equal(dashboard.averageRating, 2);
+assert.equal(dashboard.areas.find(item => item.key === "forehead").average, 2.33);
+assert.equal(dashboard.areas.find(item => item.key === "forehead").count, 3);
+assert.equal(dashboard.areas.find(item => item.key === "nose").count, 0);
+assert.equal(dashboard.openReactionCount, 1);
+assert.equal(dashboard.severeReactionCount, 1);
+assert.equal(dashboard.runningTrialCount, 1);
+assert.equal(dashboard.photoCount, 1);
+assert.equal(dashboard.routineCompletionAmongLogged, 50);
+assert.equal(buildSkinDashboardData({ endDate: "2026-11-04", days: 7 }).averageRating, null);
+console.log("Skincare dashboard contracts added.");
