@@ -20,7 +20,6 @@ assert.ok(serialized.startsWith("\uFEFF"), "CSV must use a real UTF-8 BOM");
 assert.ok(serialized.includes("\r\n"), "CSV must use standard CRLF rows");
 const formulaCsv = serializeSkinProductsCsv([{ name: "=SUM(A1:A2)" }]);
 assert.ok(formulaCsv.includes("'=SUM(A1:A2)"), "formula-like values must be neutralized");
-assert.ok(serialized.includes("'=SUM(A1:A2)"), "formula-like values must be neutralized");
 const roundTrip = parseSkinProductsCsv(serialized);
 assert.equal(roundTrip.ok, true);
 assert.equal(roundTrip.rows.length, 3);
