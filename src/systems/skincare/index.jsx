@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, validateSkinTrial, transitionSkinTrial, validateSkinReaction } from "./domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus } from "./domain.js";
+import { SkinCompareView, SkinListsView, RoutineLogsView, SkinSettingsView } from "./WorkspaceTools.jsx";
 import DiaryView from "./Diary.jsx";
 import RoutinesView from "./Routines.jsx";
 import PhotosView from "./Photos.jsx";
@@ -38,16 +39,19 @@ const SECTIONS = [
   ["products", "المنتجات", "🧪"],
   ["units", "العبوات", "📦"],
   ["routines", "الروتين", "🗓️"],
+  ["routine_logs", "سجل الروتين", "📜"],
+  ["compare", "مقارنة المنتجات", "⚖️"],
   ["diary", "مفكرة البشرة", "📔"],
   ["photos", "صور التقدم", "📷"],
   ["ingredients", "المكونات", "🧬"],
   ["trials", "التجارب", "🧫"],
   ["reactions", "التفاعلات", "⚠️"],
+  ["lists", "القوائم والرغبات", "♡"],
 ];
-const EMPTY_PRODUCT = { name: "", brand: "", category: "other", status: "active", suitability: "suitable", startDate: "", expiryDate: "", ingredients: "", instructions: "", notes: "" };
-const EMPTY_UNIT = { name: "", productId: "", openedOn: today(), expiresOn: "", notes: "" };
+const EMPTY_PRODUCT = { name: "", brand: "", category: "other", status: "active", suitability: "suitable", startDate: "", expiryDate: "", ingredients: "", instructions: "", notes: "", url: "", stepSlot: "" };
+const EMPTY_UNIT = { name: "", productId: "", purchaseDate: "", openedOn: "", paoMonths: "", expiresOn: "", startedUseDate: "", finishedDate: "", finishReason: "", price: "", currency: "EGP", sizeNote: "", notes: "" };
 
-export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home", setPage = () => {}, shell }) {
+export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = "home", setPage = () => {}, shell }) {
   const store = useRecordStore({ wsId: ws?.id || "demo", systemId: "skincare", isDemo, demoStore: demoStore || { current: {} }, seed: () => ({}) , onToast: message => shell?.toast?.(message) });
   const products = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.products)), [store.recs]);
   const ingredients = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.ingredients)).sort((a, b) => String(a.inciName).localeCompare(String(b.inciName))), [store.recs]);
@@ -55,6 +59,8 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
   const trials = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.trials)).sort((a, b) => String(b.startDate).localeCompare(String(a.startDate))), [store.recs]);
   const reactions = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.reactions)).sort((a, b) => String(b.dateStarted).localeCompare(String(a.dateStarted))), [store.recs]);
   const units = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.units)), [store.recs]);
+  const lists = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.lists)), [store.recs]);
+  const settings = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.settings).find(x => x.id === "settings") || null, [store.recs]);
   const routines = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.routines)), [store.recs]);
   const routineLogs = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.routineLogs)), [store.recs]);
   const diaryEntries = useMemo(() => live(arr(store.recs, SKINCARE_COLLECTIONS.diary)).sort((a, b) => String(b.date).localeCompare(String(a.date))), [store.recs]);
@@ -119,7 +125,7 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
   const saveUnit = async e => {
     e.preventDefault();
     if (!canEdit) return;
-    const result = validateSkinUnit(unitDraft);
+    const result = validateSkinUnit(unitDraft, today());
     if (!result.ok) return say(result.error);
     if (result.value.productId && !products.some(p => p.id === result.value.productId)) return say("المنتج المرتبط غير موجود.");
     setBusy(true);
@@ -137,6 +143,41 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     if (result) say("تم نقل العبوة إلى المحذوفات.");
   };
   const restoreUnit = async unit => { const result = await store.api.restore(SKINCARE_COLLECTIONS.units, unit.id); if (result) say("تمت استعادة العبوة."); };
+  const saveList = async input => {
+    if (!canEdit) return false;
+    const checked = validateSkinList(input);
+    if (!checked.ok) return say(checked.error), false;
+    if (checked.value.productIds.some(id => !products.some(product => product.id === id))) return say("تحتوي القائمة على منتج غير موجود."), false;
+    try {
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.lists, { ...checked.value, id: input.id || uid() });
+      if (!saved) throw new Error("لم يؤكد النظام حفظ القائمة.");
+      say("تم حفظ القائمة.");
+      return true;
+    } catch (error) { say(error?.message || "تعذر حفظ القائمة."); return false; }
+  };
+  const deleteList = async list => {
+    if (!canEdit || !window.confirm("هل تريد نقل القائمة إلى المحذوفات؟")) return;
+    const saved = await store.api.softDelete(SKINCARE_COLLECTIONS.lists, list.id);
+    if (saved) say("تم حذف القائمة منطقيًا.");
+  };
+  const toggleListProduct = async (list, product) => {
+    if (!canEdit) return;
+    const ids = new Set(list.productIds || []);
+    if (ids.has(product.id)) ids.delete(product.id); else ids.add(product.id);
+    await saveList({ ...list, productIds: [...ids] });
+  };
+  const saveSettings = async input => {
+    if (!canEdit) return false;
+    const checked = validateSkinSettings(input);
+    if (!checked.ok) return say(checked.error), false;
+    try {
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.settings, { ...checked.value, id: "settings" });
+      if (!saved) throw new Error("لم يؤكد النظام حفظ الإعدادات.");
+      say("تم حفظ إعدادات Skincare OS.");
+      return true;
+    } catch (error) { say(error?.message || "تعذر حفظ الإعدادات."); return false; }
+  };
+
   const saveDiaryEntry = async e => {
     e.preventDefault();
     if (!canEdit) return;
@@ -466,10 +507,13 @@ export default function SkincareOS({ access, ws, isDemo, demoStore, page = "home
     {store.ready && !store.error && page === "home" && <HomeView profile={profile} products={products} units={units} setPage={setPage} />}
     {store.ready && !store.error && page === "dashboard" && <SkinDashboard endDate={today()} diaryEntries={diaryEntries} trials={trials} reactions={reactions} photos={photos} routines={routines} routineLogs={routineLogs} products={products} />}
     {store.ready && !store.error && page === "followups" && <SkinFollowUps today={today()} products={products} units={units} routines={routines} routineLogs={routineLogs} trials={trials} reactions={reactions} setPage={setPage} />}
-    {store.ready && !store.error && page === "settings" && <><ProfileView profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={saveProfile} canEdit={canEdit} busy={busy} /><SkincareBackup records={store.recs} canEdit={canEdit} pending={store.pending > 0} /></>}
+    {store.ready && !store.error && page === "settings" && <><ProfileView profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={saveProfile} canEdit={canEdit} busy={busy} /><SkinSettingsView settings={settings} canEdit={canEdit} busy={busy} onSave={saveSettings} /><SkincareBackup records={store.recs} canEdit={canEdit} pending={store.pending > 0} /></>}
     {store.ready && !store.error && page === "products" && <ProductsView products={products} deletedProducts={deletedProducts} onRestore={restoreProduct} draft={productDraft} setDraft={setProductDraft} onSave={saveProduct} onEdit={editProduct} onDelete={deleteProduct} editing={editingProduct} setEditing={setEditingProduct} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "units" && <UnitsView units={units} deletedUnits={deletedUnits} onRestore={restoreUnit} products={products} draft={unitDraft} setDraft={setUnitDraft} onSave={saveUnit} onEdit={editUnit} onDelete={deleteUnit} editing={editingUnit} setEditing={setEditingUnit} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "routines" && <RoutinesView routines={routines} logs={routineLogs} products={products} reactions={reactions.filter(item => item.status === "open")} canEdit={canEdit} busy={busy} onSave={saveRoutine} onArchive={toggleRoutine} onCopy={copyRoutine} onLog={logRoutineStep} onUndo={undoRoutineLog} />}
+    {store.ready && !store.error && page === "routine_logs" && <RoutineLogsView logs={routineLogs} routines={routines} products={products} canEdit={canEdit} onUndo={async log => { if (!canEdit || !window.confirm("نقل سجل التنفيذ إلى المحذوفات؟")) return; const ok=await store.api.softDelete(SKINCARE_COLLECTIONS.routineLogs,log.id); if(ok) say("تم نقل سجل التنفيذ إلى المحذوفات."); }} />}
+    {store.ready && !store.error && page === "compare" && <SkinCompareView products={products} units={units} ingredients={ingredients} />}
+    {store.ready && !store.error && page === "lists" && <SkinListsView lists={lists} products={products} canEdit={canEdit} busy={busy} onSave={saveList} onDelete={deleteList} onToggleProduct={toggleListProduct} />}
     {store.ready && !store.error && page === "diary" && <DiaryView entries={diaryEntries} deletedEntries={deletedDiaryEntries} trials={trials} selectedDate={diaryDate} setSelectedDate={setDiaryDate} draft={diaryDraft} setDraft={setDiaryDraft} editing={editingDiary} setEditing={setEditingDiary} onSave={saveDiaryEntry} onEdit={editDiaryEntry} onDelete={deleteDiaryEntry} onRestore={restoreDiaryEntry} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "photos" && <PhotosView workspaceId={ws?.id} entries={diaryEntries} photos={photos} deletedPhotos={deletedPhotos} isDemo={isDemo} canEdit={canEdit} busy={busy} onUpload={uploadPhoto} onDelete={removePhoto} onPurge={removePhoto} />}
     {store.ready && !store.error && page === "ingredients" && <IngredientsView ingredients={ingredients} deletedIngredients={deletedIngredients} products={products} canEdit={canEdit} busy={busy} onSave={saveIngredient} onDelete={deleteIngredient} onRestore={restoreIngredient} onImportCatalog={importIngredientCatalog} />}
@@ -510,6 +554,8 @@ function ProductsView({ products, deletedProducts, onRestore, draft, setDraft, o
       <Select title="ملاءمة المنتج" value={draft.suitability || "suitable"} onChange={v => setDraft(d => ({ ...d, suitability: v }))} options={[["suitable","مناسب مبدئيًا"],["review","يحتاج مراجعة"],["avoid","تجنب"]]} />
       <Field title="تاريخ البدء" type="date" value={draft.startDate} onChange={v => setDraft(d => ({ ...d, startDate: v }))} />
       <Field title="تاريخ الانتهاء" type="date" value={draft.expiryDate} onChange={v => setDraft(d => ({ ...d, expiryDate: v }))} />
+      <Field title="رابط المنتج" type="url" value={draft.url} onChange={v => setDraft(d => ({ ...d, url: v }))} />
+      <Field title="موضع الاستخدام" value={draft.stepSlot} onChange={v => setDraft(d => ({ ...d, stepSlot: v }))} placeholder="مثال: AM / PM" />
       <label style={{ ...label, gridColumn: "1 / -1" }}>المكونات<textarea style={{ ...field, minHeight: 65 }} value={draft.ingredients} onChange={e => setDraft(d => ({ ...d, ingredients: e.target.value }))} maxLength={2000} /></label>
       <label style={{ ...label, gridColumn: "1 / -1" }}>طريقة الاستخدام<textarea style={{ ...field, minHeight: 65 }} value={draft.instructions} onChange={e => setDraft(d => ({ ...d, instructions: e.target.value }))} maxLength={1000} /></label>
       <label style={{ ...label, gridColumn: "1 / -1" }}>ملاحظات<textarea style={{ ...field, minHeight: 65 }} value={draft.notes} onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))} maxLength={2000} /></label>
@@ -530,14 +576,22 @@ function UnitsView({ units, deletedUnits, onRestore, products, draft, setDraft, 
     {canEdit ? <form onSubmit={onSave} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 11 }}>
       <Field title="اسم العبوة" value={draft.name} onChange={v => setDraft(d => ({ ...d, name: v }))} required />
       <Select title="المنتج" value={draft.productId} onChange={v => setDraft(d => ({ ...d, productId: v }))} options={[["","بدون ربط"], ...products.map(p => [p.id, p.name])]} />
+      <Field title="تاريخ الشراء" type="date" value={draft.purchaseDate} onChange={v => setDraft(d => ({ ...d, purchaseDate: v }))} />
       <Field title="تاريخ الفتح" type="date" value={draft.openedOn} onChange={v => setDraft(d => ({ ...d, openedOn: v }))} />
-      <Field title="تاريخ الانتهاء" type="date" value={draft.expiresOn} onChange={v => setDraft(d => ({ ...d, expiresOn: v }))} />
+      <Field title="مدة الصلاحية بعد الفتح (شهر)" type="number" value={draft.paoMonths} onChange={v => setDraft(d => ({ ...d, paoMonths: v }))} />
+      <Field title="تاريخ الانتهاء المطبوع" type="date" value={draft.expiresOn} onChange={v => setDraft(d => ({ ...d, expiresOn: v }))} />
+      <Field title="بدء الاستخدام" type="date" value={draft.startedUseDate} onChange={v => setDraft(d => ({ ...d, startedUseDate: v }))} />
+      <Field title="تاريخ الانتهاء الفعلي" type="date" value={draft.finishedDate} onChange={v => setDraft(d => ({ ...d, finishedDate: v }))} />
+      <Field title="السعر" type="number" value={draft.price} onChange={v => setDraft(d => ({ ...d, price: v }))} />
+      <Field title="العملة (ISO)" value={draft.currency} onChange={v => setDraft(d => ({ ...d, currency: v }))} />
+      <Field title="الحجم / الكمية" value={draft.sizeNote} onChange={v => setDraft(d => ({ ...d, sizeNote: v }))} />
+      <Field title="سبب الانتهاء" value={draft.finishReason} onChange={v => setDraft(d => ({ ...d, finishReason: v }))} />
       <label style={{ ...label, gridColumn: "1 / -1" }}>ملاحظات<textarea style={{ ...field, minHeight: 65 }} value={draft.notes} onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))} maxLength={1000} /></label>
       <div style={{ display: "flex", gap: 8 }}><button style={button(true)} disabled={busy}>{editing ? "حفظ التعديل" : "إضافة العبوة"}</button>{editing && <button type="button" style={button()} onClick={() => { setEditing(""); setDraft(EMPTY_UNIT); }}>إلغاء</button>}</div>
     </form> : <p style={{ color: C.muted, fontSize: 12 }}>صلاحية العرض فقط.</p>}
   </Panel><Panel title={"العبوات (" + units.length + ")"}>
     {units.map(u => <article key={u.id} style={{ padding: "12px 0", borderTop: "1px solid " + C.line, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-      <div><b>{u.name}</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{products.find(p => p.id === u.productId)?.name || "غير مرتبطة بمنتج"} · فُتحت: {u.openedOn || "—"} · تنتهي: {u.expiresOn || "—"}</div></div>
+      <div><b>{u.name}</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{products.find(p => p.id === u.productId)?.name || "غير مرتبطة بمنتج"} · شراء: {u.purchaseDate || "—"} · فتح: {u.openedOn || "—"} · انتهاء فعلي/محسوب: {effectiveSkinUnitExpiry(u) || "غير معروف"} · الحالة: {skinUnitStatus(u,today())} · السعر: {u.price==null||u.price===""?"—":u.price+" "+(u.currency||"")} </div></div>
       {canEdit && <div style={{ display: "flex", gap: 6 }}><button style={button()} onClick={() => onEdit(u)}>تعديل</button><button style={{ ...button(), color: C.danger }} onClick={() => onDelete(u)}>حذف</button></div>}
     </article>)}
     {!units.length && <p style={{ color: C.muted, fontSize: 12 }}>لا توجد عبوات مسجلة.</p>}
