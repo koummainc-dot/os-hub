@@ -12,9 +12,9 @@
 - SQL migration files on `main`: **104**
 - Repository files with one or more same-name live history entries: **87**
 - Repository files with no same-name live history entry (candidate pending): **17**
-- Same-name entries whose file timestamp differs from live history: **41**
+- Same-name entries whose file timestamp differs from live history: **40**
 - Live history entries not mapped to a same-name repository file: **10**
-- Exact version-prefix matches (including unique-name disambiguation): **46**
+- Exact version-prefix matches (including duplicate-name exact-version pairing): **47**
 - Duplicate live versions: **0**
 
 This is a reconciliation inventory, not authorization to push. Name equality is only a candidate mapping; SQL content/checksum and dependency review are still required.
@@ -49,7 +49,7 @@ This is a reconciliation inventory, not authorization to push. Name equality is 
 | `20261028110238_finance_family_rpc_privilege_hardening.sql` | `20261028110238` | `20261028110238` | exact prefix |
 | `20261028120000_inventory_p0_foundation.sql` | `20261028120000` | — | NO LIVE MATCH |
 | `20261028130000_finance_default_category_seeding.sql` | `20261028130000` | — | NO LIVE MATCH |
-| `20261028140000_inventory_p1_domain_schema.sql` | `20261028130000` | — | NO LIVE MATCH |
+| `20261028140000_inventory_p1_domain_schema.sql` | `20261028140000` | — | NO LIVE MATCH |
 | `20261028150000_inventory_snapshot_rpc.sql` | `20261028150000` | — | NO LIVE MATCH |
 | `20261028200000_finance_asset_valuation_history_phase_20.sql` | `20261028200000` | `20261027212802` | timestamp mismatch |
 | `20261028203000_finance_asset_function_search_path_hardening.sql` | `20261028203000` | `20261027212952` | timestamp mismatch |
@@ -129,7 +129,7 @@ This is a reconciliation inventory, not authorization to push. Name equality is 
 
 - `20261028120000_inventory_p0_foundation.sql`
 - `20261028130000_finance_default_category_seeding.sql`
-- `20261028130000_inventory_p1_domain_schema.sql`
+- `20261028140000_inventory_p1_domain_schema.sql`
 - `20261028150000_inventory_snapshot_rpc.sql`
 - `20261030100000_projects_final_output_guard.sql`
 - `20261030110000_projects_task_issue_traceability.sql`
@@ -355,11 +355,14 @@ The SHA column below is the **Git blob SHA of the current repository file**, not
 
 - `supabase/migrations/20261028120000_inventory_p0_foundation.sql` — Git blob `257aa2893c59e411ad344eefb6f864190452a4be`
 - `supabase/migrations/20261028130000_finance_default_category_seeding.sql` — Git blob `c2b249bcfab0ac4be7f65509978029dd8fdfc040`
-- `supabase/migrations/20261028130000_inventory_p1_domain_schema.sql` — Git blob `5ac6f884950d3144305021dd45998354c5fe2c52`
+- `supabase/migrations/20261028140000_inventory_p1_domain_schema.sql` — Git blob `5ac6f884950d3144305021dd45998354c5fe2c52`
 - `supabase/migrations/20261028150000_inventory_snapshot_rpc.sql` — Git blob `4f4bd9d4059437f82df88b4f835c1776d457109a`
 - `supabase/migrations/20261030100000_projects_final_output_guard.sql` — Git blob `1614ad91b41cee63b7f51e7472460d982f536087`
 - `supabase/migrations/20261030110000_projects_task_issue_traceability.sql` — Git blob `d8035c25bba9aae602b8e0316615e66168ad2ab8`
-- `supabase/migrations/20261030120000_projects_task_issue_deferred_validation.sql` — Git blob `f39260c9b389a3a1f81924ca491a5e7bddbbb466`
+- `supabase/migrations/20261030120000_projects_task_issue_deferred_validation.sql`
+- `supabase/migrations/20261031110000_projects_prd_requirement_traceability.sql`
+- `supabase/migrations/20261031120000_projects_entity_relationship_integrity.sql`
+- `supabase/migrations/20261031130000_projects_prd_verified_evidence_guard.sql` — Git blob `f39260c9b389a3a1f81924ca491a5e7bddbbb466`
 - `supabase/migrations/20261030130000_finance_family_cash_tracking.sql` — Git blob `ea60c7484707d97a11bc8021f07a6076fdb93997`
 - `supabase/migrations/20261101150000_os_integration_events.sql` — Git blob `33e1f4ead18acb0070d318bae73c36fd0fe14972`
 - `supabase/migrations/20261102103000_hobbies_journal_private_visibility.sql` — Git blob `1ff2d6adb356fb5ebe501bee9cd4641851e94d9d`
@@ -426,7 +429,7 @@ These findings confirm that several pending migrations represent genuinely missi
 
 ## Pending migration version collision resolved in PR #114
 
-A repository-wide scan of the 104 migration files found one duplicate 14-digit version prefix: `20261028130000` was used by both `finance_default_category_seeding` and `inventory_p1_domain_schema`. Both are pending candidates; production history contains neither Inventory version 130000 nor the new 140000 version. PR #114 renames only the Inventory file to `20261028140000`, preserving the dependency order `inventory_p0_foundation (120000) → inventory_p1_domain_schema (140000) → inventory_snapshot_rpc (150000)`. It also adds a CI test that fails on any duplicate migration version. This resolves the repository filename collision only; it does not authorize a production migration push or repair any live history rows.
+A repository-wide scan of the 104 migration files found one duplicate 14-digit version prefix: `20261028130000` was initially used by both `finance_default_category_seeding` and `inventory_p1_domain_schema`. PR #116 corrected the Inventory filename to `20261028140000`; Finance retains `20261028130000`. Neither Inventory version is recorded in production history. PR #114 renames only the Inventory file to `20261028140000`, preserving the dependency order `inventory_p0_foundation (120000) → inventory_p1_domain_schema (140000) → inventory_snapshot_rpc (150000)`. It also adds a CI test that fails on any duplicate migration version. This resolves the repository filename collision only; it does not authorize a production migration push or repair any live history rows.
 
 
 ## Durable Integration Events migration validation
@@ -466,8 +469,8 @@ A fresh read-only scan was run against `main` at `b263f5c3a18531bd2e6a4f228605b0
 
 - Live Supabase migration history remains **94** entries.
 - The current repository contains **104** SQL migration files (the earlier 101-file snapshot is stale).
-- **46** repository files have exact version-prefix matches.
-- **41** same-name candidates have timestamp mismatches. The duplicated historical name `finance_internal_function_permissions` has two live versions and two repository files; retain both rows in a one-to-one audit rather than collapsing by name.
+- **47** repository files have exact version-prefix matches.
+- **40** same-name candidates have timestamp mismatches. The duplicated historical name `finance_internal_function_permissions` has two live versions and two repository files; pair each file to the live entry with the same exact version, rather than collapsing by name.
 - **17** repository files have no same-name live history entry.
 - **10** live history entries have no same-name repository file.
 - PR #116 moved only the unapplied Inventory domain migration to `20261028140000_inventory_p1_domain_schema.sql`; Finance retains `20261028130000_finance_default_category_seeding.sql`. The repository now has no duplicate 14-digit migration prefixes.
@@ -475,3 +478,8 @@ A fresh read-only scan was run against `main` at `b263f5c3a18531bd2e6a4f228605b0
 - All four GitHub Actions checks on current main completed successfully: `test-and-build`, `projects-postgres-smoke`, `knowledge-postgres-smoke`, and `spiritual-postgres-smoke`. The Vercel status check is separate and failed due to the free-plan daily deployment rate limit; no production deployment was performed.
 
 This scan updates the inventory counts only. It does not establish historical SQL byte equivalence, nor authorize a production migration push. The 10 live-only history rows still require trusted historical SQL recovery or exact catalog/dependency evidence. The 17 pending candidates still require dependency ordering and a reconciled application strategy.
+
+
+### Counting method clarification
+
+The refreshed totals classify a file as an exact match when its 14-digit prefix is present among all live versions for that same migration name. This preserves the two `finance_internal_function_permissions` history rows as separate exact matches. A file is a timestamp mismatch when its name exists in live history but its prefix does not; a file is pending only when its migration name has no live history row at all. The resulting partition is 47 exact + 40 timestamp mismatches + 17 pending = 104 repository SQL files.
