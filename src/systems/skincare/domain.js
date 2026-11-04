@@ -61,8 +61,15 @@ export function validateSkinProduct(input = {}) {
   }};
 }
 
+export function isValidSkinDateKey(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return false;
+  const [year, month, day] = String(value).split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
 export function effectiveSkinUnitExpiry(unit = {}) {
-  const valid = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+  const valid = isValidSkinDateKey;
   const addMonths = (dateKey, months) => {
     const [year, month, day] = dateKey.split("-").map(Number);
     const target = new Date(Date.UTC(year, month - 1 + months, 1));
@@ -81,7 +88,8 @@ export function skinUnitStatus(unit = {}, todayKey = new Date().toISOString().sl
   if (unit.finishedDate || unit.status === "finished") return "finished";
   const expiry = effectiveSkinUnitExpiry(unit);
   if (expiry && expiry < todayKey) return "expired";
-  if (expiry && expiry <= new Date(Date.parse(todayKey + "T00:00:00Z") + soonDays * 86400000).toISOString().slice(0, 10)) return "expiring_soon";
+  const safeSoonDays = Number.isInteger(soonDays) && soonDays >= 0 && soonDays <= 365 ? soonDays : 30;
+  if (expiry && isValidSkinDateKey(todayKey) && expiry <= new Date(Date.parse(todayKey + "T00:00:00Z") + safeSoonDays * 86400000).toISOString().slice(0, 10)) return "expiring_soon";
   if (!unit.openedOn) return "unopened";
   return "active";
 }
@@ -98,8 +106,9 @@ export function validateSkinUnit(input = {}, todayKey = new Date().toISOString()
   const price = input.price === "" || input.price == null ? null : Number(input.price);
   if (!name) return { ok: false, error: "اسم العبوة مطلوب." };
   for (const [label, value] of [["تاريخ الشراء", purchaseDate], ["تاريخ الفتح", openedOn], ["تاريخ الانتهاء", expiresOn], ["بدء الاستخدام", startedUseDate], ["تاريخ الانتهاء الفعلي", finishedDate]]) {
-    if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) return { ok: false, error: label + " غير صالح." };
+    if (value && !isValidSkinDateKey(value)) return { ok: false, error: label + " غير صالح." };
   }
+  if (todayKey && !isValidSkinDateKey(todayKey)) return { ok: false, error: "تاريخ اليوم المرجعي غير صالح." };
   if (purchaseDate && todayKey && purchaseDate > todayKey) return { ok: false, error: "تاريخ الشراء لا يمكن أن يكون في المستقبل." };
   if (openedOn && todayKey && openedOn > todayKey) return { ok: false, error: "تاريخ الفتح لا يمكن أن يكون في المستقبل." };
   if (startedUseDate && todayKey && startedUseDate > todayKey) return { ok: false, error: "بدء الاستخدام لا يمكن أن يكون في المستقبل." };
@@ -720,6 +729,7 @@ const skincareDateShift = (key, amount) => {
   return new Date(Date.UTC(year, month - 1, day + amount)).toISOString().slice(0, 10);
 };
 const skincareDateDistance = (from, to) => {
+  if (!isValidSkinDateKey(from) || !isValidSkinDateKey(to)) return null;
   const a = Date.parse(String(from) + "T00:00:00Z");
   const b = Date.parse(String(to) + "T00:00:00Z");
   return Number.isFinite(a) && Number.isFinite(b) ? Math.round((b - a) / 86400000) : null;
@@ -743,7 +753,7 @@ export function buildSkinFollowUps({
   }
   for (const unit of units) {
     const effectiveExpiry = effectiveSkinUnitExpiry(unit);
-    if (!effectiveExpiry || unit.finishedDate) continue;
+    if (!effectiveExpiry || unit.finishedDate || unit.status === "finished") continue;
     const distance = skincareDateDistance(today, effectiveExpiry);
     if (distance === null || distance > expiryWindowDays) continue;
     const product = products.find(item => item.id === unit.productId);
@@ -873,6 +883,16 @@ export function serializeSkinProductsCsv(products = []) {
 }
 
 
+export function skinUnitCostPerDay(unit = {}, today = new Date().toISOString().slice(0, 10)) {
+  if (unit.deleted_at || unit.price === "" || unit.price == null || !Number.isFinite(Number(unit.price)) || Number(unit.price) < 0) return null;
+  if (!isValidSkinDateKey(unit.startedUseDate) || !isValidSkinDateKey(unit.finishedDate || today)) return null;
+  const start = Date.parse(unit.startedUseDate + "T00:00:00Z");
+  const end = Date.parse((unit.finishedDate || today) + "T00:00:00Z");
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+  const days = Math.floor((end - start) / 86400000) + 1;
+  return days > 0 ? { value: Number(unit.price) / days, currency: String(unit.currency || "غير محددة"), unitId: unit.id } : null;
+}
+
 export function summarizeSkinProductUnits(productId, units = [], today = new Date().toISOString().slice(0, 10)) {
   const related = units.filter(unit => unit.productId === productId && !unit.deleted_at);
   const priced = related.filter(unit => unit.price !== "" && unit.price != null && Number.isFinite(Number(unit.price)) && Number(unit.price) >= 0);
@@ -881,14 +901,7 @@ export function summarizeSkinProductUnits(productId, units = [], today = new Dat
     const currency = String(unit.currency || "غير محددة").trim() || "غير محددة";
     totalsByCurrency[currency] = (totalsByCurrency[currency] || 0) + Number(unit.price);
   }
-  const dailyCosts = priced.filter(unit => unit.startedUseDate).map(unit => {
-    const start = Date.parse(String(unit.startedUseDate) + "T00:00:00Z");
-    const endKey = unit.finishedDate || today;
-    const end = Date.parse(String(endKey) + "T00:00:00Z");
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
-    const days = Math.floor((end - start) / 86400000) + 1;
-    return { value: Number(unit.price) / days, currency: String(unit.currency || "غير محددة"), unitId: unit.id };
-  }).filter(Boolean);
+  const dailyCosts = related.map(unit => skinUnitCostPerDay(unit, today)).filter(Boolean);
   return {
     count: related.length,
     pricedCount: priced.length,
