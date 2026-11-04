@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {
   effectiveSkinUnitExpiry, skinUnitStatus, validateSkinUnit,
-  validateSkinProduct, validateSkinList, validateSkinSettings, canRestoreSkinUnit, canRestoreSkinRoutineLog, canRestoreSkinList, hasDuplicateSkinListName,
+  validateSkinProduct, validateSkinList, validateSkinSettings, canRestoreSkinUnit, canRestoreSkinRoutineLog, canRestoreSkinList, hasDuplicateSkinListName, normalizeSkinSearchText,
 } from "../src/systems/skincare/domain.js";
 
 assert.equal(effectiveSkinUnitExpiry({ openedOn: "2026-01-31", paoMonths: 1 }), "2026-02-28");
@@ -48,3 +48,9 @@ assert.equal(canRestoreSkinList({ productIds: [] }, []), true);
 const legacyLog = { id: "legacy", routineId: "r1", stepId: "s1", date: "2026-11-03" };
 assert.equal(canRestoreSkinRoutineLog(legacyLog, routines, products, [{ id: "other", routineId: "r1", stepId: "s1", date: "2026-11-02" }]), true);
 assert.equal(canRestoreSkinRoutineLog(legacyLog, routines, products, [{ id: "other", routineId: "r1", stepId: "s1", date: "2026-11-03" }]), false);
+
+assert.equal(normalizeSkinSearchText("إِشْرَاق"), "اشراق");
+assert.equal(normalizeSkinSearchText("آثارُ الحُبوب"), "اثار الحبوب");
+assert.equal(normalizeSkinSearchText("كريم_البشرة"), "كريم البشرة");
+assert.equal(normalizeSkinSearchText("  Niacinamide  "), "niacinamide");
+assert.equal(normalizeSkinSearchText("ياسمين"), normalizeSkinSearchText("یاسمین"));
