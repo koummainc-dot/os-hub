@@ -8,6 +8,7 @@ import PhotosView from "./Photos.jsx";
 import IngredientsView from "./Ingredients.jsx";
 import TrialsView from "./Trials.jsx";
 import ReactionsView from "./Reactions.jsx";
+import SkinDashboard from "./Dashboard.jsx";
 import { uploadSkinPhoto, deleteSkinPhoto } from "./photoStorage.js";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#A855F7", soft: "#FAF5FF", white: "#FFFFFF", danger: "#B91C1C" };
@@ -29,6 +30,7 @@ function Panel({ title, children, action }) {
 
 const SECTIONS = [
   ["home", "الرئيسية", "⌂"],
+  ["dashboard", "لوحة صحة البشرة", "📊"],
   ["settings", "ملف البشرة", "🧴"],
   ["products", "المنتجات", "🧪"],
   ["units", "العبوات", "📦"],
