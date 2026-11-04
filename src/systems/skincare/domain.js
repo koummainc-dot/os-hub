@@ -707,7 +707,7 @@ export function buildSkinDashboardData({
   }, {})).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
   const trialSummaries = rangeTrials.slice().sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)))
     .slice(0, 8).map(trial => ({
-      id: trial.id, productId: trial.productId, status: trial.status,
+      id: trial.id, productId: trial.productId, productNameSnapshot: trial.productNameSnapshot || "", status: trial.status,
       startDate: trial.startDate, endDate: trial.endDate || null,
       summary: summarizeSkinTrial(trial, entries, reactions, trials),
     }));
@@ -724,6 +724,8 @@ export function buildSkinDashboardData({
     deletedCount: deletedProducts.filter(item => Boolean(item.deleted_at)).length,
     savedCount: visibleProducts.length,
   };
+  const activeProductIds = new Set(visibleProducts.filter(item => item.status === "active").map(item => item.id));
+  const currentTrials = trials.filter(item => activeProductIds.has(item.productId));
   return {
     startDate, endDate, days: safeDays, timeline, productSummary,
     daysWithRating: new Set(ratedEntries.map(entry => entry.date)).size,
@@ -735,8 +737,8 @@ export function buildSkinDashboardData({
     reactionTimeline,
     trialSummaries,
     severeReactionCount: rangeReactions.filter(item => item.severity === "severe").length,
-    runningTrialCount: trials.filter(item => item.status === "running").length,
-    pausedTrialCount: trials.filter(item => item.status === "paused").length,
+    runningTrialCount: currentTrials.filter(item => item.status === "running").length,
+    pausedTrialCount: currentTrials.filter(item => item.status === "paused").length,
     rangeTrialCount: rangeTrials.length,
     photoCount: rangePhotos.length,
     routineLogCount: loggedSteps,
