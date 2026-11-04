@@ -46,6 +46,16 @@ export async function loadVenturesSourceSnapshot(workspaceId) {
   return { ok:Object.keys(sources).length>0, sources, errors };
 }
 
+export function requestVenturesSourceNavigation({workspaceId, systemId, section, recordId=null}={}) {
+  if (!systemId || typeof window === "undefined") return false;
+  try {
+    window.dispatchEvent(new CustomEvent("os:goto", {
+      detail: { workspaceId: workspaceId || null, view: "system", system: systemId, section: section || null, recordId: recordId || null, source: "ventures" }
+    }));
+    return true;
+  } catch { return false; }
+}
+
 export function sourceSummary(snapshot={}) {
   const projects=asList(snapshot.sources?.projects);
   const content=asList(snapshot.sources?.content);
