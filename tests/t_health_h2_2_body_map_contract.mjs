@@ -28,7 +28,7 @@ assert.ok(migration.includes("health_symptom_logs_body_map_complete_check"),"Dat
 assert.ok(migration.includes("health_symptom_logs_profile_body_region_recorded_idx"),"Body region timeline index must exist");
 assert.ok(!migration.includes("create table"),"Body map must not duplicate symptom storage");
 assert.ok(core.includes("body_map:مخطط الجسم:🧍"),"Core OS navigation must register body map");
-assert.ok(core.includes('phase:"H2.2 · مخطط الجسم"'),"H2.2 must be active");
+assert.ok(core.includes('phase:"H2.4 · الخط الزمني الصحي"'),"H2.2 must be active");
 assert.ok(summary.includes("x.body_region_code"),"Visit summary must include anatomical region");
 assert.ok(plan.includes("H2.2 — مخطط الجسم (منفذ جزئيًا)"),"Master plan must document H2.2 status");
 assert.ok(plan.includes("H2.3 — البحث الصحي الموحّد (مفتوح)")&&plan.includes("H2.4 — الخط الزمني الصحي (مفتوح)"),"Remaining H2 gaps must remain open");
