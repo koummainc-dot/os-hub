@@ -49,6 +49,6 @@ const strictDateUnits = [
 ];
 const strictSummary = summarizeSkinProductUnits("p3", strictDateUnits, "2026-11-04");
 assert.equal(strictSummary.count, 3, "deleted units are not counted");
-assert.equal(strictSummary.costPerDay, null, "invalid and future use periods cannot distort daily cost");
+assert.equal(strictSummary.costPerDay.value, 22.5, "only the valid use period contributes to daily cost");
 assert.equal(strictSummary.dailyCostAmbiguous, false, "only valid cost periods count toward ambiguity");
 assert.equal(strictSummary.totalsByCurrency.EGP, 150, "historical prices remain grouped by currency");
