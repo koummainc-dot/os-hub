@@ -184,3 +184,61 @@ export async function deleteSkinPhoto({ workspaceId, photo, storeApi }) {
   }
   return saved;
 }
+
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(String(reader.result||""));
+    reader.onerror=()=>reject(new Error("تعذر قراءة ملف الصورة للنسخ الاحتياطي."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function dataUrlToBlob(value, expectedType) {
+  const match=/^data:(image\\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(value||""));
+  if(!match||match[1]!==expectedType) throw new Error("ملف صورة النسخة الاحتياطية غير صالح أو نوعه لا يطابق metadata.");
+  const binary=atob(match[2]);
+  const bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+  return new Blob([bytes],{type:match[1]});
+}
+
+export async function exportSkinPhotoFiles({workspaceId,photos=[],maxBytes=40*1024*1024}={}) {
+  const files={};let totalBytes=0;
+  for(const photo of photos.filter(item=>!item.deleted_at&&!item.storagePurgedAt)){
+    const urls=await getSkinPhotoSignedUrls({workspaceId,photo});
+    const [originalResponse,thumbResponse]=await Promise.all([fetch(urls.originalUrl),fetch(urls.thumbnailUrl)]);
+    if(!originalResponse.ok||!thumbResponse.ok) throw new Error("تعذر تنزيل صورة أو مصغرها أثناء إنشاء النسخة الاحتياطية.");
+    const [original,thumbnail]=await Promise.all([originalResponse.blob(),thumbResponse.blob()]);
+    totalBytes+=original.size+thumbnail.size;
+    if(totalBytes>maxBytes) throw new Error("إجمالي ملفات الصور تجاوز 40 ميجابايت. صدّر بيانات السجلات دون الصور أو قسّم النسخ.");
+    files[photo.id]={original:await blobToDataUrl(original),thumbnail:await blobToDataUrl(thumbnail),originalType:original.type,thumbnailType:thumbnail.type,originalBytes:original.size,thumbnailBytes:thumbnail.size};
+  }
+  return {files,totalBytes,photoCount:Object.keys(files).length};
+}
+
+export async function restoreSkinPhotoFiles({workspaceId,photo,assets}={}) {
+  if(!workspaceId||!photo?.id||!assets?.original||!assets?.thumbnail) throw new Error("ملفات الصورة غير مكتملة.");
+  const row=await readWorkspaceRecord({workspaceId,collection:"skin_diary",id:photo.diaryId});
+  if(!row||row.deleted||row.data?.deleted_at||row.data?.date!==photo.date) throw new Error("إدخال اليوم غير موجود بعد استعادة السجلات؛ لم نرفع الصورة.");
+  const expected=buildSkinPhotoPaths({workspaceId,diaryId:photo.diaryId,photoId:photo.id,mimeType:photo.mimeType});
+  if(expected.objectPath!==photo.objectPath||expected.thumbnailPath!==photo.thumbnailPath) throw new Error("مسارات ملفات الصورة لا تطابق مسارات مساحة العمل الحالية.");
+  const original=dataUrlToBlob(assets.original,photo.mimeType);
+  const thumbnail=dataUrlToBlob(assets.thumbnail,"image/webp");
+  if(original.size>10*1024*1024||thumbnail.size>10*1024*1024) throw new Error("أحد ملفات الصورة يتجاوز الحد المسموح.");
+  const bucket=supabase.storage.from(BUCKET);
+  let originalUploaded=false;
+  try{
+    const a=await bucket.upload(expected.objectPath,original,{contentType:photo.mimeType,cacheControl:"60",upsert:false});
+    if(a.error) throw a.error;
+    originalUploaded=true;
+    const b=await bucket.upload(expected.thumbnailPath,thumbnail,{contentType:"image/webp",cacheControl:"60",upsert:false});
+    if(b.error) throw b.error;
+    return {ok:true,photoId:photo.id,bytes:original.size+thumbnail.size};
+  }catch(error){
+    if(originalUploaded){try{await removeObjects([expected.objectPath]);}catch{}}
+    if(String(error?.message||"").toLowerCase().includes("already exists")) return {ok:true,photoId:photo.id,alreadyPresent:true};
+    throw error;
+  }
+}
