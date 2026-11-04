@@ -7,7 +7,9 @@ create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
 $$;
 create or replace function public.ws_access_level(uuid, text, text) returns text
-language sql stable as $$ select 'edit'::text $$;
+language sql stable as $ select 'edit'::text $;
+create or replace function public.is_ws_owner(uuid) returns boolean
+language sql stable as $ select false $;
 create table public.workspace_records (
   workspace_id uuid not null,
   system_id text not null,
