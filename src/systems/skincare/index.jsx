@@ -245,9 +245,14 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   };
   const editUnit = unit => { setEditingUnit(unit.id); setUnitDraft({ ...EMPTY_UNIT, ...unit }); setPage("units"); };
   const deleteUnit = async unit => {
-    if (!canEdit || !window.confirm("هل تريد نقل العبوة إلى المحذوفات؟")) return;
-    const result = await store.api.softDelete(SKINCARE_COLLECTIONS.units, unit.id);
-    if (result) say("تم نقل العبوة إلى المحذوفات.");
+    if (!canEdit || busy || !window.confirm("هل تريد نقل العبوة إلى المحذوفات؟")) return;
+    setBusy(true);
+    try {
+      const result = await store.api.softDelete(SKINCARE_COLLECTIONS.units, unit.id);
+      if (result) say("تم نقل العبوة إلى المحذوفات.");
+      else say("لم يؤكد النظام حذف العبوة.");
+    } catch (error) { say(error?.message || "تعذر حذف العبوة."); }
+    finally { setBusy(false); }
   };
   const restoreUnit = async unit => {
     if (!canEdit || busy) return;
@@ -556,7 +561,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     } finally { setBusy(false); }
   };
   const saveRoutine = async routine => {
-    if (!canEdit) return;
+    if (!canEdit || busy) return;
     const checked = validateRoutine(routine);
     if (!checked.ok) return say(checked.error);
     const seenSteps = new Set();
@@ -578,33 +583,54 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     finally { setBusy(false); }
   };
   const toggleRoutine = async routine => {
-    if (!canEdit) return;
-    const saved = await store.api.put(SKINCARE_COLLECTIONS.routines, { ...routine, status: routine.status === "paused" ? "active" : "paused", updatedAt: new Date().toISOString() });
-    if (saved) say(routine.status === "paused" ? "تم تفعيل الروتين." : "تم إيقاف الروتين مؤقتًا.");
+    if (!canEdit || busy) return;
+    setBusy(true);
+    try {
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.routines, { ...routine, status: routine.status === "paused" ? "active" : "paused", updatedAt: new Date().toISOString() });
+      if (saved) say(routine.status === "paused" ? "تم تفعيل الروتين." : "تم إيقاف الروتين مؤقتًا.");
+      else say("لم يؤكد النظام تحديث حالة الروتين.");
+    } catch (error) { say(error?.message || "تعذر تحديث حالة الروتين."); }
+    finally { setBusy(false); }
   };
   const copyRoutine = async routine => {
-    if (!canEdit) return;
+    if (!canEdit || busy) return;
     const copy = { ...routine, id: uid(), name: routine.name + " (نسخة)", status: "paused", steps: (routine.steps || []).map(step => ({ ...step, id: uid() })), createdAt: new Date().toISOString() };
-    const saved = await store.api.put(SKINCARE_COLLECTIONS.routines, copy);
-    if (saved) say("تم نسخ الروتين وخطواته.");
+    setBusy(true);
+    try {
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.routines, copy);
+      if (saved) say("تم نسخ الروتين وخطواته.");
+      else say("لم يؤكد النظام نسخ الروتين.");
+    } catch (error) { say(error?.message || "تعذر نسخ الروتين."); }
+    finally { setBusy(false); }
   };
   const logRoutineStep = async (routine, step, status) => {
-    if (!canEdit || routine.status !== "active") return;
+    if (!canEdit || busy || routine.status !== "active") return;
+    if (!["done", "skipped"].includes(status)) return say("حالة تسجيل الروتين غير صحيحة.");
     const date = today(settings?.timezone || "Africa/Cairo");
     const currentProduct = products.find(product => product.id === step.productId);
     if (!currentProduct || ["paused", "finished", "discarded", "stopped"].includes(currentProduct.status)) return say("لا يمكن تسجيل خطوة بمنتج غير متاح أو متوقف.");
     if (currentProduct.suitability === "avoid" && !step.avoidConfirmed) return say("هذا المنتج مصنف للتجنب؛ أعد مراجعة الخطوة قبل تسجيلها.");
     const id = routineLogId(routine.id, date, step.id);
-    if (routineLogs.some(log => log.id === id || log.client_generated_id === id)) return say("تم تسجيل هذه الخطوة بالفعل اليوم.");
-    const saved = await store.api.put(SKINCARE_COLLECTIONS.routineLogs, { id, client_generated_id: id, routineId: routine.id, stepId: step.id, date, status, createdAt: new Date().toISOString() });
-    if (saved) say(status === "done" ? "تم تسجيل تنفيذ الخطوة." : "تم تسجيل تخطي الخطوة.");
+    if (routineLogs.some(log => log.id === id || log.client_generated_id === id || (log.routineId === routine.id && log.stepId === step.id && log.date === date))) return say("تم تسجيل هذه الخطوة بالفعل اليوم.");
+    setBusy(true);
+    try {
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.routineLogs, { id, client_generated_id: id, routineId: routine.id, stepId: step.id, date, status, createdAt: new Date().toISOString() });
+      if (saved) say(status === "done" ? "تم تسجيل تنفيذ الخطوة." : "تم تسجيل تخطي الخطوة.");
+      else say("لم يؤكد النظام تسجيل الخطوة.");
+    } catch (error) { say(error?.message || "تعذر تسجيل خطوة الروتين."); }
+    finally { setBusy(false); }
   };
   const undoRoutineLog = async () => {
-    if (!canEdit || !routineLogs.length) return;
+    if (!canEdit || busy || !routineLogs.length) return;
     const latest = [...routineLogs].sort((a, b) => String(b.createdAt || b.updated_at || "").localeCompare(String(a.createdAt || a.updated_at || "")))[0];
     if (!latest || !window.confirm("هل تريد التراجع عن آخر تسجيل؟")) return;
-    const result = await store.api.softDelete(SKINCARE_COLLECTIONS.routineLogs, latest.id);
-    if (result) say("تم التراجع عن آخر تسجيل.");
+    setBusy(true);
+    try {
+      const result = await store.api.softDelete(SKINCARE_COLLECTIONS.routineLogs, latest.id);
+      if (result) say("تم التراجع عن آخر تسجيل.");
+      else say("لم يؤكد النظام التراجع عن التسجيل.");
+    } catch (error) { say(error?.message || "تعذر التراجع عن التسجيل."); }
+    finally { setBusy(false); }
   };
 
   React.useEffect(() => {
