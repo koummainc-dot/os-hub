@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import {
   emptyNutritionData,normalizeNutritionData,nutritionToday,validateFood,scaleNutrients,snapshotFoodLog,
   validateFoodLog,calculateRecipeNutrition,summarizeNutritionDay,normalizeSearch,searchFoods,validateGoal,
-  validateWater,buildGroceryNeeds,validateNutritionImport,validateRecipe,validateCookingBatch,remainingBatchServings,nutritionAnalytics,nutritionDeletionBlocker
+  validateWater,buildGroceryNeeds,validateNutritionImport,validateRecipe,validateCookingBatch,remainingBatchServings,nutritionAnalytics,nutritionDeletionBlocker,
+  buildQuickNutritionLog,buildOutsideHomeLog
 } from "../src/systems/nutrition/domain.js";
 
 const base=emptyNutritionData();
@@ -91,4 +92,27 @@ const scaledNeeds=buildGroceryNeeds({planSlots:[{id:"s1",recipeId:"r-multi",port
 assert.equal(scaledNeeds.find(x=>x.foodId==="f1").amount,300);
 assert.equal(scaledNeeds.find(x=>x.foodId==="f2").amount,600);
 assert.deepEqual(scaledNeeds.find(x=>x.foodId==="f1").sourceSlotIds,["s1","s2"]);
+const quick=buildQuickNutritionLog({name:"وجبة سريعة",dateTime:"2026-11-04T08:00:00Z",localDate:"2026-11-04",nutrients:{calories:420,proteinG:24,carbsG:"",fatG:""}});
+assert.equal(quick.ok,true);
+assert.equal(quick.value.entryKind,"QuickMacros");
+assert.equal(quick.value.nutrientsSnapshot.proteinG,24);
+assert.equal(quick.value.nutrientsSnapshot.carbsG,null,"unentered macros must remain unknown, not zero");
+assert.equal(quick.value.completeness,"partial");
+assert.equal(buildQuickNutritionLog({name:"",nutrients:{calories:100}}).ok,false);
+assert.equal(buildQuickNutritionLog({name:"وجبة",nutrients:{calories:-1}}).ok,false);
+
+const outside=buildOutsideHomeLog({name:"وجبة مطعم",venue:"مطعم محلي",dateTime:"2026-11-04T12:00:00Z",localDate:"2026-11-04",rangeMin:450,rangeMax:650,estimationMethod:"Visual",nutrients:{calories:520,proteinG:28}});
+assert.equal(outside.ok,true);
+assert.equal(outside.value.entryKind,"OutOfHome");
+assert.equal(outside.value.confidence,"Estimated");
+assert.equal(outside.value.venueLabel,"مطعم محلي");
+assert.equal(outside.value.rangeMinKcal,450);
+assert.equal(buildOutsideHomeLog({name:"وجبة",venue:"مكان",rangeMin:600,rangeMax:700,nutrients:{calories:500}}).ok,false,"estimate range must contain the selected calorie estimate");
+assert.equal(buildOutsideHomeLog({name:"وجبة",venue:"",nutrients:{calories:500}}).ok,false,"outside-home venue is required");
+
+const partialSummary=summarizeNutritionDay({date:"2026-11-04",logs:[quick.value],water:[],goals:[]});
+assert.equal(partialSummary.coverage.proteinG.known,1);
+assert.equal(partialSummary.coverage.proteinG.complete,true);
+assert.equal(partialSummary.coverage.carbsG.missing,1);
+assert.equal(partialSummary.coverage.carbsG.complete,false,"unknown macros must be exposed as incomplete daily coverage");
 console.log("Nutrition OS domain tests passed");
