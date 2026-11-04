@@ -75,4 +75,11 @@ assert.match(tools, /RoutineLogsView\(\{logs=\[\],deletedLogs=\[\],routines=\[\]
 assert.match(tools, /disabled=\{busy\} onClick=\{\(\)=>onUndo\(log\)\}/);
 assert.match(tools, /disabled=\{busy\} onClick=\{\(\)=>onRestore\(log\)\}/);
 
+
+assert.match(domain, /export function normalizeSkinSearchText/);
+assert.match(index, /normalizeSkinSearchText\(query\)/);
+assert.match(tools, /بحث في السجلات/);
+assert.match(tools, /normalizeSkinSearchText\(query\)/);
+assert.match(tools, /from&&to&&from>to\?\[\]/);
+
 console.log("Skincare completion contract tests passed.");
