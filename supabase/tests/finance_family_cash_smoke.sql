@@ -32,22 +32,22 @@ SELECT set_config('test.finance_access','edit',false);
 SET ROLE authenticated;
 
 DO $$
-DECLARE advance_id uuid; entry_id uuid; entry_count integer; tx_count integer;
+DECLARE v_advance_id uuid; entry_count integer; tx_count integer;
 BEGIN
-  advance_id := public.fin_family_cash_link_transaction(
+  v_advance_id := public.fin_family_cash_link_transaction(
     '22222222-2222-4222-8222-222222222222',
     '44444444-4444-4444-8444-444444444444',
     '55555555-5555-4555-8555-555555555555',
     'smoke advance'
   );
   entry_id := public.fin_family_cash_add_entry(
-    '22222222-2222-4222-8222-222222222222',advance_id,'Expense',4,'2026-11-04',NULL,'مشتريات اختبار',NULL
+    '22222222-2222-4222-8222-222222222222',v_advance_id,'Expense',4,'2026-11-04',NULL,'مشتريات اختبار',NULL
   );
   PERFORM public.fin_family_cash_add_entry(
-    '22222222-2222-4222-8222-222222222222',advance_id,'Return',3,'2026-11-04',NULL,'مبلغ مرتجع',NULL
+    '22222222-2222-4222-8222-222222222222',v_advance_id,'Return',3,'2026-11-04',NULL,'مبلغ مرتجع',NULL
   );
-  SELECT count(*) INTO entry_count FROM public.finance_family_cash_entries
-    WHERE workspace_id='22222222-2222-4222-8222-222222222222' AND advance_id=advance_id;
+  SELECT count(*) INTO entry_count FROM public.finance_family_cash_entries e
+    WHERE e.workspace_id='22222222-2222-4222-8222-222222222222' AND e.advance_id=v_advance_id;
   IF entry_count <> 2 THEN RAISE EXCEPTION 'Finance cash entries were not persisted'; END IF;
   SELECT count(*) INTO tx_count FROM public.finance_transactions
     WHERE workspace_id='22222222-2222-4222-8222-222222222222'
@@ -56,7 +56,7 @@ BEGIN
 
   BEGIN
     PERFORM public.fin_family_cash_add_entry(
-      '22222222-2222-4222-8222-222222222222',advance_id,'Expense',4,'2026-11-04',NULL,'تجاوز الرصيد',NULL
+      '22222222-2222-4222-8222-222222222222',v_advance_id,'Expense',4,'2026-11-04',NULL,'تجاوز الرصيد',NULL
     );
     RAISE EXCEPTION 'overdrawn cash advance unexpectedly accepted';
   EXCEPTION WHEN SQLSTATE 'P0001' THEN
