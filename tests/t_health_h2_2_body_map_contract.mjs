@@ -31,5 +31,5 @@ assert.ok(core.includes("body_map:مخطط الجسم:🧍"),"Core OS navigation
 assert.ok(core.includes('phase:"H2.4 · الخط الزمني الصحي"'),"H2.2 must be active");
 assert.ok(summary.includes("x.body_region_code"),"Visit summary must include anatomical region");
 assert.ok(plan.includes("H2.2 — مخطط الجسم (منفذ جزئيًا)"),"Master plan must document H2.2 status");
-assert.ok(plan.includes("H2.3 — البحث الصحي الموحّد (مفتوح)")&&plan.includes("H2.4 — الخط الزمني الصحي (مفتوح)"),"Remaining H2 gaps must remain open");
+assert.ok(plan.includes("H2.3 — البحث الصحي الموحّد (منفذ جزئيًا)")&&plan.includes("H2.4 — الخط الزمني الصحي (منفذ جزئيًا)"),"Remaining H2 gaps must remain open");
 console.log("Health H2.2 body map contract checks passed.");
