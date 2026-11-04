@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const migration = await readFile(new URL("../supabase/migrations/20261029160000_projects_atomic_records_batch.sql", import.meta.url), "utf8");
+const migration = await readFile(new URL("../supabase/migrations/20261029155533_projects_atomic_records_batch.sql", import.meta.url), "utf8");
 const records = await readFile(new URL("../src/core/records.jsx", import.meta.url), "utf8");
 const store = await readFile(new URL("../src/systems/projects/store.jsx", import.meta.url), "utf8");
 const helper = await readFile(new URL("../src/systems/projects/taskTreeMoveWrites.js", import.meta.url), "utf8");
@@ -17,7 +17,7 @@ assert.match(records, /supabase\.rpc\("projects_apply_records_batch"/);
 assert.match(records, /does not enqueue offline changes/i);
 assert.match(store, /putAtomic: R\.putAtomic/);
 assert.match(helper, /await putAtomic\(changes\.map/);
-const completionMigration = await readFile(new URL("../supabase/migrations/20261029170000_projects_atomic_completion_batch.sql", import.meta.url), "utf8");
+const completionMigration = await readFile(new URL("../supabase/migrations/20261029173536_projects_atomic_completion_batch.sql", import.meta.url), "utf8");
 assert.match(completionMigration, /collection_name not in \('tasks','outputs','projects'\)/);
 assert.match(completionMigration, /security invoker/i);
 assert.match(completionMigration, /ws_access_level\(p_workspace_id, 'projects', collection_name\) is distinct from 'edit'/i);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const migration = await readFile(new URL("../supabase/migrations/20261029121500_relationships_atomic_batch_null_access_fix.sql", import.meta.url), "utf8");
+const migration = await readFile(new URL("../supabase/migrations/20261029061546_relationships_atomic_batch_null_access_fix.sql", import.meta.url), "utf8");
 const ui = await readFile(new URL("../src/systems/relationships/index.jsx", import.meta.url), "utf8");
 
 // Contract checks for the RPC boundary. Runtime authorization still relies on PostgreSQL RLS.

@@ -1,4 +1,3 @@
--- Tighten Nutrition OS grants. RLS remains the row-level boundary.
 begin;
 revoke all privileges on table
  public.nutrition_settings, public.nutrition_meal_types, public.nutrition_foods,

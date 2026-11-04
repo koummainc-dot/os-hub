@@ -1,3 +1,4 @@
+
 alter table public.nutrition_foods
   add column if not exists name_aliases text[] not null default '{}',
   add column if not exists source_notes text;

@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 const [repository, component, migration, docs] = await Promise.all([
   readFile(new URL("../src/systems/knowledge/repository.js", import.meta.url), "utf8"),
   readFile(new URL("../src/systems/knowledge/index.jsx", import.meta.url), "utf8"),
-  readFile(new URL("../supabase/migrations/20261030140000_knowledge_resource_os.sql", import.meta.url), "utf8"),
+  readFile(new URL("../supabase/migrations/20261030150615_knowledge_resource_os.sql", import.meta.url), "utf8"),
   readFile(new URL("../docs/KNOWLEDGE_RESOURCE_OS_IMPLEMENTATION.md", import.meta.url), "utf8"),
 ]);
 

@@ -1,1 +1,0 @@
--- Reserved timestamp. The applied H4 scope allowlist is recorded in 20261103142910_health_h4_grant_scope_allowlist.sql.

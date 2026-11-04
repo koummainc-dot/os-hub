@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 const core = await readFile(new URL("../src/core/records.jsx", import.meta.url), "utf8");
 const store = await readFile(new URL("../src/systems/projects/store.jsx", import.meta.url), "utf8");
 const screens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
-const migration = await readFile(new URL("../supabase/migrations/20261029190000_projects_purge_records_batch.sql", import.meta.url), "utf8");
+const migration = await readFile(new URL("../supabase/migrations/20261029213602_projects_purge_records_batch.sql", import.meta.url), "utf8");
 assert.ok(core.includes('supabase.rpc("projects_purge_records_batch"'), "purge must execute through transactional server RPC");
 assert.ok(core.includes('navigator.onLine === false'), "permanent deletion must not queue offline");
 assert.ok(core.includes('type: "drop", coll: collection, id'), "purged records must be removed from local state");

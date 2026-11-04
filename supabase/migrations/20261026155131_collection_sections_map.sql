@@ -1,3 +1,4 @@
+
 -- Maps each record collection to the UI section that owns it, so hiding a section hides ALL its collections server-side.
 -- (Collections not listed use their own name as the section id; core collections like projects/tasks follow the system level only.)
 create table if not exists public.collection_sections (

@@ -1,3 +1,4 @@
+
 -- Record-level privacy: when visible_to is set, only those users can read/write the record
 -- (even the workspace owner/admin). NULL = visible to everyone who has access to the system.
 alter table public.workspace_records add column if not exists visible_to uuid[];

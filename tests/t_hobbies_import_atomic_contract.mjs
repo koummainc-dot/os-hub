@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const migration = readFileSync(new URL("../supabase/migrations/20261103090000_hobbies_import_records_batch.sql", import.meta.url), "utf8");
+const migration = readFileSync(new URL("../supabase/migrations/20261103091014_hobbies_import_records_batch.sql", import.meta.url), "utf8");
 const smoke = readFileSync(new URL("../supabase/tests/hobbies_import_atomic_smoke.sql", import.meta.url), "utf8");
 const records = readFileSync(new URL("../src/core/records.jsx", import.meta.url), "utf8");
 const ui = readFileSync(new URL("../src/systems/hobbies/index.jsx", import.meta.url), "utf8");
@@ -33,7 +33,7 @@ const runImport = ui.slice(ui.indexOf(" const runImport=async()=>"), ui.indexOf(
 assert.ok(runImport.includes("store.api.putBatchAtomic(importReport.ops)"));
 assert.ok(!runImport.includes("store.api.put(op.coll"));
 assert.ok(runImport.includes("partial:false"));
-assert.match(workflow, /20261103090000_hobbies_import_records_batch\.sql/);
+assert.match(workflow, /20261103091014_hobbies_import_records_batch\.sql/);
 assert.match(workflow, /hobbies_import_atomic_smoke\.sql/);
 
 console.log("Hobbies import atomicity contract passed: insert-only RPC, RLS-aware privacy, all-or-nothing SQL test, and frontend integration.");

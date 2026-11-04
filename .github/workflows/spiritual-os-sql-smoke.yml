@@ -45,11 +45,11 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f tests/spiritual_os_sql_bootstrap.sql
       - name: Apply Spiritual OS migrations
         run: |
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101130000_spiritual_values_foundation.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101143000_spiritual_practice_logs.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101160000_spiritual_practice_log_integrity.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101173000_spiritual_client_side_encryption.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101200000_spiritual_record_relations.sql
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101213000_spiritual_integration_privacy.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103090432_spiritual_values_foundation.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103090434_spiritual_practice_logs.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103090436_spiritual_practice_log_integrity.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103090438_spiritual_client_side_encryption.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103090441_spiritual_record_relations.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103090443_spiritual_integration_privacy.sql
       - name: Verify owner isolation, encrypted payloads, relations, and RPC access
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/spiritual_os_smoke.sql
