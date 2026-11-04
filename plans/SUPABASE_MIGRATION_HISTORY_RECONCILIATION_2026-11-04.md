@@ -421,3 +421,8 @@ The 14 pending candidates were not treated as one push batch. A targeted catalog
 - Storage/collection candidates: the `hobbies-journal-files` and `skincare-progress` storage buckets were not found; no `skincare` rows were found in `collection_sections`.
 
 These findings confirm that several pending migrations represent genuinely missing live schema capabilities. They must be applied only after the history/version reconciliation and dependency order are resolved. In particular, the missing `os_integration_events` table means the current client event integration must remain treated as incomplete until the database migration is safely applied and verified.
+
+
+## Pending migration version collision resolved in PR #114
+
+A repository-wide scan of the 101 migration files found one duplicate 14-digit version prefix: `20261028130000` was used by both `finance_default_category_seeding` and `inventory_p1_domain_schema`. Both are pending candidates; production history contains neither Inventory version 130000 nor the new 140000 version. PR #114 renames only the Inventory file to `20261028140000`, preserving the dependency order `inventory_p0_foundation (120000) → inventory_p1_domain_schema (140000) → inventory_snapshot_rpc (150000)`. It also adds a CI test that fails on any duplicate migration version. This resolves the repository filename collision only; it does not authorize a production migration push or repair any live history rows.
