@@ -31,3 +31,14 @@ assert.equal(hasDuplicateSkinListName({ id: "old", name: "Wishlist" }, [{ id: "o
 assert.equal(hasDuplicateSkinListName({ id: "new", name: "قائمة الصباح" }, [{ id: "old", name: "قائمة المساء" }]), false);
 
 console.log("Skincare unit lifecycle and settings tests passed.");
+
+
+import { canRestoreSkinRoutineLog } from "../src/systems/skincare/domain.js";
+const log = { id: "l1", client_generated_id: "r1:2026-11-04:s1", routineId: "r1", stepId: "s1", date: "2026-11-04", status: "done" };
+const routines = [{ id: "r1", steps: [{ id: "s1", productId: "p1" }] }];
+const products = [{ id: "p1" }];
+assert.equal(canRestoreSkinRoutineLog(log, routines, products, []), true);
+assert.equal(canRestoreSkinRoutineLog(log, [], products, []), false);
+assert.equal(canRestoreSkinRoutineLog(log, [{ id: "r1", steps: [] }], products, []), false);
+assert.equal(canRestoreSkinRoutineLog(log, routines, [], []), false);
+assert.equal(canRestoreSkinRoutineLog(log, routines, products, [{ ...log, id: "l2" }]), false);
