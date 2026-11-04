@@ -523,3 +523,22 @@ After the ten historical source restorations, twenty safe re-versionings, nine c
 The SQL text comparison against `schema_migrations.statements[1]` establishes **66 byte-for-byte source matches** among the 94 applied history entries. The remaining **28 applied entries have content drift**: 11 have an exact filename prefix but their SQL differs from the stored statement; 17 have a mismatched prefix and SQL content drift. Do not overwrite or rename these 28 files until their differences are reviewed against live catalog state and their effects are either confirmed already applied or split into explicit new migrations.
 
 The three removed Health placeholders contained only comments stating that their applied migrations were recorded under the correct versions; they were not executable migrations. Their removal does not change the live database or its migration history.
+
+
+### Exact-prefix files with SQL-content drift (11)
+
+These eleven files have a filename prefix that exists in live history, but their SQL text is not byte-identical and does not reduce to the same token stream after stripping line comments/whitespace. They remain untouched:
+
+- `20261027181535_finance_budget_split_aggregation.sql` — repository SQL adds response fields `used_pct` and `updated_at` absent from the stored applied statement.
+- `20261028092121_finance_budget_categories_debt_upgrade.sql` — substantial body/line-count difference from the stored statement.
+- `20261101102730_nutrition_os_p0_p1_foundation.sql` — stored statement is materially longer and differs in table-definition details.
+- `20261101102904_nutrition_os_fk_delete_safety.sql` — formatting and statement structure differ; keep source unchanged pending review.
+- `20261101103428_nutrition_os_p2_recipes_goals_planning_grocery.sql` — substantial body/line-count difference.
+- `20261103134221_health_os_h1_foundation.sql` — stored statement is substantially longer than the repository file.
+- `20261103134401_health_os_h1_storage_scope_fix.sql` — stored statement contains additional policy logic beyond the repository file.
+- `20261103135639_health_os_h2_core_records.sql` — stored statement has additional SQL beyond the repository file.
+- `20261103141026_health_os_h3_medications_flare_events.sql` — the medication-side-effect event FK differs: stored SQL uses `ON DELETE SET NULL`, while the repository file uses `ON DELETE RESTRICT`. This is a behavior change and must not be overwritten without explicit schema/product review.
+- `20261103145907_health_h2_1_vital_measurements.sql` — stored statement has additional SQL beyond the repository file.
+- `20261103151035_health_h2_2_body_map_symptom_locations.sql` — stored statement includes additional SQL beyond the repository file.
+
+The source of truth for what was applied is the stored migration statement. The repository variants may contain later intended fixes or incomplete edits; they must be reviewed as deltas, then either confirmed already present in production or split into a new versioned migration. No automatic overwrite is safe.
