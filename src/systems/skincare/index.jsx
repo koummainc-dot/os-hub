@@ -500,15 +500,17 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     const checked = validateRoutine(routine);
     if (!checked.ok) return say(checked.error);
     const seenSteps = new Set();
+    const validatedSteps = [];
     for (const step of checked.value.steps || []) {
       if (seenSteps.has(step.id)) return say("يوجد معرف مكرر لإحدى خطوات الروتين.");
       seenSteps.add(step.id);
       const stepCheck = validateRoutineStep({ ...step, avoidConfirmed: settings?.requireConfirmAvoid === false ? true : step.avoidConfirmed }, products);
       if (!stepCheck.ok) return say(stepCheck.error);
+      validatedSteps.push(stepCheck.value);
     }
     setBusy(true);
     try {
-      const saved = await store.api.put(SKINCARE_COLLECTIONS.routines, { ...checked.value, id: routine.id || uid(), updatedAt: new Date().toISOString() });
+      const saved = await store.api.put(SKINCARE_COLLECTIONS.routines, { ...checked.value, steps: validatedSteps, id: routine.id || uid(), updatedAt: new Date().toISOString() });
       if (!saved) throw new Error("لم يؤكد النظام حفظ الروتين.");
       say(routine.id ? "تم تحديث الروتين." : "تم إنشاء الروتين.");
       return true;
