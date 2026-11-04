@@ -24,6 +24,31 @@ function Router() {
   const ctx = useP(); const { page, ready, error, store, access, role, shell, ws } = ctx; const lvl = osSectionLevel(access, page);
   const [crossSystemActivity, setCrossSystemActivity] = useState([]);
   useEffect(() => {
+    const handler = async (event) => {
+      const d = event?.detail || {};
+      if (d.systemId !== "projects" || (d.workspaceId && String(d.workspaceId) !== String(ws?.id))) return;
+      try {
+        if (d.action === "create") {
+          await A.saveProject({ ...(d.payload || {}), id: d.recordId || undefined }, true);
+        } else if (d.action === "update" && d.recordId) {
+          const current = data.projects.find((item) => String(item.id) === String(d.recordId));
+          if (!current) throw new Error("المشروع المرتبط غير موجود أو غير متاح.");
+          await A.saveProject({ ...current, ...(d.payload || {}), id: current.id }, false);
+        }
+        window.dispatchEvent(new CustomEvent("os:source-write-result", {
+          detail: { systemId: "projects", action: d.action, recordId: d.recordId || null, ok: true, source: "projects" }
+        }));
+      } catch (error) {
+        window.dispatchEvent(new CustomEvent("os:source-write-result", {
+          detail: { systemId: "projects", action: d.action, recordId: d.recordId || null, ok: false, error: error?.message || String(error), source: "projects" }
+        }));
+      }
+    };
+    window.addEventListener("os:source-write", handler);
+    return () => window.removeEventListener("os:source-write", handler);
+  }, [ws?.id, A, data.projects]);
+
+  useEffect(() => {
     let alive = true;
     const options = { workspaceId: ws?.id || "default", limit: 10, types: ["learning.study_session.completed", "learning.lesson.completed", "learning.course.completed", "hobbies.practice_session.completed"] };
     const mergeEvents = (items, incoming) => {
