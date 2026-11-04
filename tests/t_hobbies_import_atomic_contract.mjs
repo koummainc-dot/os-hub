@@ -33,7 +33,7 @@ const runImport = ui.slice(ui.indexOf(" const runImport=async()=>"), ui.indexOf(
 assert.ok(runImport.includes("store.api.putBatchAtomic(importReport.ops)"));
 assert.ok(!runImport.includes("store.api.put(op.coll"));
 assert.ok(runImport.includes("partial:false"));
-assert.match(workflow, /20261103090000_hobbies_import_records_batch\.sql/);
+assert.match(workflow, /20261103091014_hobbies_import_records_batch\.sql/);
 assert.match(workflow, /hobbies_import_atomic_smoke\.sql/);
 
 console.log("Hobbies import atomicity contract passed: insert-only RPC, RLS-aware privacy, all-or-nothing SQL test, and frontend integration.");
