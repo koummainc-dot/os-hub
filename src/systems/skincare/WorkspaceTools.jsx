@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { buildSkinComparisonMatrix, serializeSkinComparisonCsv } from "./domain.js";
+import { buildSkinComparisonMatrix, serializeSkinComparisonCsv, normalizeSkinSearchText } from "./domain.js";
 
 const C={ink:"#182230",muted:"#64748B",line:"#E2E8F0",white:"#FFFFFF",accent:"#A855F7",soft:"#FAF5FF",danger:"#B91C1C"};
 const panel={background:C.white,border:"1px solid "+C.line,borderRadius:14,padding:15,marginBottom:12};
@@ -67,18 +67,28 @@ export function SkinListsView({lists=[],deletedLists=[],products=[],canEdit=fals
 export function RoutineLogsView({logs=[],deletedLogs=[],routines=[],products=[],canEdit=false,busy=false,onUndo,onRestore}){
  const [status,setStatus]=useState("all");
  const [routineId,setRoutineId]=useState("all");
+ const [query,setQuery]=useState("");
  const [from,setFrom]=useState("");
  const [to,setTo]=useState("");
- const rows=useMemo(()=>logs.filter(x=>(status==="all"||x.status===status)&&(routineId==="all"||x.routineId===routineId)&&(!from||x.date>=from)&&(!to||x.date<=to)).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.createdAt||"").localeCompare(String(a.createdAt||""))),[logs,status,routineId,from,to]);
+ const rows=useMemo(()=>logs.filter(x=>{
+  const routine=routines.find(r=>r.id===x.routineId);
+  const step=routine?.steps?.find(s=>s.id===x.stepId);
+  const product=products.find(p=>p.id===step?.productId);
+  const needle=normalizeSkinSearchText(query);
+  const matchesQuery=!needle||[routine?.name,product?.name,step?.category,x.date,x.status].some(value=>normalizeSkinSearchText(value).includes(needle));
+  return matchesQuery&&(status==="all"||x.status===status)&&(routineId==="all"||x.routineId===routineId)&&(!from||x.date>=from)&&(!to||x.date<=to);
+ }).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.createdAt||"").localeCompare(String(a.createdAt||""))),[logs,routines,products,query,status,routineId,from,to]);
  return <section style={panel}>
   <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}><b>سجل إنجاز الروتين</b><span style={{fontSize:11,color:C.muted}}>{rows.length} سجل</span></div>
   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,margin:"12px 0"}}>
+   <label style={label}>بحث في السجلات<input aria-label="البحث في سجل الروتين" style={field} value={query} onChange={e=>setQuery(e.target.value)} placeholder="اسم الروتين أو المنتج أو التاريخ"/></label>
    <label style={label}>الروتين<select style={field} value={routineId} onChange={e=>setRoutineId(e.target.value)}><option value="all">كل الروتينات</option>{routines.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
    <label style={label}>الحالة<select style={field} value={status} onChange={e=>setStatus(e.target.value)}><option value="all">الكل</option><option value="done">تم</option><option value="skipped">تم التخطي</option></select></label>
    <label style={label}>من تاريخ<input style={field} type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>
    <label style={label}>إلى تاريخ<input style={field} type="date" value={to} onChange={e=>setTo(e.target.value)}/></label>
   </div>
-  {!rows.length&&<p style={{fontSize:12,color:C.muted}}>لا توجد سجلات مطابقة للفلاتر.</p>}
+  {from&&to&&from>to&&<p role="alert" style={{fontSize:12,color:C.danger}}>تاريخ البداية يجب ألا يتجاوز تاريخ النهاية.</p>}
+  {!rows.length&&<p style={{fontSize:12,color:C.muted}}>لا توجد سجلات مطابقة للبحث والفلاتر.</p>}
   {rows.map(log=>{const routine=routines.find(r=>r.id===log.routineId);const step=routine?.steps?.find(s=>s.id===log.stepId);const product=products.find(p=>p.id===step?.productId);return <article key={log.id} style={{borderTop:"1px solid "+C.line,padding:"10px 0",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}><span>{log.status==="done"?"✓":"↷"}</span><div style={{flex:1,minWidth:170}}><b style={{fontSize:12}}>{routine?.name||"روتين محذوف"}</b><div style={{fontSize:11,color:C.muted}}>{product?.name||step?.category||"خطوة"} · {log.date} · {log.status==="done"?"تم التنفيذ":"تم التخطي"}</div></div>{canEdit&&<button style={btn()} disabled={busy} onClick={()=>onUndo(log)}>نقل السجل إلى المحذوفات</button>}</article>;})}
   {!!deletedLogs.length&&<details style={{marginTop:10}}><summary style={{cursor:"pointer",fontSize:11,color:C.muted}}>سجلات محذوفة ({deletedLogs.length})</summary>{deletedLogs.map(log=><div key={log.id} style={{display:"flex",gap:8,alignItems:"center",padding:"8px 0",borderTop:"1px solid "+C.line,fontSize:11}}><span style={{flex:1}}>{log.date} · {log.status} · {log.id}</span>{canEdit&&<button style={btn()} disabled={busy} onClick={()=>onRestore(log)}>استعادة</button>}</div>)}</details>}
  </section>;
