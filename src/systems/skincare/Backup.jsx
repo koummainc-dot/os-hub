@@ -16,6 +16,7 @@ export default function SkincareBackup({ records, canEdit, pending = false, work
   const [restoring, setRestoring] = useState(false);
   const [restoreReport, setRestoreReport] = useState(null);
   const [pendingPhotoRestore, setPendingPhotoRestore] = useState([]);
+  const [photoRetryBackup, setPhotoRetryBackup] = useState(null);
   const comparison = useMemo(() => preview?.validated?.ok ? compareSkinBackupWithCurrent(preview.validated, records) : null, [preview, records]);
 
   const exportBackup = async () => {
@@ -52,7 +53,7 @@ export default function SkincareBackup({ records, canEdit, pending = false, work
       return setError("تحتوي النسخة على صلاحيات مرئية لأعضاء مساحة العمل المصدر. لا يمكن نقل هذه الصلاحيات تلقائيًا؛ أزلها أو أنشئ نسخة مخصصة بعد مراجعة الأعضاء.");
     }
     if (!window.confirm("سيتم استيراد كل السجلات في معاملة واحدة. أي تعارض يوقف العملية بالكامل. هل تريد المتابعة؟")) return;
-    setRestoring(true); setError(""); setRestoreReport(null); setPendingPhotoRestore([]);
+    setRestoring(true); setError(""); setRestoreReport(null); setPendingPhotoRestore([]); setPhotoRetryBackup(backup);
     try {
       const { data, error: rpcError } = await supabase.rpc("skincare_restore_records_atomic", {
         p_workspace_id: workspaceId,
@@ -81,9 +82,23 @@ export default function SkincareBackup({ records, canEdit, pending = false, work
   };
 
   const retryPhotoRestore = async () => {
-    if (!workspaceId || !pendingPhotoRestore.length || restoring) return;
-    const backup=preview?.validated?.backup;
-    if (!backup) return setError("أعد اختيار ملف النسخة الاحتياطية لإعادة محاولة الصور المتبقية.");
+    if (!workspaceId || !pendingPhotoRestore.length || !photoRetryBackup || restoring) return;
+    setRestoring(true); setError("");
+    const remaining=[];
+    let restored=0;
+    try {
+      for (const item of pendingPhotoRestore) {
+        const row=(photoRetryBackup.collections?.skin_photos||[]).find(x=>x.id===item.photoId);
+        const assets=photoRetryBackup.photoFiles?.[item.photoId];
+        if(!row||!assets){remaining.push(item);continue;}
+        try { await restoreSkinPhotoFiles({workspaceId,photo:row.data,assets}); restored++; }
+        catch(cause){remaining.push({photoId:item.photoId,error:cause?.message||"تعذر رفع الصورة"});}
+      }
+      setPendingPhotoRestore(remaining);
+      setRestoreReport(current=>current?({...current,restoredPhotos:current.restoredPhotos+restored,failedPhotos:remaining.length}):current);
+      if(!remaining.length) setPhotoRetryBackup(null);
+      await onRestored?.();
+    } finally { setRestoring(false); }
   };
 
   const readBackup = async file => {
@@ -112,7 +127,7 @@ export default function SkincareBackup({ records, canEdit, pending = false, work
     {pending && <p role="status" style={{ ...muted, color: "#B45309" }}>هناك عمليات حفظ جارية؛ انتظر اكتمالها قبل التصدير.</p>}
     {error && <p role="alert" style={{ color: "#B91C1C", fontSize: 12 }}>{error}</p>}
     {restoreReport && <p role="status" style={{fontSize:12,color:restoreReport.failedPhotos?"#B45309":"#15803D"}}>اكتملت استعادة {restoreReport.records} سجلًا. الصور المرفوعة: {restoreReport.restoredPhotos}. الصور التي تحتاج إعادة محاولة: {restoreReport.failedPhotos}. {restoreReport.metadataOnly?"النسخة لم تتضمن ملفات الصور.":""}</p>}
-    {!!pendingPhotoRestore.length&&<div style={{fontSize:11,color:"#B45309"}}>تعذر استعادة الملفات التالية: {pendingPhotoRestore.map(x=>x.photoId).join("، ")}. أعد اختيار ملف النسخة وأعد محاولة الاستعادة بعد التأكد من وجود السجلات.</div>}
+    {!!pendingPhotoRestore.length&&<div style={{fontSize:11,color:"#B45309"}}>تعذر استعادة الملفات التالية: {pendingPhotoRestore.map(x=>x.photoId).join("، ")}.<button type="button" style={button()} disabled={restoring} onClick={retryPhotoRestore}>إعادة محاولة رفع الصور</button></div>}
     {preview && <div style={{ borderTop: "1px solid #E2E8F0", marginTop: 14, paddingTop: 12 }}>
       <b style={{ fontSize: 13 }}>معاينة الملف: {preview.name}</b>
       {preview.validated.ok ? <>
