@@ -10,6 +10,8 @@ const photo = read("../src/systems/skincare/photoStorage.js");
 const ingredients = read("../src/systems/skincare/Ingredients.jsx");
 const followups = read("../src/systems/skincare/FollowUps.jsx");
 const routines = read("../src/systems/skincare/Routines.jsx");
+const trials = read("../src/systems/skincare/Trials.jsx");
+const reactions = read("../src/systems/skincare/Reactions.jsx");
 const migration = read("../supabase/migrations/20261103160000_skincare_os_private_storage_and_collection_permissions.sql");
 
 assert.match(domain, /effectiveSkinUnitExpiry/);
@@ -91,5 +93,14 @@ assert.match(followups, /weekStartDay = 0/);
 assert.match(followups, /buildSkinFollowUps\(\{ today, timezone, weekStartDay, expiryWindowDays/);
 assert.match(domain, /export function isValidSkinDateKey/);
 assert.match(domain, /export function skinUnitCostPerDay/);
+
+
+assert.match(index, /productNameSnapshot: product\.name/);
+assert.match(index, /productNameSnapshot: currentProduct\.name/);
+assert.match(index, /routineNameSnapshot: routine\.name/);
+assert.match(index, /productBrandSnapshot: product\.brand \|\| ""/);
+assert.match(trials, /trial\.productNameSnapshot/);
+assert.match(reactions, /reaction\.productNameSnapshot/);
+assert.match(tools, /log\.productNameSnapshot/);
 
 console.log("Skincare completion contract tests passed.");
