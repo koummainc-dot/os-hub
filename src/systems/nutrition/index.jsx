@@ -43,7 +43,8 @@ export default function NutritionOS({api,access,ws,isDemo,demoStore,page="today"
  const foods=rows.foods.filter(x=>x.status!=="archived");
  const recipes=rows.recipes.filter(x=>x.status!=="archived");
  const daySummary=useMemo(()=>summarizeNutritionDay({date:today,logs:rows.logs,water:rows.water,goals:rows.goals.filter(g=>g.active!==false)}),[today,rows.logs,rows.water,rows.goals]);
- const activeGoal=rows.goals.find(g=>g.active!==false&&!g.deleted_at);\n const dailyNutrient=key=>{const coverage=daySummary.coverage?.[key];if(coverage?.missing>0)return coverage.known>0?fmt(daySummary.totals[key])+" + بيانات ناقصة":"بيانات ناقصة";return fmt(daySummary.totals[key]);};
+ const activeGoal=rows.goals.find(g=>g.active!==false&&!g.deleted_at);
+ const dailyNutrient=key=>{const coverage=daySummary.coverage?.[key];if(coverage?.missing>0)return coverage.known>0?fmt(daySummary.totals[key])+" + بيانات ناقصة":"بيانات ناقصة";return fmt(daySummary.totals[key]);};
  const foundFoods=useMemo(()=>searchFoods(foods,query),[foods,query]);
  const selected=foods.find(f=>f.id===selectedFood);
  const todayLogs=rows.logs.filter(x=>x.localDate===today).sort((a,b)=>String(b.dateTime).localeCompare(String(a.dateTime)));
