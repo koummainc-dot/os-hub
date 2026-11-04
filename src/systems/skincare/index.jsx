@@ -354,7 +354,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     if (trials.some(item => item.productId === input.productId && ["running", "paused"].includes(item.status))) {
       return say("يوجد بالفعل اختبار جارٍ أو متوقف مؤقتًا لهذا المنتج."), false;
     }
-    const todayKey = today();
+    const todayKey = today(settings?.timezone || "Africa/Cairo");
     const baselineDiaryIds = diaryEntries
       .filter(entry => entry.date >= new Date(Date.parse(todayKey + "T00:00:00Z") - 7 * 86400000).toISOString().slice(0, 10) &&
         entry.date < todayKey && entry.skinRating !== null && entry.skinRating !== undefined && entry.skinRating !== "")
@@ -388,7 +388,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
 
   const updateTrialStatus = async (trial, nextStatus, details = {}) => {
     if (!canEdit) return false;
-    const todayKey = today();
+    const todayKey = today(settings?.timezone || "Africa/Cairo");
     const eventType = nextStatus === "paused" ? "paused" : nextStatus === "running" ? (trial.status === "planned" ? "started" : "resumed") : nextStatus;
     const timelineEvents = [...(trial.timelineEvents || []), {
       id: uid(),
@@ -513,7 +513,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   };
   const logRoutineStep = async (routine, step, status) => {
     if (!canEdit || routine.status !== "active") return;
-    const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const date = today(settings?.timezone || "Africa/Cairo");
     const currentProduct = products.find(product => product.id === step.productId);
     if (!currentProduct || ["paused", "finished", "discarded", "stopped"].includes(currentProduct.status)) return say("لا يمكن تسجيل خطوة بمنتج غير متاح أو متوقف.");
     if (currentProduct.suitability === "avoid" && !step.avoidConfirmed) return say("هذا المنتج مصنف للتجنب؛ أعد مراجعة الخطوة قبل تسجيلها.");
