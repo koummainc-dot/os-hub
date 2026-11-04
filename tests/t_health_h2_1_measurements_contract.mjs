@@ -18,7 +18,7 @@ assert.ok(ui.includes("healthRepository.updateMeasurement"),"Update flow must us
 assert.ok(ui.includes("healthRepository.deleteMeasurement"),"Delete flow must use repository");
 assert.ok(ui.includes("blood_pressure"),"Blood pressure must support systolic and diastolic values");
 assert.ok(ui.includes("مؤشر كتلة الجسم المحسوب"),"BMI must be derived rather than stored");
-assert.ok(repository.includes('from("health_measurements")'),"Repository must use the normalized measurements table");
+assert.ok(repository.includes('listScoped("health_measurements"'),"Repository must use the normalized measurements table");
 assert.ok(migration.includes("enable row level security"),"Measurements table must enable RLS");
 assert.ok(migration.includes("health_has_access(profile_id,'measurements'"),"Measurements must use the dedicated grant scope");
 for(const type of ["weight","height","blood_pressure","heart_rate","body_temperature","oxygen_saturation","respiratory_rate","waist_circumference","body_fat_percentage"])assert.ok(migration.includes("'"+type+"'"),"Missing measurement type "+type);
