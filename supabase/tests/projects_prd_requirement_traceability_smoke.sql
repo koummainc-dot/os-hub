@@ -19,7 +19,7 @@ insert into public.workspace_records (workspace_id, system_id, collection, id, d
 values ('11111111-1111-4111-8111-111111111111','projects','sessions','session1',
         '{"task_id":"task1","member_id":"22222222-2222-4222-8222-222222222222"}');
 
-do $ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','sessions','session-wrong-member',
@@ -27,7 +27,7 @@ do $ begin
     raise exception 'expected work-session member ownership rejection';
   exception when sqlstate '42501' then null;
   end;
-end $;
+end $block$;
 insert into public.workspace_records (workspace_id, system_id, collection, id, data)
 values ('11111111-1111-4111-8111-111111111111','projects','outputs','output1',
         '{"project_id":"p1","task_id":"task1","prd_id":"prd1","prd_requirement_id":"req1","approval":"Final"}');
@@ -94,7 +94,7 @@ do $block$ begin
 end $block$;
 
 -- A requirement cannot be linked without its PRD.
-do $$ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','tasks','bad-no-prd',
@@ -102,10 +102,10 @@ do $$ begin
     raise exception 'expected requirement-without-PRD rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
 -- A requirement ID must belong to the selected PRD.
-do $$ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','tasks','bad-req',
@@ -113,10 +113,10 @@ do $$ begin
     raise exception 'expected foreign-requirement rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
 -- PRDs and output tasks must belong to the same project as the task/output.
-do $$ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','tasks','bad-project',
@@ -124,9 +124,9 @@ do $$ begin
     raise exception 'expected cross-project PRD rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
-do $$ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','outputs','bad-task',
@@ -134,16 +134,16 @@ do $$ begin
     raise exception 'expected cross-project task rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
-do $$ begin
+do $block$ begin
   if (select count(*) from public.workspace_records where collection = 'tasks' and id = 'task1') <> 1 then
     raise exception 'valid task link was not persisted';
   end if;
   if (select count(*) from public.workspace_records where collection = 'outputs' and id = 'output1') <> 1 then
     raise exception 'valid output link was not persisted';
   end if;
-end $$;
+end $block$;
 
 -- Additional entity-level relationships are validated in the same workspace/project.
 insert into public.workspace_records (workspace_id, system_id, collection, id, data)
@@ -179,7 +179,7 @@ insert into public.workspace_records (workspace_id, system_id, collection, id, d
 values ('11111111-1111-4111-8111-111111111111','projects','tasks','task3',
         '{"project_id":"p1","parent_task_id":"task1","issue_ids":["issue1"],"discovery_ids":["discovery1"],"title":"Linked child task"}');
 
-do $ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','sessions','session-parent-task',
@@ -187,7 +187,7 @@ do $ begin
     raise exception 'expected parent-task work session rejection';
   exception when sqlstate '22023' then null;
   end;
-end $;
+end $block$;
 
 insert into public.workspace_records (workspace_id, system_id, collection, id, data)
 values ('11111111-1111-4111-8111-111111111111','projects','decisions','decision1',
@@ -202,7 +202,7 @@ values ('11111111-1111-4111-8111-111111111111','projects','updates','update1',
         '{"project_id":"p1","title":"Update One","related_task_ids":["task1"],"related_risk_ids":["risk1"],"related_issue_ids":["issue1"],"related_decision_ids":["decision1"],"related_prd_ids":["prd1"],"related_output_ids":["output1"],"related_win_ids":["win1"]}');
 
 -- Decision, risk, issue, KR, objective, win and update links cannot cross project boundaries.
-do $$ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','decisions','bad-decision',
@@ -210,9 +210,9 @@ do $$ begin
     raise exception 'expected cross-project decision task rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
-do $$ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','risks','bad-risk',
@@ -220,9 +220,9 @@ do $$ begin
     raise exception 'expected cross-project risk task rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
-do $$ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','wins','bad-win',
@@ -230,9 +230,9 @@ do $$ begin
     raise exception 'expected non-final win output rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
-do $$ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','updates','bad-update',
@@ -240,9 +240,9 @@ do $$ begin
     raise exception 'expected cross-project update risk rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
-do $$ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','objectives','bad-objective',
@@ -250,9 +250,9 @@ do $$ begin
     raise exception 'expected missing objective project rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
-do $$ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','krs','bad-kr',
@@ -260,9 +260,9 @@ do $$ begin
     raise exception 'expected KR task/project mismatch rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
-do $$ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','issues','bad-issue',
@@ -270,9 +270,9 @@ do $$ begin
     raise exception 'expected issue task/project mismatch rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
-do $$ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','tasks','bad-parent',
@@ -280,9 +280,9 @@ do $$ begin
     raise exception 'expected cross-project parent rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
-do $$ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','tasks','bad-issue-link',
@@ -290,9 +290,9 @@ do $$ begin
     raise exception 'expected cross-project task issue rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
-do $$ begin
+do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','tasks','bad-discovery-link',
@@ -300,9 +300,9 @@ do $$ begin
     raise exception 'expected cross-project task discovery rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
-do $$ begin
+do $block$ begin
   begin
     delete from public.workspace_records
      where workspace_id = '11111111-1111-4111-8111-111111111111'
@@ -310,9 +310,9 @@ do $$ begin
     raise exception 'expected deletion of last Final evidence rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
 
-do $$ begin
+do $block$ begin
   begin
     delete from public.workspace_records
      where workspace_id = '11111111-1111-4111-8111-111111111111'
@@ -320,4 +320,4 @@ do $$ begin
     raise exception 'expected PRD deletion with active references rejection';
   exception when sqlstate '22023' then null;
   end;
-end $$;
+end $block$;
