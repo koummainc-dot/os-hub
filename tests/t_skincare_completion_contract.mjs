@@ -113,3 +113,8 @@ assert.match(dashboard, /data\.productSummary\.activeCount/);
 assert.match(dashboard, /data\.productSummary\.inactiveCount/);
 assert.match(dashboard, /data\.productSummary\.deletedCount/);
 assert.match(index, /deletedProducts=\{deletedProducts\}/);
+
+assert.match(dashboard, /buildSkinDashboardExportMatrix/);
+assert.match(dashboard, /تصدير التقرير والسجل CSV/);
+assert.match(index, /serializeSkinProductsCsv\(products, deletedProducts\)/);
+assert.match(domain, /deleted_at/);
