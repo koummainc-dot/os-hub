@@ -1,7 +1,7 @@
 # Supabase migration history reconciliation — 2026-11-04
 
 **Repository:** `koummainc-dot/os-hub`  
-**Branch:** `main` at `ce79b179b74dc29aa1998543f37938752449c569`  
+**Branch:** `main` at `b263f5c3a18531bd2e6a4f228605b05dcae3fbd8`  
 **Supabase project:** `cvcngvlickozahecgmij`  
 **Evidence:** read-only GitHub migration-directory listing + Supabase migration-history listing.  
 **Safety:** no production DDL, migration apply, history repair, or paid Supabase branch was created.
@@ -9,11 +9,12 @@
 ## Snapshot
 
 - Live migration history entries: **94**
-- SQL migration files on `main`: **101**
+- SQL migration files on `main`: **104**
 - Repository files with one or more same-name live history entries: **87**
-- Repository files with no same-name live history entry (candidate pending): **14**
-- Same-name entries whose file timestamp differs from live history: **40**
+- Repository files with no same-name live history entry (candidate pending): **17**
+- Same-name entries whose file timestamp differs from live history: **41**
 - Live history entries not mapped to a same-name repository file: **10**
+- Exact version-prefix matches (including unique-name disambiguation): **46**
 - Duplicate live versions: **0**
 
 This is a reconciliation inventory, not authorization to push. Name equality is only a candidate mapping; SQL content/checksum and dependency review are still required.
@@ -48,7 +49,7 @@ This is a reconciliation inventory, not authorization to push. Name equality is 
 | `20261028110238_finance_family_rpc_privilege_hardening.sql` | `20261028110238` | `20261028110238` | exact prefix |
 | `20261028120000_inventory_p0_foundation.sql` | `20261028120000` | — | NO LIVE MATCH |
 | `20261028130000_finance_default_category_seeding.sql` | `20261028130000` | — | NO LIVE MATCH |
-| `20261028130000_inventory_p1_domain_schema.sql` | `20261028130000` | — | NO LIVE MATCH |
+| `20261028140000_inventory_p1_domain_schema.sql` | `20261028130000` | — | NO LIVE MATCH |
 | `20261028150000_inventory_snapshot_rpc.sql` | `20261028150000` | — | NO LIVE MATCH |
 | `20261028200000_finance_asset_valuation_history_phase_20.sql` | `20261028200000` | `20261027212802` | timestamp mismatch |
 | `20261028203000_finance_asset_function_search_path_hardening.sql` | `20261028203000` | `20261027212952` | timestamp mismatch |
@@ -411,7 +412,7 @@ This supports that the security-hardening effects associated with some unmatched
 
 ## Read-only verification of pending-candidate schema effects (2026-11-04)
 
-The 14 pending candidates were not treated as one push batch. A targeted catalog query confirmed that the following expected objects are currently absent:
+The 17 pending candidates were not treated as one push batch. A targeted catalog query confirmed that the following expected objects are currently absent:
 
 - Inventory foundation/domain: `inventory_settings`, `inventory_sync_operations`, `inventory_categories`, and `inventory_items` are absent.
 - Finance pending candidates: `fin_seed_default_categories(uuid)`, `finance_family_cash_advances`, and `finance_family_cash_entries` are absent.
@@ -425,7 +426,7 @@ These findings confirm that several pending migrations represent genuinely missi
 
 ## Pending migration version collision resolved in PR #114
 
-A repository-wide scan of the 101 migration files found one duplicate 14-digit version prefix: `20261028130000` was used by both `finance_default_category_seeding` and `inventory_p1_domain_schema`. Both are pending candidates; production history contains neither Inventory version 130000 nor the new 140000 version. PR #114 renames only the Inventory file to `20261028140000`, preserving the dependency order `inventory_p0_foundation (120000) → inventory_p1_domain_schema (140000) → inventory_snapshot_rpc (150000)`. It also adds a CI test that fails on any duplicate migration version. This resolves the repository filename collision only; it does not authorize a production migration push or repair any live history rows.
+A repository-wide scan of the 104 migration files found one duplicate 14-digit version prefix: `20261028130000` was used by both `finance_default_category_seeding` and `inventory_p1_domain_schema`. Both are pending candidates; production history contains neither Inventory version 130000 nor the new 140000 version. PR #114 renames only the Inventory file to `20261028140000`, preserving the dependency order `inventory_p0_foundation (120000) → inventory_p1_domain_schema (140000) → inventory_snapshot_rpc (150000)`. It also adds a CI test that fails on any duplicate migration version. This resolves the repository filename collision only; it does not authorize a production migration push or repair any live history rows.
 
 
 ## Durable Integration Events migration validation
@@ -457,3 +458,20 @@ On commit `bfaa85a597c16f73ad534bddd223bd2a275af4dd`, the full disposable Projec
 ### Habit/Hobbies smoke result evidence
 
 PR #107 merge commit `18a389c4ff352785179a2b10aa02c9f3af93f1d0` has successful check runs for `hobbies-journal-postgres-smoke`, `spiritual-postgres-smoke`, `knowledge-postgres-smoke`, and `test-and-build`. The Journal smoke is a disposable two-user test; it does not establish that the pending Journal schema/storage migrations are already applied in production or that live browser reload/restore acceptance has been completed.
+
+
+## Revalidation after PR #112–#116 (2026-11-04 14:22 UTC)
+
+A fresh read-only scan was run against `main` at `b263f5c3a18531bd2e6a4f228605b05dcae3fbd8` after merging Projects PR #112, Nutrition PR #113, Integration Events smoke PR #115, and migration-version guard PR #116.
+
+- Live Supabase migration history remains **94** entries.
+- The current repository contains **104** SQL migration files (the earlier 101-file snapshot is stale).
+- **46** repository files have exact version-prefix matches.
+- **41** same-name candidates have timestamp mismatches. The duplicated historical name `finance_internal_function_permissions` has two live versions and two repository files; retain both rows in a one-to-one audit rather than collapsing by name.
+- **17** repository files have no same-name live history entry.
+- **10** live history entries have no same-name repository file.
+- PR #116 moved only the unapplied Inventory domain migration to `20261028140000_inventory_p1_domain_schema.sql`; Finance retains `20261028130000_finance_default_category_seeding.sql`. The repository now has no duplicate 14-digit migration prefixes.
+- The three Projects PRD/relationship migrations added through PR #112 increase the pending candidate set; they are not production-applied.
+- All four GitHub Actions checks on current main completed successfully: `test-and-build`, `projects-postgres-smoke`, `knowledge-postgres-smoke`, and `spiritual-postgres-smoke`. The Vercel status check is separate and failed due to the free-plan daily deployment rate limit; no production deployment was performed.
+
+This scan updates the inventory counts only. It does not establish historical SQL byte equivalence, nor authorize a production migration push. The 10 live-only history rows still require trusted historical SQL recovery or exact catalog/dependency evidence. The 17 pending candidates still require dependency ordering and a reconciled application strategy.
