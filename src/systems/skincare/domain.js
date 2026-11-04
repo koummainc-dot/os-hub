@@ -120,6 +120,11 @@ export function validateSkinUnit(input = {}, todayKey = new Date().toISOString()
   }};
 }
 
+export function canRestoreSkinUnit(unit = {}, products = []) {
+  const productId = text(unit.productId, 100);
+  return !productId || products.some(product => product.id === productId && !product.deleted_at);
+}
+
 export function validateSkinList(input = {}) {
   const name = text(input.name, 100);
   const kind = text(input.kind || "custom", 20);
