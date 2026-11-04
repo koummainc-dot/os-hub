@@ -71,6 +71,34 @@ export function snapshotFoodLog(food, amount, unit, extras={}) {
   const nutrients=scaleNutrients(food,amount,food.basisAmount);
   return {foodId:String(food.id),foodNameSnapshot:String(food.name||"غذاء غير مسمى"),foodBrandSnapshot:String(food.brand||""),amount:num(amount),unit:String(unit||food.basisUnit),basisAmount:num(food.basisAmount),basisUnit:food.basisUnit,nutrientsSnapshot:nutrients,snapshotBasis:"food-version-at-log-time",foodUpdatedAt:food.updatedAt||null,...extras};
 }
+export function buildQuickNutritionLog(input={}) {
+  const name=String(input.name||"").trim(), nutrients=input.nutrients&&typeof input.nutrients==="object"?input.nutrients:{};
+  const values=Object.fromEntries(NUTRIENTS.map(key=>{const raw=nutrients[key];return [key,raw===null||raw===undefined||raw===""?null:Number(raw)];}));
+  const errors=[];
+  if(!name) errors.push("اسم الإدخال مطلوب.");
+  if(values.calories===null||!Number.isFinite(values.calories)||values.calories<0) errors.push("السعرات مطلوبة ويجب ألا تكون سالبة.");
+  for(const key of NUTRIENTS) if(values[key]!==null&&(!Number.isFinite(values[key])||values[key]<0)) errors.push("قيم المغذيات يجب أن تكون أرقامًا غير سالبة.");
+  const dateTime=input.dateTime||new Date().toISOString();
+  if(!Number.isFinite(Date.parse(dateTime))) errors.push("تاريخ ووقت الإدخال غير صالح.");
+  if(errors.length) return {ok:false,errors,value:null};
+  const complete=Object.values(values).every(value=>value!==null);
+  return {ok:true,errors:[],value:{id:String(input.id||makeNutritionId("log")),foodNameSnapshot:name,amount:1,unit:"entry",dateTime,localDate:String(input.localDate||dateTime.slice(0,10)),mealType:String(input.mealType||"other"),notes:String(input.notes||""),source:String(input.source||"quick-macros"),entryKind:String(input.entryKind||"QuickMacros"),confidence:"Estimated",completeness:complete?"complete":"partial",nutrientsSnapshot:values,createdAt:input.createdAt||new Date().toISOString()}};
+}
+export function buildOutsideHomeLog(input={}) {
+  const base=buildQuickNutritionLog({...input,source:"outside-home-estimate",entryKind:"OutOfHome"});
+  if(!base.ok) return base;
+  const calories=base.value.nutrientsSnapshot.calories;
+  const min=input.rangeMin===""||input.rangeMin===null||input.rangeMin===undefined?null:Number(input.rangeMin);
+  const max=input.rangeMax===""||input.rangeMax===null||input.rangeMax===undefined?null:Number(input.rangeMax);
+  const errors=[];
+  if(!String(input.venue||"").trim()) errors.push("اسم المكان أو المطعم مطلوب.");
+  if(min!==null&&(!Number.isFinite(min)||min<0||min>calories)) errors.push("الحد الأدنى يجب أن يكون رقمًا غير سالب ولا يتجاوز السعرات المقدرة.");
+  if(max!==null&&(!Number.isFinite(max)||max<calories)) errors.push("الحد الأعلى يجب ألا يقل عن السعرات المقدرة.");
+  if(min!==null&&max!==null&&min>max) errors.push("الحد الأعلى يجب ألا يقل عن الحد الأدنى.");
+  if(!["Menu","SimilarItem","Visual","Guess"].includes(input.estimationMethod||"Visual")) errors.push("طريقة التقدير غير صالحة.");
+  if(errors.length) return {ok:false,errors,value:null};
+  return {ok:true,errors:[],value:{...base.value,venueLabel:String(input.venue).trim(),rangeMinKcal:min,rangeMaxKcal:max,estimationMethod:input.estimationMethod||"Visual",confidence:"Estimated",notes:String(input.notes||"")}};
+}
 export function validateFoodLog(input, foods=[]) {
   const x=input&&typeof input==="object"?input:{},errors=[];
   const hasFood=!!x.foodId,hasRecipe=!!x.recipeId;
@@ -96,13 +124,19 @@ export function summarizeNutritionDay({date,logs=[],water=[],goals=[]}) {
   const dayLogs=logs.filter(x=>String(x.localDate||x.dateTime||"").slice(0,10)===date&&!x.deleted_at);
   const dayWater=water.filter(x=>String(x.localDate||x.dateTime||"").slice(0,10)===date&&!x.deleted_at);
   const totals=Object.fromEntries(NUTRIENTS.map(k=>[k,0]));
-  for(const log of dayLogs) for(const key of NUTRIENTS) totals[key]+=num(log.nutrientsSnapshot?.[key]);
-  for(const key of NUTRIENTS) totals[key]=Math.round(totals[key]*100)/100;
+  const coverage=Object.fromEntries(NUTRIENTS.map(k=>[k,{known:0,missing:0,complete:true}]));
+  for(const log of dayLogs) for(const key of NUTRIENTS) {
+    const value=log.nutrientsSnapshot?.[key];
+    if(value===null||value===undefined||value==="") coverage[key].missing++;
+    else if(Number.isFinite(Number(value))&&Number(value)>=0) { totals[key]+=Number(value); coverage[key].known++; }
+    else coverage[key].missing++;
+  }
+  for(const key of NUTRIENTS) { totals[key]=Math.round(totals[key]*100)/100; coverage[key].complete=coverage[key].missing===0; }
   const waterMl=dayWater.reduce((sum,x)=>sum+num(x.amountMl),0);
   const goal=goals.find(x=>x.active!==false&&!x.deleted_at)||null;
   const target=goal?.targets&&typeof goal.targets==="object"?goal.targets:{};
   const variance=Object.fromEntries(NUTRIENTS.filter(k=>target[k]!==undefined&&target[k]!==null&&target[k]!=="").map(k=>[k,Math.round((totals[k]-num(target[k]))*100)/100]));
-  return {date,totals,waterMl,mealCount:dayLogs.length,waterEntries:dayWater.length,goalId:goal?.id||null,goalTargets:{...target},variance,completion:dayLogs.length===0?"empty":dayLogs.some(x=>x.completeness==="partial")?"partial":"logged"};
+  return {date,totals,coverage,waterMl,mealCount:dayLogs.length,waterEntries:dayWater.length,goalId:goal?.id||null,goalTargets:{...target},variance,completion:dayLogs.length===0?"empty":dayLogs.some(x=>x.completeness==="partial")?"partial":"logged"};
 }
 export function normalizeSearch(value) {
   return String(value||"").normalize("NFKC").toLocaleLowerCase("ar").replace(/[أإآ]/g,"ا").replace(/ى/g,"ي").replace(/ة/g,"ه").trim();
