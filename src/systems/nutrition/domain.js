@@ -47,7 +47,7 @@ const num = v => Number.isFinite(Number(v)) ? Number(v) : 0;
 const nonNegative = v => Number.isFinite(Number(v)) && Number(v)>=0;
 export function normalizeFood(food) {
   const f=food&&typeof food==="object"?food:{};
-  const out={id:String(f.id||""),name:String(f.name||"").trim(),brand:String(f.brand||"").trim(),basisAmount:num(f.basisAmount??100),basisUnit:f.basisUnit==="ml"?"ml":"g",servingAmount:num(f.servingAmount??0),servingUnit:String(f.servingUnit||(f.basisUnit==="ml"?"مل":"جم")),origin:f.origin||"user",verificationLevel:f.verificationLevel||"unverified",status:f.status||"active",aliases:Array.isArray(f.aliases)?f.aliases:[],barcode:String(f.barcode||""),catalogSource:String(f.catalogSource||""),favorite:!!f.favorite,createdAt:f.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  const out={id:String(f.id||""),name:String(f.name||"").trim(),brand:String(f.brand||"").trim(),basisAmount:num(f.basisAmount??100),basisUnit:f.basisUnit==="ml"?"ml":"g",servingAmount:num(f.servingAmount??0),servingUnit:String(f.servingUnit||(f.basisUnit==="ml"?"مل":"جم")),origin:f.origin||"user",verificationLevel:f.verificationLevel||"unverified",status:f.status||"active",aliases:Array.isArray(f.aliases)?f.aliases.map(x=>String(x).trim()).filter(Boolean):[],barcode:String(f.barcode||""),catalogSource:String(f.catalogSource||""),densityGPerMl:num(f.densityGPerMl??0),favorite:!!f.favorite,createdAt:f.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
   for(const key of NUTRIENTS) out[key]=num(f[key]);
   return out;
 }
@@ -57,6 +57,7 @@ export function validateFood(input) {
   if(!Number.isFinite(f.basisAmount)||f.basisAmount<=0) errors.push("كمية الأساس يجب أن تكون أكبر من صفر.");
   for(const key of NUTRIENTS) if(!nonNegative(f[key])) errors.push("قيم العناصر الغذائية لا يمكن أن تكون سالبة.");
   if(!["g","ml"].includes(f.basisUnit)) errors.push("وحدة الأساس غير صالحة.");
+  if(f.densityGPerMl<0) errors.push("الكثافة لا يمكن أن تكون سالبة.");
   return {ok:errors.length===0,errors,value:f};
 }
 export function scaleNutrients(nutrients, consumedAmount, basisAmount=100) {
@@ -66,10 +67,22 @@ export function scaleNutrients(nutrients, consumedAmount, basisAmount=100) {
   for(const key of NUTRIENTS) out[key]=Math.round(num(nutrients?.[key])*amount/basis*100)/100;
   return out;
 }
+export function convertFoodQuantity(food, amount, unit=food?.basisUnit) {
+  const qty=Number(amount);
+  if(!Number.isFinite(qty)||qty<=0) throw new Error("الكمية يجب أن تكون أكبر من صفر.");
+  if(unit===food?.basisUnit) return qty;
+  if(unit==="serving") { if(!(Number(food?.servingAmount)>0)) throw new Error("لم تُحدد كمية الحصة المعتادة لهذا الغذاء."); return qty*Number(food.servingAmount); }
+  const density=Number(food?.densityGPerMl)||0;
+  if(density<=0) throw new Error("يلزم إدخال كثافة الغذاء لتحويل الجرام والملليلتر.");
+  if(food?.basisUnit==="g"&&unit==="ml") return qty*density;
+  if(food?.basisUnit==="ml"&&unit==="g") return qty/density;
+  throw new Error("وحدة الكمية غير متوافقة مع وحدة أساس الغذاء.");
+}
 export function snapshotFoodLog(food, amount, unit, extras={}) {
   if(!food?.id) throw new Error("اختر غذاءً معروفًا قبل تسجيل الاستهلاك.");
-  const nutrients=scaleNutrients(food,amount,food.basisAmount);
-  return {foodId:String(food.id),foodNameSnapshot:String(food.name||"غذاء غير مسمى"),foodBrandSnapshot:String(food.brand||""),amount:num(amount),unit:String(unit||food.basisUnit),basisAmount:num(food.basisAmount),basisUnit:food.basisUnit,nutrientsSnapshot:nutrients,snapshotBasis:"food-version-at-log-time",foodUpdatedAt:food.updatedAt||null,...extras};
+  const selectedUnit=String(unit||food.basisUnit),quantityBase=convertFoodQuantity(food,amount,selectedUnit);
+  const nutrients=scaleNutrients(food,quantityBase,food.basisAmount);
+  return {foodId:String(food.id),foodNameSnapshot:String(food.name||"غذاء غير مسمى"),foodBrandSnapshot:String(food.brand||""),amount:num(amount),unit:selectedUnit,quantityBase,basisAmount:num(food.basisAmount),basisUnit:food.basisUnit,nutrientsSnapshot:nutrients,snapshotBasis:"food-version-at-log-time",foodUpdatedAt:food.updatedAt||null,...extras};
 }
 export function buildQuickNutritionLog(input={}) {
   const name=String(input.name||"").trim(), nutrients=input.nutrients&&typeof input.nutrients==="object"?input.nutrients:{};
@@ -82,7 +95,7 @@ export function buildQuickNutritionLog(input={}) {
   if(!Number.isFinite(Date.parse(dateTime))) errors.push("تاريخ ووقت الإدخال غير صالح.");
   if(errors.length) return {ok:false,errors,value:null};
   const complete=Object.values(values).every(value=>value!==null);
-  return {ok:true,errors:[],value:{id:String(input.id||makeNutritionId("log")),foodNameSnapshot:name,amount:1,unit:"entry",dateTime,localDate:String(input.localDate||dateTime.slice(0,10)),mealType:String(input.mealType||"other"),notes:String(input.notes||""),source:String(input.source||"quick-macros"),entryKind:String(input.entryKind||"QuickMacros"),confidence:"Estimated",completeness:complete?"complete":"partial",nutrientsSnapshot:values,createdAt:input.createdAt||new Date().toISOString()}};
+  return {ok:true,errors:[],value:{id:String(input.id||makeNutritionId("log")),foodNameSnapshot:name,amount:1,unit:"entry",dateTime,localDate:String(input.localDate||dateTime.slice(0,10)),mealType:String(input.mealType||"other"),notes:String(input.notes||""),source:String(input.source||"quick-macros"),entryKind:String(input.entryKind||"QuickMacros"),confidence:"Exact",completeness:complete?"complete":"partial",nutrientsSnapshot:values,createdAt:input.createdAt||new Date().toISOString()}};
 }
 export function buildOutsideHomeLog(input={}) {
   const base=buildQuickNutritionLog({...input,source:"outside-home-estimate",entryKind:"OutOfHome"});
@@ -106,6 +119,7 @@ export function validateFoodLog(input, foods=[]) {
   if(!x.dateTime||!Number.isFinite(Date.parse(x.dateTime))) errors.push("تاريخ ووقت الوجبة غير صالح.");
   if(!Number.isFinite(Number(x.amount))||Number(x.amount)<=0) errors.push("الكمية يجب أن تكون أكبر من صفر.");
   if(hasFood&&!foods.some(f=>f.id===x.foodId)) errors.push("الغذاء المحدد غير موجود.");
+  if(hasFood&&foods.some(f=>f.id===x.foodId)) { const food=foods.find(f=>f.id===x.foodId); try { convertFoodQuantity(food,x.amount,x.unit||food.basisUnit); } catch(e) { errors.push(e.message); } }
   return {ok:errors.length===0,errors};
 }
 export function calculateRecipeNutrition(recipe, ingredients=[], foods=[]) {
@@ -139,7 +153,7 @@ export function summarizeNutritionDay({date,logs=[],water=[],goals=[]}) {
   return {date,totals,coverage,waterMl,mealCount:dayLogs.length,waterEntries:dayWater.length,goalId:goal?.id||null,goalTargets:{...target},variance,completion:dayLogs.length===0?"empty":dayLogs.some(x=>x.completeness==="partial")?"partial":"logged"};
 }
 export function normalizeSearch(value) {
-  return String(value||"").normalize("NFKC").toLocaleLowerCase("ar").replace(/[أإآ]/g,"ا").replace(/ى/g,"ي").replace(/ة/g,"ه").trim();
+  return String(value||"").normalize("NFKC").toLocaleLowerCase("ar").replace(/[\u064B-\u065F\u0670\u0640]/g,"").replace(/[أإآ]/g,"ا").replace(/ى/g,"ي").replace(/ة/g,"ه").trim();
 }
 export function searchFoods(foods, query) {
   const q=normalizeSearch(query); if(!q) return foods.slice();
