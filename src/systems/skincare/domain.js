@@ -947,3 +947,16 @@ export function serializeSkinComparisonCsv(matrix = []) {
   };
   return "\uFEFF" + matrix.map(row => row.map(escape).join(",")).join("\r\n");
 }
+
+
+export function canRestoreSkinRoutineLog(log = {}, routines = [], products = [], activeLogs = []) {
+  const routine = routines.find(item => item.id === log.routineId);
+  if (!routine) return false;
+  const step = (routine.steps || []).find(item => item.id === log.stepId && !item.archived);
+  if (!step || !products.some(item => item.id === step.productId)) return false;
+  const duplicate = activeLogs.some(item => item.id !== log.id && (
+    item.client_generated_id === log.client_generated_id ||
+    (item.routineId === log.routineId && item.stepId === log.stepId && item.date === log.date)
+  ));
+  return !duplicate;
+}
