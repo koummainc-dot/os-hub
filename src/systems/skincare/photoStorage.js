@@ -196,7 +196,7 @@ function blobToDataUrl(blob) {
 }
 
 function dataUrlToBlob(value, expectedType) {
-  const match=/^data:(image\\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(value||""));
+  const match=/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(value||""));
   if(!match||match[1]!==expectedType) throw new Error("ملف صورة النسخة الاحتياطية غير صالح أو نوعه لا يطابق metadata.");
   const binary=atob(match[2]);
   const bytes=new Uint8Array(binary.length);
