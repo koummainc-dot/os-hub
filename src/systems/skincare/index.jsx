@@ -182,6 +182,10 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     if (!canEdit) return;
     const result = validateSkinProduct(productDraft);
     if (!result.ok) return say(result.error);
+    const duplicate = products.find(product => product.id !== editingProduct &&
+      normalizeINCIName(product.name) === normalizeINCIName(result.value.name) &&
+      normalizeINCIName(product.brand) === normalizeINCIName(result.value.brand));
+    if (duplicate) return say("يوجد منتج بالاسم والعلامة التجارية نفسيهما؛ افتح السجل الحالي لتعديله بدل إنشاء نسخة مكررة.");
     setBusy(true);
     try {
       const saved = await store.api.put(SKINCARE_COLLECTIONS.products, { ...result.value, id: editingProduct || uid() });
@@ -229,16 +233,18 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   };
   const restoreUnit = async unit => { const result = await store.api.restore(SKINCARE_COLLECTIONS.units, unit.id); if (result) say("تمت استعادة العبوة."); };
   const saveList = async input => {
-    if (!canEdit) return false;
+    if (!canEdit || busy) return false;
     const checked = validateSkinList(input);
     if (!checked.ok) return say(checked.error), false;
     if (checked.value.productIds.some(id => !products.some(product => product.id === id))) return say("تحتوي القائمة على منتج غير موجود."), false;
+    setBusy(true);
     try {
       const saved = await store.api.put(SKINCARE_COLLECTIONS.lists, { ...checked.value, id: input.id || uid() });
       if (!saved) throw new Error("لم يؤكد النظام حفظ القائمة.");
       say("تم حفظ القائمة.");
       return true;
     } catch (error) { say(error?.message || "تعذر حفظ القائمة."); return false; }
+    finally { setBusy(false); }
   };
   const deleteList = async list => {
     if (!canEdit || !window.confirm("هل تريد نقل القائمة إلى المحذوفات؟")) return;
@@ -246,7 +252,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     if (saved) say("تم حذف القائمة منطقيًا.");
   };
   const toggleListProduct = async (list, product) => {
-    if (!canEdit) return;
+    if (!canEdit || busy) return;
     const ids = new Set(list.productIds || []);
     if (ids.has(product.id)) ids.delete(product.id); else ids.add(product.id);
     await saveList({ ...list, productIds: [...ids] });
@@ -360,7 +366,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     if (!canEdit) return false;
     const checked = validateSkinIngredient(ingredient);
     if (!checked.ok) return say(checked.error), false;
-    const duplicate = ingredients.find(item => item.id !== ingredient.id && String(item.inciName).trim().toLocaleLowerCase() === checked.value.inciName.toLocaleLowerCase());
+    const duplicate = ingredients.find(item => item.id !== ingredient.id && normalizeINCIName(item.inciName) === normalizeINCIName(checked.value.inciName));
     if (duplicate) return say("يوجد مكوّن بهذا الاسم بالفعل في مكتبتك."), false;
     setBusy(true);
     try {
@@ -378,7 +384,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   };
   const restoreIngredient = async ingredient => {
     if (!canEdit) return;
-    const duplicate = ingredients.some(item => item.id !== ingredient.id && String(item.inciName).trim().toLocaleLowerCase() === String(ingredient.inciName).trim().toLocaleLowerCase());
+    const duplicate = ingredients.some(item => item.id !== ingredient.id && normalizeINCIName(item.inciName) === normalizeINCIName(ingredient.inciName));
     if (duplicate) return say("يوجد مكوّن نشط بنفس الاسم؛ عالج التكرار قبل الاستعادة.");
     const result = await store.api.restore(SKINCARE_COLLECTIONS.ingredients, ingredient.id);
     if (result) say("تمت استعادة المكوّن.");
