@@ -5,8 +5,7 @@ const source = [
   "name,brand,category,status,suitability,ingredients,notes",
   '"غسول صباحي","Brand, One",cleanser,active,suitable,"Aqua, Glycerin","ملاحظة فيها, فاصلة"',
   '"سيروم ""فيتامين سي""",Brand Two,serum,paused,review,"Aqua, Ascorbic Acid","سطر ثان"',
-].join("\r
-");
+].join("\r\n");
 const parsed = parseSkinProductsCsv(source);
 assert.equal(parsed.ok, true);
 assert.equal(parsed.rows.length, 2);
