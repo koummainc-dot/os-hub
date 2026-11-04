@@ -403,6 +403,50 @@ export function canDeleteSkinReaction(reaction) {
   return !!reaction && reaction.severity !== "severe";
 }
 
+
+export function analyzeSkinFactors(entries = []) {
+  const factors = [
+    ["sleepHours", "ساعات النوم"],
+    ["sleepQuality", "جودة النوم"],
+    ["mood", "المزاج"],
+    ["exerciseMinutes", "مدة النشاط"],
+    ["waterGlasses", "أكواب المياه"],
+  ];
+  const rated = entries.filter(entry => entry.skinRating !== null && entry.skinRating !== undefined &&
+    entry.skinRating !== "" && Number.isFinite(Number(entry.skinRating)));
+  const correlations = factors.map(([key, label]) => {
+    const pairs = rated.filter(entry => entry[key] !== null && entry[key] !== undefined &&
+      entry[key] !== "" && Number.isFinite(Number(entry[key])))
+      .map(entry => [Number(entry[key]), Number(entry.skinRating)]);
+    if (pairs.length < 5) return { key, label, count: pairs.length, coefficient: null, status: "insufficient" };
+    const meanX = pairs.reduce((sum, pair) => sum + pair[0], 0) / pairs.length;
+    const meanY = pairs.reduce((sum, pair) => sum + pair[1], 0) / pairs.length;
+    const numerator = pairs.reduce((sum, pair) => sum + (pair[0] - meanX) * (pair[1] - meanY), 0);
+    const sumX = pairs.reduce((sum, pair) => sum + (pair[0] - meanX) ** 2, 0);
+    const sumY = pairs.reduce((sum, pair) => sum + (pair[1] - meanY) ** 2, 0);
+    if (!sumX || !sumY) return { key, label, count: pairs.length, coefficient: null, status: "no-variation" };
+    const coefficient = numerator / Math.sqrt(sumX * sumY);
+    return { key, label, count: pairs.length, coefficient: Number(coefficient.toFixed(2)), status: "computed" };
+  });
+  const issueNames = [...new Set(rated.flatMap(entry => Array.isArray(entry.issues) ? entry.issues : []))].slice(0, 30);
+  const issueComparisons = issueNames.map(issue => {
+    const withIssue = rated.filter(entry => (entry.issues || []).includes(issue));
+    const withoutIssue = rated.filter(entry => !(entry.issues || []).includes(issue));
+    const avg = rows => rows.length ? Number((rows.reduce((sum, entry) => sum + Number(entry.skinRating), 0) / rows.length).toFixed(2)) : null;
+    return { issue, withCount: withIssue.length, withoutCount: withoutIssue.length,
+      withAverage: avg(withIssue), withoutAverage: avg(withoutIssue),
+      difference: withIssue.length >= 3 && withoutIssue.length >= 3
+        ? Number((avg(withIssue) - avg(withoutIssue)).toFixed(2)) : null };
+  }).sort((a, b) => b.withCount - a.withCount).slice(0, 8);
+  return {
+    ratedCount: rated.length,
+    dateCount: new Set(rated.map(entry => entry.date)).size,
+    correlations,
+    issueComparisons,
+    interpretation: "هذه ارتباطات وصفية في السجلات المتاحة فقط؛ لا تثبت السببية أو اتجاه التأثير، وقد تتأثر بقلة البيانات واختلاف ظروف التسجيل.",
+  };
+}
+
 export function summarizeSkinTrial(trial, diaryEntries = [], reactions = [], otherTrials = []) {
   const baselineIds = new Set(trial?.baselineDiaryIds || []);
   const validRating = entry => entry.skinRating !== null && entry.skinRating !== undefined &&
