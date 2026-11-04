@@ -61,4 +61,16 @@ assert.match(routines, /weekStartDay/);
 assert.match(migration, /skincare-progress/);
 assert.match(migration, /collection_sections/);
 assert.match(migration, /ws_access_level/);
+
+assert.match(index, /if \(!canEdit \|\| busy \|\| routine\.status !== "active"\) return/);
+assert.match(index, /\["done", "skipped"\]\.includes\(status\)/);
+assert.match(index, /log\.routineId === routine\.id && log\.stepId === step\.id && log\.date === date/);
+assert.match(index, /const deleteUnit = async unit => \{\s*if \(!canEdit \|\| busy/);
+assert.match(index, /const toggleRoutine = async routine => \{\s*if \(!canEdit \|\| busy/);
+assert.match(index, /busy=\{busy\} onRestore=\{async log/);
+assert.match(index, /finally \{ setBusy\(false\); \} \} onUndo=\{async log/);
+assert.match(tools, /RoutineLogsView\(\{logs=\[\],deletedLogs=\[\],routines=\[\],products=\[\],canEdit=false,busy=false/);
+assert.match(tools, /disabled=\{busy\} onClick=\{\(\)=>onUndo\(log\)\}/);
+assert.match(tools, /disabled=\{busy\} onClick=\{\(\)=>onRestore\(log\)\}/);
+
 console.log("Skincare completion contract tests passed.");
