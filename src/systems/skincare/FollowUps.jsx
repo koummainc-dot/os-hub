@@ -7,7 +7,7 @@ const btn = (primary = false) => ({ border: "1px solid " + (primary ? C.accent :
 const dateLabel = value => new Date(value + "T12:00:00Z").toLocaleDateString("ar-EG", { day: "numeric", month: "short", year: "numeric" });
 const labels = { "product-expiry": "انتهاء منتج", "unit-expiry": "انتهاء عبوة", "routine-reminder": "تذكير روتين", "trial-start": "بدء تجربة", "trial-review": "مراجعة تجربة", "reaction-followup": "متابعة تفاعل" };
 
-export default function SkinFollowUps({ today, products, units, routines, routineLogs, trials, reactions, setPage }) {
+export default function SkinFollowUps({ today, timezone = "Africa/Cairo", products, units, routines, routineLogs, trials, reactions, setPage }) {
   const [filter, setFilter] = useState("all");
   const items = useMemo(() => buildSkinFollowUps({ today, products, units, routines, routineLogs, trials, reactions }), [today, products, units, routines, routineLogs, trials, reactions]);
   const visible = filter === "all" ? items : items.filter(item => item.type === filter);
