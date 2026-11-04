@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {
   effectiveSkinUnitExpiry, skinUnitStatus, validateSkinUnit, isValidSkinDateKey, skinUnitCostPerDay,
-  validateSkinProduct, validateSkinList, validateSkinSettings, canRestoreSkinUnit, canRestoreSkinRoutineLog, canRestoreSkinList, hasDuplicateSkinListName, normalizeSkinSearchText,
+  validateSkinProduct, validateSkinList, validateSkinSettings, canRestoreSkinUnit, canRestoreSkinRoutineLog, skinProductDeletionBlockers, canRestoreSkinList, hasDuplicateSkinListName, normalizeSkinSearchText,
 } from "../src/systems/skincare/domain.js";
 
 assert.equal(effectiveSkinUnitExpiry({ openedOn: "2026-01-31", paoMonths: 1 }), "2026-02-28");
@@ -71,3 +71,16 @@ assert.equal(skinUnitCostPerDay({ price: 100, startedUseDate: "2026-11-01", fini
 assert.equal(skinUnitCostPerDay({ price: 100, startedUseDate: "2026-11-01", deleted_at: "2026-11-02" }, "2026-11-04"), null);
 
 assert.equal(skinUnitCostPerDay({ price: 10, currency: "   ", startedUseDate: "2026-11-01" }, "2026-11-02").currency, "غير محددة");
+
+const productRelations = {
+  units: [{ id: "u1", productId: "p1" }],
+  routines: [{ id: "r1", steps: [{ id: "s1", productId: "p1" }] }],
+  routineLogs: [{ id: "l1", routineId: "r1", stepId: "s1" }],
+  trials: [{ id: "t1", productId: "p1" }],
+  reactions: [{ id: "x1", productId: "p1" }],
+  lists: [{ id: "w1", productIds: ["p1"] }],
+};
+assert.deepEqual(skinProductDeletionBlockers("p1", productRelations), ["units", "routine_steps", "routine_logs", "trials", "reactions", "lists"]);
+assert.deepEqual(skinProductDeletionBlockers("p1", { ...productRelations, units: [], routines: [], routineLogs: [], trials: [], reactions: [], lists: [] }), []);
+assert.deepEqual(skinProductDeletionBlockers("p1", { routineLogs: [{ id: "legacy-log", productIdSnapshot: "p1" }] }), ["routine_logs"]);
+assert.deepEqual(skinProductDeletionBlockers("p1", { units: [{ productId: "p1", deleted_at: "2026-11-01" }] }), []);
