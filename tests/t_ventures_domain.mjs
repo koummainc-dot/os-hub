@@ -1,0 +1,15 @@
+import assert from "node:assert/strict";
+import {VENTURES_MODULES,VENTURES_PLATFORM} from "../src/systems/ventures/config.js";
+import {summarizeVentures,getContentWorkflow} from "../src/systems/ventures/domain.js";
+assert.equal(VENTURES_MODULES.length,29);
+assert.equal(VENTURES_PLATFORM.platform.id,"website");
+assert.ok(VENTURES_PLATFORM.platform.contentTypes.length>=11);
+assert.ok(VENTURES_PLATFORM.platform.contentTypes.every(x=>Array.isArray(x.stages)));
+const blog=VENTURES_PLATFORM.platform.contentTypes.find(x=>x.name.includes("مقال مدونة"));
+assert.equal(blog.stages.length,10);
+assert.ok(blog.stages.every(s=>Array.isArray(s.tasks)&&Array.isArray(s.fields)));
+assert.equal(getContentWorkflow(blog.id).length,10);
+const summary=summarizeVentures({keywords:[{id:"1"}],content:[{id:"2",_deleted_at:null},{id:"3",_deleted_at:"x"}]});
+assert.equal(summary.records,2);
+assert.equal(summary.contentRecords,1);
+console.log("Ventures domain contract: PASS");
