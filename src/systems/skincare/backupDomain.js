@@ -86,6 +86,33 @@ function checkReferences(collections) {
   for (const reaction of rows(SKINCARE_COLLECTIONS.reactions)) {
     if (!has(SKINCARE_COLLECTIONS.products, reaction.data.productId)) errors.push("التفاعل " + reaction.id + " يشير إلى منتج غير موجود.");
     if (!has(SKINCARE_COLLECTIONS.units, reaction.data.unitId)) errors.push("التفاعل " + reaction.id + " يشير إلى عبوة غير موجودة.");
+    if (reaction.data.unitId) {
+      const unit = rows(SKINCARE_COLLECTIONS.units).find(item => item.id === String(reaction.data.unitId));
+      if (unit && String(unit.data.productId || "") !== String(reaction.data.productId || "")) {
+        errors.push("التفاعل " + reaction.id + " مرتبط بعبوة لا تتبع المنتج المحدد.");
+      }
+    }
+    for (const ingredientId of reaction.data.suspectedIngredientIds || []) {
+      if (!has(SKINCARE_COLLECTIONS.ingredients, ingredientId)) errors.push("التفاعل " + reaction.id + " يشير إلى مكوّن مشتبه غير موجود.");
+    }
+    for (const photoId of reaction.data.photoIds || []) {
+      if (!has(SKINCARE_COLLECTIONS.photos, photoId)) errors.push("التفاعل " + reaction.id + " يشير إلى صورة غير موجودة.");
+    }
+  }
+  for (const list of rows(SKINCARE_COLLECTIONS.lists)) {
+    for (const productId of list.data.productIds || []) {
+      if (!has(SKINCARE_COLLECTIONS.products, productId)) errors.push("القائمة " + list.id + " تشير إلى منتج غير موجود.");
+    }
+  }
+  for (const product of rows(SKINCARE_COLLECTIONS.products)) {
+    for (const ingredientId of product.data.ingredientIds || []) {
+      if (!has(SKINCARE_COLLECTIONS.ingredients, ingredientId)) errors.push("المنتج " + product.id + " يشير إلى مكوّن غير موجود.");
+    }
+  }
+  for (const trial of rows(SKINCARE_COLLECTIONS.trials)) {
+    for (const diaryId of trial.data.baselineDiaryIds || []) {
+      if (!has(SKINCARE_COLLECTIONS.diary, diaryId)) errors.push("التجربة " + trial.id + " تشير إلى إدخال خط أساس غير موجود.");
+    }
   }
   return errors;
 }
