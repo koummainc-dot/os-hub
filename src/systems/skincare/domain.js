@@ -609,3 +609,87 @@ export function buildSkinDashboardData({
     factorAnalysis,
   };
 }
+
+
+const skincareDateShift = (key, amount) => {
+  const [year, month, day] = String(key).split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + amount)).toISOString().slice(0, 10);
+};
+const skincareDateDistance = (from, to) => {
+  const a = Date.parse(String(from) + "T00:00:00Z");
+  const b = Date.parse(String(to) + "T00:00:00Z");
+  return Number.isFinite(a) && Number.isFinite(b) ? Math.round((b - a) / 86400000) : null;
+};
+
+export function buildSkinFollowUps({
+  today = new Date().toISOString().slice(0, 10),
+  products = [], units = [], routines = [], routineLogs = [], trials = [], reactions = [],
+  expiryWindowDays = 30, trialWindowDays = 7,
+} = {}) {
+  const items = [];
+  const add = item => items.push({ ...item, id: item.id || [item.type, item.sourceId, item.dueDate || today].join(":") });
+  for (const product of products) {
+    if (product.status !== "active" || !product.expiryDate) continue;
+    const distance = skincareDateDistance(today, product.expiryDate);
+    if (distance === null || distance > expiryWindowDays) continue;
+    add({ type: "product-expiry", sourceId: product.id, title: product.name,
+      description: distance < 0 ? "تاريخ انتهاء المنتج مرّ؛ راجع حالته قبل الاستخدام." : distance === 0 ? "تاريخ الانتهاء اليوم؛ راجع حالة المنتج." : "متبقي " + distance + " يومًا على تاريخ الانتهاء.",
+      dueDate: product.expiryDate, daysRemaining: distance, priority: distance < 0 ? "high" : "normal",
+      page: "products", action: "مراجعة المنتج" });
+  }
+  for (const unit of units) {
+    if (!unit.expiresOn) continue;
+    const distance = skincareDateDistance(today, unit.expiresOn);
+    if (distance === null || distance > expiryWindowDays) continue;
+    const product = products.find(item => item.id === unit.productId);
+    add({ type: "unit-expiry", sourceId: unit.id, title: unit.name,
+      description: distance < 0 ? "تاريخ انتهاء العبوة مرّ؛ راجعها قبل الاستخدام." : distance === 0 ? "تاريخ انتهاء العبوة اليوم." : "متبقي " + distance + " يومًا على تاريخ انتهاء العبوة.",
+      dueDate: unit.expiresOn, daysRemaining: distance, priority: distance < 0 ? "high" : "normal",
+      productName: product?.name || "", page: "units", action: "مراجعة العبوة" });
+  }
+  const localDate = new Date(String(today) + "T12:00:00");
+  const dayLogs = routineLogs.filter(log => log.date === today);
+  for (const routine of routines) {
+    if (routine.status !== "active" || !routine.reminderEnabled || !routine.reminderTime) continue;
+    if (!isRoutineDue(routine, localDate, routineLogs)) continue;
+    const steps = (routine.steps || []).filter(step => !step.archived);
+    const pending = steps.filter(step => !dayLogs.some(log => log.routineId === routine.id && log.stepId === step.id && ["done", "skipped"].includes(log.status)));
+    if (!pending.length) continue;
+    add({ type: "routine-reminder", sourceId: routine.id, title: routine.name,
+      description: "روتين اليوم مستحق؛ تبقى " + pending.length + " خطوة دون تسجيل.",
+      dueDate: today, reminderTime: routine.reminderTime, priority: "normal",
+      page: "routines", action: "فتح الروتين" });
+  }
+  for (const trial of trials) {
+    if (trial.status === "planned" && trial.startDate) {
+      const distance = skincareDateDistance(today, trial.startDate);
+      if (distance !== null && distance >= 0 && distance <= trialWindowDays) {
+        add({ type: "trial-start", sourceId: trial.id, title: "موعد بدء تجربة",
+          description: "تجربة المنتج مجدولة للبدء خلال " + distance + " يومًا.",
+          dueDate: trial.startDate, daysRemaining: distance, priority: "normal",
+          page: "trials", action: "مراجعة التجربة" });
+      }
+    }
+    if (trial.status === "running" && trial.startDate && Number(trial.plannedDays) > 0) {
+      const dueDate = skincareDateShift(trial.startDate, Number(trial.plannedDays));
+      const distance = skincareDateDistance(today, dueDate);
+      if (distance !== null && distance <= 0) {
+        add({ type: "trial-review", sourceId: trial.id, title: "موعد مراجعة التجربة",
+          description: distance < 0 ? "مرّ الموعد المخطط لمراجعة التجربة؛ حدّث حالتها أو مدتها." : "حلّ الموعد المخطط لمراجعة التجربة؛ سجّل ما توصلت إليه.",
+          dueDate, daysRemaining: distance, priority: "high",
+          page: "trials", action: "مراجعة التجربة" });
+      }
+    }
+  }
+  for (const reaction of reactions) {
+    if (reaction.status !== "open") continue;
+    const product = products.find(item => item.id === reaction.productId);
+    add({ type: "reaction-followup", sourceId: reaction.id, title: "تفاعل مفتوح" + (product?.name ? " · " + product.name : ""),
+      description: reaction.severity === "severe" ? "يوجد تفاعل مسجل بشدة عالية لم تتم تسويته؛ راجع السجل." : "يوجد تفاعل لم يتم تسجيل حله أو أرشفته بعد.",
+      dueDate: reaction.dateStarted || today, priority: reaction.severity === "severe" ? "high" : "normal",
+      page: "reactions", action: "مراجعة التفاعل" });
+  }
+  const rank = { high: 0, normal: 1 };
+  return items.sort((a, b) => rank[a.priority] - rank[b.priority] ||
+    String(a.dueDate).localeCompare(String(b.dueDate)) || a.title.localeCompare(b.title, "ar"));
+}
