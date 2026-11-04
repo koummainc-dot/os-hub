@@ -438,3 +438,17 @@ Draft PR #115 adds an ephemeral PostgreSQL smoke workflow for the existing `2026
 Current `main` already contains a disposable PostgreSQL workflow for the four Hobbies Journal privacy/storage/audit/attachment migrations and the restore matrix. The smoke fixture creates two distinct `auth.users` identities and verifies that User B cannot read or update User A's private Journal row or attachment; it also verifies metadata-only immutable audit history, attachment cleanup lifecycle, and restore for seven trash collections plus Journal. This is meaningful two-user RLS coverage in an ephemeral database.
 
 However, the live catalog inspection confirmed the Journal audit/attachment tables, visibility/audit/attachment guard functions, and private storage bucket are absent in production. The four Journal migrations are still pending candidates. Therefore this does **not** replace the outstanding live two-account test or browser reload/restore acceptance. Background notifications and timezone/week-start behavior also remain outside this SQL smoke coverage. No Journal migrations were applied to production in this pass.
+
+
+## Projects pending migration-chain disposable validation
+
+The Projects SQL smoke workflow now applies all six pending Projects migration files in dependency order in a disposable PostgreSQL 16 database:
+
+1. `20261030100000_projects_final_output_guard.sql`
+2. `20261030110000_projects_task_issue_traceability.sql`
+3. `20261030120000_projects_task_issue_deferred_validation.sql`
+4. `20261031110000_projects_prd_requirement_traceability.sql`
+5. `20261031120000_projects_entity_relationship_integrity.sql`
+6. `20261031130000_projects_prd_verified_evidence_guard.sql`
+
+On commit `bfaa85a597c16f73ad534bddd223bd2a275af4dd`, the full disposable Projects SQL smoke passed. The fixture now exercises final-output immutability/approval, work-session member ownership and leaf-task constraints, task/PRD references, deferred task↔issue references, PRD verified-evidence rules, and cross-project relationship guards. This materially improves confidence in the pending Projects migration chain, but production still lacks the guard functions observed earlier; no production DDL or history repair was performed.
