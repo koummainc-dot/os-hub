@@ -208,3 +208,16 @@ assert.ok(!configuredExpiryFollowups.some(item => item.sourceId === "p-window-ou
 assert.ok(configuredExpiryFollowups.some(item => item.sourceId === "u-window-in"));
 assert.ok(!configuredExpiryFollowups.some(item => item.sourceId === "u-window-out" || item.sourceId === "u-finished" || item.sourceId === "u-invalid"));
 console.log("Skincare configured expiry follow-up contracts added.");
+
+const portfolio = buildSkinDashboardData({
+  endDate: "2026-11-04", days: 30,
+  products: [
+    { id: "active", status: "active" },
+    { id: "paused", status: "paused" },
+    { id: "finished", status: "finished" },
+    { id: "discarded", status: "discarded" },
+    { id: "soft-deleted", status: "active", deleted_at: "2026-11-03" },
+  ],
+  deletedProducts: [{ id: "soft-deleted", deleted_at: "2026-11-03" }],
+});
+assert.deepEqual(portfolio.productSummary, { activeCount: 1, inactiveCount: 3, deletedCount: 1, savedCount: 4 });
