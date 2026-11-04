@@ -46,7 +46,7 @@ export function SkinCompareView({products=[],units=[],ingredients=[]}){
  </section>;
 }
 
-export function SkinListsView({lists=[],products=[],canEdit=false,busy=false,onSave,onDelete,onToggleProduct}){
+export function SkinListsView({lists=[],deletedLists=[],products=[],canEdit=false,busy=false,onSave,onDelete,onRestore,onToggleProduct}){
  const [draft,setDraft]=useState({name:"",kind:"custom",notes:""});
  const [editing,setEditing]=useState("");
  const [active,setActive]=useState("");
@@ -70,10 +70,11 @@ export function SkinListsView({lists=[],products=[],canEdit=false,busy=false,onS
    {list.notes&&<p style={{fontSize:11,color:C.muted}}>{list.notes}</p>}
    {active===list.id&&<div style={{display:"grid",gap:7,marginTop:9}}>{products.filter(p=>!p.deleted_at).map(p=>{const included=(list.productIds||[]).includes(p.id);return <label key={p.id} style={{display:"flex",gap:8,alignItems:"center",fontSize:12}}><input type="checkbox" checked={included} disabled={!canEdit} onChange={()=>onToggleProduct(list,p)}/><span>{p.name}</span><span style={{color:C.muted,fontSize:10}}>{p.brand||""}</span></label>;})}</div>}
   </article>)}
+  {!!deletedLists.length&&<details style={{marginTop:10}}><summary style={{cursor:"pointer",fontSize:11,color:C.muted}}>القوائم المحذوفة ({deletedLists.length})</summary>{deletedLists.map(item=><div key={item.id} style={{display:"flex",gap:8,alignItems:"center",padding:"8px 0",borderTop:"1px solid "+C.line,fontSize:12}}><span style={{flex:1}}>{item.name}</span>{canEdit&&<button style={btn()} onClick={()=>onRestore(item)}>استعادة</button>}</div>)}</details>}
  </section></>;
 }
 
-export function RoutineLogsView({logs=[],routines=[],products=[],canEdit=false,onUndo}){
+export function RoutineLogsView({logs=[],deletedLogs=[],routines=[],products=[],canEdit=false,onUndo,onRestore}){
  const [status,setStatus]=useState("all");
  const [routineId,setRoutineId]=useState("all");
  const [from,setFrom]=useState("");
@@ -89,6 +90,7 @@ export function RoutineLogsView({logs=[],routines=[],products=[],canEdit=false,o
   </div>
   {!rows.length&&<p style={{fontSize:12,color:C.muted}}>لا توجد سجلات مطابقة للفلاتر.</p>}
   {rows.map(log=>{const routine=routines.find(r=>r.id===log.routineId);const step=routine?.steps?.find(s=>s.id===log.stepId);const product=products.find(p=>p.id===step?.productId);return <article key={log.id} style={{borderTop:"1px solid "+C.line,padding:"10px 0",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}><span>{log.status==="done"?"✓":"↷"}</span><div style={{flex:1,minWidth:170}}><b style={{fontSize:12}}>{routine?.name||"روتين محذوف"}</b><div style={{fontSize:11,color:C.muted}}>{product?.name||step?.category||"خطوة"} · {log.date} · {log.status==="done"?"تم التنفيذ":"تم التخطي"}</div></div>{canEdit&&<button style={btn()} onClick={()=>onUndo(log)}>نقل السجل إلى المحذوفات</button>}</article>;})}
+  {!!deletedLogs.length&&<details style={{marginTop:10}}><summary style={{cursor:"pointer",fontSize:11,color:C.muted}}>سجلات محذوفة ({deletedLogs.length})</summary>{deletedLogs.map(log=><div key={log.id} style={{display:"flex",gap:8,alignItems:"center",padding:"8px 0",borderTop:"1px solid "+C.line,fontSize:11}}><span style={{flex:1}}>{log.date} · {log.status} · {log.id}</span>{canEdit&&<button style={btn()} onClick={()=>onRestore(log)}>استعادة</button>}</div>)}</details>}
  </section>;
 }
 
