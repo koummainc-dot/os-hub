@@ -542,3 +542,41 @@ These eleven files have a filename prefix that exists in live history, but their
 - `20261103151035_health_h2_2_body_map_symptom_locations.sql` — stored statement includes additional SQL beyond the repository file.
 
 The source of truth for what was applied is the stored migration statement. The repository variants may contain later intended fixes or incomplete edits; they must be reviewed as deltas, then either confirmed already present in production or split into a new versioned migration. No automatic overwrite is safe.
+
+
+## Production catalog cross-check for pending candidates (read-only, 2026-11-04)
+
+A second pass checked the live PostgreSQL catalogs after identifying the 17 no-same-name migration candidates. The following expected objects were **not found** in the production catalog at the time of the query:
+
+- Inventory P0/P1: no `inventory_*` tables or `inventory_*` functions.
+- Finance family cash: no `finance_family_cash_*` tables or `fin_family_cash_*` functions.
+- Integration events: no `os_integration_events` table or `os_integration_*` functions.
+- Hobbies Journal: no `hobbies_journal_audit_*` or `hobbies_journal_attachment_*` tables/functions; neither `hobbies-journal` nor `skincare-progress` storage bucket was found.
+- Projects: `public.workspace_records` currently has only `records_touch_trg` as a non-internal trigger; no Projects guard trigger is installed there.
+
+This is evidence that the corresponding feature migrations are not represented in the queried production catalog. It is **not** proof that every statement in every pending file is safe to apply: the full dependency graph, existing equivalent objects under different names, grants, policies, Storage ownership, and rollback strategy still require review.
+
+### Pending candidate inventory and test coverage
+
+| Area | Pending files | Isolated SQL validation |
+|---|---:|---|
+| Personal Inventory P0/P1 + snapshot RPC | 3 | Dedicated PostgreSQL 16 smoke workflow added; latest run pending in PR #124 |
+| Finance default category seeding + family cash | 2 | Family Cash smoke workflow added; default-category seeding still needs dedicated coverage; latest run pending in PR #124 |
+| Projects final-output / task-issue / PRD / relationship guards | 6 | Projects PostgreSQL smoke passed on disposable PostgreSQL 16 |
+| OS integration events | 1 | Dedicated PostgreSQL 16 smoke workflow exists; latest mainline run status must be checked separately |
+| Hobbies Journal privacy / storage / audit / attachment lifecycle | 4 | Hobbies Journal PostgreSQL smoke passed on disposable PostgreSQL |
+| Skincare private storage and collection permissions | 1 | Dedicated PostgreSQL 16 Storage/collection smoke workflow added; latest run pending in PR #124 |
+
+The Projects and Hobbies smoke workflows validate SQL in disposable PostgreSQL environments only; they do not apply anything to Supabase production. Inventory, Finance Family Cash, and Skincare now have dedicated isolated smoke workflows in PR #124; the latest Finance bootstrap permission correction is awaiting a fresh run. Finance default-category seeding still needs its own smoke coverage. OS integration events already has a dedicated PostgreSQL 16 smoke workflow and should be validated through that workflow.
+
+### Production-safety decision
+
+- Do not run `supabase db push` or `apply_migration` yet.
+- Do not insert or rewrite rows in `supabase_migrations.schema_migrations`.
+- Do not treat the 17 pending candidates as an approved batch.
+- Next safe step: finish the fresh PR #124 smoke runs; add isolated coverage for Finance default-category seeding and verify OS integration events; then inspect each pending migration's dependencies and grants, and review the 28 applied-source drift cases against actual catalog definitions.
+
+
+### Validation update (2026-11-04, PR #124)
+
+The corrected Finance family-cash migration now includes `UNIQUE (workspace_id,id)` for its composite child FK, and the disposable Finance bootstrap grants `SELECT` on `finance_transactions` to the authenticated test role so the smoke test can assert that the source ledger row remains unchanged. Fresh pull-request validation is running against the corrected head. This is test-environment-only setup; it does not grant or alter production permissions.
