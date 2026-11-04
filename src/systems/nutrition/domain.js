@@ -47,7 +47,7 @@ const num = v => Number.isFinite(Number(v)) ? Number(v) : 0;
 const nonNegative = v => Number.isFinite(Number(v)) && Number(v)>=0;
 export function normalizeFood(food) {
   const f=food&&typeof food==="object"?food:{};
-  const out={id:String(f.id||""),name:String(f.name||"").trim(),brand:String(f.brand||"").trim(),basisAmount:num(f.basisAmount??100),basisUnit:f.basisUnit==="ml"?"ml":"g",servingAmount:num(f.servingAmount??0),servingUnit:String(f.servingUnit||(f.basisUnit==="ml"?"مل":"جم")),origin:f.origin||"user",verificationLevel:f.verificationLevel||"unverified",status:f.status||"active",aliases:Array.isArray(f.aliases)?f.aliases.map(x=>String(x).trim()).filter(Boolean):[],barcode:String(f.barcode||""),catalogSource:String(f.catalogSource||""),densityGPerMl:num(f.densityGPerMl??0),favorite:!!f.favorite,createdAt:f.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  const out={id:String(f.id||""),name:String(f.name||"").trim(),brand:String(f.brand||"").trim(),basisAmount:num(f.basisAmount??100),basisUnit:f.basisUnit==="ml"?"ml":"g",servingAmount:num(f.servingAmount??0),servingUnit:String(f.servingUnit||(f.basisUnit==="ml"?"مل":"جم")),origin:f.origin||"user",verificationLevel:f.verificationLevel||"unverified",status:f.status||"active",aliases:Array.isArray(f.aliases)?f.aliases.map(x=>String(x).trim()).filter(Boolean):[],barcode:String(f.barcode||""),catalogSource:String(f.catalogSource||""),densityGPerMl:num(f.densityGPerMl??0),portions:Array.isArray(f.portions)?f.portions.map((p,i)=>({id:String(p.id||("portion-"+i)),label:String(p.label||"").trim(),amount:num(p.amount),unit:String(p.unit||f.basisUnit)})).filter(p=>p.label&&p.amount>0):[],favorite:!!f.favorite,createdAt:f.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
   for(const key of NUTRIENTS) out[key]=num(f[key]);
   return out;
 }
@@ -58,6 +58,7 @@ export function validateFood(input) {
   for(const key of NUTRIENTS) if(!nonNegative(f[key])) errors.push("قيم العناصر الغذائية لا يمكن أن تكون سالبة.");
   if(!["g","ml"].includes(f.basisUnit)) errors.push("وحدة الأساس غير صالحة.");
   if(f.densityGPerMl<0) errors.push("الكثافة لا يمكن أن تكون سالبة.");
+  const portionIds=new Set(); for(const portion of f.portions){if(!portion.label||portion.amount<=0||portion.unit!==f.basisUnit) errors.push("كل حصة منزلية تحتاج اسمًا وكمية موجبة بوحدة أساس الغذاء."); if(portionIds.has(portion.id)) errors.push("معرّفات الحصص المنزلية يجب أن تكون فريدة."); portionIds.add(portion.id);}
   return {ok:errors.length===0,errors,value:f};
 }
 export function scaleNutrients(nutrients, consumedAmount, basisAmount=100) {
@@ -67,11 +68,24 @@ export function scaleNutrients(nutrients, consumedAmount, basisAmount=100) {
   for(const key of NUTRIENTS) out[key]=Math.round(num(nutrients?.[key])*amount/basis*100)/100;
   return out;
 }
+export function parseHouseholdPortions(text,basisUnit="g") {
+  const lines=String(text||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean),errors=[],portions=[],seen=new Set();
+  for(const [index,line] of lines.entries()) {
+    const match=line.match(/^(.+?)\s*=\s*(\d+(?:\.\d+)?)$/);
+    if(!match) { errors.push("السطر "+(index+1)+" يجب أن يكون بالصيغة: اسم الحصة = الكمية."); continue; }
+    const label=match[1].trim(),amount=Number(match[2]),key=normalizeSearch(label);
+    if(!label||!Number.isFinite(amount)||amount<=0) { errors.push("اسم الحصة والكمية يجب أن يكونا صالحين في السطر "+(index+1)+"."); continue; }
+    if(seen.has(key)) { errors.push("لا تكرر اسم الحصة المنزلية: "+label+"."); continue; }
+    seen.add(key); portions.push({id:makeNutritionId("portion"),label,amount,unit:basisUnit});
+  }
+  return {ok:errors.length===0,errors,value:errors.length?[]:portions};
+}
 export function convertFoodQuantity(food, amount, unit=food?.basisUnit) {
   const qty=Number(amount);
   if(!Number.isFinite(qty)||qty<=0) throw new Error("الكمية يجب أن تكون أكبر من صفر.");
   if(unit===food?.basisUnit) return qty;
   if(unit==="serving") { if(!(Number(food?.servingAmount)>0)) throw new Error("لم تُحدد كمية الحصة المعتادة لهذا الغذاء."); return qty*Number(food.servingAmount); }
+  if(String(unit||"").startsWith("portion:")) { const portion=food?.portions?.find(p=>p.id===String(unit).slice(8)); if(!portion) throw new Error("الحصة المنزلية المحددة لم تعد موجودة في تعريف الغذاء."); return qty*Number(portion.amount); }
   const density=Number(food?.densityGPerMl)||0;
   if(density<=0) throw new Error("يلزم إدخال الكثافة لتحويل الجرام والملليلتر.");
   if(food?.basisUnit==="g"&&unit==="ml") return qty*density;
