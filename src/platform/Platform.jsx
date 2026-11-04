@@ -79,7 +79,7 @@ function Platform(){
   // ── responsive ──
   useEffect(()=>{const f=()=>setNarrow(window.innerWidth<860);window.addEventListener("resize",f);return()=>window.removeEventListener("resize",f);},[]);
   // ── cross-module navigation (ContentOS team page → platform team page) ──
-  useEffect(()=>{const f=(e)=>{const d=(e&&e.detail)||{};setRoute({view:d.view||"today",system:d.system||null});setNavOpen(false);};window.addEventListener("os:goto",f);return()=>window.removeEventListener("os:goto",f);},[]);
+  useEffect(()=>{const f=(e)=>{const d=(e&&e.detail)||{};if(d.workspaceId&&String(d.workspaceId)!==String(wsId))return;setRoute({view:d.view||"today",system:d.system||null});if(d.system&&d.section)setSectionBy(p=>({...p,[d.system]:d.section}));setNavOpen(false);};window.addEventListener("os:goto",f);return()=>window.removeEventListener("os:goto",f);},[wsId]);
 
   // ── auth session ──
   useEffect(()=>{
