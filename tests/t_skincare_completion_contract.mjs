@@ -57,6 +57,8 @@ assert.match(followups, /timezone/);
 assert.match(routines, /onClick=\{\(\)=>removeStep\(step\)\}/);
 assert.doesNotMatch(routines, /onClick=\{\(\)=>onClick/);
 assert.match(routines, /weekStartDay/);
+assert.match(routines, /disabled=\{busy\} onClick=\{\(\)=>onLog\(r,step,"done"\)\}/);
+assert.match(routines, /disabled=\{busy\} onClick=\{\(\)=>onLog\(r,step,"skipped"\)\}/);
 
 assert.match(migration, /skincare-progress/);
 assert.match(migration, /collection_sections/);
