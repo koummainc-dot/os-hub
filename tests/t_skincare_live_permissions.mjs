@@ -19,6 +19,7 @@ const url = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_PUBLISHABLE_KEY;
 const wsId = process.env.SKINCARE_TEST_WORKSPACE_ID;
 const otherWsId = process.env.SKINCARE_OTHER_WORKSPACE_ID;
+assert.notEqual(otherWsId, wsId, "Use two distinct isolated workspaces for the isolation test.");
 const client = jwt => createClient(url, key, {
   auth: { persistSession: false, autoRefreshToken: false },
   global: { headers: { Authorization: "Bearer " + jwt } },
@@ -58,6 +59,7 @@ let ownerProfileCreated = false;
 let diaryCreated = false;
 let photoCreated = false;
 let uploaded = false;
+let viewerUnexpectedPath = null;
 try {
   const existing = await editor.from("workspace_records").select("id")
     .eq("workspace_id", wsId).eq("system_id", "skincare").eq("collection", "skin_diary").eq("id", diaryId).maybeSingle();
@@ -99,9 +101,11 @@ try {
   const editorSigned = await editor.storage.from("skincare-progress").createSignedUrl(objectPath, 60);
   if (editorSigned.error || !editorSigned.data?.signedUrl) throw editorSigned.error || new Error("Editor should be able to sign its own photo.");
 
-  const viewerUpload = await viewer.storage.from("skincare-progress").upload(folder + crypto.randomUUID() + ".jpg", new Blob([new Uint8Array([1])], { type: "image/jpeg" }), {
+  const viewerAttemptPath = folder + crypto.randomUUID() + ".jpg";
+  const viewerUpload = await viewer.storage.from("skincare-progress").upload(viewerAttemptPath, new Blob([new Uint8Array([1])], { type: "image/jpeg" }), {
     contentType: "image/jpeg", upsert: false,
   });
+  if (!viewerUpload.error) viewerUnexpectedPath = viewerAttemptPath;
   assert.ok(viewerUpload.error, "Viewer must not be able to upload a private photo.");
 
   const viewerSigned = await viewer.storage.from("skincare-progress").createSignedUrl(objectPath, 60);
@@ -125,6 +129,7 @@ try {
 } finally {
   if (photoCreated) await softDeleteRecord(editor, "skin_photos", photoId, photoData);
   if (uploaded) await editor.storage.from("skincare-progress").remove([objectPath, thumbnailPath]);
+  if (viewerUnexpectedPath) await editor.storage.from("skincare-progress").remove([viewerUnexpectedPath]);
   if (diaryCreated) await softDeleteRecord(editor, "skin_diary", diaryId, diaryData);
   if (ownerProfileCreated) await softDeleteRecord(owner, "skin_profile", ownerProfileId, ownerProfileData);
 }
