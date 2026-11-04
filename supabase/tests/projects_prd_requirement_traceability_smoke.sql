@@ -13,6 +13,21 @@ values
 insert into public.workspace_records (workspace_id, system_id, collection, id, data)
 values ('11111111-1111-4111-8111-111111111111','projects','tasks','task1',
         '{"project_id":"p1","prd_id":"prd1","prd_requirement_id":"req1","title":"Implement requirement"}');
+
+-- Work sessions are owned by the authenticated member and must target an active leaf task.
+insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+values ('11111111-1111-4111-8111-111111111111','projects','sessions','session1',
+        '{"task_id":"task1","member_id":"22222222-2222-4222-8222-222222222222"}');
+
+do $ begin
+  begin
+    insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+    values ('11111111-1111-4111-8111-111111111111','projects','sessions','session-wrong-member',
+            '{"task_id":"task1","member_id":"33333333-3333-4333-8333-333333333333"}');
+    raise exception 'expected work-session member ownership rejection';
+  exception when sqlstate '42501' then null;
+  end;
+end $;
 insert into public.workspace_records (workspace_id, system_id, collection, id, data)
 values ('11111111-1111-4111-8111-111111111111','projects','outputs','output1',
         '{"project_id":"p1","task_id":"task1","prd_id":"prd1","prd_requirement_id":"req1","approval":"Final"}');
@@ -41,7 +56,7 @@ do $block$ begin
      where workspace_id = '11111111-1111-4111-8111-111111111111'
        and system_id = 'projects' and collection = 'outputs' and id = 'output1';
     raise exception 'expected last Final evidence downgrade rejection';
-  exception when sqlstate '22023' then null;
+  exception when sqlstate '22023' or sqlstate '42501' then null;
   end;
 end $block$;
 
@@ -52,7 +67,7 @@ do $block$ begin
      where workspace_id = '11111111-1111-4111-8111-111111111111'
        and system_id = 'projects' and collection = 'outputs' and id = 'output1';
     raise exception 'expected last Final evidence archive rejection';
-  exception when sqlstate '22023' then null;
+  exception when sqlstate '22023' or sqlstate '42501' then null;
   end;
 end $block$;
 
@@ -163,6 +178,16 @@ end $block$;
 insert into public.workspace_records (workspace_id, system_id, collection, id, data)
 values ('11111111-1111-4111-8111-111111111111','projects','tasks','task3',
         '{"project_id":"p1","parent_task_id":"task1","issue_ids":["issue1"],"discovery_ids":["discovery1"],"title":"Linked child task"}');
+
+do $ begin
+  begin
+    insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+    values ('11111111-1111-4111-8111-111111111111','projects','sessions','session-parent-task',
+            '{"task_id":"task1","member_id":"22222222-2222-4222-8222-222222222222"}');
+    raise exception 'expected parent-task work session rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $;
 
 insert into public.workspace_records (workspace_id, system_id, collection, id, data)
 values ('11111111-1111-4111-8111-111111111111','projects','decisions','decision1',
