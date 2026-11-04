@@ -350,12 +350,15 @@ export function DiscoveryView() {
   const stale = (d) => d.status === "Inbox" && d.logged_at && diffDays(today, d.logged_at) > settings.inboxStaleDays;
   const typeIcon = { Problem: "🔴", Idea: "💡", Opportunity: "🌟" };
   async function move(id, to) {
+    if (!canWriteDiscovery) return toast("لا تملك صلاحية تعديل سجل الاكتشاف.");
     const d = data.discovery.find((x) => x.id === id); if (!d || d.status === to) return;
     const linked = (d.resolution_links || []).length > 0; const m = D.validateDiscoveryStatus(d, to, linked);
     if (m) { if (to === "Dropped") return setForm({ ...d, status: to, _need: "dropped_reason" }); if (to === "Working On") return setForm({ ...d, status: to, owner_id: d.owner_id || me, _need: "owner" }); if (to === "Completed") return setForm({ ...d, status: to, _need: "resolution_note" }); return toast("⛔ " + m); }
     await act.put("discovery", { ...d, status: to }); 
   }
   async function convert(d, kind) {
+    if (!canWriteDiscovery) { toast("لا تملك صلاحية تحويل الاكتشاف."); return; }
+    if (!canConvertDiscovery(kind, d)) { toast("لا تملك صلاحية إنشاء هذا النوع من العناصر في المشاريع المرتبطة."); return; }
     const selectedProjectId = d._conversionProjectId || "";
     const source = data.discovery.find((x) => x.id === d.id) || d;
     if ((source.resolution_links || []).some((x) => x.kind === kind)) { toast("هذا الاكتشاف مرتبط بالفعل بعنصر من هذا النوع؛ افتح الرابط الموجود بدل إنشاء نسخة مكررة."); return; }
@@ -410,12 +413,12 @@ export function DiscoveryView() {
     </div>);
   return (
     <div>
-      <Head title="الاكتشاف" sub="مشاكل · أفكار · فرص — الوارد قبل أن تتحول إلى مشاريع ومهام" right={<><Seg value={mode} onChange={setMode} options={[{ v: "board", l: "لوحة" }, { v: "list", l: "قائمة" }]} /><Btn kind="primary" onClick={() => setForm({ status: "Inbox", type: "Idea", logged_at: today })}>➕ عنصر</Btn></>} />
+      <Head title="الاكتشاف" sub="مشاكل · أفكار · فرص — الوارد قبل أن تتحول إلى مشاريع ومهام" right={<><Seg value={mode} onChange={setMode} options={[{ v: "board", l: "لوحة" }, { v: "list", l: "قائمة" }]} />{canWriteDiscovery && <Btn kind="primary" onClick={() => setForm({ status: "Inbox", type: "Idea", logged_at: today })}>➕ عنصر</Btn>}</>} />
       <SearchBar value={q} onChange={setQ} placeholder="بحث…"><select style={{ ...S.sel, width: 130 }} value={type} onChange={(e) => setType(e.target.value)}><option value="">كل الأنواع</option>{opts(L.discoveryType).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></SearchBar>
-      {mode === "board" ? <Board columns={statuses.map((s) => ({ id: s, label: L.discoveryStatus[s], color: s === "Dropped" ? "#EF4444" : s === "Completed" ? "#10B981" : s === "Working On" ? "#3B82F6" : "#94A3B8", items: list.filter((d) => d.status === s) }))} onMove={move} renderCard={card} />
+      {mode === "board" ? <Board columns={statuses.map((s) => ({ id: s, label: L.discoveryStatus[s], color: s === "Dropped" ? "#EF4444" : s === "Completed" ? "#10B981" : s === "Working On" ? "#3B82F6" : "#94A3B8", items: list.filter((d) => d.status === s) }))} onMove={canWriteDiscovery ? move : undefined} renderCard={card} />
         : !list.length ? <Empty icon="💡" title="لا عناصر" /> : <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((d) => <div key={d.id} onClick={() => setForm(d)} style={{ display: "flex", gap: 8, padding: "8px 0", borderBottom: `1px solid ${C.line}`, cursor: "pointer", alignItems: "center", fontSize: 13 }}><span>{typeIcon[d.type]}</span><span style={{ flex: 1 }}>{d.title}</span><Chip color={C.info}>{L.discoveryStatus[d.status]}</Chip></div>)}</div>}
-      {form && <FormModal title={form.id ? "عنصر اكتشاف" : "عنصر جديد"} wide initial={form} onClose={() => setForm(null)}
-        footerExtra={form.id ? <><Btn onClick={() => { setConv(form); setForm(null); }}>↪ تحويل…</Btn><Btn danger onClick={async () => { await act.del("discovery", form.id, form.title); setForm(null); }}>🗑</Btn></> : null}
+      {form && canWriteDiscovery && <FormModal title={form.id ? "عنصر اكتشاف" : "عنصر جديد"} wide initial={form} onClose={() => setForm(null)}
+        footerExtra={form.id && canWriteDiscovery ? <><Btn onClick={() => { setConv(form); setForm(null); }}>↪ تحويل…</Btn><Btn danger onClick={async () => { await act.del("discovery", form.id, form.title); setForm(null); }}>🗑</Btn></> : null}
         validate={(v) => { const m = D.validateDiscoveryStatus(v, v.status, (v.resolution_links || []).length > 0); return m; }}
         onSubmit={async (v) => { const { _need, ...rec } = v; await act.put("discovery", { ...rec, id: rec.id || uid(), raised_by_member_id: rec.raised_by_member_id || me, source: rec.source || "manual", logged_at: rec.logged_at || today }); toast("✅ تم الحفظ"); setForm(null); }} fields={[
           { key: "title", label: "العنوان", required: true, span: 2 }, { key: "type", label: "النوع", type: "select", allowEmpty: false, options: opts(L.discoveryType) }, { key: "status", label: "الحالة", type: "select", allowEmpty: false, options: opts(L.discoveryStatus) },
