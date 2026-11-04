@@ -161,10 +161,11 @@ function PeopleTab({ p, canE }) {
   </div>;
 }
 function ProjectOkr({ p }) {
-  const { data, projectProgress, today, settings, setPage } = useP();
+  const { data, projectProgress, setPage } = useP();
+  const objectives = data.objectives.filter((o) => (o.project_ids || []).includes(p.id));
   const krs = data.krs.filter((k) => (k.project_ids || []).includes(p.id));
-  if (!krs.length) return <Empty icon="🎯" title="غير مرتبط بأي نتيجة رئيسية" sub="اربط المشروع من شاشة الأهداف (OKR) بنتيجة رئيسية مبنية على المشاريع." action={<Btn onClick={() => setPage("okrs")}>الأهداف</Btn>} />;
-  return <div style={S.card}>{krs.map((k) => { const ob = data.objectives.find((o) => o.id === k.objective_id); return <div key={k.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13 }}>🎯 {ob && ob.name} ← <b>{k.name}</b><div style={{ marginTop: 4 }}><Progress value={D.krProgressValue(k, projectProgress)} /></div></div>; })}</div>;
+  if (!krs.length && !objectives.length) return <Empty icon="🎯" title="غير مرتبط بأي هدف أو نتيجة رئيسية" sub="اربط المشروع بهدف أو نتيجة رئيسية من شاشة الأهداف (OKR)." action={<Btn onClick={() => setPage("okrs")}>الأهداف</Btn>} />;
+  return <div style={S.card}>{objectives.map((o) => <div key={o.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13 }}>🎯 <b>{o.name}</b><div style={{ fontSize: 11, color: C.muted }}>{fmtShort(o.period_start)} → {fmtShort(o.period_end)}</div></div>)}{krs.map((k) => { const ob = data.objectives.find((o) => o.id === k.objective_id); return <div key={k.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13 }}>🎯 {ob && ob.name} ← <b>{k.name}</b><div style={{ marginTop: 4 }}><Progress value={D.krProgressValue(k, projectProgress)} /></div></div>; })}</div>;
 }
 function RelatedTab({ p, canE }) {
   const { A: act, toast } = useP(); const links = p.links || []; const [f, setF] = useState(false);
