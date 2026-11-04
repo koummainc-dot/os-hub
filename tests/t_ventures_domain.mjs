@@ -23,3 +23,8 @@ assert.equal(summary2.moduleCounts.notes,1);
 assert.equal(summary2.moduleCounts.kpi,0);
 assert.equal(summary2.moduleCounts.finance,1);
 console.log("Ventures operations/insights contract: PASS");
+
+import {sourceSummary} from "../src/systems/ventures/integrations.js";
+const sourceSummaryCheck=sourceSummary({sources:{projects:[{id:"p1"}],content:[{id:"c1"},{id:"c2"}],finance:{data:{transactions:[{id:"f1"}]}},knowledge:{notes:[{id:"n1"}]}},errors:{}});
+assert.deepEqual(sourceSummaryCheck,{projects:1,content:2,finance:1,knowledge:1,errors:[]});
+console.log("Ventures source-of-truth adapter contract: PASS");
