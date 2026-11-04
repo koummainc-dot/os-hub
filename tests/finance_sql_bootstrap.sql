@@ -62,7 +62,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.fin__audit(
   p_workspace_id uuid,p_actor_id uuid,p_entity_type text,p_entity_id text,
   p_action text,p_reason text,p_before jsonb,p_after jsonb
-) RETURNS void LANGUAGE plpgsql AS $ BEGIN RETURN; END $;
+) RETURNS void LANGUAGE plpgsql AS $fn$ BEGIN RETURN; END $fn$;
 
 GRANT USAGE ON SCHEMA public, auth TO authenticated;
 GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated;
