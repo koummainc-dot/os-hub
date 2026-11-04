@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildSkinComparisonMatrix, serializeSkinComparisonCsv, summarizeSkinProductUnits } from "../src/systems/skincare/domain.js";
+import { buildSkinComparisonMatrix, serializeSkinComparisonCsv, summarizeSkinProductUnits, buildSkinDashboardExportMatrix } from "../src/systems/skincare/domain.js";
 
 const products = [
   { id: "p1", name: "غسول, صباحي", brand: "Brand A", ingredients: "Aqua, Glycerin, Unknown INCI", url: "https://example.com/product" },
@@ -52,3 +52,25 @@ assert.equal(strictSummary.count, 3, "deleted units are not counted");
 assert.equal(strictSummary.costPerDay.value, 22.5, "only the valid use period contributes to daily cost");
 assert.equal(strictSummary.dailyCostAmbiguous, false, "only valid cost periods count toward ambiguity");
 assert.equal(strictSummary.totalsByCurrency.EGP, 150, "historical prices remain grouped by currency");
+
+const dashboardRows = buildSkinDashboardExportMatrix({
+  data: {
+    startDate: "2026-10-01", endDate: "2026-10-30",
+    productSummary: { activeCount: 1, inactiveCount: 2, deletedCount: 1, savedCount: 3 },
+    runningTrialCount: 1, pausedTrialCount: 0, rangeTrialCount: 3,
+    rangeReactionCount: 2, routineLogCount: 5, routineDoneCount: 4, routineSkippedCount: 1,
+    averageRating: 3.5,
+  },
+  products: [{ id: "active", name: "Active product", status: "active" }],
+  deletedProducts: [{ id: "deleted", name: "Deleted product", deleted_at: "2026-10-20" }],
+  trials: [{ id: "trial-old", productId: "deleted", status: "completed", startDate: "2026-10-02", productNameSnapshot: "Historic serum" }],
+  reactions: [{ id: "reaction-old", productId: "deleted", status: "closed", dateStarted: "2026-10-03", productNameSnapshot: "Historic serum", severity: "moderate" }],
+  routineLogs: [{ id: "log-old", productIdSnapshot: "deleted", status: "done", date: "2026-10-04", productNameSnapshot: "Historic serum", routineNameSnapshot: "Evening", stepCategorySnapshot: "serum" }],
+});
+assert.equal(dashboardRows.find(row => row[1] === "product.active")[3], 1);
+assert.equal(dashboardRows.find(row => row[1] === "product.inactive")[3], 2);
+assert.equal(dashboardRows.find(row => row[1] === "product.deleted")[3], 1);
+assert.equal(dashboardRows.find(row => row[1] === "trial.history")[3], 3);
+assert.ok(dashboardRows.some(row => row[0] === "تجربة تاريخية" && row[2] === "Historic serum"), "historical trial export uses saved product name");
+assert.ok(dashboardRows.some(row => row[0] === "تفاعل تاريخي" && row[2] === "Historic serum"), "historical reaction export uses saved product name");
+assert.ok(dashboardRows.some(row => row[0] === "سجل روتين تاريخي" && row[2] === "Historic serum" && row[6].includes("Evening")), "routine log export preserves historical product and routine names");
