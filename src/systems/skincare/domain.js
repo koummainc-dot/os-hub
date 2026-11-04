@@ -758,8 +758,8 @@ export function buildSkinDashboardExportMatrix({ data = {}, trials = [], reactio
   const inRange = date => typeof date === "string" && date >= startDate && date <= endDate;
   const rangeTrials = trials.filter(item => item.startDate && item.startDate <= endDate &&
     (item.endDate ? item.endDate >= startDate : ["running", "paused"].includes(item.status) || item.startDate >= startDate));
-  const rangeReactions = reactions.filter(item => inRange(item.dateStarted || item.date));
-  const rangeRoutineLogs = routineLogs.filter(item => inRange(item.date));
+  const rangeReactions = reactions.filter(item => inRange(item.dateStarted));
+  const rangeRoutineLogs = routineLogs.filter(item => inRange(item.date) && ["done", "skipped"].includes(item.status));
   const rows = [
     ["نوع السجل", "المعرّف", "اسم المنتج", "الحالة", "التاريخ / البداية", "تاريخ النهاية", "التفاصيل"],
     ["ملخص", "product.active", "المنتجات النشطة", data.productSummary?.activeCount ?? 0, startDate, endDate, "ضمن الكتالوج الحالي"],
