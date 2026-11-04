@@ -77,7 +77,7 @@ export default function TrialsView({ trials, products, diaryEntries, reactions, 
         const summary = summarizeSkinTrial(trial, diaryEntries, reactions, trials);
         return <article key={trial.id} style={{ borderTop: "1px solid " + C.line, padding: "12px 0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-            <div><b style={{ fontSize: 13 }}>{product?.name || "منتج غير موجود"}</b><div style={{ color: C.muted, fontSize: 10, marginTop: 3 }}>{trial.startDate} · {trial.plannedDays} يومًا · {STATUS[trial.status] || trial.status}</div></div>
+            <div><b style={{ fontSize: 13 }}>{product?.name || trial.productNameSnapshot || "منتج غير متاح (سجل تاريخي)"}</b><div style={{ color: C.muted, fontSize: 10, marginTop: 3 }}>{trial.startDate} · {trial.plannedDays} يومًا · {STATUS[trial.status] || trial.status}</div></div>
             <span style={{ background: C.soft, color: C.ink, borderRadius: 20, padding: "4px 9px", fontSize: 10 }}>{trial.verdict === "pending" ? "لم تُسجل نتيجة" : (VERDICTS.find(x => x[0] === trial.verdict)?.[1] || trial.verdict)}</span>
           </div>
           <p style={{ fontSize: 12, margin: "8px 0" }}>{trial.question}</p>
