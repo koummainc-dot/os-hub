@@ -52,7 +52,7 @@ export default function SkinDashboard({ endDate, diaryEntries, trials, reactions
       <Metric label="أيام بلا تقييم" value={data.daysWithoutRating} note="لا تُحسب كصفر" />
       <Metric label="متوسط التقييم" value={data.averageRating ?? "—"} note="مقياس شخصي؛ لا يحدد وحده اتجاه التحسن" />
       <Metric label="تفاعلات مفتوحة" value={data.openReactionCount} />
-      <Metric label="تجارب جارية" value={data.runningTrialCount} note={`ومتوقفة مؤقتًا: ${data.pausedTrialCount}`} />
+      <Metric label="تجارب جارية" value={data.runningTrialCount} note={`لمنتجات نشطة فقط؛ متوقفة مؤقتًا: ${data.pausedTrialCount}`} />
       <Metric label="المنتجات النشطة" value={data.productSummary.activeCount} note={`المحفوظة غير النشطة: ${data.productSummary.inactiveCount}`} />
       <Metric label="منتجات في المحذوفات" value={data.productSummary.deletedCount} note="لا تدخل في الأرقام الحالية" />
       <Metric label="صور خلال الفترة" value={data.photoCount} />
@@ -78,7 +78,7 @@ export default function SkinDashboard({ endDate, diaryEntries, trials, reactions
         const summary = item.summary;
         const values = [["خط الأساس", summary.baselineAverage, summary.baselineCount], ["الأسبوع الأول", summary.firstWeek.average, summary.firstWeek.count], ["الأسبوع الثاني", summary.secondWeek.average, summary.secondWeek.count], ["آخر فترة", summary.finalWeek.average, summary.finalWeek.count]];
         return <div key={item.id} style={{ borderTop: "1px solid " + C.line, padding: "10px 0" }}>
-          <b style={{ fontSize: 12 }}>{product?.name || "منتج غير متاح"}</b><small style={{ color: C.muted, marginInlineStart: 8 }}>{item.status === "running" ? "جارية" : item.status === "paused" ? "متوقفة مؤقتًا" : item.status === "completed" ? "مكتملة" : item.status === "planned" ? "مخططة" : "ملغاة"}</small>
+          <b style={{ fontSize: 12 }}>{product?.name || item.productNameSnapshot || "منتج غير متاح (سجل تاريخي)"}</b><small style={{ color: C.muted, marginInlineStart: 8 }}>{item.status === "running" ? "جارية" : item.status === "paused" ? "متوقفة مؤقتًا" : item.status === "completed" ? "مكتملة" : item.status === "planned" ? "مخططة" : "ملغاة"}</small>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(105px,1fr))", gap: 6, marginTop: 8 }}>
             {values.map(([label, value, count]) => <div key={label} style={{ background: C.soft, borderRadius: 8, padding: 8 }}><div style={{ color: C.muted, fontSize: 10 }}>{label}</div><b>{value ?? "—"}</b><div style={{ color: C.muted, fontSize: 9 }}>{count} تقييم</div></div>)}
           </div>
