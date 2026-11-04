@@ -407,3 +407,17 @@ A read-only `has_function_privilege` catalog query for the Finance asset, budget
 - `fin_budget_upsert`, `fin_budget_template_save`, `fin_recurring_defer`, `fin_recurring_save`, and `fin_recurring_skip` showed the same privilege pattern in this query.
 
 This supports that the security-hardening effects associated with some unmatched Finance history names are present in the live catalog. It still does not recover the original migration source or prove every statement in those historical migrations.
+
+
+## Read-only verification of pending-candidate schema effects (2026-11-04)
+
+The 14 pending candidates were not treated as one push batch. A targeted catalog query confirmed that the following expected objects are currently absent:
+
+- Inventory foundation/domain: `inventory_settings`, `inventory_sync_operations`, `inventory_categories`, and `inventory_items` are absent.
+- Finance pending candidates: `fin_seed_default_categories(uuid)`, `finance_family_cash_advances`, and `finance_family_cash_entries` are absent.
+- Projects pending candidates: `projects_guard_final_outputs()`, `projects_guard_work_sessions()`, `projects_guard_task_references()`, `projects_guard_prd_review()`, `projects_guard_risk_issue_links()`, and `projects_guard_task_issue_references()` are absent.
+- Integration Events: `os_integration_events` is absent, despite the current app code containing event consumers; this is a concrete DB integration gap, not proof that the event system works end-to-end.
+- Hobbies journal privacy/audit/attachment candidates: `hobbies_journal_audit_events`, `hobbies_journal_attachment_cleanup`, `hobbies_journal_visibility_guard()`, `hobbies_journal_write_audit_event()`, and `hobbies_journal_attachment_lifecycle_guard()` are absent.
+- Storage/collection candidates: the `hobbies-journal-files` and `skincare-progress` storage buckets were not found; no `skincare` rows were found in `collection_sections`.
+
+These findings confirm that several pending migrations represent genuinely missing live schema capabilities. They must be applied only after the history/version reconciliation and dependency order are resolved. In particular, the missing `os_integration_events` table means the current client event integration must remain treated as incomplete until the database migration is safely applied and verified.
