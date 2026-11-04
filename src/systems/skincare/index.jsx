@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus, buildSkinFollowUps } from "./domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus, buildSkinFollowUps, parseSkinProductsCsv, serializeSkinProductsCsv } from "./domain.js";
 import { SkinCompareView, SkinListsView, RoutineLogsView, SkinSettingsView } from "./WorkspaceTools.jsx";
 import DiaryView from "./Diary.jsx";
 import RoutinesView from "./Routines.jsx";
@@ -153,6 +153,30 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     catch (error) { say(error?.message || "تعذر الحفظ."); }
     finally { setBusy(false); }
   };
+  const importProductsCsv = async rows => {
+    if (!canEdit || !Array.isArray(rows)) return { added: 0, skipped: 0, failed: true, error: "لا توجد صلاحية للاستيراد." };
+    const known = new Set(products.map(product => normalizeINCIName(product.name) + "|" + normalizeINCIName(product.brand)));
+    let added = 0, skipped = 0;
+    setBusy(true);
+    try {
+      for (const row of rows) {
+        const key = normalizeINCIName(row.name) + "|" + normalizeINCIName(row.brand);
+        if (known.has(key)) { skipped++; continue; }
+        const checked = validateSkinProduct(row);
+        if (!checked.ok) throw new Error("السطر الخاص بالمنتج «" + row.name + "»: " + checked.error);
+        const saved = await store.api.put(SKINCARE_COLLECTIONS.products, { ...checked.value, id: uid() });
+        if (!saved) throw new Error("توقف الاستيراد عند المنتج «" + row.name + "».");
+        known.add(key);
+        added++;
+      }
+      say("اكتمل استيراد المنتجات من CSV.");
+      return { added, skipped, failed: false };
+    } catch (error) {
+      say("توقف استيراد CSV بعد إضافة " + added + " منتجًا؛ يمكنك مراجعة القائمة وإعادة استيراد الملف لتجاوز الموجود. " + (error?.message || ""));
+      return { added, skipped, failed: true, error: error?.message || "فشل الاستيراد." };
+    } finally { setBusy(false); }
+  };
+
   const saveProduct = async e => {
     e.preventDefault();
     if (!canEdit) return;
@@ -572,7 +596,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     {store.ready && !store.error && page === "dashboard" && <SkinDashboard endDate={todayKey} diaryEntries={diaryEntries} trials={trials} reactions={reactions} photos={photos} routines={routines} routineLogs={routineLogs} products={products} />}
     {store.ready && !store.error && page === "followups" && <SkinFollowUps today={todayKey} timezone={settings?.timezone || "Africa/Cairo"} weekStartDay={settings?.weekStartDay ?? 6} products={products} units={units} routines={routines} routineLogs={routineLogs} trials={trials} reactions={reactions} setPage={setPage} />}
     {store.ready && !store.error && page === "settings" && <><ProfileView profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={saveProfile} canEdit={canEdit} busy={busy} /><SkinSettingsView settings={settings} canEdit={canEdit} busy={busy} onSave={saveSettings} /><SkincareBackup records={store.recs} canEdit={canEdit} pending={store.pending > 0} workspaceId={ws?.id} isDemo={isDemo} onRestored={() => store.api.reload()} /></>}
-    {store.ready && !store.error && page === "products" && <ProductsView products={products} deletedProducts={deletedProducts} onRestore={restoreProduct} draft={productDraft} setDraft={setProductDraft} onSave={saveProduct} onEdit={editProduct} onDelete={deleteProduct} editing={editingProduct} setEditing={setEditingProduct} canEdit={canEdit} busy={busy} />}
+    {store.ready && !store.error && page === "products" && <ProductsView products={products} deletedProducts={deletedProducts} onRestore={restoreProduct} draft={productDraft} setDraft={setProductDraft} onSave={saveProduct} onImportCsv={importProductsCsv} onEdit={editProduct} onDelete={deleteProduct} editing={editingProduct} setEditing={setEditingProduct} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "units" && <UnitsView units={units} deletedUnits={deletedUnits} onRestore={restoreUnit} products={products} todayKey={todayKey} draft={unitDraft} setDraft={setUnitDraft} onSave={saveUnit} onEdit={editUnit} onDelete={deleteUnit} editing={editingUnit} setEditing={setEditingUnit} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "routines" && <RoutinesView routines={routines} logs={routineLogs} products={products} reactions={reactions.filter(item => item.status === "open")} canEdit={canEdit} busy={busy} todayKey={todayKey} timezone={settings?.timezone || "Africa/Cairo"} weekStartDay={settings?.weekStartDay ?? 6} requireConfirmAvoid={settings?.requireConfirmAvoid !== false} onSave={saveRoutine} onArchive={toggleRoutine} onCopy={copyRoutine} onLog={logRoutineStep} onUndo={undoRoutineLog} />}
     {store.ready && !store.error && page === "routine_logs" && <RoutineLogsView logs={routineLogs} deletedLogs={deletedRoutineLogs} routines={routines} products={products} canEdit={canEdit} onRestore={async log => { if (!canEdit) return; const ok=await store.api.restore(SKINCARE_COLLECTIONS.routineLogs,log.id); if(ok) say("تمت استعادة سجل التنفيذ."); }} onUndo={async log => { if (!canEdit || !window.confirm("نقل سجل التنفيذ إلى المحذوفات؟")) return; const ok=await store.api.softDelete(SKINCARE_COLLECTIONS.routineLogs,log.id); if(ok) say("تم نقل سجل التنفيذ إلى المحذوفات."); }} />}
@@ -608,8 +632,10 @@ function ProfileView({ profile, draft, setDraft, onSave, canEdit, busy }) {
   </Panel>;
 }
 
-function ProductsView({ products, deletedProducts, onRestore, draft, setDraft, onSave, onEdit, onDelete, editing, setEditing, canEdit, busy }) {
+function ProductsView({ products, deletedProducts, onRestore, draft, setDraft, onSave, onImportCsv, onEdit, onDelete, editing, setEditing, canEdit, busy }) {
   const [query, setQuery] = useState("");
+  const [csvPreview, setCsvPreview] = useState(null);
+  const [csvMessage, setCsvMessage] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const filteredProducts = products.filter(product => {
@@ -634,6 +660,38 @@ function ProductsView({ products, deletedProducts, onRestore, draft, setDraft, o
       <div style={{ display: "flex", gap: 8 }}><button style={button(true)} disabled={busy}> {editing ? "حفظ التعديل" : "إضافة المنتج"} </button>{editing && <button type="button" style={button()} onClick={() => { setEditing(""); setDraft(EMPTY_PRODUCT); }}>إلغاء</button>}</div>
     </form> : <p style={{ color: C.muted, fontSize: 12 }}>صلاحية العرض فقط.</p>}
   </Panel><Panel title={"قائمة المنتجات (" + filteredProducts.length + " من " + products.length + ")"}>
+    {canEdit && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "10px 0" }}>
+      <label style={{ ...button(), display: "inline-flex", alignItems: "center", gap: 6 }}>استيراد CSV<input type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={async event => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) { setCsvMessage("ملف CSV أكبر من 5 ميجابايت."); setCsvPreview(null); return; }
+        const parsed = parseSkinProductsCsv(await file.text());
+        if (!parsed.ok) { setCsvMessage((parsed.errors || [parsed.error]).join(" · ")); setCsvPreview(null); return; }
+        setCsvPreview(parsed); setCsvMessage("");
+      }} /></label>
+      <button type="button" style={button()} onClick={() => {
+        const blob = new Blob([serializeSkinProductsCsv(products)], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url; anchor.download = "skincare-products-" + todayKey + ".csv";
+        document.body.appendChild(anchor); anchor.click(); anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }}>تصدير المنتجات CSV</button>
+    </div>}
+    {csvMessage && <p role="status" style={{ color: C.danger, fontSize: 11 }}>{csvMessage}</p>}
+    {csvPreview && <div style={{ border: "1px solid " + C.line, borderRadius: 10, padding: 10, margin: "8px 0 12px" }}>
+      <b style={{ fontSize: 12 }}>معاينة استيراد المنتجات</b>
+      <p style={{ color: C.muted, fontSize: 11 }}>عدد الصفوف: {csvPreview.rows.length}. سيتم تجاهل المنتج الموجود مسبقًا بنفس الاسم والعلامة التجارية، ولن يتم استبدال بياناته.</p>
+      {csvPreview.unknownHeaders?.length > 0 && <p style={{ color: "#B45309", fontSize: 10 }}>أعمدة غير مدعومة سيتم تجاهلها: {csvPreview.unknownHeaders.join("، ")}</p>}
+      <div style={{ maxHeight: 150, overflow: "auto", fontSize: 11 }}>{csvPreview.rows.slice(0, 10).map((row, index) => <div key={index} style={{ padding: "5px 0", borderBottom: "1px solid " + C.line }}>{row.name} · {row.brand || "بدون علامة"} · {row.category}</div>)}</div>
+      {csvPreview.rows.length > 10 && <p style={{ color: C.muted, fontSize: 10 }}>يُعرض أول 10 منتجات فقط في المعاينة.</p>}
+      <div style={{ display: "flex", gap: 7, marginTop: 8 }}><button type="button" style={button(true)} disabled={busy || !csvPreview.rows.length} onClick={async () => {
+        const result = await onImportCsv(csvPreview.rows);
+        setCsvMessage(result ? "أُضيف " + result.added + "، وتُجاوز " + result.skipped + " موجودًا." + (result.failed ? " توقف الاستيراد ويمكن إعادة المحاولة بعد مراجعة السبب." : "") : "تعذر استيراد الملف.");
+        if (result && !result.failed) setCsvPreview(null);
+      }}>تأكيد الاستيراد</button><button type="button" style={button()} disabled={busy} onClick={() => setCsvPreview(null)}>إلغاء</button></div>
+    </div>}
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 8, margin: "10px 0" }}>
       <input aria-label="البحث في المنتجات" style={field} value={query} onChange={e => setQuery(e.target.value)} placeholder="ابحث بالاسم أو العلامة أو المكونات" />
       <select aria-label="تصفية حسب التصنيف" style={field} value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}><option value="all">كل التصنيفات</option>{[["cleanser","غسول"],["moisturizer","مرطب"],["sunscreen","واقي شمس"],["serum","سيروم"],["treatment","علاج"],["toner","تونر"],["mask","قناع"],["other","أخرى"]].map(([value,title]) => <option key={value} value={value}>{title}</option>)}</select>
