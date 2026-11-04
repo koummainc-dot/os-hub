@@ -9,10 +9,10 @@
 ## Snapshot
 
 - Live migration history entries: **94**
-- SQL migration files on this reconciliation branch: **114**
-- Repository files with one or more same-name live history entries: **97**
+- SQL migration files on this reconciliation branch: **111**
+- Repository files with one or more same-name live history entries: **94**
 - Repository files with no same-name live history entry (candidate pending): **17**
-- Same-name entries whose file timestamp differs from live history: **20**
+- Same-name entries whose file timestamp differs from live history: **17**
 - Live history entries not mapped to a same-name repository file: **0**
 - Exact version-prefix matches (including duplicate-name exact-version pairing): **77**
 - Duplicate live versions: **0**
@@ -183,9 +183,6 @@ The ten entries above were recovered from the production `supabase_migrations.sc
 - `20261028240000_finance_asset_lifecycle.sql` → live `20261028054012`
 - `20261029100000_relationships_atomic_batch.sql` → live `20261029061352`
 - `20261029180000_projects_atomic_trash_batch.sql` → live `20261029211950`
-- `20261103142200_health_os_h4_cycle_settings_owner_only.sql` → live `20261103142324`
-- `20261103143000_health_os_grant_rls_recursion_fix.sql` → live `20261103142823`
-- `20261103143500_health_h4_grant_scope_allowlist.sql` → live `20261103142910`
 
 The full candidate map above includes all detected mismatches, not just the previously documented core/Projects examples.
 
@@ -449,7 +446,7 @@ PR #107 merge commit `18a389c4ff352785179a2b10aa02c9f3af93f1d0` has successful c
 A fresh read-only scan was run against `main` at `b263f5c3a18531bd2e6a4f228605b05dcae3fbd8` after merging Projects PR #112, Nutrition PR #113, Integration Events smoke PR #115, and migration-version guard PR #116.
 
 - Live Supabase migration history remains **94** entries.
-- This reconciliation branch contains **114** SQL migration files, including ten historical source files restored from production's stored migration statements.
+- This reconciliation branch contains **111** SQL migration files, including ten historical source files restored from production's stored migration statements.
 - **47** repository files have exact version-prefix matches.
 - **20** same-name candidates have timestamp mismatches. The duplicated historical name `finance_internal_function_permissions` has two live versions and two repository files; pair each file to the live entry with the same exact version, rather than collapsing by name.
 - **17** repository files have no same-name live history entry.
@@ -463,7 +460,7 @@ This scan updates the inventory counts only. It does not establish historical SQ
 
 ### Counting method clarification
 
-The refreshed totals classify a file as an exact match when its 14-digit prefix is present among all live versions for that same migration name. This preserves the two `finance_internal_function_permissions` history rows as separate exact matches. A file is a timestamp mismatch when its name exists in live history but its prefix does not; a file is pending only when its migration name has no live history row at all. The resulting partition is 77 exact + 20 timestamp mismatches + 17 pending = 114 repository SQL files.
+The refreshed totals classify a file as an exact match when its 14-digit prefix is present among all live versions for that same migration name. This preserves the two `finance_internal_function_permissions` history rows as separate exact matches. A file is a timestamp mismatch when its name exists in live history but its prefix does not; a file is pending only when its migration name has no live history row at all. The resulting partition is 77 exact version-prefix matches + 17 timestamp mismatches + 17 pending = 111 repository SQL files.
 
 
 ## Historical SQL source recovery (2026-11-04)
@@ -483,14 +480,14 @@ The production migration-history table exposes a nullable `statements text[]` co
 | `20261028054205` | `20261028054205_finance_asset_lifecycle_permission_hardening.sql` |
 | `20261103141516` | `20261103141516_health_os_h3_state_constraints.sql` |
 
-A fresh branch-tree/history comparison now yields **114 files / 94 live entries / 77 exact-prefix matches / 20 timestamp mismatches / 17 pending candidates / 0 live-only entries / 0 duplicate prefixes**.
+A fresh branch-tree/history comparison now yields **111 files / 94 live entries / 77 exact-prefix matches / 17 timestamp mismatches / 17 pending candidates / 0 live-only entries / 0 duplicate prefixes**.
 
 The restored files represent versions already recorded as applied in production. Adding their source files to Git does not execute them, change Supabase history, or authorize a migration push. They must still be reviewed as source and validated in the clean migration chain before any rollout.
 
 
 ## Timestamp-mismatch reconciliation progress
 
-Twenty of the original forty timestamp mismatches were re-versioned using the exact SQL text stored for the corresponding live version. The old file contents remain available in Git history. The remaining twenty files were not renamed because their SQL differs materially from the stored applied statement; simply changing their timestamp would falsely assert source equivalence.
+Twenty of the original forty timestamp mismatches were re-versioned using the exact SQL text stored for the corresponding live version. Three additional files were reserved no-op placeholders containing comments only; they were removed from the active migration directory so they cannot create meaningless history entries. The remaining seventeen timestamp-mismatched files were not renamed because their SQL differs materially from the stored applied statement; simply changing their timestamp would falsely assert source equivalence.
 
 Remaining files requiring SQL-drift review:
 - `20261025000000_platform_core.sql` → live `20261025041105`
@@ -510,8 +507,22 @@ Remaining files requiring SQL-drift review:
 - `20261028240000_finance_asset_lifecycle.sql` → live `20261028054012`
 - `20261029100000_relationships_atomic_batch.sql` → live `20261029061352`
 - `20261029180000_projects_atomic_trash_batch.sql` → live `20261029211950`
-- `20261103142200_health_os_h4_cycle_settings_owner_only.sql` → live `20261103142324`
-- `20261103143000_health_os_grant_rls_recursion_fix.sql` → live `20261103142823`
-- `20261103143500_health_h4_grant_scope_allowlist.sql` → live `20261103142910`
 
 The source comparison uses the stored SQL statement text, not filename similarity. Prefix matches are not treated as proof of byte-equivalent source; the remaining exact-prefix files still need content verification before the migration history can be called fully reconciled.
+
+
+## Final source-content audit snapshot for this branch (2026-11-04)
+
+After the ten historical source restorations, twenty safe re-versionings, nine comment/whitespace-only source normalizations, and removal of three reserved no-op Health placeholders, the active migration directory contains:
+
+- **111** SQL files.
+- **94** live Supabase history entries.
+- **77** exact version-prefix matches.
+- **17** timestamp/name mismatches with substantive SQL differences.
+- **17** files with no same-name live history entry (pending candidates).
+- **0** live history entries without a same-name file.
+- **0** duplicate migration prefixes.
+
+The SQL text comparison against `schema_migrations.statements[1]` establishes **66 byte-for-byte source matches** among the 94 applied history entries. The remaining **28 applied entries have content drift**: 11 have an exact filename prefix but their SQL differs from the stored statement; 17 have a mismatched prefix and SQL content drift. Do not overwrite or rename these 28 files until their differences are reviewed against live catalog state and their effects are either confirmed already applied or split into explicit new migrations.
+
+The three removed Health placeholders contained only comments stating that their applied migrations were recorded under the correct versions; they were not executable migrations. Their removal does not change the live database or its migration history.
