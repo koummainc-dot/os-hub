@@ -63,9 +63,9 @@ const dashboardRows = buildSkinDashboardExportMatrix({
   },
   products: [{ id: "active", name: "Active product", status: "active" }],
   deletedProducts: [{ id: "deleted", name: "Deleted product", deleted_at: "2026-10-20" }],
-  trials: [{ id: "trial-old", productId: "deleted", status: "completed", startDate: "2026-10-02", productNameSnapshot: "Historic serum" }],
-  reactions: [{ id: "reaction-old", productId: "deleted", status: "closed", dateStarted: "2026-10-03", productNameSnapshot: "Historic serum", severity: "moderate" }],
-  routineLogs: [{ id: "log-old", productIdSnapshot: "deleted", status: "done", date: "2026-10-04", productNameSnapshot: "Historic serum", routineNameSnapshot: "Evening", stepCategorySnapshot: "serum" }],
+  trials: [\n    { id: "trial-old", productId: "deleted", status: "completed", startDate: "2026-10-02", productNameSnapshot: "Historic serum" },\n    { id: "trial-old-2", productId: "deleted", status: "completed", startDate: "2026-10-20", productNameSnapshot: "Historic serum" },\n    { id: "trial-outside", productId: "deleted", status: "completed", startDate: "2026-11-02", productNameSnapshot: "Outside serum" },\n  ],
+  reactions: [\n    { id: "reaction-old", productId: "deleted", status: "closed", dateStarted: "2026-10-03", productNameSnapshot: "Historic serum", severity: "moderate" },\n    { id: "reaction-outside", productId: "deleted", status: "closed", dateStarted: "2026-11-03", productNameSnapshot: "Outside serum", severity: "moderate" },\n  ],
+  routineLogs: [\n    { id: "log-old", productIdSnapshot: "deleted", status: "done", date: "2026-10-04", productNameSnapshot: "Historic serum", routineNameSnapshot: "Evening", stepCategorySnapshot: "serum" },\n    { id: "log-outside", productIdSnapshot: "deleted", status: "done", date: "2026-11-04", productNameSnapshot: "Outside serum", routineNameSnapshot: "Morning", stepCategorySnapshot: "serum" },\n  ],
 });
 assert.equal(dashboardRows.find(row => row[1] === "product.active")[3], 1);
 assert.equal(dashboardRows.find(row => row[1] === "product.inactive")[3], 2);
@@ -73,4 +73,4 @@ assert.equal(dashboardRows.find(row => row[1] === "product.deleted")[3], 1);
 assert.equal(dashboardRows.find(row => row[1] === "trial.history")[3], 3);
 assert.ok(dashboardRows.some(row => row[0] === "تجربة تاريخية" && row[2] === "Historic serum"), "historical trial export uses saved product name");
 assert.ok(dashboardRows.some(row => row[0] === "تفاعل تاريخي" && row[2] === "Historic serum"), "historical reaction export uses saved product name");
-assert.ok(dashboardRows.some(row => row[0] === "سجل روتين تاريخي" && row[2] === "Historic serum" && row[6].includes("Evening")), "routine log export preserves historical product and routine names");
+assert.ok(dashboardRows.some(row => row[0] === "سجل روتين تاريخي" && row[2] === "Historic serum" && row[6].includes("Evening")), "routine log export preserves historical product and routine names");\nassert.equal(dashboardRows.filter(row => row[0] === "تجربة تاريخية").length, 2, "only trials in the dashboard period are exported");\nassert.equal(dashboardRows.filter(row => row[0] === "تفاعل تاريخي").length, 1, "only reactions in the dashboard period are exported");\nassert.equal(dashboardRows.filter(row => row[0] === "سجل روتين تاريخي").length, 1, "only routine logs in the dashboard period are exported");\nassert.ok(!dashboardRows.some(row => row.includes("Outside serum")), "out-of-range history is excluded from period report");
