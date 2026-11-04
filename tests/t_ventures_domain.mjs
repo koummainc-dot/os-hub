@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import {VENTURES_MODULES,VENTURES_PLATFORM} from "../src/systems/ventures/config.js";
 import {summarizeVentures,getContentWorkflow} from "../src/systems/ventures/domain.js";
-assert.equal(VENTURES_MODULES.length,29);
+assert.equal(VENTURES_MODULES.length,30);
+assert.ok(VENTURES_MODULES.some(x=>x.id==="cro"));
 assert.equal(VENTURES_PLATFORM.platform.id,"website");
 assert.ok(VENTURES_PLATFORM.platform.contentTypes.length>=11);
 assert.ok(VENTURES_PLATFORM.platform.contentTypes.every(x=>Array.isArray(x.stages)));
