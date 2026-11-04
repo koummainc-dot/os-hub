@@ -426,3 +426,8 @@ These findings confirm that several pending migrations represent genuinely missi
 ## Pending migration version collision resolved in PR #114
 
 A repository-wide scan of the 101 migration files found one duplicate 14-digit version prefix: `20261028130000` was used by both `finance_default_category_seeding` and `inventory_p1_domain_schema`. Both are pending candidates; production history contains neither Inventory version 130000 nor the new 140000 version. PR #114 renames only the Inventory file to `20261028140000`, preserving the dependency order `inventory_p0_foundation (120000) → inventory_p1_domain_schema (140000) → inventory_snapshot_rpc (150000)`. It also adds a CI test that fails on any duplicate migration version. This resolves the repository filename collision only; it does not authorize a production migration push or repair any live history rows.
+
+
+## Durable Integration Events migration validation
+
+Draft PR #115 adds an ephemeral PostgreSQL smoke workflow for the existing `20261101150000_os_integration_events.sql` migration. On commit `ab40c127828d73b16903747cb6d7c101d74f5d6c`, the disposable migration test, idempotent publish/load checks, RLS permission checks, RPC grants, realtime publication membership, repository CI, app build, Finance checks, and Knowledge SQL smoke all passed. Production still has no `os_integration_events` table or durable RPC path; the migration remains pending and was not applied. This is validation of the migration's behavior in a disposable database, not authorization to push it into the mixed production history.
