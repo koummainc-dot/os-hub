@@ -57,8 +57,8 @@ const dashboardRows = buildSkinDashboardExportMatrix({
   data: {
     startDate: "2026-10-01", endDate: "2026-10-30",
     productSummary: { activeCount: 1, inactiveCount: 2, deletedCount: 1, savedCount: 3 },
-    runningTrialCount: 1, pausedTrialCount: 0, rangeTrialCount: 3,
-    rangeReactionCount: 2, routineLogCount: 5, routineDoneCount: 4, routineSkippedCount: 1,
+    runningTrialCount: 1, pausedTrialCount: 0, rangeTrialCount: 2,
+    rangeReactionCount: 1, routineLogCount: 1, routineDoneCount: 1, routineSkippedCount: 0,
     averageRating: 3.5,
   },
   products: [{ id: "active", name: "Active product", status: "active" }],
@@ -80,7 +80,7 @@ const dashboardRows = buildSkinDashboardExportMatrix({
 assert.equal(dashboardRows.find(row => row[1] === "product.active")[3], 1);
 assert.equal(dashboardRows.find(row => row[1] === "product.inactive")[3], 2);
 assert.equal(dashboardRows.find(row => row[1] === "product.deleted")[3], 1);
-assert.equal(dashboardRows.find(row => row[1] === "trial.history")[3], 3);
+assert.equal(dashboardRows.find(row => row[1] === "trial.history")[3], 2);
 assert.ok(dashboardRows.some(row => row[0] === "تجربة تاريخية" && row[2] === "Historic serum"), "historical trial export uses saved product name");
 assert.ok(dashboardRows.some(row => row[0] === "تفاعل تاريخي" && row[2] === "Historic serum"), "historical reaction export uses saved product name");
 assert.ok(dashboardRows.some(row => row[0] === "سجل روتين تاريخي" && row[2] === "Historic serum" && row[6].includes("Evening")), "routine log export preserves historical product and routine names");
