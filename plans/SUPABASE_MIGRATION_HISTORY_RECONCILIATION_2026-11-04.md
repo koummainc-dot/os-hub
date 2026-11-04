@@ -452,3 +452,8 @@ The Projects SQL smoke workflow now applies all six pending Projects migration f
 6. `20261031130000_projects_prd_verified_evidence_guard.sql`
 
 On commit `bfaa85a597c16f73ad534bddd223bd2a275af4dd`, the full disposable Projects SQL smoke passed. The fixture now exercises final-output immutability/approval, work-session member ownership and leaf-task constraints, task/PRD references, deferred task↔issue references, PRD verified-evidence rules, and cross-project relationship guards. This materially improves confidence in the pending Projects migration chain, but production still lacks the guard functions observed earlier; no production DDL or history repair was performed.
+
+
+### Habit/Hobbies smoke result evidence
+
+PR #107 merge commit `18a389c4ff352785179a2b10aa02c9f3af93f1d0` has successful check runs for `hobbies-journal-postgres-smoke`, `spiritual-postgres-smoke`, `knowledge-postgres-smoke`, and `test-and-build`. The Journal smoke is a disposable two-user test; it does not establish that the pending Journal schema/storage migrations are already applied in production or that live browser reload/restore acceptance has been completed.
