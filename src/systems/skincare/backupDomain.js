@@ -125,6 +125,34 @@ export function validateSkinBackup(input) {
   if (unknown.length) errors.push("الملف يحتوي مجموعات غير معروفة: " + unknown.join("، "));
   if (totalRecords > SKINCARE_BACKUP_MAX_RECORDS) errors.push("عدد السجلات يتجاوز الحد الأقصى المسموح.");
   if (errors.length) return { ok: false, errors, totalRecords };
+  if (backup.includes?.photoFiles === true) {
+    if (!isObject(backup.photoFiles)) errors.push("ملفات الصور غير موجودة رغم أن manifest يعلن تضمينها.");
+    else {
+      const photoRows = collections[SKINCARE_COLLECTIONS.photos] || [];
+      const expectedPhotoIds = new Set(photoRows.filter(row => !row.deleted && !row.data?.deleted_at && !row.data?.storagePurgedAt).map(row => row.id));
+      const providedPhotoIds = Object.keys(backup.photoFiles);
+      for (const id of expectedPhotoIds) {
+        const assets = backup.photoFiles[id];
+        const photo = photoRows.find(row => row.id === id);
+        if (!isObject(assets) || typeof assets.original !== "string" || typeof assets.thumbnail !== "string") {
+          errors.push("ملفات الصورة " + id + " غير مكتملة.");
+          continue;
+        }
+        if (!assets.original.startsWith("data:" + photo.data.mimeType + ";base64,") ||
+            !assets.thumbnail.startsWith("data:image/webp;base64,")) {
+          errors.push("نوع ملفات الصورة " + id + " لا يطابق بياناتها الوصفية.");
+        }
+        if (assets.original.length + assets.thumbnail.length > 30 * 1024 * 1024) {
+          errors.push("حزمة الصورة " + id + " تتجاوز الحد المسموح.");
+        }
+      }
+      const unexpected = providedPhotoIds.filter(id => !expectedPhotoIds.has(id));
+      if (unexpected.length) errors.push("النسخة تحتوي ملفات صور دون سجل نشط مطابق: " + unexpected.slice(0,10).join("، "));
+    }
+  } else if (backup.photoFiles && Object.keys(backup.photoFiles).length) {
+    errors.push("النسخة تحتوي ملفات صور لكن manifest لا يعلن تضمينها.");
+  }
+  if (errors.length) return { ok: false, errors, totalRecords };
   const referenceErrors = checkReferences(collections);
   if (referenceErrors.length) return { ok: false, errors: referenceErrors, totalRecords };
   return {
