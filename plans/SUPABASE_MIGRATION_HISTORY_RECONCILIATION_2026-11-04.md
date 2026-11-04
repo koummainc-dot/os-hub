@@ -245,7 +245,7 @@ A fresh read-only comparison was run against the current `main` Git tree and liv
 
 - Repository migration files: **101**
 - Live history entries: **94**
-- Exact version-prefix matches: **47**
+- Exact version-prefix matches in the original 104-file main snapshot: **47**
 - Unique migration-name matches with timestamp mismatch: **37**
 - Live entries with no same-name repository file: **10**
 - Repository files with no same-name live entry (pending candidates, not authorization to apply): **14**
@@ -371,7 +371,7 @@ The SHA column below is the **Git blob SHA of the current repository file**, not
 - `supabase/migrations/20261102130000_hobbies_journal_attachment_lifecycle.sql` — Git blob `3ef233848a0df38a870dae82270185ee446657b5`
 - `supabase/migrations/20261103160000_skincare_os_private_storage_and_collection_permissions.sql` — Git blob `8144971a5fa98587e4f2126c2f28185ab5aeca05`
 
-### Live entries without a same-name repository file
+### Previously unmatched live entries — restored as files in this branch
 
 - `20261027074905` `finance_a_schema` — no matching migration filename in current `main`; recover historical SQL or prove the resulting schema state before deciding whether a repair migration is required.
 - `20261027075030` `finance_b_engine` — no matching migration filename in current `main`; recover historical SQL or prove the resulting schema state before deciding whether a repair migration is required.
@@ -463,7 +463,7 @@ On commit `bfaa85a597c16f73ad534bddd223bd2a275af4dd`, the full disposable Projec
 PR #107 merge commit `18a389c4ff352785179a2b10aa02c9f3af93f1d0` has successful check runs for `hobbies-journal-postgres-smoke`, `spiritual-postgres-smoke`, `knowledge-postgres-smoke`, and `test-and-build`. The Journal smoke is a disposable two-user test; it does not establish that the pending Journal schema/storage migrations are already applied in production or that live browser reload/restore acceptance has been completed.
 
 
-## Revalidation after PR #112–#116 (2026-11-04 14:22 UTC)
+## Revalidation after PR #112–#116 and historical SQL recovery (2026-11-04)
 
 A fresh read-only scan was run against `main` at `b263f5c3a18531bd2e6a4f228605b05dcae3fbd8` after merging Projects PR #112, Nutrition PR #113, Integration Events smoke PR #115, and migration-version guard PR #116.
 
@@ -477,7 +477,7 @@ A fresh read-only scan was run against `main` at `b263f5c3a18531bd2e6a4f228605b0
 - The three Projects PRD/relationship migrations added through PR #112 increase the pending candidate set; they are not production-applied.
 - All four GitHub Actions checks on current main completed successfully: `test-and-build`, `projects-postgres-smoke`, `knowledge-postgres-smoke`, and `spiritual-postgres-smoke`. The Vercel status check is separate and failed due to the free-plan daily deployment rate limit; no production deployment was performed.
 
-This scan updates the inventory counts only. It does not establish historical SQL byte equivalence, nor authorize a production migration push. The 10 live-only history rows still require trusted historical SQL recovery or exact catalog/dependency evidence. The 17 pending candidates still require dependency ordering and a reconciled application strategy.
+This scan updates the inventory counts only. It does not establish historical SQL byte equivalence, nor authorize a production migration push. The ten previously live-only history rows now have their original stored SQL statements restored as version-matched files in this branch. The 40 timestamp mismatches still require SQL content comparison and filename reconciliation; the 17 pending candidates still require dependency ordering and disposable-chain validation.
 
 
 ### Counting method clarification
