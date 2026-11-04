@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { analyzeINCI, productsContainingIngredient, validateSkinIngredient } from "./domain.js";
+import { analyzeINCI, productsContainingIngredient, validateSkinIngredient, normalizeINCIName } from "./domain.js";
 import { INGREDIENT_CATALOG, INGREDIENT_CATALOG_VERSION, INGREDIENT_CATALOG_SOURCES } from "./ingredientCatalog.js";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", white: "#FFFFFF", accent: "#A855F7", soft: "#FAF5FF", danger: "#B91C1C" };
@@ -19,6 +19,7 @@ export default function IngredientsView({ ingredients, deletedIngredients, produ
   const [selectedIngredient, setSelectedIngredient] = useState("");
   const [importing, setImporting] = useState(false);
   const [importSummary, setImportSummary] = useState("");
+  const [catalogPreview, setCatalogPreview] = useState(null);
   const analysis = useMemo(() => analyzeINCI(inciText, ingredients), [inciText, ingredients]);
   const filtered = useMemo(() => ingredients.filter(item => {
     const needle = query.trim().toLocaleLowerCase();
@@ -40,15 +41,25 @@ export default function IngredientsView({ ingredients, deletedIngredients, produ
     <section style={panel}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div><b>الكتالوج المرجعي</b><div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>الإصدار {INGREDIENT_CATALOG_VERSION} · {INGREDIENT_CATALOG.length} اسمًا مرجعيًا</div></div>
-        {canEdit && <button type="button" style={btn(true)} disabled={busy || importing} onClick={async () => {
-          setImporting(true); setImportSummary("");
-          try {
-            const result = await onImportCatalog(INGREDIENT_CATALOG);
-            setImportSummary(result ? (result.failed ? "توقف الاستيراد بعد إضافة " : "اكتمل الاستيراد: أُضيف ") + result.added + "، وتُرك " + result.skipped + " موجودًا دون تعديل." : "لم يكتمل الاستيراد؛ يمكنك المحاولة مرة أخرى.");
-          } finally { setImporting(false); }
-        }}>{importing ? "جارٍ الاستيراد…" : "استيراد الأسماء المرجعية"}</button>}
+        {canEdit && <button type="button" style={btn(true)} disabled={busy || importing} onClick={() => {
+          const existing = new Set(ingredients.map(item => normalizeINCIName(item.inciName)));
+          const additions = INGREDIENT_CATALOG.filter(item => !existing.has(normalizeINCIName(item.inciName)));
+          setCatalogPreview({ additions, skipped: INGREDIENT_CATALOG.length - additions.length });
+          setImportSummary("");
+        }}>معاينة استيراد الكتالوج</button>}
       </div>
       <p style={{ color: C.muted, fontSize: 11, lineHeight: 1.7, marginBottom: 6 }}>الاستيراد لا يغيّر المكونات الموجودة ولا وسومك أو ملاحظاتك. أضيفت الأسماء فقط؛ لم نضف تصنيف سلامة أو فعالية أو وظيفة غير موثقة.</p>
+      {catalogPreview && <div style={{borderTop:"1px solid "+C.line,marginTop:10,paddingTop:10}}>
+        <b style={{fontSize:12}}>معاينة الاستيراد قبل الحفظ</b>
+        <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:11,color:C.muted,margin:"7px 0"}}><span>الإجمالي: {INGREDIENT_CATALOG.length}</span><span>سيُضاف: {catalogPreview.additions.length}</span><span>سيُتجاوز لأنه موجود: {catalogPreview.skipped}</span></div>
+        <div style={{maxHeight:150,overflowY:"auto",border:"1px solid "+C.line,borderRadius:8,padding:8,fontSize:11}}>{catalogPreview.additions.map(item=><div key={item.catalogKey} style={{padding:"4px 0",borderBottom:"1px solid "+C.line}}>{item.inciName}</div>)}{!catalogPreview.additions.length&&<span>كل أسماء الكتالوج موجودة بالفعل.</span>}</div>
+        <p style={{fontSize:10,color:C.muted,lineHeight:1.6}}>الاستيراد الحالي قابل للاستكمال: إذا فشل الحفظ بعد إضافة بعض الأسماء، ستظهر أعداد النجاح والفشل ويمكن إعادة المحاولة مع تجاوز ما تم حفظه. لا يتم استبدال بياناتك أو وسومك.</p>
+        <div style={{display:"flex",gap:7,marginTop:8}}><button type="button" style={btn(true)} disabled={busy||importing||!catalogPreview.additions.length} onClick={async()=>{
+          setImporting(true);setImportSummary("");
+          try{const result=await onImportCatalog(catalogPreview.additions);setImportSummary(result?(result.failed?"توقف الاستيراد بعد إضافة ":"اكتمل الاستيراد: أُضيف ")+result.added+"، وتُرك "+(result.skipped+catalogPreview.skipped)+" موجودًا دون تعديل.": "لم يكتمل الاستيراد؛ يمكنك المحاولة مرة أخرى.");if(result?.added===catalogPreview.additions.length)setCatalogPreview(null);}
+          finally{setImporting(false);}
+        }}>{importing?"جارٍ الاستيراد…":"تأكيد الاستيراد"}</button><button type="button" style={btn()} disabled={importing} onClick={()=>setCatalogPreview(null)}>إلغاء المعاينة</button></div>
+      </div>}
       {importSummary && <div role="status" style={{ fontSize: 11, marginTop: 8 }}>{importSummary}</div>}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 11, marginTop: 8 }}>
         <a href={INGREDIENT_CATALOG_SOURCES.cosing.url} target="_blank" rel="noreferrer">قاعدة CosIng التابعة للمفوضية الأوروبية</a>
