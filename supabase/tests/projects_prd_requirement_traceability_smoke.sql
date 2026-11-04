@@ -1,8 +1,10 @@
 \set ON_ERROR_STOP on
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',false);
+
 insert into public.workspace_records (workspace_id, system_id, collection, id, data)
 values
- ('11111111-1111-4111-8111-111111111111','projects','projects','p1','{"name":"Project One"}'),
- ('11111111-1111-4111-8111-111111111111','projects','projects','p2','{"name":"Project Two"}'),
+ ('11111111-1111-4111-8111-111111111111','projects','projects','p1','{"name":"Project One","lead_id":"22222222-2222-4222-8222-222222222222"}'),
+ ('11111111-1111-4111-8111-111111111111','projects','projects','p2','{"name":"Project Two","lead_id":"22222222-2222-4222-8222-222222222222"}'),
  ('11111111-1111-4111-8111-111111111111','projects','prds','prd1','{"project_id":"p1","requirements":[{"id":"req1","title":"Requirement One"}]}'),
  ('11111111-1111-4111-8111-111111111111','projects','prds','prd2','{"project_id":"p2","requirements":[{"id":"req2","title":"Requirement Two"}]}'),
  ('11111111-1111-4111-8111-111111111111','projects','tasks','task2','{"project_id":"p2","title":"Other project task"}');
