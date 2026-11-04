@@ -50,6 +50,7 @@ const SECTIONS = [
 ];
 const EMPTY_PRODUCT = { name: "", brand: "", category: "other", status: "active", suitability: "suitable", startDate: "", expiryDate: "", ingredients: "", instructions: "", notes: "", url: "", stepSlot: "" };
 const EMPTY_UNIT = { name: "", productId: "", purchaseDate: "", openedOn: "", paoMonths: "", expiresOn: "", startedUseDate: "", finishedDate: "", finishReason: "", price: "", currency: "EGP", sizeNote: "", notes: "" };
+const unitCostPerDay = unit => { if (unit.price == null || unit.price === "" || !unit.startedUseDate) return null; const start = Date.parse(unit.startedUseDate + "T00:00:00Z"); const end = Date.parse((unit.finishedDate || today()) + "T00:00:00Z"); const days = Number.isFinite(start) && Number.isFinite(end) ? Math.max(1, Math.floor((end - start) / 86400000) + 1) : 0; return days ? Number(unit.price) / days : null; };
 
 export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = "home", setPage = () => {}, shell }) {
   const store = useRecordStore({ wsId: ws?.id || "demo", systemId: "skincare", isDemo, demoStore: demoStore || { current: {} }, seed: () => ({}) , onToast: message => shell?.toast?.(message) });
@@ -610,7 +611,7 @@ function ProductsView({ products, deletedProducts, onRestore, draft, setDraft, o
     </form> : <p style={{ color: C.muted, fontSize: 12 }}>صلاحية العرض فقط.</p>}
   </Panel><Panel title={"قائمة المنتجات (" + products.length + ")"}>
     {products.map(p => <article key={p.id} style={{ padding: "12px 0", borderTop: "1px solid " + C.line, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-      <div><b>{p.name}</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{p.brand || "بدون علامة"} · {p.category} · {p.status}{p.expiryDate ? " · ينتهي " + p.expiryDate : ""}</div>{p.ingredients && <p style={{ color: C.muted, fontSize: 11, margin: "5px 0" }}>المكونات: {p.ingredients}</p>}</div>
+      <div><b>{p.name}</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{p.brand || "بدون علامة"} · {p.category} · {p.status}{p.expiryDate ? " · ينتهي " + p.expiryDate : ""}</div>{p.ingredients && <p style={{ color: C.muted, fontSize: 11, margin: "5px 0" }}>المكونات: {p.ingredients}</p>}{p.url && <a href={p.url} target="_blank" rel="noreferrer" style={{fontSize:11}}>فتح صفحة المنتج ↗</a>}</div>
       {canEdit && <div style={{ display: "flex", gap: 6 }}><button style={button()} onClick={() => onEdit(p)}>تعديل</button><button style={{ ...button(), color: C.danger }} onClick={() => onDelete(p)}>حذف</button></div>}
     </article>)}
     {!products.length && <p style={{ color: C.muted, fontSize: 12 }}>لم تتم إضافة منتجات بعد.</p>}
@@ -638,7 +639,7 @@ function UnitsView({ units, deletedUnits, onRestore, products, todayKey, draft, 
     </form> : <p style={{ color: C.muted, fontSize: 12 }}>صلاحية العرض فقط.</p>}
   </Panel><Panel title={"العبوات (" + units.length + ")"}>
     {units.map(u => <article key={u.id} style={{ padding: "12px 0", borderTop: "1px solid " + C.line, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-      <div><b>{u.name}</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{products.find(p => p.id === u.productId)?.name || "غير مرتبطة بمنتج"} · شراء: {u.purchaseDate || "—"} · فتح: {u.openedOn || "—"} · انتهاء فعلي/محسوب: {effectiveSkinUnitExpiry(u) || "غير معروف"} · الحالة: {skinUnitStatus(u,todayKey)} · السعر: {u.price==null||u.price===""?"—":u.price+" "+(u.currency||"")} </div></div>
+      <div><b>{u.name}</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{products.find(p => p.id === u.productId)?.name || "غير مرتبطة بمنتج"} · شراء: {u.purchaseDate || "—"} · فتح: {u.openedOn || "—"} · انتهاء فعلي/محسوب: {effectiveSkinUnitExpiry(u) || "غير معروف"} · الحالة: {skinUnitStatus(u,todayKey)} · السعر: {u.price==null||u.price===""?"—":u.price+" "+(u.currency||"")} · تكلفة الاستخدام اليومية: {unitCostPerDay(u)==null?"غير متاحة":unitCostPerDay(u).toFixed(2)+" "+(u.currency||"")} </div></div>
       {canEdit && <div style={{ display: "flex", gap: 6 }}><button style={button()} onClick={() => onEdit(u)}>تعديل</button><button style={{ ...button(), color: C.danger }} onClick={() => onDelete(u)}>حذف</button></div>}
     </article>)}
     {!units.length && <p style={{ color: C.muted, fontSize: 12 }}>لا توجد عبوات مسجلة.</p>}
