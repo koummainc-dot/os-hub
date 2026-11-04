@@ -44,3 +44,7 @@ assert.equal(canRestoreSkinRoutineLog(log, routines, products, [{ ...log, id: "l
 assert.equal(canRestoreSkinList({ productIds: ["p1"] }, products), true);
 assert.equal(canRestoreSkinList({ productIds: ["p2"] }, products), false);
 assert.equal(canRestoreSkinList({ productIds: [] }, []), true);
+
+const legacyLog = { id: "legacy", routineId: "r1", stepId: "s1", date: "2026-11-03" };
+assert.equal(canRestoreSkinRoutineLog(legacyLog, routines, products, [{ id: "other", routineId: "r1", stepId: "s1", date: "2026-11-02" }]), true);
+assert.equal(canRestoreSkinRoutineLog(legacyLog, routines, products, [{ id: "other", routineId: "r1", stepId: "s1", date: "2026-11-03" }]), false);
