@@ -386,3 +386,14 @@ The SHA column below is the **Git blob SHA of the current repository file**, not
 - Do not rename timestamped files to match the live versions while the historical content is unverified.
 - Do not manually insert, update, or delete rows in `supabase_migrations.schema_migrations`.
 - Continue with read-only catalog inspection and disposable PostgreSQL smoke tests. A paid Supabase branch remains excluded by the user's instruction.
+
+
+## Read-only schema evidence for unmatched live entries (2026-11-04)
+
+A read-only catalog inspection was run against production after identifying the 10 live history entries with no same-name migration file in the current repository tree.
+
+- Finance catalog: **36** `finance_*` tables exist; **36/36** have RLS enabled; **0** were found without RLS.
+- Finance RPC catalog includes `fin_asset_upsert`, `fin_asset_status_update`, `fin_asset_confirm_valuation`, `fin_asset_valuation_history_get`, `fin_budget_upsert`, `fin_budgets_get`, `fin_recurring_save`, `fin_recurring_defer`, `fin_recurring_skip`, and `fin_recurring_log_payment`.
+- Health catalog includes the expected medication and flare status/severity constraints, including `health_medications_status_check`, `health_flare_events_status_check`, `health_flare_events_status_date_check`, and severity checks on symptom/flare records.
+
+This is evidence that major schema effects of the unmatched Finance and Health history entries are present. It is **not** proof that the historical SQL bytes match the deleted/missing source migrations. Do not reconstruct or replay those migrations from guessed intent. Recover their original SQL from a trusted historical source or compare exact catalog definitions and migration dependencies before proposing a non-replaying repair.
