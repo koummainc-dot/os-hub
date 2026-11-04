@@ -564,7 +564,7 @@ export function buildSkinDashboardData({
     return { key, label, average: mean(values), count: values.length };
   });
   const rangeTrials = trials.filter(item => item.startDate && item.startDate <= endDate &&
-    (item.endDate || ["running", "paused"].includes(item.status) || item.startDate >= startDate) >= startDate);
+    (item.endDate ? item.endDate >= startDate : ["running", "paused"].includes(item.status) || item.startDate >= startDate));
   const openReactions = reactions.filter(item => item.status === "open");
   const rangeReactions = reactions.filter(item => inRange(item.dateStarted));
   const rangePhotos = photos.filter(item => inRange(item.date));
