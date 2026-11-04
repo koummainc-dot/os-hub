@@ -60,3 +60,4 @@ GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ws_access_level(uuid,text,text) TO authenticated;
 GRANT EXECUTE ON FUNCTION storage.foldername(text), storage.filename(text) TO authenticated;
 GRANT SELECT, INSERT, DELETE ON storage.objects TO authenticated;
+GRANT SELECT ON public.workspace_records TO authenticated;
