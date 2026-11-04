@@ -35,9 +35,9 @@ function RatingTimeline({ timeline }) {
   </div>;
 }
 
-export default function SkinDashboard({ endDate, diaryEntries, trials, reactions, photos, routines, routineLogs, products }) {
+export default function SkinDashboard({ endDate, diaryEntries, trials, reactions, photos, routines, routineLogs, products, deletedProducts = [] }) {
   const [days, setDays] = useState(30);
-  const data = useMemo(() => buildSkinDashboardData({ entries: diaryEntries, trials, reactions, photos, routines, routineLogs, endDate, days }), [diaryEntries, trials, reactions, photos, routines, routineLogs, endDate, days]);
+  const data = useMemo(() => buildSkinDashboardData({ entries: diaryEntries, trials, reactions, photos, routines, routineLogs, products, deletedProducts, endDate, days }), [diaryEntries, trials, reactions, photos, routines, routineLogs, products, deletedProducts, endDate, days]);
   const factorNames = { sleepHours: "ساعات النوم", sleepQuality: "جودة النوم", mood: "المزاج", exerciseMinutes: "النشاط", waterGlasses: "أكواب المياه" };
   const coefficient = value => value === null ? "—" : (value > 0 ? "+" : "") + value.toFixed(2);
   return <div>
@@ -53,6 +53,8 @@ export default function SkinDashboard({ endDate, diaryEntries, trials, reactions
       <Metric label="متوسط التقييم" value={data.averageRating ?? "—"} note="مقياس شخصي؛ لا يحدد وحده اتجاه التحسن" />
       <Metric label="تفاعلات مفتوحة" value={data.openReactionCount} />
       <Metric label="تجارب جارية" value={data.runningTrialCount} note={`ومتوقفة مؤقتًا: ${data.pausedTrialCount}`} />
+      <Metric label="المنتجات النشطة" value={data.productSummary.activeCount} note={`المحفوظة غير النشطة: ${data.productSummary.inactiveCount}`} />
+      <Metric label="منتجات في المحذوفات" value={data.productSummary.deletedCount} note="لا تدخل في الأرقام الحالية" />
       <Metric label="صور خلال الفترة" value={data.photoCount} />
     </div>
     <section style={panel}><b>تطور التقييم اليومي</b><p style={{ color: C.muted, fontSize: 11, margin: "5px 0 10px" }}>القيم المسجلة فقط، على مقياس 0–5.</p><RatingTimeline timeline={data.timeline} /></section>
