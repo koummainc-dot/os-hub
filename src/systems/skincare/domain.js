@@ -129,6 +129,24 @@ export function validateSkinUnit(input = {}, todayKey = new Date().toISOString()
   }};
 }
 
+export function skinProductDeletionBlockers(productId, { units = [], routines = [], routineLogs = [], trials = [], reactions = [], lists = [] } = {}) {
+  const id = text(productId, 100);
+  if (!id) return ["invalid_product"];
+  const blockers = [];
+  if (units.some(item => !item.deleted_at && item.productId === id)) blockers.push("units");
+  const linkedRoutineSteps = routines.flatMap(routine => (routine.steps || []).filter(step => step.productId === id).map(step => ({ routineId: routine.id, stepId: step.id })));
+  if (linkedRoutineSteps.length) blockers.push("routine_steps");
+  const loggedProduct = routineLogs.some(log => !log.deleted_at && (
+    log.productIdSnapshot === id ||
+    linkedRoutineSteps.some(link => link.routineId === log.routineId && link.stepId === log.stepId)
+  ));
+  if (loggedProduct) blockers.push("routine_logs");
+  if (trials.some(item => !item.deleted_at && item.productId === id)) blockers.push("trials");
+  if (reactions.some(item => !item.deleted_at && item.productId === id)) blockers.push("reactions");
+  if (lists.some(item => !item.deleted_at && (item.productIds || []).includes(id))) blockers.push("lists");
+  return blockers;
+}
+
 export function canRestoreSkinUnit(unit = {}, products = []) {
   const productId = text(unit.productId, 100);
   return !productId || products.some(product => product.id === productId && !product.deleted_at);
