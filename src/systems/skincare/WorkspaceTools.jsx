@@ -8,41 +8,41 @@ const btn=(primary=false,danger=false)=>({border:"1px solid "+(primary?C.accent:
 const dateValue=v=>String(v||"").slice(0,10);
 const fmt=v=>v==null||v===""?"—":String(v);
 
-export function SkinCompareView({products=[],units=[],ingredients=[]}){
+export function SkinCompareView({products=[],units=[],ingredients=[],todayKey=""}){
  const [selected,setSelected]=useState([]);
  const options=products.filter(p=>!p.deleted_at);
  const toggle=id=>setSelected(old=>old.includes(id)?old.filter(x=>x!==id):old.length<3?[...old,id]:old);
  const rows=selected.map(id=>options.find(p=>p.id===id)).filter(Boolean);
- const unitSummary=p=>{
-  const related=units.filter(u=>u.productId===p.id&&!u.deleted_at);
-  const prices=related.filter(u=>Number.isFinite(Number(u.price))&&u.price!==""&&u.price!=null);
-  const spent=prices.reduce((sum,u)=>sum+Number(u.price),0);
-  const currency=prices[0]?.currency||"";
-  const mixed=prices.some(u=>(u.currency||"")!==currency);
-  const costPerDay=prices.filter(u=>u.startedUseDate).map(u=>{
-   const start=Date.parse(u.startedUseDate+"T00:00:00Z");
-   const end=Date.parse((u.finishedDate||new Date().toISOString().slice(0,10))+"T00:00:00Z");
-   const days=Number.isFinite(start)&&Number.isFinite(end)?Math.max(1,Math.floor((end-start)/86400000)+1):null;
-   return days?{value:Number(u.price)/days,currency:u.currency||"EGP"}:null;
-  }).filter(Boolean);
-  return {count:related.length,spent,currency,mixed,costPerDay:costPerDay.length===1?costPerDay[0]:null};
+ const inci=p=>String(p.ingredients||"").split(/[,،;؛\\n\\r·•]+/).map(x=>x.trim()).filter(Boolean);
+ const index=new Set();
+ ingredients.forEach(item=>[item.inciName,...(item.aliases||[])].forEach(alias=>index.add(String(alias||"").trim().toLocaleLowerCase())));
+ const matrix=[["المعيار",...rows.map(p=>p.name)],...[
+  ["العلامة التجارية",p=>fmt(p.brand)],["التصنيف",p=>fmt(p.category)],["الحالة",p=>fmt(p.status)],["الملاءمة المسجلة",p=>fmt(p.suitability)],["تاريخ البدء",p=>fmt(p.startDate)],["تاريخ الانتهاء",p=>fmt(p.expiryDate)],
+  ["العبوات المسجلة",p=>units.filter(u=>u.productId===p.id&&!u.deleted_at).length],
+  ["إجمالي أسعار العبوات",p=>{const priced=units.filter(u=>u.productId===p.id&&!u.deleted_at&&u.price!==""&&u.price!=null&&Number.isFinite(Number(u.price))&&Number(u.price)>=0);const totals={};priced.forEach(u=>{const currency=String(u.currency||"غير محددة").trim()||"غير محددة";totals[currency]=(totals[currency]||0)+Number(u.price);});return Object.entries(totals).map(([currency,total])=>total.toFixed(2)+" "+currency).join(" / ")||"—";}],
+  ["تكلفة العبوة/اليوم",p=>{const priced=units.filter(u=>u.productId===p.id&&!u.deleted_at&&u.price!==""&&u.price!=null&&Number.isFinite(Number(u.price))&&Number(u.price)>=0&&u.startedUseDate);const daily=priced.map(u=>{const a=Date.parse(u.startedUseDate+"T00:00:00Z"),b=Date.parse((u.finishedDate||todayKey||new Date().toISOString().slice(0,10))+"T00:00:00Z");return Number.isFinite(a)&&Number.isFinite(b)&&b>=a?{value:Number(u.price)/(Math.floor((b-a)/86400000)+1),currency:u.currency||"غير محددة"}:null;}).filter(Boolean);return daily.length===1?daily[0].value.toFixed(2)+" "+daily[0].currency:daily.length>1?"غير محسوبة؛ أكثر من عبوة":"غير متاحة؛ يلزم سعر وتاريخ بدء صالح";}],
+  ["مكونات INCI",p=>inci(p).length],["مطابقة مكتبتك",p=>inci(p).filter(x=>index.has(x.toLocaleLowerCase())).length],["مكونات غير معروفة",p=>inci(p).filter(x=>!index.has(x.toLocaleLowerCase())).length],["رابط المنتج",p=>p.url||"—"]
+ ].map(([name,value])=>[name,...rows.map(value)])];
+ const exportCsv=()=>{
+  const escape=value=>{let text=String(value??"");if(/^\\s*[=+@-]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';};
+  const csv="\\uFEFF"+matrix.map(row=>row.map(escape).join(",")).join("\\r\\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="skincare-product-comparison.csv";document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
  };
- const inci=p=>String(p.ingredients||"").split(/[,،;؛\n\r·•]+/).map(x=>x.trim()).filter(Boolean);
- const index=new Map();
- ingredients.forEach(i=>[i.inciName,...(i.aliases||[])].forEach(a=>index.set(String(a).trim().toLowerCase(),i)));
  return <section style={panel}>
   <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap",alignItems:"center"}}><b>مقارنة المنتجات</b><span style={{fontSize:11,color:C.muted}}>اختر حتى 3 منتجات</span></div>
   <div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:10}}>
    {options.map(p=><button key={p.id} type="button" onClick={()=>toggle(p.id)} style={btn(selected.includes(p.id))}>{selected.includes(p.id)?"✓ ":""}{p.name}</button>)}
   </div>
-  {!rows.length?<p style={{fontSize:12,color:C.muted}}>اختر منتجات لعرض الفروقات المتاحة. لا يتم استنتاج الأفضل طبيًا من هذه المقارنة.</p>:<div style={{overflowX:"auto",marginTop:12}}>
-   <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:Math.max(520,rows.length*180)}}>
-    <thead><tr><th style={{textAlign:"right",padding:8,borderBottom:"1px solid "+C.line}}>المعيار</th>{rows.map(p=><th key={p.id} style={{textAlign:"right",padding:8,borderBottom:"1px solid "+C.line}}>{p.name}</th>)}</tr></thead>
-    <tbody>{[
-     ["العلامة التجارية",p=>fmt(p.brand)],["التصنيف",p=>fmt(p.category)],["الحالة",p=>fmt(p.status)],["الملاءمة المسجلة",p=>fmt(p.suitability)],["تاريخ البدء",p=>fmt(p.startDate)],["تاريخ الانتهاء",p=>fmt(p.expiryDate)],["العبوات المسجلة",p=>unitSummary(p).count],["إجمالي أسعار العبوات",p=>{const s=unitSummary(p);return s.mixed?"عملات متعددة":s.count&&s.currency?s.spent.toFixed(2)+" "+s.currency:s.count?s.spent.toFixed(2):"—";}],["تكلفة العبوة/اليوم (عند اكتمال البيانات)",p=>{const c=unitSummary(p).costPerDay;return c?c.value.toFixed(2)+" "+c.currency:"غير متاح؛ يلزم سعر وتاريخ بدء استخدام لعبوة واحدة";}],["مكونات INCI",p=>inci(p).length],["مطابقة مكتبتك",p=>inci(p).filter(x=>index.has(x.toLowerCase())).length],["مكونات غير معروفة",p=>inci(p).filter(x=>!index.has(x.toLowerCase())).length],["رابط المنتج",p=>p.url||"—"]
-    ].map(([title,value])=><tr key={title}><td style={{padding:8,borderBottom:"1px solid "+C.line,color:C.muted}}>{title}</td>{rows.map(p=><td key={p.id} style={{padding:8,borderBottom:"1px solid "+C.line,verticalAlign:"top"}}>{title==="رابط المنتج"&&p.url?<a href={p.url} target="_blank" rel="noreferrer">فتح الرابط</a>:value(p)}</td>)}</tr>)}</tbody>
-   </table>
-  </div>}
+  {!rows.length?<p style={{fontSize:12,color:C.muted}}>اختر منتجات لعرض الفروقات المتاحة. لا يتم استنتاج الأفضل طبيًا من هذه المقارنة.</p>:<>
+   <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}><button type="button" style={btn(true)} onClick={exportCsv}>تصدير المقارنة CSV</button></div>
+   <div style={{overflowX:"auto",marginTop:12}}>
+    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:Math.max(520,rows.length*180)}}>
+     <thead><tr>{matrix[0].map((cell,i)=><th key={i} style={{textAlign:"right",padding:8,borderBottom:"1px solid "+C.line}}>{cell}</th>)}</tr></thead>
+     <tbody>{matrix.slice(1).map((row,i)=><tr key={row[0]}>{row.map((cell,j)=><td key={j} style={{padding:8,borderBottom:"1px solid "+C.line,verticalAlign:"top",color:j===0?C.muted:C.ink}}>{i===12&&j>0&&rows[j-1]?.url?<a href={rows[j-1].url} target="_blank" rel="noreferrer">فتح الرابط</a>:cell}</td>)}</tr>)}</tbody>
+    </table>
+   </div>
+  </>}
  </section>;
 }
 
