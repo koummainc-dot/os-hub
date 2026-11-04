@@ -9,6 +9,7 @@ const backup = read("../src/systems/skincare/Backup.jsx");
 const photo = read("../src/systems/skincare/photoStorage.js");
 const ingredients = read("../src/systems/skincare/Ingredients.jsx");
 const followups = read("../src/systems/skincare/FollowUps.jsx");
+const routines = read("../src/systems/skincare/Routines.jsx");
 const migration = read("../supabase/migrations/20261103160000_skincare_os_private_storage_and_collection_permissions.sql");
 
 assert.match(domain, /effectiveSkinUnitExpiry/);
@@ -46,6 +47,9 @@ assert.match(backup, /photoFiles/);
 assert.match(backup, /restoreSkinPhotoFiles/);
 assert.match(backup, /existingRecords/);
 assert.match(followups, /timezone/);
+assert.match(routines, /onClick=\{\(\)=>removeStep\(step\)\}/);
+assert.doesNotMatch(routines, /onClick=\{\(\)=>onClick/);
+assert.match(routines, /weekStartDay/);
 
 assert.match(migration, /skincare-progress/);
 assert.match(migration, /collection_sections/);
