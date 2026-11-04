@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus, canRestoreSkinUnit, canRestoreSkinRoutineLog, hasDuplicateSkinListName, buildSkinFollowUps, parseSkinProductsCsv, serializeSkinProductsCsv } from "./domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus, canRestoreSkinUnit, canRestoreSkinRoutineLog, canRestoreSkinList, hasDuplicateSkinListName, buildSkinFollowUps, parseSkinProductsCsv, serializeSkinProductsCsv } from "./domain.js";
 import { SkinCompareView, SkinListsView, RoutineLogsView, SkinSettingsView } from "./WorkspaceTools.jsx";
 import DiaryView from "./Diary.jsx";
 import RoutinesView from "./Routines.jsx";
@@ -200,15 +200,20 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     setPage("products");
   };
   const deleteProduct = async product => {
-    if (!canEdit || !window.confirm("هل تريد نقل المنتج إلى المحذوفات؟")) return;
+    if (!canEdit || busy || !window.confirm("هل تريد نقل المنتج إلى المحذوفات؟")) return;
     const hasUnits = units.some(unit => unit.productId === product.id);
     const hasRoutineSteps = routines.some(routine => (routine.steps || []).some(step => step.productId === product.id));
     const hasTrials = trials.some(item => item.productId === product.id);
     const hasReactions = reactions.some(item => item.productId === product.id);
     const hasLists = lists.some(item => (item.productIds || []).includes(product.id));
     if (hasUnits || hasRoutineSteps || hasTrials || hasReactions || hasLists) return say("لا يمكن حذف المنتج لوجود عبوات أو روتينات أو تجارب أو تفاعلات أو قوائم مرتبطة به. غيّر حالته بدل الحذف للحفاظ على التاريخ.");
-    const result = await store.api.softDelete(SKINCARE_COLLECTIONS.products, product.id);
-    if (result) say("تم نقل المنتج إلى المحذوفات ويمكن استعادته من سجل المحذوفات عند إضافته.");
+    setBusy(true);
+    try {
+      const result = await store.api.softDelete(SKINCARE_COLLECTIONS.products, product.id);
+      if (result) say("تم نقل المنتج إلى المحذوفات ويمكن استعادته من سجل المحذوفات.");
+      else say("لم يؤكد النظام حذف المنتج.");
+    } catch (error) { say(error?.message || "تعذر حذف المنتج."); }
+    finally { setBusy(false); }
   };
   const restoreProduct = async product => {
     if (!canEdit || busy) return;
@@ -216,8 +221,13 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
       normalizeINCIName(item.name) === normalizeINCIName(product.name) &&
       normalizeINCIName(item.brand) === normalizeINCIName(product.brand));
     if (duplicate) return say("يوجد منتج نشط بالاسم والعلامة التجارية نفسيهما؛ غيّر بيانات أحدهما قبل الاستعادة.");
-    const result = await store.api.restore(SKINCARE_COLLECTIONS.products, product.id);
-    if (result) say("تمت استعادة المنتج.");
+    setBusy(true);
+    try {
+      const result = await store.api.restore(SKINCARE_COLLECTIONS.products, product.id);
+      if (result) say("تمت استعادة المنتج.");
+      else say("لم يؤكد النظام استعادة المنتج.");
+    } catch (error) { say(error?.message || "تعذرت استعادة المنتج."); }
+    finally { setBusy(false); }
   };
   const saveUnit = async e => {
     e.preventDefault();
@@ -627,7 +637,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     {store.ready && !store.error && page === "routines" && <RoutinesView routines={routines} logs={routineLogs} products={products} reactions={reactions.filter(item => item.status === "open")} canEdit={canEdit} busy={busy} todayKey={todayKey} timezone={settings?.timezone || "Africa/Cairo"} weekStartDay={settings?.weekStartDay ?? 6} requireConfirmAvoid={settings?.requireConfirmAvoid !== false} onSave={saveRoutine} onArchive={toggleRoutine} onCopy={copyRoutine} onLog={logRoutineStep} onUndo={undoRoutineLog} />}
     {store.ready && !store.error && page === "routine_logs" && <RoutineLogsView logs={routineLogs} deletedLogs={deletedRoutineLogs} routines={routines} products={products} canEdit={canEdit} onRestore={async log => { if (!canEdit || busy) return; if (!canRestoreSkinRoutineLog(log, routines, products, routineLogs)) return say("لا يمكن استعادة السجل: الروتين أو الخطوة أو المنتج المرتبط غير متاح، أو يوجد سجل نشط مكرر."); setBusy(true); try { const ok=await store.api.restore(SKINCARE_COLLECTIONS.routineLogs,log.id); if(ok) say("تمت استعادة سجل التنفيذ."); else say("لم يؤكد النظام استعادة السجل."); } catch(error) { say(error?.message || "تعذرت استعادة سجل التنفيذ."); } finally { setBusy(false); } }} onUndo={async log => { if (!canEdit || !window.confirm("نقل سجل التنفيذ إلى المحذوفات؟")) return; const ok=await store.api.softDelete(SKINCARE_COLLECTIONS.routineLogs,log.id); if(ok) say("تم نقل سجل التنفيذ إلى المحذوفات."); }} />}
     {store.ready && !store.error && page === "compare" && <SkinCompareView products={products} units={units} ingredients={ingredients} todayKey={todayKey} />}
-    {store.ready && !store.error && page === "lists" && <SkinListsView lists={lists} deletedLists={deletedLists} products={products} canEdit={canEdit} busy={busy} onSave={saveList} onDelete={deleteList} onRestore={async list => { if (!canEdit || busy) return; if (hasDuplicateSkinListName(list, lists)) return say("يوجد اسم قائمة نشط مطابق؛ غيّر الاسم قبل الاستعادة."); const ok=await store.api.restore(SKINCARE_COLLECTIONS.lists,list.id); if(ok) say("تمت استعادة القائمة."); }} onToggleProduct={toggleListProduct} />}
+    {store.ready && !store.error && page === "lists" && <SkinListsView lists={lists} deletedLists={deletedLists} products={products} canEdit={canEdit} busy={busy} onSave={saveList} onDelete={deleteList} onRestore={async list => { if (!canEdit || busy) return; if (hasDuplicateSkinListName(list, lists)) return say("يوجد اسم قائمة نشط مطابق؛ غيّر الاسم قبل الاستعادة."); if (!canRestoreSkinList(list, products)) return say("لا يمكن استعادة القائمة قبل استعادة المنتجات المرتبطة بها."); setBusy(true); try { const ok=await store.api.restore(SKINCARE_COLLECTIONS.lists,list.id); if(ok) say("تمت استعادة القائمة."); else say("لم يؤكد النظام استعادة القائمة."); } catch(error) { say(error?.message || "تعذرت استعادة القائمة."); } finally { setBusy(false); } }} onToggleProduct={toggleListProduct} />}
     {store.ready && !store.error && page === "diary" && <DiaryView entries={diaryEntries} deletedEntries={deletedDiaryEntries} trials={trials} selectedDate={diaryDate} setSelectedDate={setDiaryDate} draft={diaryDraft} setDraft={setDiaryDraft} editing={editingDiary} setEditing={setEditingDiary} onSave={saveDiaryEntry} onEdit={editDiaryEntry} onDelete={deleteDiaryEntry} onRestore={restoreDiaryEntry} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "photos" && <PhotosView workspaceId={ws?.id} entries={diaryEntries} photos={photos} deletedPhotos={deletedPhotos} isDemo={isDemo} canEdit={canEdit} busy={busy} onUpload={uploadPhoto} onDelete={removePhoto} onPurge={removePhoto} />}
     {store.ready && !store.error && page === "ingredients" && <IngredientsView ingredients={ingredients} deletedIngredients={deletedIngredients} products={products} canEdit={canEdit} busy={busy} onSave={saveIngredient} onDelete={deleteIngredient} onRestore={restoreIngredient} onImportCatalog={importIngredientCatalog} />}
