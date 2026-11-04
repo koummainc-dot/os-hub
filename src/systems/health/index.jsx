@@ -740,7 +740,7 @@ export default function HealthSystem({ authUser, isDemo, demoStore, page = "home
         </div>
       </div>
       <nav style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 18 }}>
-        {[["home","الرئيسية"],["profile","الملف الصحي"],["measurements","القياسات الحيوية"],["conditions","الحالات والحساسيات"],["symptoms","الأعراض"],["medications","الأدوية والعلاجات"],["flare_events","نوبات التهيّج"],["checkins","المتابعة اليومية"],["factors","العوامل والمتتبعات"],["reports","التقارير"],["visit_summary","ملخص زيارة الطبيب"],...(selected&&isOwner&&selected.cycle_tracking_enabled?[["cycle_tracking","الدورة الاختيارية"]]:[]),["access","المشاركة"],["documents","الوثائق"],["settings","الخصوصية"]].map(([id,label]) => <button key={id} style={page===id?PRIMARY:SECONDARY} onClick={() => setPage?.(id)}>{label}</button>)}
+        {[["home","الرئيسية"],["profile","الملف الصحي"],["search","البحث الصحي"],["timeline","الخط الزمني الصحي"],["body_map","مخطط الجسم"],["measurements","القياسات الحيوية"],["conditions","الحالات والحساسيات"],["symptoms","الأعراض"],["medications","الأدوية والعلاجات"],["flare_events","نوبات التهيّج"],["checkins","المتابعة اليومية"],["factors","العوامل والمتتبعات"],["reports","التقارير"],["visit_summary","ملخص زيارة الطبيب"],...(selected&&isOwner&&selected.cycle_tracking_enabled?[["cycle_tracking","الدورة الاختيارية"]]:[]),["access","المشاركة"],["documents","الوثائق"],["settings","الخصوصية"]].map(([id,label]) => <button key={id} style={page===id?PRIMARY:SECONDARY} onClick={() => setPage?.(id)}>{label}</button>)}
       </nav>
     </header>
 
