@@ -186,7 +186,7 @@ export function planTreeMove(taskId, targetProjectId, idx, prdsById, allTasks, d
   const patches = ids.map((id) => {
     const t = byId[id]; const p = { ...t, project_id: targetProjectId };
     if (id === taskId) p.parent_task_id = null;
-    if (t.prd_id && (!prdsById[t.prd_id] || prdsById[t.prd_id].project_id !== targetProjectId)) p.prd_id = null;
+    if (t.prd_id && (!prdsById[t.prd_id] || prdsById[t.prd_id].project_id !== targetProjectId)) { p.prd_id = null; p.prd_requirement_id = null; }
     if (t.discovery_ids && t.discovery_ids.length) {
       p.discovery_ids = t.discovery_ids.filter((discoveryId) => {
         const discovery = discoveriesById[discoveryId];
@@ -272,6 +272,30 @@ export function krProgress(kr, projectProgress) {
   return { raw, clamped: clamp(raw, 0, 1) };
 }
 export function krProgressValue(kr, pp) { const r = krProgress(kr, pp); if (r == null) return null; return typeof r === "number" ? r : r.clamped; }
+
+// Task execution is deliberately separate from KR outcome progress. A linked task group
+// contributes its active leaf tasks; overlapping groups are counted once.
+export function krTaskExecution(kr, idx) {
+  const roots = [...new Set(Array.isArray(kr?.task_ids) ? kr.task_ids.filter(Boolean) : [])];
+  if (!idx) return { roots: [], tasks: [], leafTotal: 0, leafDone: 0, progress: null };
+  const ids = new Set();
+  roots.forEach((id) => { if (idx.byId[id]) { ids.add(id); idx.descendants(id).forEach((childId) => ids.add(childId)); } });
+  const tasks = [...ids].map((id) => idx.byId[id]).filter(Boolean);
+  const leaves = tasks.filter((task) => idx.isLeaf(task.id) && cat(task.status) !== "cancelled");
+  const leafDone = leaves.filter((task) => cat(task.status) === "done").length;
+  return { roots: roots.filter((id) => !!idx.byId[id]), tasks, leafTotal: leaves.length, leafDone, progress: leaves.length ? leafDone / leaves.length : null };
+}
+export function objectiveTaskExecution(obj, krs, idx) {
+  const linkedKrs = (krs || []).filter((kr) => kr.objective_id === obj?.id && isActiveRec(kr));
+  const ids = new Set();
+  linkedKrs.forEach((kr) => (kr.task_ids || []).forEach((id) => {
+    if (idx?.byId[id]) { ids.add(id); idx.descendants(id).forEach((childId) => ids.add(childId)); }
+  }));
+  const tasks = [...ids].map((id) => idx.byId[id]).filter(Boolean);
+  const leaves = tasks.filter((task) => idx.isLeaf(task.id) && cat(task.status) !== "cancelled");
+  const leafDone = leaves.filter((task) => cat(task.status) === "done").length;
+  return { tasks, leafTotal: leaves.length, leafDone, progress: leaves.length ? leafDone / leaves.length : null };
+}
 export function objectiveProgress(obj, krs, pp) {
   const vals = krs.filter((k) => k.objective_id === obj.id && isActiveRec(k)).map((k) => krProgressValue(k, pp)).filter((v) => v != null);
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
