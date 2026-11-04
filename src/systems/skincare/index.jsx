@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus, canRestoreSkinUnit, canRestoreSkinRoutineLog, canRestoreSkinList, hasDuplicateSkinListName, buildSkinFollowUps, parseSkinProductsCsv, serializeSkinProductsCsv } from "./domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, normalizeSkinSearchText, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus, canRestoreSkinUnit, canRestoreSkinRoutineLog, canRestoreSkinList, hasDuplicateSkinListName, buildSkinFollowUps, parseSkinProductsCsv, serializeSkinProductsCsv } from "./domain.js";
 import { SkinCompareView, SkinListsView, RoutineLogsView, SkinSettingsView } from "./WorkspaceTools.jsx";
 import DiaryView from "./Diary.jsx";
 import RoutinesView from "./Routines.jsx";
@@ -701,8 +701,8 @@ function ProductsView({ products, deletedProducts, onRestore, draft, setDraft, o
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const filteredProducts = products.filter(product => {
-    const needle = query.trim().toLocaleLowerCase();
-    const matchesQuery = !needle || [product.name, product.brand, product.ingredients, product.notes].some(value => String(value || "").toLocaleLowerCase().includes(needle));
+    const needle = normalizeSkinSearchText(query);
+    const matchesQuery = !needle || [product.name, product.brand, product.ingredients, product.notes].some(value => normalizeSkinSearchText(value).includes(needle));
     return matchesQuery && (categoryFilter === "all" || product.category === categoryFilter) && (statusFilter === "all" || product.status === statusFilter);
   });
   return <><Panel title={editing ? "تعديل منتج" : "إضافة منتج"}>
@@ -774,9 +774,9 @@ function UnitsView({ units, deletedUnits, onRestore, products, todayKey, draft, 
   const [productFilter, setProductFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const filteredUnits = units.filter(unit => {
-    const needle = query.trim().toLocaleLowerCase();
+    const needle = normalizeSkinSearchText(query);
     const productName = products.find(product => product.id === unit.productId)?.name || "";
-    const matchesQuery = !needle || [unit.name, unit.sizeNote, unit.notes, productName].some(value => String(value || "").toLocaleLowerCase().includes(needle));
+    const matchesQuery = !needle || [unit.name, unit.sizeNote, unit.notes, productName].some(value => normalizeSkinSearchText(value).includes(needle));
     return matchesQuery && (productFilter === "all" || unit.productId === productFilter) && (statusFilter === "all" || skinUnitStatus(unit, todayKey) === statusFilter);
   });
   return <><Panel title={editing ? "تعديل عبوة" : "تسجيل عبوة"}>
