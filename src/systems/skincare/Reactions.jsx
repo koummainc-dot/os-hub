@@ -72,7 +72,7 @@ export default function ReactionsView({ reactions, products, units, ingredients,
         })).filter(match => match.steps.length > 0);
         return <article key={reaction.id} style={{ borderTop: "1px solid " + C.line, padding: "12px 0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-            <div><b style={{ fontSize: 13 }}>{product?.name || "منتج غير موجود"}</b><div style={{ color: C.muted, fontSize: 10, marginTop: 3 }}>{reaction.dateStarted} · {SEVERITY[reaction.severity] || reaction.severity} · {STATUS[reaction.status] || reaction.status}</div></div>
+            <div><b style={{ fontSize: 13 }}>{product?.name || reaction.productNameSnapshot || "منتج غير متاح (سجل تاريخي)"}</b><div style={{ color: C.muted, fontSize: 10, marginTop: 3 }}>{reaction.dateStarted} · {SEVERITY[reaction.severity] || reaction.severity} · {STATUS[reaction.status] || reaction.status}</div></div>
             {reaction.severity === "severe" && <span style={{ color: C.danger, fontSize: 10, fontWeight: 800 }}>تفاعل شديد — لا يُحذف</span>}
           </div>
           {(reaction.symptoms || []).length > 0 && <div style={{ fontSize: 12, marginTop: 7 }}>الأعراض: {reaction.symptoms.join("، ")}</div>}
