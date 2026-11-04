@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, normalizeSkinSearchText, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus, canRestoreSkinUnit, canRestoreSkinRoutineLog, canRestoreSkinList, hasDuplicateSkinListName, buildSkinFollowUps, parseSkinProductsCsv, serializeSkinProductsCsv } from "./domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, normalizeSkinSearchText, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus, skinUnitCostPerDay, canRestoreSkinUnit, canRestoreSkinRoutineLog, canRestoreSkinList, hasDuplicateSkinListName, buildSkinFollowUps, parseSkinProductsCsv, serializeSkinProductsCsv } from "./domain.js";
 import { SkinCompareView, SkinListsView, RoutineLogsView, SkinSettingsView } from "./WorkspaceTools.jsx";
 import DiaryView from "./Diary.jsx";
 import RoutinesView from "./Routines.jsx";
@@ -50,7 +50,7 @@ const SECTIONS = [
 ];
 const EMPTY_PRODUCT = { name: "", brand: "", category: "other", status: "active", suitability: "suitable", startDate: "", expiryDate: "", ingredients: "", instructions: "", notes: "", url: "", stepSlot: "" };
 const EMPTY_UNIT = { name: "", productId: "", purchaseDate: "", openedOn: "", paoMonths: "", expiresOn: "", startedUseDate: "", finishedDate: "", finishReason: "", price: "", currency: "EGP", sizeNote: "", notes: "" };
-const unitCostPerDay = (unit, todayKey) => { if (unit.price == null || unit.price === "" || !unit.startedUseDate) return null; const start = Date.parse(unit.startedUseDate + "T00:00:00Z"); const end = Date.parse((unit.finishedDate || todayKey) + "T00:00:00Z"); const days = Number.isFinite(start) && Number.isFinite(end) && end >= start ? Math.floor((end - start) / 86400000) + 1 : 0; return days ? Number(unit.price) / days : null; };
+const unitCostPerDay = (unit, todayKey) => skinUnitCostPerDay(unit, todayKey)?.value ?? null;
 
 export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = "home", setPage = () => {}, shell }) {
   const store = useRecordStore({ wsId: ws?.id || "demo", systemId: "skincare", isDemo, demoStore: demoStore || { current: {} }, seed: () => ({}) , onToast: message => shell?.toast?.(message) });
