@@ -14,7 +14,7 @@ assert.equal(parsed.rows[0].notes, "ملاحظة فيها, فاصلة");
 assert.equal(parsed.rows[1].name, 'سيروم "فيتامين سي"');
 assert.equal(parsed.rows[1].status, "paused");
 
-const serialized = serializeSkinProductsCsv(parsed.rows);
+const deletedProduct = { name: "منتج قديم", brand: "Old", category: "serum", status: "finished", deleted_at: "2026-11-03" };\nconst serialized = serializeSkinProductsCsv(parsed.rows, [deletedProduct]);\nassert.ok(serialized.startsWith("\\uFEFF"), "CSV must use a real UTF-8 BOM");\nassert.ok(serialized.includes("\\r\\n"), "CSV must use standard CRLF rows");
 const roundTrip = parseSkinProductsCsv(serialized);
 assert.equal(roundTrip.ok, true);
 for (const key of ["name", "brand", "category", "status", "suitability", "ingredients", "notes"]) {
