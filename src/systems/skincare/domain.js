@@ -897,7 +897,7 @@ export function buildSkinComparisonMatrix(products = [], units = [], ingredients
       if (normalized) ingredientIndex.add(normalized);
     }
   }
-  const inciParts = product => String(product.ingredients || "").split(/[,،;؛\\n\\r·•]+/).map(value => value.trim()).filter(Boolean);
+  const inciParts = product => String(product.ingredients || "").split(/[,،;؛\n\r·•]+/).map(value => value.trim()).filter(Boolean);
   const values = [
     ["العلامة التجارية", product => product.brand || "—"],
     ["التصنيف", product => product.category || "—"],
@@ -931,8 +931,8 @@ export function buildSkinComparisonMatrix(products = [], units = [], ingredients
 export function serializeSkinComparisonCsv(matrix = []) {
   const escape = value => {
     let text = String(value ?? "");
-    if (/^[\\s]*[=+@-]/.test(text)) text = "'" + text;
+    if (/^\s*[=+@-]/.test(text)) text = "'" + text;
     return '"' + text.replace(/"/g, '""') + '"';
   };
-  return "\\uFEFF" + matrix.map(row => row.map(escape).join(",")).join("\\r\\n");
+  return "\uFEFF" + matrix.map(row => row.map(escape).join(",")).join("\r\n");
 }
