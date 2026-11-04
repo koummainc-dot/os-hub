@@ -93,6 +93,8 @@ assert.match(followups, /weekStartDay = 0/);
 assert.match(followups, /buildSkinFollowUps\(\{ today, timezone, weekStartDay, expiryWindowDays/);
 assert.match(domain, /export function isValidSkinDateKey/);
 assert.match(domain, /export function skinUnitCostPerDay/);
+assert.match(domain, /export function skinProductDeletionBlockers/);
+assert.match(index, /skinProductDeletionBlockers\(product\.id/);
 
 
 assert.match(index, /productNameSnapshot: product\.name/);
