@@ -960,3 +960,9 @@ export function canRestoreSkinRoutineLog(log = {}, routines = [], products = [],
   ));
   return !duplicate;
 }
+
+
+export function canRestoreSkinList(list = {}, products = []) {
+  const productIds = Array.isArray(list.productIds) ? list.productIds : [];
+  return productIds.every(id => products.some(product => product.id === id));
+}
