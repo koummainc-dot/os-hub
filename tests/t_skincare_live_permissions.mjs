@@ -9,7 +9,7 @@ if (!enabled) {
 
 const required = [
   "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SKINCARE_TEST_WORKSPACE_ID",
-  "SKINCARE_EDITOR_JWT", "SKINCARE_VIEWER_JWT", "SKINCARE_OTHER_WORKSPACE_ID",
+  "SKINCARE_OWNER_JWT", "SKINCARE_EDITOR_JWT", "SKINCARE_VIEWER_JWT", "SKINCARE_OTHER_WORKSPACE_ID",
   "SKINCARE_OTHER_VIEWER_JWT",
 ];
 const missing = required.filter(key => !process.env[key]);
@@ -23,6 +23,7 @@ const client = jwt => createClient(url, key, {
   auth: { persistSession: false, autoRefreshToken: false },
   global: { headers: { Authorization: "Bearer " + jwt } },
 });
+const owner = client(process.env.SKINCARE_OWNER_JWT);
 const editor = client(process.env.SKINCARE_EDITOR_JWT);
 const viewer = client(process.env.SKINCARE_VIEWER_JWT);
 const otherViewer = client(process.env.SKINCARE_OTHER_VIEWER_JWT);
@@ -81,6 +82,13 @@ try {
   if (photoInsert.error) throw photoInsert.error;
   photoCreated = true;
 
+  const ownerRead = await owner.from("workspace_records").select("id")
+    .eq("workspace_id", wsId).eq("system_id", "skincare").eq("collection", "skin_diary").eq("id", diaryId);
+  if (ownerRead.error) throw ownerRead.error;
+  assert.equal(ownerRead.data.length, 1, "Workspace owner should read the fixture.");
+  const ownerSigned = await owner.storage.from("skincare-progress").createSignedUrl(objectPath, 60);
+  if (ownerSigned.error || !ownerSigned.data?.signedUrl) throw ownerSigned.error || new Error("Workspace owner should be able to sign the private photo.");
+
   const editorSigned = await editor.storage.from("skincare-progress").createSignedUrl(objectPath, 60);
   if (editorSigned.error || !editorSigned.data?.signedUrl) throw editorSigned.error || new Error("Editor should be able to sign its own photo.");
 
@@ -88,6 +96,11 @@ try {
     contentType: "image/jpeg", upsert: false,
   });
   assert.ok(viewerUpload.error, "Viewer must not be able to upload a private photo.");
+
+  const viewerSigned = await viewer.storage.from("skincare-progress").createSignedUrl(objectPath, 60);
+  if (process.env.SKINCARE_VIEWER_CAN_VIEW === "1") {
+    if (viewerSigned.error || !viewerSigned.data?.signedUrl) throw viewerSigned.error || new Error("Viewer with photo view access should be able to sign the photo.");
+  } else assert.ok(viewerSigned.error, "Viewer without photo view access must not sign the photo.");
 
   const viewerRead = await viewer.from("workspace_records").select("id")
     .eq("workspace_id", wsId).eq("system_id", "skincare").eq("collection", "skin_diary").eq("id", diaryId);
