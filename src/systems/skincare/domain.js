@@ -890,7 +890,7 @@ export function skinUnitCostPerDay(unit = {}, today = new Date().toISOString().s
   const end = Date.parse((unit.finishedDate || today) + "T00:00:00Z");
   if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
   const days = Math.floor((end - start) / 86400000) + 1;
-  return days > 0 ? { value: Number(unit.price) / days, currency: String(unit.currency || "غير محددة"), unitId: unit.id } : null;
+  return days > 0 ? { value: Number(unit.price) / days, currency: String(unit.currency || "غير محددة").trim() || "غير محددة", unitId: unit.id } : null;
 }
 
 export function summarizeSkinProductUnits(productId, units = [], today = new Date().toISOString().slice(0, 10)) {
