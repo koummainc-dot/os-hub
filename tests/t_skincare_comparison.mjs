@@ -40,3 +40,15 @@ assert.ok(csv.includes("\r\n"));
 assert.ok(csv.includes('"غسول, صباحي"'));
 assert.ok(csv.includes('"'=SUM(A1:A2)"'), "spreadsheet formulas are neutralized");
 console.log("Skincare comparison and CSV export tests passed.");
+
+const strictDateUnits = [
+  { id: "valid", productId: "p3", price: 90, currency: "EGP", startedUseDate: "2026-11-01" },
+  { id: "invalid-calendar", productId: "p3", price: 20, currency: "EGP", startedUseDate: "2026-02-30" },
+  { id: "future", productId: "p3", price: 40, currency: "EGP", startedUseDate: "2026-11-10" },
+  { id: "deleted", productId: "p3", price: 80, currency: "EGP", startedUseDate: "2026-11-01", deleted_at: "2026-11-02" },
+];
+const strictSummary = summarizeSkinProductUnits("p3", strictDateUnits, "2026-11-04");
+assert.equal(strictSummary.count, 3, "deleted units are not counted");
+assert.equal(strictSummary.costPerDay, null, "invalid and future use periods cannot distort daily cost");
+assert.equal(strictSummary.dailyCostAmbiguous, false, "only valid cost periods count toward ambiguity");
+assert.equal(strictSummary.totalsByCurrency.EGP, 150, "historical prices remain grouped by currency");
