@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { osSectionLevel } from "../../core/core.js";
 import { useRecordStore, arr, live, uid } from "../../core/records.jsx";
-import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus, buildSkinFollowUps, parseSkinProductsCsv, serializeSkinProductsCsv } from "./domain.js";
+import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateRoutine, validateRoutineStep, routineLogId, validateSkinDiaryEntry, validateSkinIngredient, normalizeINCIName, validateSkinTrial, transitionSkinTrial, validateSkinReaction, validateSkinList, validateSkinSettings, effectiveSkinUnitExpiry, skinUnitStatus, canRestoreSkinUnit, buildSkinFollowUps, parseSkinProductsCsv, serializeSkinProductsCsv } from "./domain.js";
 import { SkinCompareView, SkinListsView, RoutineLogsView, SkinSettingsView } from "./WorkspaceTools.jsx";
 import DiaryView from "./Diary.jsx";
 import RoutinesView from "./Routines.jsx";
@@ -239,7 +239,18 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     const result = await store.api.softDelete(SKINCARE_COLLECTIONS.units, unit.id);
     if (result) say("تم نقل العبوة إلى المحذوفات.");
   };
-  const restoreUnit = async unit => { const result = await store.api.restore(SKINCARE_COLLECTIONS.units, unit.id); if (result) say("تمت استعادة العبوة."); };
+  const restoreUnit = async unit => {
+    if (!canEdit || busy) return;
+    if (!canRestoreSkinUnit(unit, products)) return say("لا يمكن استعادة العبوة قبل استعادة المنتج المرتبط بها.");
+    setBusy(true);
+    try {
+      const result = await store.api.restore(SKINCARE_COLLECTIONS.units, unit.id);
+      if (result) say("تمت استعادة العبوة.");
+      else say("لم يؤكد النظام استعادة العبوة.");
+    } catch (error) {
+      say(error?.message || "تعذر استعادة العبوة.");
+    } finally { setBusy(false); }
+  };
   const saveList = async input => {
     if (!canEdit || busy) return false;
     const checked = validateSkinList(input);
