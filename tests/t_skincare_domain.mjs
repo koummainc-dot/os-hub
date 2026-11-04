@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { SKINCARE_COLLECTIONS, validateSkinProfile, validateSkinProduct, validateSkinUnit, validateSkinDiaryEntry, summarizeSkinTrial, analyzeSkinFactors, buildSkinDashboardData, buildSkinFollowUps } from "../src/systems/skincare/domain.js";
 import { buildSkinPhotoPaths, validateSkinPhotoFile, validateSkinPhotoMetadata } from "../src/systems/skincare/photoDomain.js";
 
-assert.deepEqual(Object.values(SKINCARE_COLLECTIONS), ["skin_profile", "skin_products", "skin_units", "skin_routines", "skin_routine_logs", "skin_diary", "skin_photos"]);
+assert.deepEqual(Object.values(SKINCARE_COLLECTIONS), ["skin_profile", "skin_products", "skin_units", "skin_routines", "skin_routine_logs", "skin_diary", "skin_photos", "skin_ingredients", "skin_trials", "skin_reactions", "skin_lists", "skin_settings"]);
 assert.equal(validateSkinProfile({ skinType: "oily", concerns: ["acne"] }).ok, true);
 assert.equal(validateSkinProfile({ skinType: "alien" }).ok, false);
 assert.equal(validateSkinProduct({ name: "غسول", category: "cleanser", status: "active" }).ok, true);
