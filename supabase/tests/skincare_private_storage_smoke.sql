@@ -1,6 +1,5 @@
 \set ON_ERROR_STOP on
 DO $$
-DECLARE bucket public_dummy;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM storage.buckets WHERE id='skincare-progress' AND public=false
     AND file_size_limit=10485760 AND allowed_mime_types=ARRAY['image/jpeg','image/png','image/webp']) THEN
