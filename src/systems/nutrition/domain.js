@@ -96,7 +96,9 @@ export function snapshotFoodLog(food, amount, unit, extras={}) {
   if(!food?.id) throw new Error("اختر غذاءً معروفًا قبل تسجيل الاستهلاك.");
   const selectedUnit=String(unit||food.basisUnit),quantityBase=convertFoodQuantity(food,amount,selectedUnit);
   const nutrients=scaleNutrients(food,quantityBase,food.basisAmount);
-  return {foodId:String(food.id),foodNameSnapshot:String(food.name||"غذاء غير مسمى"),foodBrandSnapshot:String(food.brand||""),amount:num(amount),unit:selectedUnit,quantityBase,basisAmount:num(food.basisAmount),basisUnit:food.basisUnit,nutrientsSnapshot:nutrients,snapshotBasis:"food-version-at-log-time",foodUpdatedAt:food.updatedAt||null,...extras};
+  const portion=selectedUnit.startsWith("portion:")?food.portions?.find(p=>p.id===selectedUnit.slice(8)):null;
+  const unitLabel=portion?.label||(selectedUnit==="serving"?(food.servingUnit||"حصة"):selectedUnit==="g"?"جم":selectedUnit==="ml"?"مل":selectedUnit);
+  return {foodId:String(food.id),foodNameSnapshot:String(food.name||"غذاء غير مسمى"),foodBrandSnapshot:String(food.brand||""),amount:num(amount),unit:selectedUnit,unitLabel,unitFactor:quantityBase/Number(amount),quantityBase,basisAmount:num(food.basisAmount),basisUnit:food.basisUnit,nutrientsSnapshot:nutrients,snapshotBasis:"food-version-at-log-time",foodUpdatedAt:food.updatedAt||null,...extras};
 }
 export function buildQuickNutritionLog(input={}) {
   const name=String(input.name||"").trim(), nutrients=input.nutrients&&typeof input.nutrients==="object"?input.nutrients:{};
