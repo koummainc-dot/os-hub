@@ -9,12 +9,12 @@
 ## Snapshot
 
 - Live migration history entries: **94**
-- SQL migration files on `main`: **104**
-- Repository files with one or more same-name live history entries: **87**
+- SQL migration files on this reconciliation branch: **114**
+- Repository files with one or more same-name live history entries: **97**
 - Repository files with no same-name live history entry (candidate pending): **17**
 - Same-name entries whose file timestamp differs from live history: **40**
-- Live history entries not mapped to a same-name repository file: **10**
-- Exact version-prefix matches (including duplicate-name exact-version pairing): **47**
+- Live history entries not mapped to a same-name repository file: **0**
+- Exact version-prefix matches (including duplicate-name exact-version pairing): **57**
 - Duplicate live versions: **0**
 
 This is a reconciliation inventory, not authorization to push. Name equality is only a candidate mapping; SQL content/checksum and dependency review are still required.
@@ -149,7 +149,7 @@ These are candidates for pending migrations only. In particular, the Projects-re
 
 Do not apply them until their exact effects, prerequisites, and relationship to the live schema have been tested.
 
-## Live history entries without a same-name file
+## Previously unmatched live history entries — restored from stored SQL statements in this branch
 
 - `20261027074905` — `finance_a_schema`
 - `20261027075030` — `finance_b_engine`
@@ -162,7 +162,7 @@ Do not apply them until their exact effects, prerequisites, and relationship to 
 - `20261028054205` — `finance_asset_lifecycle_permission_hardening`
 - `20261103141516` — `health_os_h3_state_constraints`
 
-These require locating historical source/content or proving they were consolidated/renamed. Do not create replacement files or alter history based on names alone.
+The ten entries above were recovered from the production `supabase_migrations.schema_migrations.statements` column and restored as exact-version SQL files in this branch. Each returned one stored SQL statement. This restores repository source for the already-applied history rows; it does not modify production history or apply SQL.
 
 ## Timestamp mismatches
 
@@ -392,9 +392,9 @@ The SHA column below is the **Git blob SHA of the current repository file**, not
 - Continue with read-only catalog inspection and disposable PostgreSQL smoke tests. A paid Supabase branch remains excluded by the user's instruction.
 
 
-## Read-only schema evidence for unmatched live entries (2026-11-04)
+## Read-only schema evidence for previously unmatched live entries (2026-11-04)
 
-A read-only catalog inspection was run against production after identifying the 10 live history entries with no same-name migration file in the current repository tree.
+A read-only catalog inspection was run against production while the ten live history entries had no same-name migration file in the original main tree. The corresponding original SQL statements have since been recovered into this branch.
 
 - Finance catalog: **36** `finance_*` tables exist; **36/36** have RLS enabled; **0** were found without RLS.
 - Finance RPC catalog includes `fin_asset_upsert`, `fin_asset_status_update`, `fin_asset_confirm_valuation`, `fin_asset_valuation_history_get`, `fin_budget_upsert`, `fin_budgets_get`, `fin_recurring_save`, `fin_recurring_defer`, `fin_recurring_skip`, and `fin_recurring_log_payment`.
@@ -468,11 +468,11 @@ PR #107 merge commit `18a389c4ff352785179a2b10aa02c9f3af93f1d0` has successful c
 A fresh read-only scan was run against `main` at `b263f5c3a18531bd2e6a4f228605b05dcae3fbd8` after merging Projects PR #112, Nutrition PR #113, Integration Events smoke PR #115, and migration-version guard PR #116.
 
 - Live Supabase migration history remains **94** entries.
-- The current repository contains **104** SQL migration files (the earlier 101-file snapshot is stale).
+- This reconciliation branch contains **114** SQL migration files, including ten historical source files restored from production's stored migration statements.
 - **47** repository files have exact version-prefix matches.
 - **40** same-name candidates have timestamp mismatches. The duplicated historical name `finance_internal_function_permissions` has two live versions and two repository files; pair each file to the live entry with the same exact version, rather than collapsing by name.
 - **17** repository files have no same-name live history entry.
-- **10** live history entries have no same-name repository file.
+- **0** live history entries have no same-name repository file.
 - PR #116 moved only the unapplied Inventory domain migration to `20261028140000_inventory_p1_domain_schema.sql`; Finance retains `20261028130000_finance_default_category_seeding.sql`. The repository now has no duplicate 14-digit migration prefixes.
 - The three Projects PRD/relationship migrations added through PR #112 increase the pending candidate set; they are not production-applied.
 - All four GitHub Actions checks on current main completed successfully: `test-and-build`, `projects-postgres-smoke`, `knowledge-postgres-smoke`, and `spiritual-postgres-smoke`. The Vercel status check is separate and failed due to the free-plan daily deployment rate limit; no production deployment was performed.
@@ -482,4 +482,26 @@ This scan updates the inventory counts only. It does not establish historical SQ
 
 ### Counting method clarification
 
-The refreshed totals classify a file as an exact match when its 14-digit prefix is present among all live versions for that same migration name. This preserves the two `finance_internal_function_permissions` history rows as separate exact matches. A file is a timestamp mismatch when its name exists in live history but its prefix does not; a file is pending only when its migration name has no live history row at all. The resulting partition is 47 exact + 40 timestamp mismatches + 17 pending = 104 repository SQL files.
+The refreshed totals classify a file as an exact match when its 14-digit prefix is present among all live versions for that same migration name. This preserves the two `finance_internal_function_permissions` history rows as separate exact matches. A file is a timestamp mismatch when its name exists in live history but its prefix does not; a file is pending only when its migration name has no live history row at all. The resulting partition is 57 exact + 40 timestamp mismatches + 17 pending = 114 repository SQL files.
+
+
+## Historical SQL source recovery (2026-11-04)
+
+The production migration-history table exposes a nullable `statements text[]` column. A read-only query confirmed that each of the ten previously unmatched versions below had exactly one stored SQL statement. The exact stored statement text was restored to a repository file whose 14-digit prefix and suffix match the live version and name:
+
+| Live version | Restored file |
+|---|---|
+| `20261027074905` | `20261027074905_finance_a_schema.sql` |
+| `20261027075030` | `20261027075030_finance_b_engine.sql` |
+| `20261027075354` | `20261027075354_finance_c_rpcs.sql` |
+| `20261027075441` | `20261027075441_finance_d_fix_asset_upsert.sql` |
+| `20261027075509` | `20261027075509_finance_e_fix_id_ambiguity.sql` |
+| `20261027174438` | `20261027174438_finance_f_fix_err_null_detail.sql` |
+| `20261027185041` | `20261027185041_finance_recurring_defer_rpc_wrapper_phase_13.sql` |
+| `20261027190550` | `20261027190550_finance_net_worth_snapshot_json_alias_fix.sql` |
+| `20261028054205` | `20261028054205_finance_asset_lifecycle_permission_hardening.sql` |
+| `20261103141516` | `20261103141516_health_os_h3_state_constraints.sql` |
+
+A fresh branch-tree/history comparison now yields **114 files / 94 live entries / 57 exact-prefix matches / 40 timestamp mismatches / 17 pending candidates / 0 live-only entries / 0 duplicate prefixes**.
+
+The restored files represent versions already recorded as applied in production. Adding their source files to Git does not execute them, change Supabase history, or authorize a migration push. They must still be reviewed as source and validated in the clean migration chain before any rollout.
