@@ -155,7 +155,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   };
   const importProductsCsv = async rows => {
     if (!canEdit || !Array.isArray(rows)) return { added: 0, skipped: 0, failed: true, error: "لا توجد صلاحية للاستيراد." };
-    const known = new Set(products.map(product => normalizeINCIName(product.name) + "|" + normalizeINCIName(product.brand)));
+    const known = new Set([...products, ...deletedProducts].map(product => normalizeINCIName(product.name) + "|" + normalizeINCIName(product.brand)));
     let added = 0, skipped = 0;
     setBusy(true);
     try {
@@ -731,7 +731,7 @@ function ProductsView({ products, deletedProducts, onRestore, draft, setDraft, o
         setCsvPreview(parsed); setCsvMessage("");
       }} /></label>
       <button type="button" style={button()} onClick={() => {
-        const blob = new Blob([serializeSkinProductsCsv(products)], { type: "text/csv;charset=utf-8" });
+        const blob = new Blob([serializeSkinProductsCsv(products, deletedProducts)], { type: "text/csv;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = url; anchor.download = "skincare-products-" + todayKey + ".csv";
