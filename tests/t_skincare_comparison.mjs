@@ -38,7 +38,7 @@ const csv = serializeSkinComparisonCsv(matrix);
 assert.ok(csv.startsWith("\uFEFF"));
 assert.ok(csv.includes("\r\n"));
 assert.ok(csv.includes('"غسول, صباحي"'));
-assert.ok(csv.includes('"'=SUM(A1:A2)"'), "spreadsheet formulas are neutralized");
+assert.ok(csv.includes('"\'=SUM(A1:A2)"'), "spreadsheet formulas are neutralized");
 console.log("Skincare comparison and CSV export tests passed.");
 
 const strictDateUnits = [
