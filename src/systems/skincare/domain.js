@@ -213,15 +213,19 @@ export function sortRoutineSteps(steps = []) {
   }).map((step, index) => ({ ...step, order: index }));
 }
 
-export function isRoutineDue(routine, date = new Date(), logs = []) {
+export function isRoutineDue(routine, date = new Date(), logs = [], timezone = "Africa/Cairo") {
   if (!routine || routine.status !== "active") return false;
-  const day = date.getDay();
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+  const dateKey = parts.filter(part => ["year","month","day"].includes(part.type)).map(part => part.value);
+  const localDateKey = dateKey[0] + "-" + dateKey[1] + "-" + dateKey[2];
+  const [year,month,dayOfMonth] = localDateKey.split("-").map(Number);
+  const day = new Date(Date.UTC(year,month-1,dayOfMonth)).getUTCDay();
   if (routine.frequency === "selected_days") return (routine.days || []).includes(day);
   if (routine.frequency === "times_per_week") {
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
-    const start = new Date(date); start.setDate(start.getDate() - start.getDay());
-    const weekStart = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(start);
-    const completedDays = new Set(logs.filter(x => x.routineId === routine.id && x.status === "done" && x.date >= weekStart && x.date <= today).map(x => x.date));
+    const start = new Date(Date.UTC(year,month-1,dayOfMonth));
+    start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+    const weekStart = start.toISOString().slice(0,10);
+    const completedDays = new Set(logs.filter(x => x.routineId === routine.id && x.status === "done" && x.date >= weekStart && x.date <= localDateKey).map(x => x.date));
     return completedDays.size < Number(routine.timesPerWeek || 0);
   }
   return true;
@@ -708,7 +712,7 @@ const skincareDateDistance = (from, to) => {
 export function buildSkinFollowUps({
   today = new Date().toISOString().slice(0, 10),
   products = [], units = [], routines = [], routineLogs = [], trials = [], reactions = [],
-  expiryWindowDays = 30, trialWindowDays = 7,
+  expiryWindowDays = 30, trialWindowDays = 7, timezone = "Africa/Cairo",
 } = {}) {
   const items = [];
   const add = item => items.push({ ...item, id: item.id || [item.type, item.sourceId, item.dueDate || today].join(":") });
@@ -731,11 +735,11 @@ export function buildSkinFollowUps({
       dueDate: unit.expiresOn, daysRemaining: distance, priority: distance < 0 ? "high" : "normal",
       productName: product?.name || "", page: "units", action: "مراجعة العبوة" });
   }
-  const localDate = new Date(String(today) + "T12:00:00");
+  const localDate = new Date(String(today) + "T12:00:00Z");
   const dayLogs = routineLogs.filter(log => log.date === today);
   for (const routine of routines) {
     if (routine.status !== "active" || !routine.reminderEnabled || !routine.reminderTime) continue;
-    if (!isRoutineDue(routine, localDate, routineLogs)) continue;
+    if (!isRoutineDue(routine, localDate, routineLogs, timezone)) continue;
     const steps = (routine.steps || []).filter(step => !step.archived);
     const pending = steps.filter(step => !dayLogs.some(log => log.routineId === routine.id && log.stepId === step.id && ["done", "skipped"].includes(log.status)));
     if (!pending.length) continue;
