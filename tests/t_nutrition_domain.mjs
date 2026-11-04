@@ -99,6 +99,8 @@ const portionFood={...food,portions:household.value};
 assert.equal(convertFoodQuantity(portionFood,2,"portion:"+household.value[0].id),480);
 const portionSnapshot=snapshotFoodLog(portionFood,1,"portion:"+household.value[0].id,{id:"portion-log"});
 assert.equal(portionSnapshot.quantityBase,240);
+assert.equal(portionSnapshot.unitLabel,"كوب");
+assert.equal(portionSnapshot.unitFactor,240);
 assert.equal(parseHouseholdPortions("كوب = 0","g").ok,false);
 assert.equal(parseHouseholdPortions("كوب = 240\nكوب = 120","g").ok,false,"duplicate household portion labels are rejected");
 const denseFood={...food,densityGPerMl:1.03,servingAmount:30};
