@@ -82,4 +82,14 @@ assert.match(tools, /بحث في السجلات/);
 assert.match(tools, /normalizeSkinSearchText\(query\)/);
 assert.match(tools, /from&&to&&from>to\?\[\]/);
 
+
+assert.match(index, /skinUnitCostPerDay/);
+assert.match(index, /expirySoonDays=\{settings\?\.expirySoonDays \?\? 30\}/);
+assert.match(index, /skinUnitStatus\(unit, todayKey, expirySoonDays\)/);
+assert.match(followups, /expiryWindowDays = 30/);
+assert.match(followups, /weekStartDay = 0/);
+assert.match(followups, /buildSkinFollowUps\(\{ today, timezone, weekStartDay, expiryWindowDays/);
+assert.match(domain, /export function isValidSkinDateKey/);
+assert.match(domain, /export function skinUnitCostPerDay/);
+
 console.log("Skincare completion contract tests passed.");
