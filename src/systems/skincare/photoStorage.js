@@ -204,7 +204,7 @@ function dataUrlToBlob(value, expectedType) {
   return new Blob([bytes],{type:match[1]});
 }
 
-export async function exportSkinPhotoFiles({workspaceId,photos=[],maxBytes=40*1024*1024}={}) {
+export async function exportSkinPhotoFiles({workspaceId,photos=[],maxBytes=32*1024*1024}={}) {
   const files={};let totalBytes=0;
   for(const photo of photos.filter(item=>!item.deleted_at&&!item.storagePurgedAt)){
     const urls=await getSkinPhotoSignedUrls({workspaceId,photo});
@@ -212,7 +212,7 @@ export async function exportSkinPhotoFiles({workspaceId,photos=[],maxBytes=40*10
     if(!originalResponse.ok||!thumbResponse.ok) throw new Error("تعذر تنزيل صورة أو مصغرها أثناء إنشاء النسخة الاحتياطية.");
     const [original,thumbnail]=await Promise.all([originalResponse.blob(),thumbResponse.blob()]);
     totalBytes+=original.size+thumbnail.size;
-    if(totalBytes>maxBytes) throw new Error("إجمالي ملفات الصور تجاوز 40 ميجابايت. صدّر بيانات السجلات دون الصور أو قسّم النسخ.");
+    if(totalBytes>maxBytes) throw new Error("إجمالي ملفات الصور تجاوز 32 ميجابايت حتى تبقى نسخة JSON ضمن حد الرفع. صدّر بيانات السجلات دون الصور أو قسّم النسخ.");
     files[photo.id]={original:await blobToDataUrl(original),thumbnail:await blobToDataUrl(thumbnail),originalType:original.type,thumbnailType:thumbnail.type,originalBytes:original.size,thumbnailBytes:thumbnail.size};
   }
   return {files,totalBytes,photoCount:Object.keys(files).length};
