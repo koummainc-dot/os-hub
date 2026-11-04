@@ -74,7 +74,7 @@ assert.match(index, /log\.routineId === routine\.id && log\.stepId === step\.id 
 assert.match(index, /const deleteUnit = async unit => \{\s*if \(!canEdit \|\| busy/);
 assert.match(index, /const toggleRoutine = async routine => \{\s*if \(!canEdit \|\| busy/);
 assert.match(index, /busy=\{busy\} onRestore=\{async log/);
-assert.match(index, /finally \{ setBusy\(false\); \} \} onUndo=\{async log/);
+assert.ok(index.includes("finally { setBusy(false); } }} onUndo={async log"), "routine log restore releases the busy lock before the undo handler");
 assert.match(tools, /RoutineLogsView\(\{logs=\[\],deletedLogs=\[\],routines=\[\],products=\[\],canEdit=false,busy=false/);
 assert.match(tools, /disabled=\{busy\} onClick=\{\(\)=>onUndo\(log\)\}/);
 assert.match(tools, /disabled=\{busy\} onClick=\{\(\)=>onRestore\(log\)\}/);
