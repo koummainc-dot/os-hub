@@ -966,3 +966,17 @@ export function canRestoreSkinList(list = {}, products = []) {
   const productIds = Array.isArray(list.productIds) ? list.productIds : [];
   return productIds.every(id => products.some(product => product.id === id));
 }
+
+
+export function normalizeSkinSearchText(value) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .toLocaleLowerCase("ar")
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/[ک]/g, "ك")
+    .replace(/[ی]/g, "ي")
+    .replace(/[\s_-]+/g, " ")
+    .trim();
+}
