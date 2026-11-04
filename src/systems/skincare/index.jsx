@@ -50,7 +50,7 @@ const SECTIONS = [
 ];
 const EMPTY_PRODUCT = { name: "", brand: "", category: "other", status: "active", suitability: "suitable", startDate: "", expiryDate: "", ingredients: "", instructions: "", notes: "", url: "", stepSlot: "" };
 const EMPTY_UNIT = { name: "", productId: "", purchaseDate: "", openedOn: "", paoMonths: "", expiresOn: "", startedUseDate: "", finishedDate: "", finishReason: "", price: "", currency: "EGP", sizeNote: "", notes: "" };
-const unitCostPerDay = unit => { if (unit.price == null || unit.price === "" || !unit.startedUseDate) return null; const start = Date.parse(unit.startedUseDate + "T00:00:00Z"); const end = Date.parse((unit.finishedDate || today()) + "T00:00:00Z"); const days = Number.isFinite(start) && Number.isFinite(end) ? Math.max(1, Math.floor((end - start) / 86400000) + 1) : 0; return days ? Number(unit.price) / days : null; };
+const unitCostPerDay = (unit, todayKey) => { if (unit.price == null || unit.price === "" || !unit.startedUseDate) return null; const start = Date.parse(unit.startedUseDate + "T00:00:00Z"); const end = Date.parse((unit.finishedDate || todayKey) + "T00:00:00Z"); const days = Number.isFinite(start) && Number.isFinite(end) && end >= start ? Math.floor((end - start) / 86400000) + 1 : 0; return days ? Number(unit.price) / days : null; };
 
 export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = "home", setPage = () => {}, shell }) {
   const store = useRecordStore({ wsId: ws?.id || "demo", systemId: "skincare", isDemo, demoStore: demoStore || { current: {} }, seed: () => ({}) , onToast: message => shell?.toast?.(message) });
@@ -609,6 +609,14 @@ function ProfileView({ profile, draft, setDraft, onSave, canEdit, busy }) {
 }
 
 function ProductsView({ products, deletedProducts, onRestore, draft, setDraft, onSave, onEdit, onDelete, editing, setEditing, canEdit, busy }) {
+  const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const filteredProducts = products.filter(product => {
+    const needle = query.trim().toLocaleLowerCase();
+    const matchesQuery = !needle || [product.name, product.brand, product.ingredients, product.notes].some(value => String(value || "").toLocaleLowerCase().includes(needle));
+    return matchesQuery && (categoryFilter === "all" || product.category === categoryFilter) && (statusFilter === "all" || product.status === statusFilter);
+  });
   return <><Panel title={editing ? "تعديل منتج" : "إضافة منتج"}>
     {canEdit ? <form onSubmit={onSave} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 11 }}>
       <Field title="اسم المنتج" value={draft.name} onChange={v => setDraft(d => ({ ...d, name: v }))} required />
@@ -625,17 +633,32 @@ function ProductsView({ products, deletedProducts, onRestore, draft, setDraft, o
       <label style={{ ...label, gridColumn: "1 / -1" }}>ملاحظات<textarea style={{ ...field, minHeight: 65 }} value={draft.notes} onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))} maxLength={2000} /></label>
       <div style={{ display: "flex", gap: 8 }}><button style={button(true)} disabled={busy}> {editing ? "حفظ التعديل" : "إضافة المنتج"} </button>{editing && <button type="button" style={button()} onClick={() => { setEditing(""); setDraft(EMPTY_PRODUCT); }}>إلغاء</button>}</div>
     </form> : <p style={{ color: C.muted, fontSize: 12 }}>صلاحية العرض فقط.</p>}
-  </Panel><Panel title={"قائمة المنتجات (" + products.length + ")"}>
-    {products.map(p => <article key={p.id} style={{ padding: "12px 0", borderTop: "1px solid " + C.line, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+  </Panel><Panel title={"قائمة المنتجات (" + filteredProducts.length + " من " + products.length + ")"}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 8, margin: "10px 0" }}>
+      <input aria-label="البحث في المنتجات" style={field} value={query} onChange={e => setQuery(e.target.value)} placeholder="ابحث بالاسم أو العلامة أو المكونات" />
+      <select aria-label="تصفية حسب التصنيف" style={field} value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}><option value="all">كل التصنيفات</option>{[["cleanser","غسول"],["moisturizer","مرطب"],["sunscreen","واقي شمس"],["serum","سيروم"],["treatment","علاج"],["toner","تونر"],["mask","قناع"],["other","أخرى"]].map(([value,title]) => <option key={value} value={value}>{title}</option>)}</select>
+      <select aria-label="تصفية حسب الحالة" style={field} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="all">كل الحالات</option>{[["active","نشط"],["paused","متوقف مؤقتًا"],["finished","منتهي"],["discarded","تم التخلص منه"]].map(([value,title]) => <option key={value} value={value}>{title}</option>)}</select>
+    </div>
+    {filteredProducts.map(p => <article key={p.id} style={{ padding: "12px 0", borderTop: "1px solid " + C.line, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
       <div><b>{p.name}</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{p.brand || "بدون علامة"} · {p.category} · {p.status}{p.expiryDate ? " · ينتهي " + p.expiryDate : ""}</div>{p.ingredients && <p style={{ color: C.muted, fontSize: 11, margin: "5px 0" }}>المكونات: {p.ingredients}</p>}{p.url && <a href={p.url} target="_blank" rel="noreferrer" style={{fontSize:11}}>فتح صفحة المنتج ↗</a>}</div>
       {canEdit && <div style={{ display: "flex", gap: 6 }}><button style={button()} onClick={() => onEdit(p)}>تعديل</button><button style={{ ...button(), color: C.danger }} onClick={() => onDelete(p)}>حذف</button></div>}
     </article>)}
     {!products.length && <p style={{ color: C.muted, fontSize: 12 }}>لم تتم إضافة منتجات بعد.</p>}
+    {!!products.length && !filteredProducts.length && <p style={{ color: C.muted, fontSize: 12 }}>لا توجد منتجات تطابق البحث والفلاتر الحالية.</p>}
     {!!deletedProducts.length && <details style={{ marginTop: 12 }}><summary style={{ cursor: "pointer", color: C.muted, fontSize: 12 }}>المحذوفات ({deletedProducts.length})</summary>{deletedProducts.map(p => <div key={p.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "9px 0", borderTop: "1px solid " + C.line }}><span style={{ fontSize: 12 }}>{p.name}</span>{canEdit && <button type="button" style={button()} onClick={() => onRestore(p)}>استعادة</button>}</div>)}</details>}
   </Panel></>;
 }
 
 function UnitsView({ units, deletedUnits, onRestore, products, todayKey, draft, setDraft, onSave, onEdit, onDelete, editing, setEditing, canEdit, busy }) {
+  const [query, setQuery] = useState("");
+  const [productFilter, setProductFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const filteredUnits = units.filter(unit => {
+    const needle = query.trim().toLocaleLowerCase();
+    const productName = products.find(product => product.id === unit.productId)?.name || "";
+    const matchesQuery = !needle || [unit.name, unit.sizeNote, unit.notes, productName].some(value => String(value || "").toLocaleLowerCase().includes(needle));
+    return matchesQuery && (productFilter === "all" || unit.productId === productFilter) && (statusFilter === "all" || skinUnitStatus(unit, todayKey) === statusFilter);
+  });
   return <><Panel title={editing ? "تعديل عبوة" : "تسجيل عبوة"}>
     {canEdit ? <form onSubmit={onSave} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 11 }}>
       <Field title="اسم العبوة" value={draft.name} onChange={v => setDraft(d => ({ ...d, name: v }))} required />
@@ -653,12 +676,18 @@ function UnitsView({ units, deletedUnits, onRestore, products, todayKey, draft, 
       <label style={{ ...label, gridColumn: "1 / -1" }}>ملاحظات<textarea style={{ ...field, minHeight: 65 }} value={draft.notes} onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))} maxLength={1000} /></label>
       <div style={{ display: "flex", gap: 8 }}><button style={button(true)} disabled={busy}>{editing ? "حفظ التعديل" : "إضافة العبوة"}</button>{editing && <button type="button" style={button()} onClick={() => { setEditing(""); setDraft(EMPTY_UNIT); }}>إلغاء</button>}</div>
     </form> : <p style={{ color: C.muted, fontSize: 12 }}>صلاحية العرض فقط.</p>}
-  </Panel><Panel title={"العبوات (" + units.length + ")"}>
-    {units.map(u => <article key={u.id} style={{ padding: "12px 0", borderTop: "1px solid " + C.line, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-      <div><b>{u.name}</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{products.find(p => p.id === u.productId)?.name || "غير مرتبطة بمنتج"} · شراء: {u.purchaseDate || "—"} · فتح: {u.openedOn || "—"} · انتهاء فعلي/محسوب: {effectiveSkinUnitExpiry(u) || "غير معروف"} · الحالة: {skinUnitStatus(u,todayKey)} · السعر: {u.price==null||u.price===""?"—":u.price+" "+(u.currency||"")} · تكلفة الاستخدام اليومية: {unitCostPerDay(u)==null?"غير متاحة":unitCostPerDay(u).toFixed(2)+" "+(u.currency||"")} </div></div>
+  </Panel><Panel title={"العبوات (" + filteredUnits.length + " من " + units.length + ")"}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 8, margin: "10px 0" }}>
+      <input aria-label="البحث في العبوات" style={field} value={query} onChange={e => setQuery(e.target.value)} placeholder="ابحث باسم العبوة أو المنتج" />
+      <select aria-label="تصفية العبوات حسب المنتج" style={field} value={productFilter} onChange={e => setProductFilter(e.target.value)}><option value="all">كل المنتجات</option>{products.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}</select>
+      <select aria-label="تصفية العبوات حسب الحالة" style={field} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="all">كل الحالات</option>{[["unopened","غير مفتوحة"],["active","قيد الاستخدام"],["expiring_soon","قريبة الانتهاء"],["expired","منتهية الصلاحية"],["finished","منتهية الاستخدام"]].map(([value,title]) => <option key={value} value={value}>{title}</option>)}</select>
+    </div>
+    {filteredUnits.map(u => <article key={u.id} style={{ padding: "12px 0", borderTop: "1px solid " + C.line, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div><b>{u.name}</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{products.find(p => p.id === u.productId)?.name || "غير مرتبطة بمنتج"} · شراء: {u.purchaseDate || "—"} · فتح: {u.openedOn || "—"} · انتهاء فعلي/محسوب: {effectiveSkinUnitExpiry(u) || "غير معروف"} · الحالة: {skinUnitStatus(u,todayKey)} · السعر: {u.price==null||u.price===""?"—":u.price+" "+(u.currency||"")} · تكلفة الاستخدام اليومية: {unitCostPerDay(u,todayKey)==null?"غير متاحة":unitCostPerDay(u,todayKey).toFixed(2)+" "+(u.currency||"")} </div></div>
       {canEdit && <div style={{ display: "flex", gap: 6 }}><button style={button()} onClick={() => onEdit(u)}>تعديل</button><button style={{ ...button(), color: C.danger }} onClick={() => onDelete(u)}>حذف</button></div>}
     </article>)}
     {!units.length && <p style={{ color: C.muted, fontSize: 12 }}>لا توجد عبوات مسجلة.</p>}
+    {!!units.length && !filteredUnits.length && <p style={{ color: C.muted, fontSize: 12 }}>لا توجد عبوات تطابق البحث والفلاتر الحالية.</p>}
     {!!deletedUnits.length && <details style={{ marginTop: 12 }}><summary style={{ cursor: "pointer", color: C.muted, fontSize: 12 }}>العبوات المحذوفة ({deletedUnits.length})</summary>{deletedUnits.map(u => <div key={u.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "9px 0", borderTop: "1px solid " + C.line }}><span style={{ fontSize: 12 }}>{u.name}</span>{canEdit && <button type="button" style={button()} onClick={() => onRestore(u)}>استعادة</button>}</div>)}</details>}
   </Panel></>;
 }
