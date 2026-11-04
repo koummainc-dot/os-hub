@@ -671,7 +671,7 @@ function shiftDashboardDate(dateKey, delta) {
 }
 
 export function buildSkinDashboardData({
-  entries = [], trials = [], reactions = [], photos = [], routines = [], routineLogs = [],
+  entries = [], trials = [], reactions = [], photos = [], routines = [], routineLogs = [], products = [], deletedProducts = [],
   endDate = dashboardDateKey(new Date()), days = 30,
 } = {}) {
   const safeDays = [30, 90, 180].includes(Number(days)) ? Number(days) : 30;
@@ -717,8 +717,15 @@ export function buildSkinDashboardData({
   const skippedLogs = rangeLogs.filter(item => item.status === "skipped").length;
   const loggedSteps = doneLogs + skippedLogs;
   const factorAnalysis = analyzeSkinFactors(rangeEntries);
+  const visibleProducts = products.filter(item => !item.deleted_at);
+  const productSummary = {
+    activeCount: visibleProducts.filter(item => item.status === "active").length,
+    inactiveCount: visibleProducts.filter(item => item.status !== "active").length,
+    deletedCount: deletedProducts.filter(item => Boolean(item.deleted_at)).length,
+    savedCount: visibleProducts.length,
+  };
   return {
-    startDate, endDate, days: safeDays, timeline,
+    startDate, endDate, days: safeDays, timeline, productSummary,
     daysWithRating: new Set(ratedEntries.map(entry => entry.date)).size,
     daysWithoutRating: safeDays - new Set(ratedEntries.map(entry => entry.date)).size,
     averageRating: mean(ratedEntries.map(entry => Number(entry.skinRating))),
