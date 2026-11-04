@@ -3,7 +3,7 @@ import {
   emptyNutritionData,normalizeNutritionData,nutritionToday,validateFood,scaleNutrients,snapshotFoodLog,
   validateFoodLog,calculateRecipeNutrition,summarizeNutritionDay,normalizeSearch,searchFoods,validateGoal,
   validateWater,buildGroceryNeeds,validateNutritionImport,validateRecipe,validateCookingBatch,remainingBatchServings,nutritionAnalytics,nutritionDeletionBlocker,
-  buildQuickNutritionLog,buildOutsideHomeLog
+  buildQuickNutritionLog,buildOutsideHomeLog,convertFoodQuantity
 } from "../src/systems/nutrition/domain.js";
 
 const base=emptyNutritionData();
@@ -92,6 +92,16 @@ const scaledNeeds=buildGroceryNeeds({planSlots:[{id:"s1",recipeId:"r-multi",port
 assert.equal(scaledNeeds.find(x=>x.foodId==="f1").amount,300);
 assert.equal(scaledNeeds.find(x=>x.foodId==="f2").amount,600);
 assert.deepEqual(scaledNeeds.find(x=>x.foodId==="f1").sourceSlotIds,["s1","s2"]);
+const denseFood={...food,densityGPerMl:1.03,servingAmount:30};
+assert.equal(convertFoodQuantity(denseFood,50,"ml"),51.5);
+assert.equal(convertFoodQuantity(denseFood,2,"serving"),60);
+assert.throws(()=>convertFoodQuantity(food,50,"ml"),/الكثافة/);
+const mlSnapshot=snapshotFoodLog(denseFood,50,"ml",{id:"ml-log"});
+assert.equal(mlSnapshot.quantityBase,51.5);
+assert.equal(mlSnapshot.nutrientsSnapshot.calories,200.34);
+assert.equal(validateFoodLog({foodId:"f1",dateTime:"2026-11-01T10:00:00Z",amount:50,unit:"ml"},[food]).ok,false);
+assert.equal(validateFood({...food,densityGPerMl:-1}).ok,false);
+assert.equal(searchFoods([{...food,name:"ملوخية"}],"مُلَوْخِيّـه").length,1,"Arabic harakat and tatweel should be ignored");
 const quick=buildQuickNutritionLog({name:"وجبة سريعة",dateTime:"2026-11-04T08:00:00Z",localDate:"2026-11-04",nutrients:{calories:420,proteinG:24,carbsG:"",fatG:""}});
 assert.equal(quick.ok,true);
 assert.equal(quick.value.entryKind,"QuickMacros");
