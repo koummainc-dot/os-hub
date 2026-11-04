@@ -67,3 +67,4 @@ CREATE OR REPLACE FUNCTION public.fin__audit(
 GRANT USAGE ON SCHEMA public, auth TO authenticated;
 GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ws_access_level(uuid,text,text) TO authenticated;
+GRANT SELECT ON public.finance_transactions TO authenticated;
