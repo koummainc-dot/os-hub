@@ -1039,3 +1039,10 @@
 - لم يتم إنشاء Supabase development branch؛ تكلفته المقدرة `$0.01344/hour` (حوالي `$9.81` لكل 730 ساعة).
 - ما زال S7.2 محجوبًا حتى إنشاء migration عبر Supabase CLI وتثبيت RPC؛ لا توجد دالة restore في الإنتاج، وزر الاستعادة يبقى معطّلًا تلقائيًا.
 - لم يتم تفعيل Skincare في `OS_SYSTEMS` أو تطبيق migrations أو الدمج أو النشر.
+
+
+## 11.25 — مراجعة زر إزالة خطوة الروتين — 2026-11-04
+
+أظهر فحص أزرار Skincare وجود callback متداخل وغير صالح في زر «إزالة» خطوة الروتين. تم إصلاحه ليُنفذ `removeStep(step)` مباشرة. أضيف assertion في `t_skincare_completion_contract.mjs` يمنع عودة هذا النمط. تمت مراجعة بقية أزرار شاشات Skincare المعروفة بحثًا عن callbacks متداخلة أو inert handlers؛ لم تظهر أنماط مماثلة في الفحص الساكن.
+
+هذا إصلاح كود فقط، ولم يُشغّل Build أو Runtime UI test بعد.
