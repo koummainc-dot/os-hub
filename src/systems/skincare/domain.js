@@ -726,13 +726,15 @@ export function buildSkinFollowUps({
       page: "products", action: "مراجعة المنتج" });
   }
   for (const unit of units) {
-    if (!unit.expiresOn) continue;
-    const distance = skincareDateDistance(today, unit.expiresOn);
+    const effectiveExpiry = effectiveSkinUnitExpiry(unit);
+    if (!effectiveExpiry || unit.finishedDate) continue;
+    const distance = skincareDateDistance(today, effectiveExpiry);
     if (distance === null || distance > expiryWindowDays) continue;
     const product = products.find(item => item.id === unit.productId);
+    const source = unit.expiresOn && effectiveExpiry === unit.expiresOn ? "تاريخ الانتهاء المطبوع" : "مدة الصلاحية بعد الفتح";
     add({ type: "unit-expiry", sourceId: unit.id, title: unit.name,
-      description: distance < 0 ? "تاريخ انتهاء العبوة مرّ؛ راجعها قبل الاستخدام." : distance === 0 ? "تاريخ انتهاء العبوة اليوم." : "متبقي " + distance + " يومًا على تاريخ انتهاء العبوة.",
-      dueDate: unit.expiresOn, daysRemaining: distance, priority: distance < 0 ? "high" : "normal",
+      description: distance < 0 ? "تاريخ الانتهاء المحسوب مرّ؛ راجع العبوة قبل الاستخدام." : distance === 0 ? "تاريخ الانتهاء المحسوب اليوم." : "متبقي " + distance + " يومًا حسب " + source + ".",
+      dueDate: effectiveExpiry, daysRemaining: distance, priority: distance < 0 ? "high" : "normal",
       productName: product?.name || "", page: "units", action: "مراجعة العبوة" });
   }
   const localDate = new Date(String(today) + "T12:00:00Z");
