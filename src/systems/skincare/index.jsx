@@ -210,7 +210,15 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     const result = await store.api.softDelete(SKINCARE_COLLECTIONS.products, product.id);
     if (result) say("تم نقل المنتج إلى المحذوفات ويمكن استعادته من سجل المحذوفات عند إضافته.");
   };
-  const restoreProduct = async product => { const result = await store.api.restore(SKINCARE_COLLECTIONS.products, product.id); if (result) say("تمت استعادة المنتج."); };
+  const restoreProduct = async product => {
+    if (!canEdit || busy) return;
+    const duplicate = products.find(item => item.id !== product.id &&
+      normalizeINCIName(item.name) === normalizeINCIName(product.name) &&
+      normalizeINCIName(item.brand) === normalizeINCIName(product.brand));
+    if (duplicate) return say("يوجد منتج نشط بالاسم والعلامة التجارية نفسيهما؛ غيّر بيانات أحدهما قبل الاستعادة.");
+    const result = await store.api.restore(SKINCARE_COLLECTIONS.products, product.id);
+    if (result) say("تمت استعادة المنتج.");
+  };
   const saveUnit = async e => {
     e.preventDefault();
     if (!canEdit) return;
