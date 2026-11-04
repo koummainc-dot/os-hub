@@ -174,7 +174,7 @@ const FIELDS={
  ]
 };
 
-const FIELD_ALIAS={content:"content",links:"links",seoAudit:"seoAudit",geo:"geo",ai:"ai",business:"business",competitors:"competitors",experiments:"experiments",products:"products",affiliate:"affiliate",compliance:"checklist",security:"checklist",portfolio:"portfolio",phases:"profiles"};
+const FIELD_ALIAS={content:"content",links:"links",seoAudit:"seoAudit",geo:"geo",ai:"ai",business:"business",competitors:"competitors",experiments:"experiments",products:"products",affiliate:"affiliate",compliance:"checklist",security:"checklist",portfolio:"portfolio"};
 const clone=o=>JSON.parse(JSON.stringify(o));
 function fieldsFor(id){return FIELDS[id]||COMMON;}
 function makeWorkflow(type){const ct=VENTURES_PLATFORM.platform.contentTypes.find(x=>x.id===type)||VENTURES_PLATFORM.platform.contentTypes[0];return {content_type_id:ct.id,content_type_name:ct.name,stages:clone(ct.stages||[]).map(s=>({...s,status:"Todo",completed:false,values:{},taskState:(s.tasks||[]).reduce((a,t)=>(a[t.id]=false,a),{})}))};}
