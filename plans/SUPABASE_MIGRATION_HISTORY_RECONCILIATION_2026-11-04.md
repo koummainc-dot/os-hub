@@ -397,3 +397,13 @@ A read-only catalog inspection was run against production after identifying the 
 - Health catalog includes the expected medication and flare status/severity constraints, including `health_medications_status_check`, `health_flare_events_status_check`, `health_flare_events_status_date_check`, and severity checks on symptom/flare records.
 
 This is evidence that major schema effects of the unmatched Finance and Health history entries are present. It is **not** proof that the historical SQL bytes match the deleted/missing source migrations. Do not reconstruct or replay those migrations from guessed intent. Recover their original SQL from a trusted historical source or compare exact catalog definitions and migration dependencies before proposing a non-replaying repair.
+
+
+### Additional Finance function privilege evidence
+
+A read-only `has_function_privilege` catalog query for the Finance asset, budget, and recurring RPCs found:
+
+- `fin_asset_upsert`, `fin_asset_status_update`, `fin_asset_confirm_valuation`, and `fin_asset_valuation_history_get` are SECURITY DEFINER with an empty search path configuration; `anon` cannot execute them and `authenticated` can.
+- `fin_budget_upsert`, `fin_budget_template_save`, `fin_recurring_defer`, `fin_recurring_save`, and `fin_recurring_skip` showed the same privilege pattern in this query.
+
+This supports that the security-hardening effects associated with some unmatched Finance history names are present in the live catalog. It still does not recover the original migration source or prove every statement in those historical migrations.
