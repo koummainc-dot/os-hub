@@ -16,7 +16,16 @@ export function SkinCompareView({products=[],units=[],ingredients=[]}){
  const unitSummary=p=>{
   const related=units.filter(u=>u.productId===p.id&&!u.deleted_at);
   const prices=related.filter(u=>Number.isFinite(Number(u.price))&&u.price!==""&&u.price!=null);
-  return {count:related.length,spent:prices.reduce((s,u)=>s+Number(u.price),0),currency:prices[0]?.currency||"",mixed:prices.some(u=>(u.currency||"")!==(prices[0]?.currency||""))};
+  const spent=prices.reduce((sum,u)=>sum+Number(u.price),0);
+  const currency=prices[0]?.currency||"";
+  const mixed=prices.some(u=>(u.currency||"")!==currency);
+  const costPerDay=prices.filter(u=>u.startedUseDate).map(u=>{
+   const start=Date.parse(u.startedUseDate+"T00:00:00Z");
+   const end=Date.parse((u.finishedDate||new Date().toISOString().slice(0,10))+"T00:00:00Z");
+   const days=Number.isFinite(start)&&Number.isFinite(end)?Math.max(1,Math.floor((end-start)/86400000)+1):null;
+   return days?{value:Number(u.price)/days,currency:u.currency||"EGP"}:null;
+  }).filter(Boolean);
+  return {count:related.length,spent,currency,mixed,costPerDay:costPerDay.length===1?costPerDay[0]:null};
  };
  const inci=p=>String(p.ingredients||"").split(/[,،;؛\n\r·•]+/).map(x=>x.trim()).filter(Boolean);
  const index=new Map();
@@ -30,7 +39,7 @@ export function SkinCompareView({products=[],units=[],ingredients=[]}){
    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:Math.max(520,rows.length*180)}}>
     <thead><tr><th style={{textAlign:"right",padding:8,borderBottom:"1px solid "+C.line}}>المعيار</th>{rows.map(p=><th key={p.id} style={{textAlign:"right",padding:8,borderBottom:"1px solid "+C.line}}>{p.name}</th>)}</tr></thead>
     <tbody>{[
-     ["العلامة التجارية",p=>fmt(p.brand)],["التصنيف",p=>fmt(p.category)],["الحالة",p=>fmt(p.status)],["الملاءمة المسجلة",p=>fmt(p.suitability)],["تاريخ البدء",p=>fmt(p.startDate)],["تاريخ الانتهاء",p=>fmt(p.expiryDate)],["العبوات المسجلة",p=>unitSummary(p).count],["إجمالي أسعار العبوات",p=>{const s=unitSummary(p);return s.mixed?"عملات متعددة":s.count&&s.currency?s.spent.toFixed(2)+" "+s.currency:s.count?s.spent.toFixed(2):"—";}],["مكونات INCI",p=>inci(p).length],["مطابقة مكتبتك",p=>inci(p).filter(x=>index.has(x.toLowerCase())).length],["مكونات غير معروفة",p=>inci(p).filter(x=>!index.has(x.toLowerCase())).length],["رابط المنتج",p=>p.url||"—"]
+     ["العلامة التجارية",p=>fmt(p.brand)],["التصنيف",p=>fmt(p.category)],["الحالة",p=>fmt(p.status)],["الملاءمة المسجلة",p=>fmt(p.suitability)],["تاريخ البدء",p=>fmt(p.startDate)],["تاريخ الانتهاء",p=>fmt(p.expiryDate)],["العبوات المسجلة",p=>unitSummary(p).count],["إجمالي أسعار العبوات",p=>{const s=unitSummary(p);return s.mixed?"عملات متعددة":s.count&&s.currency?s.spent.toFixed(2)+" "+s.currency:s.count?s.spent.toFixed(2):"—";}],["تكلفة العبوة/اليوم (عند اكتمال البيانات)",p=>{const c=unitSummary(p).costPerDay;return c?c.value.toFixed(2)+" "+c.currency:"غير متاح؛ يلزم سعر وتاريخ بدء استخدام لعبوة واحدة";}],["مكونات INCI",p=>inci(p).length],["مطابقة مكتبتك",p=>inci(p).filter(x=>index.has(x.toLowerCase())).length],["مكونات غير معروفة",p=>inci(p).filter(x=>!index.has(x.toLowerCase())).length],["رابط المنتج",p=>p.url||"—"]
     ].map(([title,value])=><tr key={title}><td style={{padding:8,borderBottom:"1px solid "+C.line,color:C.muted}}>{title}</td>{rows.map(p=><td key={p.id} style={{padding:8,borderBottom:"1px solid "+C.line,verticalAlign:"top"}}>{title==="رابط المنتج"&&p.url?<a href={p.url} target="_blank" rel="noreferrer">فتح الرابط</a>:value(p)}</td>)}</tr>)}</tbody>
    </table>
   </div>}
