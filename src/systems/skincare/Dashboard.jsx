@@ -35,9 +35,9 @@ function RatingTimeline({ timeline }) {
   </div>;
 }
 
-export default function SkinDashboard({ diaryEntries, trials, reactions, photos, routines, routineLogs }) {
+export default function SkinDashboard({ endDate, diaryEntries, trials, reactions, photos, routines, routineLogs }) {
   const [days, setDays] = useState(30);
-  const data = useMemo(() => buildSkinDashboardData({ entries: diaryEntries, trials, reactions, photos, routines, routineLogs, days }), [diaryEntries, trials, reactions, photos, routines, routineLogs, days]);
+  const data = useMemo(() => buildSkinDashboardData({ entries: diaryEntries, trials, reactions, photos, routines, routineLogs, endDate, days }), [diaryEntries, trials, reactions, photos, routines, routineLogs, endDate, days]);
   const factorNames = { sleepHours: "ساعات النوم", sleepQuality: "جودة النوم", mood: "المزاج", exerciseMinutes: "النشاط", waterGlasses: "أكواب المياه" };
   const coefficient = value => value === null ? "—" : (value > 0 ? "+" : "") + value.toFixed(2);
   return <div>
