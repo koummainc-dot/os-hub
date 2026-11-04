@@ -1,0 +1,71 @@
+name: Inventory OS SQL smoke tests
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/*inventory*"
+      - "supabase/tests/inventory_os_smoke.sql"
+      - "tests/inventory_sql_bootstrap.sql"
+      - "tests/t_inventory_*.mjs"
+      - "src/systems/inventory/**"
+      - ".github/workflows/inventory-os-sql-smoke.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/*inventory*"
+      - "supabase/tests/inventory_os_smoke.sql"
+      - "tests/inventory_sql_bootstrap.sql"
+      - "tests/t_inventory_*.mjs"
+      - "src/systems/inventory/**"
+      - ".github/workflows/inventory-os-sql-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inventory-postgres-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: inventory_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d inventory_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: inventory_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Inventory domain and migration regression
+        run: |
+          node tests/t_inventory_domain.mjs
+          node tests/t_inventory_migration_plan.mjs
+          node tests/t_inventory_migration_reconcile.mjs
+          node tests/t_inventory_normalized_repository.mjs
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Bootstrap disposable database
+        run: psql -v ON_ERROR_STOP=1 -f tests/inventory_sql_bootstrap.sql
+      - name: Apply Inventory schema and RPC migrations
+        run: |
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261028120000_inventory_p0_foundation.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261028140000_inventory_p1_domain_schema.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261028150000_inventory_snapshot_rpc.sql
+      - name: Verify Inventory RLS, snapshot RPCs, workspace isolation and append-only audit
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/inventory_os_smoke.sql

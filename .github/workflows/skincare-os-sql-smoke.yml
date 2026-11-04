@@ -1,0 +1,68 @@
+name: Skincare OS SQL smoke tests
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/*skincare*"
+      - "supabase/tests/skincare_private_storage_smoke.sql"
+      - "tests/skincare_sql_bootstrap.sql"
+      - "tests/t_skincare_*.mjs"
+      - "src/systems/skincare/**"
+      - ".github/workflows/skincare-os-sql-smoke.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/*skincare*"
+      - "supabase/tests/skincare_private_storage_smoke.sql"
+      - "tests/skincare_sql_bootstrap.sql"
+      - "tests/t_skincare_*.mjs"
+      - "src/systems/skincare/**"
+      - ".github/workflows/skincare-os-sql-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  skincare-postgres-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: skincare_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d skincare_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: skincare_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Skincare domain and Storage contracts
+        run: |
+          node tests/t_skincare_domain.mjs
+          node tests/t_skincare_storage_permissions_contract.mjs
+          node tests/t_skincare_backup_domain.mjs
+          node tests/t_skincare_completion_contract.mjs
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Bootstrap disposable database
+        run: psql -v ON_ERROR_STOP=1 -f tests/skincare_sql_bootstrap.sql
+      - name: Apply Skincare private Storage and collection permission migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103160000_skincare_os_private_storage_and_collection_permissions.sql
+      - name: Verify private bucket, collection mapping, access policies and workspace isolation
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/skincare_private_storage_smoke.sql
