@@ -70,7 +70,7 @@ export function RoutineLogsView({logs=[],deletedLogs=[],routines=[],products=[],
  const [query,setQuery]=useState("");
  const [from,setFrom]=useState("");
  const [to,setTo]=useState("");
- const rows=useMemo(()=>logs.filter(x=>{
+ const rows=useMemo(()=>from&&to&&from>to?[]:logs.filter(x=>{
   const routine=routines.find(r=>r.id===x.routineId);
   const step=routine?.steps?.find(s=>s.id===x.stepId);
   const product=products.find(p=>p.id===step?.productId);
