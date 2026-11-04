@@ -218,6 +218,14 @@ const portfolio = buildSkinDashboardData({
     { id: "discarded", status: "discarded" },
     { id: "soft-deleted", status: "active", deleted_at: "2026-11-03" },
   ],
+  trials: [
+    { id: "active-running", productId: "active", status: "running", startDate: "2026-11-01" },
+    { id: "paused-product-running", productId: "paused", status: "running", startDate: "2026-11-01" },
+    { id: "finished-product-paused", productId: "finished", status: "paused", startDate: "2026-11-01" },
+  ],
   deletedProducts: [{ id: "soft-deleted", deleted_at: "2026-11-03" }],
 });
 assert.deepEqual(portfolio.productSummary, { activeCount: 1, inactiveCount: 3, deletedCount: 1, savedCount: 4 });
+assert.equal(portfolio.runningTrialCount, 1, "only trials linked to active products affect current running counts");
+assert.equal(portfolio.pausedTrialCount, 0, "paused trials on inactive products remain historical, not current metrics");
+assert.equal(portfolio.trialSummaries.length, 3, "historical trial summaries remain available");
