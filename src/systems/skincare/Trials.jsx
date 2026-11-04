@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { summarizeSkinTrial } from "./domain.js";
+import { summarizeSkinTrial, analyzeSkinFactors } from "./domain.js";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", white: "#FFFFFF", accent: "#A855F7", soft: "#FAF5FF", warn: "#B45309" };
 const panel = { background: C.white, border: "1px solid " + C.line, borderRadius: 14, padding: 15, marginBottom: 12 };
@@ -125,6 +125,7 @@ function TrialDetail({ trial, diaryEntries, reactions, photos, summary, onAddDia
   const finish = trial.endDate || today();
   const linkedDiaryEntries = diaryEntries.filter(entry => entry.trialId === trial.id)
     .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const factorAnalysis = analyzeSkinFactors(linkedDiaryEntries);
   const contextualDiaryEntries = diaryEntries.filter(entry =>
     !entry.trialId && entry.date >= trial.startDate && entry.date <= finish
   );
@@ -194,6 +195,19 @@ function TrialDetail({ trial, diaryEntries, reactions, photos, summary, onAddDia
         <summary style={{ cursor: "pointer", color: C.muted, fontSize: 10 }}>إدخالات أخرى في نفس الفترة غير مرتبطة بهذه التجربة ({contextualDiaryEntries.length})</summary>
         {contextualDiaryEntries.map(entry => <div key={entry.id} style={{ color: C.muted, fontSize: 10, marginTop: 5 }}>{entry.date} · {entry.skinRating == null ? "دون تقييم" : entry.skinRating + "/5"}</div>)}
       </details>}
+    </div>
+    <div style={{ border: "1px solid " + C.line, borderRadius: 9, padding: 10, marginBottom: 11 }}>
+      <b style={{ fontSize: 12 }}>العوامل المصاحبة خلال التجربة</b>
+      <div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>يعتمد هذا التحليل على اليوميات المرتبطة بهذه التجربة صراحةً، وليس كل إدخالات الفترة.</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(135px,1fr))", gap: 7, marginTop: 8 }}>
+        {factorAnalysis.correlations.map(item => <div key={item.key} style={{ border: "1px solid " + C.line, borderRadius: 8, padding: 8 }}>
+          <div style={{ color: C.muted, fontSize: 10 }}>{item.label}</div>
+          <b style={{ display: "block", marginTop: 4, fontSize: 13 }}>{item.coefficient == null ? (item.status === "no-variation" ? "لا يوجد تباين" : "بيانات غير كافية") : "r = " + item.coefficient}</b>
+          <div style={{ color: C.muted, fontSize: 9, marginTop: 3 }}>{item.count} يومًا مشتركًا</div>
+        </div>)}
+      </div>
+      {!factorAnalysis.ratedCount && <div style={{ color: C.muted, fontSize: 10, marginTop: 7 }}>أضف يوميات مرتبطة بالتجربة تتضمن تقييم البشرة وعوامل يومية حتى يبدأ التحليل.</div>}
+      <div style={{ color: C.muted, fontSize: 9, marginTop: 7 }}>يُحسب الارتباط عند توفر 5 أيام مشتركة على الأقل. النتائج وصفية ولا تثبت السببية أو أن العامل حسّن البشرة أو أضر بها.</div>
     </div>
     <b style={{ fontSize: 12 }}>المقارنة حسب مراحل التجربة</b>
     <div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>تُحسب المتوسطات من التقييمات الفعلية المسجلة في كل فترة، وتقارن بخط الأساس المحفوظ قبل البداية.</div>
