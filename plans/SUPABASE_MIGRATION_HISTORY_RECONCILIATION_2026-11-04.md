@@ -431,3 +431,10 @@ A repository-wide scan of the 101 migration files found one duplicate 14-digit v
 ## Durable Integration Events migration validation
 
 Draft PR #115 adds an ephemeral PostgreSQL smoke workflow for the existing `20261101150000_os_integration_events.sql` migration. On commit `ab40c127828d73b16903747cb6d7c101d74f5d6c`, the disposable migration test, idempotent publish/load checks, RLS permission checks, RPC grants, realtime publication membership, repository CI, app build, Finance checks, and Knowledge SQL smoke all passed. Production still has no `os_integration_events` table or durable RPC path; the migration remains pending and was not applied. This is validation of the migration's behavior in a disposable database, not authorization to push it into the mixed production history.
+
+
+## Habit/Hobbies Journal validation boundary
+
+Current `main` already contains a disposable PostgreSQL workflow for the four Hobbies Journal privacy/storage/audit/attachment migrations and the restore matrix. The smoke fixture creates two distinct `auth.users` identities and verifies that User B cannot read or update User A's private Journal row or attachment; it also verifies metadata-only immutable audit history, attachment cleanup lifecycle, and restore for seven trash collections plus Journal. This is meaningful two-user RLS coverage in an ephemeral database.
+
+However, the live catalog inspection confirmed the Journal audit/attachment tables, visibility/audit/attachment guard functions, and private storage bucket are absent in production. The four Journal migrations are still pending candidates. Therefore this does **not** replace the outstanding live two-account test or browser reload/restore acceptance. Background notifications and timezone/week-start behavior also remain outside this SQL smoke coverage. No Journal migrations were applied to production in this pass.
