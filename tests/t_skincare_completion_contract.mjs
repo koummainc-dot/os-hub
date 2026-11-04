@@ -27,7 +27,7 @@ assert.match(tools, /export function SkinCompareView/);
 assert.match(tools, /export function SkinListsView/);
 assert.match(tools, /export function RoutineLogsView/);
 assert.match(tools, /export function SkinSettingsView/);
-assert.match(tools, /costPerDay/);
+assert.match(domain, /export function skinUnitCostPerDay/);\nassert.match(index, /skinUnitCostPerDay/);
 assert.match(tools, /تصدير المقارنة CSV/);
 assert.match(tools, /buildSkinComparisonMatrix/);
 assert.match(domain, /summarizeSkinProductUnits/);
