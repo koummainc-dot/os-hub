@@ -70,7 +70,7 @@ export function OutputsView({ projectId }) {
 // ═════ Risks (+ 5×5 matrix) ═════
 export function RisksView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, settings, confirm, openProject, idx, openTask } = useP();
-  const [form, setForm] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState("open"); const [closing, setClosing] = useState(null); const [creatingMitigation, setCreatingMitigation] = useState({}); const convertingRiskIds = useRef(new Set());
+  const [form, setForm] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState("open"); const [closing, setClosing] = useState(null); const [reopening, setReopening] = useState(null); const [creatingMitigation, setCreatingMitigation] = useState({}); const convertingRiskIds = useRef(new Set());
   const base = data.risks.filter((r) => !projectId || r.project_id === projectId);
   const list = base.filter((r) => (st === "all" ? true : st === "open" ? D.isOpenRisk(r) : r.status === st)).sort((a, b) => D.riskScore(b) - D.riskScore(a));
   const canNew = projectId ? can("risk.write", projectsById[projectId]) : data.projects.some((p) => can("risk.write", p));
@@ -78,6 +78,7 @@ export function RisksView({ projectId }) {
   async function changeStatus(r, to) {
     const p = projectsById[r.project_id];
     if (to === "Closed") return setClosing(r);
+    if (to === "Open" && r.status === "Closed") return setReopening(r);
     if (to === "Materialized") {
       if (convertingRiskIds.current.has(r.id)) return;
       convertingRiskIds.current.add(r.id);
