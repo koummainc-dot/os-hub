@@ -64,7 +64,7 @@ export function SkinListsView({lists=[],deletedLists=[],products=[],canEdit=fals
  </section></>;
 }
 
-export function RoutineLogsView({logs=[],deletedLogs=[],routines=[],products=[],canEdit=false,onUndo,onRestore}){
+export function RoutineLogsView({logs=[],deletedLogs=[],routines=[],products=[],canEdit=false,busy=false,onUndo,onRestore}){
  const [status,setStatus]=useState("all");
  const [routineId,setRoutineId]=useState("all");
  const [from,setFrom]=useState("");
@@ -79,8 +79,8 @@ export function RoutineLogsView({logs=[],deletedLogs=[],routines=[],products=[],
    <label style={label}>إلى تاريخ<input style={field} type="date" value={to} onChange={e=>setTo(e.target.value)}/></label>
   </div>
   {!rows.length&&<p style={{fontSize:12,color:C.muted}}>لا توجد سجلات مطابقة للفلاتر.</p>}
-  {rows.map(log=>{const routine=routines.find(r=>r.id===log.routineId);const step=routine?.steps?.find(s=>s.id===log.stepId);const product=products.find(p=>p.id===step?.productId);return <article key={log.id} style={{borderTop:"1px solid "+C.line,padding:"10px 0",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}><span>{log.status==="done"?"✓":"↷"}</span><div style={{flex:1,minWidth:170}}><b style={{fontSize:12}}>{routine?.name||"روتين محذوف"}</b><div style={{fontSize:11,color:C.muted}}>{product?.name||step?.category||"خطوة"} · {log.date} · {log.status==="done"?"تم التنفيذ":"تم التخطي"}</div></div>{canEdit&&<button style={btn()} onClick={()=>onUndo(log)}>نقل السجل إلى المحذوفات</button>}</article>;})}
-  {!!deletedLogs.length&&<details style={{marginTop:10}}><summary style={{cursor:"pointer",fontSize:11,color:C.muted}}>سجلات محذوفة ({deletedLogs.length})</summary>{deletedLogs.map(log=><div key={log.id} style={{display:"flex",gap:8,alignItems:"center",padding:"8px 0",borderTop:"1px solid "+C.line,fontSize:11}}><span style={{flex:1}}>{log.date} · {log.status} · {log.id}</span>{canEdit&&<button style={btn()} onClick={()=>onRestore(log)}>استعادة</button>}</div>)}</details>}
+  {rows.map(log=>{const routine=routines.find(r=>r.id===log.routineId);const step=routine?.steps?.find(s=>s.id===log.stepId);const product=products.find(p=>p.id===step?.productId);return <article key={log.id} style={{borderTop:"1px solid "+C.line,padding:"10px 0",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}><span>{log.status==="done"?"✓":"↷"}</span><div style={{flex:1,minWidth:170}}><b style={{fontSize:12}}>{routine?.name||"روتين محذوف"}</b><div style={{fontSize:11,color:C.muted}}>{product?.name||step?.category||"خطوة"} · {log.date} · {log.status==="done"?"تم التنفيذ":"تم التخطي"}</div></div>{canEdit&&<button style={btn()} disabled={busy} onClick={()=>onUndo(log)}>نقل السجل إلى المحذوفات</button>}</article>;})}
+  {!!deletedLogs.length&&<details style={{marginTop:10}}><summary style={{cursor:"pointer",fontSize:11,color:C.muted}}>سجلات محذوفة ({deletedLogs.length})</summary>{deletedLogs.map(log=><div key={log.id} style={{display:"flex",gap:8,alignItems:"center",padding:"8px 0",borderTop:"1px solid "+C.line,fontSize:11}}><span style={{flex:1}}>{log.date} · {log.status} · {log.id}</span>{canEdit&&<button style={btn()} disabled={busy} onClick={()=>onRestore(log)}>استعادة</button>}</div>)}</details>}
  </section>;
 }
 
