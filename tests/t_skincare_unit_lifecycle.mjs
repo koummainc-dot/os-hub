@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {
   effectiveSkinUnitExpiry, skinUnitStatus, validateSkinUnit,
-  validateSkinProduct, validateSkinList, validateSkinSettings, canRestoreSkinUnit,
+  validateSkinProduct, validateSkinList, validateSkinSettings, canRestoreSkinUnit, hasDuplicateSkinListName,
 } from "../src/systems/skincare/domain.js";
 
 assert.equal(effectiveSkinUnitExpiry({ openedOn: "2026-01-31", paoMonths: 1 }), "2026-02-28");
@@ -26,5 +26,8 @@ assert.equal(validateSkinSettings({ quietStart: "99:99" }).ok, false);
 assert.equal(canRestoreSkinUnit({ id: "u1", productId: "p1" }, [{ id: "p1" }]), true);
 assert.equal(canRestoreSkinUnit({ id: "u1", productId: "p1" }, [{ id: "p1", deleted_at: "2026-11-04" }]), false);
 assert.equal(canRestoreSkinUnit({ id: "u2", productId: "" }, []), true);
+assert.equal(hasDuplicateSkinListName({ id: "new", name: "Wishlist" }, [{ id: "old", name: "wishlist" }]), true);
+assert.equal(hasDuplicateSkinListName({ id: "old", name: "Wishlist" }, [{ id: "old", name: "Wishlist" }]), false);
+assert.equal(hasDuplicateSkinListName({ id: "new", name: "قائمة الصباح" }, [{ id: "old", name: "قائمة المساء" }]), false);
 
 console.log("Skincare unit lifecycle and settings tests passed.");
