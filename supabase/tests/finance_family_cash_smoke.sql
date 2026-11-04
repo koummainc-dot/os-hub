@@ -40,7 +40,7 @@ BEGIN
     '55555555-5555-4555-8555-555555555555',
     'smoke advance'
   );
-  entry_id := public.fin_family_cash_add_entry(
+  PERFORM public.fin_family_cash_add_entry(
     '22222222-2222-4222-8222-222222222222',v_advance_id,'Expense',4,'2026-11-04',NULL,'مشتريات اختبار',NULL
   );
   PERFORM public.fin_family_cash_add_entry(
