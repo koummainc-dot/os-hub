@@ -27,5 +27,5 @@ assert.ok(hardening.includes("health_factor_log")&&hardening.includes("sensitive
 assert.ok(hardening.includes("health_measurements_guard"),"Measurement identity fields must be immutable");
 assert.ok(core.includes("measurements:القياسات الحيوية:📏"),"Core OS must register the measurements section");
 assert.ok(plan.includes("H2.1 — القياسات الحيوية والجسمية"),"Master plan must document H2.1");
-assert.ok(plan.includes("H2.2 — مخطط الجسم (منفذ جزئيًا)")&&plan.includes("H2.3 — البحث الصحي الموحّد (مفتوح)")&&plan.includes("H2.4 — الخط الزمني الصحي (مفتوح)"),"Remaining H2 gaps must remain tracked");
+assert.ok(plan.includes("H2.2 — مخطط الجسم (منفذ جزئيًا)")&&plan.includes("H2.3 — البحث الصحي الموحّد (منفذ جزئيًا)")&&plan.includes("H2.4 — الخط الزمني الصحي (منفذ جزئيًا)"),"Remaining H2 gaps must remain tracked");
 console.log("Health H2.1 measurements contract checks passed.");
