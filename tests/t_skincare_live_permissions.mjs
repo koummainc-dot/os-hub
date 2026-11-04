@@ -32,6 +32,8 @@ assert.match(date, /^\d{4}-\d{2}-\d{2}$/);
 const diaryId = "diary-" + date;
 const photoId = crypto.randomUUID();
 const deniedId = "live-viewer-deny-" + crypto.randomUUID();
+const ownerProfileId = "live-owner-" + crypto.randomUUID();
+const ownerProfileData = { id: ownerProfileId, skinType: "unknown", notes: "isolated owner RLS fixture" };
 const folder = wsId + "/" + diaryId + "/";
 const objectPath = folder + photoId + ".jpg";
 const thumbnailPath = folder + photoId + ".thumb.webp";
@@ -52,6 +54,7 @@ const softDeleteRecord = (db, collection, id, data) => db.from("workspace_record
   .update({ data: { ...data, deleted_at: new Date().toISOString() }, deleted: true })
   .eq("workspace_id", wsId).eq("system_id", "skincare").eq("collection", collection).eq("id", id);
 
+let ownerProfileCreated = false;
 let diaryCreated = false;
 let photoCreated = false;
 let uploaded = false;
@@ -60,6 +63,10 @@ try {
     .eq("workspace_id", wsId).eq("system_id", "skincare").eq("collection", "skin_diary").eq("id", diaryId).maybeSingle();
   if (existing.error) throw existing.error;
   if (existing.data) throw new Error("Test fixture already exists; choose another SKINCARE_TEST_DIARY_DATE.");
+
+  const ownerInsert = await insertRecord(owner, "skin_profile", ownerProfileId, ownerProfileData);
+  if (ownerInsert.error) throw ownerInsert.error;
+  ownerProfileCreated = true;
 
   const diaryInsert = await insertRecord(editor, "skin_diary", diaryId, diaryData);
   if (diaryInsert.error) throw diaryInsert.error;
@@ -119,4 +126,5 @@ try {
   if (photoCreated) await softDeleteRecord(editor, "skin_photos", photoId, photoData);
   if (uploaded) await editor.storage.from("skincare-progress").remove([objectPath, thumbnailPath]);
   if (diaryCreated) await softDeleteRecord(editor, "skin_diary", diaryId, diaryData);
+  if (ownerProfileCreated) await softDeleteRecord(owner, "skin_profile", ownerProfileId, ownerProfileData);
 }
