@@ -47,7 +47,7 @@ const num = v => Number.isFinite(Number(v)) ? Number(v) : 0;
 const nonNegative = v => Number.isFinite(Number(v)) && Number(v)>=0;
 export function normalizeFood(food) {
   const f=food&&typeof food==="object"?food:{};
-  const out={id:String(f.id||""),name:String(f.name||"").trim(),brand:String(f.brand||"").trim(),basisAmount:num(f.basisAmount??100),basisUnit:f.basisUnit==="ml"?"ml":"g",servingAmount:num(f.servingAmount??0),servingUnit:String(f.servingUnit||(f.basisUnit==="ml"?"مل":"جم")),origin:f.origin||"user",verificationLevel:f.verificationLevel||"unverified",status:f.status||"active",aliases:Array.isArray(f.aliases)?f.aliases:[],barcode:String(f.barcode||""),catalogSource:String(f.catalogSource||""),favorite:!!f.favorite,createdAt:f.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  const out={id:String(f.id||""),name:String(f.name||"").trim(),brand:String(f.brand||"").trim(),basisAmount:num(f.basisAmount??100),basisUnit:f.basisUnit==="ml"?"ml":"g",servingAmount:num(f.servingAmount??0),servingUnit:String(f.servingUnit||(f.basisUnit==="ml"?"مل":"جم")),origin:f.origin||"user",verificationLevel:f.verificationLevel||"unverified",status:f.status||"active",aliases:Array.isArray(f.aliases)?f.aliases.map(x=>String(x).trim()).filter(Boolean):[],barcode:String(f.barcode||""),catalogSource:String(f.catalogSource||""),densityGPerMl:num(f.densityGPerMl??0),portions:Array.isArray(f.portions)?f.portions.map((p,i)=>({id:String(p.id||("portion-"+i)),label:String(p.label||"").trim(),amount:num(p.amount),unit:String(p.unit||f.basisUnit)})).filter(p=>p.label&&p.amount>0):[],favorite:!!f.favorite,createdAt:f.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
   for(const key of NUTRIENTS) out[key]=num(f[key]);
   return out;
 }
@@ -57,6 +57,8 @@ export function validateFood(input) {
   if(!Number.isFinite(f.basisAmount)||f.basisAmount<=0) errors.push("كمية الأساس يجب أن تكون أكبر من صفر.");
   for(const key of NUTRIENTS) if(!nonNegative(f[key])) errors.push("قيم العناصر الغذائية لا يمكن أن تكون سالبة.");
   if(!["g","ml"].includes(f.basisUnit)) errors.push("وحدة الأساس غير صالحة.");
+  if(f.densityGPerMl<0) errors.push("الكثافة لا يمكن أن تكون سالبة.");
+  const portionIds=new Set(); for(const portion of f.portions){if(!portion.label||portion.amount<=0||portion.unit!==f.basisUnit) errors.push("كل حصة منزلية تحتاج اسمًا وكمية موجبة بوحدة أساس الغذاء."); if(portionIds.has(portion.id)) errors.push("معرّفات الحصص المنزلية يجب أن تكون فريدة."); portionIds.add(portion.id);}
   return {ok:errors.length===0,errors,value:f};
 }
 export function scaleNutrients(nutrients, consumedAmount, basisAmount=100) {
@@ -66,10 +68,65 @@ export function scaleNutrients(nutrients, consumedAmount, basisAmount=100) {
   for(const key of NUTRIENTS) out[key]=Math.round(num(nutrients?.[key])*amount/basis*100)/100;
   return out;
 }
+export function parseHouseholdPortions(text,basisUnit="g") {
+  const lines=String(text||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean),errors=[],portions=[],seen=new Set();
+  for(const [index,line] of lines.entries()) {
+    const match=line.match(/^(.+?)\s*=\s*(\d+(?:\.\d+)?)$/);
+    if(!match) { errors.push("السطر "+(index+1)+" يجب أن يكون بالصيغة: اسم الحصة = الكمية."); continue; }
+    const label=match[1].trim(),amount=Number(match[2]),key=normalizeSearch(label);
+    if(!label||!Number.isFinite(amount)||amount<=0) { errors.push("اسم الحصة والكمية يجب أن يكونا صالحين في السطر "+(index+1)+"."); continue; }
+    if(seen.has(key)) { errors.push("لا تكرر اسم الحصة المنزلية: "+label+"."); continue; }
+    seen.add(key); portions.push({id:makeNutritionId("portion"),label,amount,unit:basisUnit});
+  }
+  return {ok:errors.length===0,errors,value:errors.length?[]:portions};
+}
+export function convertFoodQuantity(food, amount, unit=food?.basisUnit) {
+  const qty=Number(amount);
+  if(!Number.isFinite(qty)||qty<=0) throw new Error("الكمية يجب أن تكون أكبر من صفر.");
+  if(unit===food?.basisUnit) return qty;
+  if(unit==="serving") { if(!(Number(food?.servingAmount)>0)) throw new Error("لم تُحدد كمية الحصة المعتادة لهذا الغذاء."); return qty*Number(food.servingAmount); }
+  if(String(unit||"").startsWith("portion:")) { const portion=food?.portions?.find(p=>p.id===String(unit).slice(8)); if(!portion) throw new Error("الحصة المنزلية المحددة لم تعد موجودة في تعريف الغذاء."); return qty*Number(portion.amount); }
+  const density=Number(food?.densityGPerMl)||0;
+  if(density<=0) throw new Error("يلزم إدخال الكثافة لتحويل الجرام والملليلتر.");
+  if(food?.basisUnit==="g"&&unit==="ml") return qty*density;
+  if(food?.basisUnit==="ml"&&unit==="g") return qty/density;
+  throw new Error("وحدة الكمية غير متوافقة مع وحدة أساس الغذاء.");
+}
 export function snapshotFoodLog(food, amount, unit, extras={}) {
   if(!food?.id) throw new Error("اختر غذاءً معروفًا قبل تسجيل الاستهلاك.");
-  const nutrients=scaleNutrients(food,amount,food.basisAmount);
-  return {foodId:String(food.id),foodNameSnapshot:String(food.name||"غذاء غير مسمى"),foodBrandSnapshot:String(food.brand||""),amount:num(amount),unit:String(unit||food.basisUnit),basisAmount:num(food.basisAmount),basisUnit:food.basisUnit,nutrientsSnapshot:nutrients,snapshotBasis:"food-version-at-log-time",foodUpdatedAt:food.updatedAt||null,...extras};
+  const selectedUnit=String(unit||food.basisUnit),quantityBase=convertFoodQuantity(food,amount,selectedUnit);
+  const nutrients=scaleNutrients(food,quantityBase,food.basisAmount);
+  const portion=selectedUnit.startsWith("portion:")?food.portions?.find(p=>p.id===selectedUnit.slice(8)):null;
+  const unitLabel=portion?.label||(selectedUnit==="serving"?(food.servingUnit||"حصة"):selectedUnit==="g"?"جم":selectedUnit==="ml"?"مل":selectedUnit);
+  return {foodId:String(food.id),foodNameSnapshot:String(food.name||"غذاء غير مسمى"),foodBrandSnapshot:String(food.brand||""),amount:num(amount),unit:selectedUnit,unitLabel,unitFactor:quantityBase/Number(amount),quantityBase,basisAmount:num(food.basisAmount),basisUnit:food.basisUnit,nutrientsSnapshot:nutrients,snapshotBasis:"food-version-at-log-time",foodUpdatedAt:food.updatedAt||null,...extras};
+}
+export function buildQuickNutritionLog(input={}) {
+  const name=String(input.name||"").trim(), nutrients=input.nutrients&&typeof input.nutrients==="object"?input.nutrients:{};
+  const values=Object.fromEntries(NUTRIENTS.map(key=>{const raw=nutrients[key];return [key,raw===null||raw===undefined||raw===""?null:Number(raw)];}));
+  const errors=[];
+  if(!name) errors.push("اسم الإدخال مطلوب.");
+  if(values.calories===null||!Number.isFinite(values.calories)||values.calories<0) errors.push("السعرات مطلوبة ويجب ألا تكون سالبة.");
+  for(const key of NUTRIENTS) if(values[key]!==null&&(!Number.isFinite(values[key])||values[key]<0)) errors.push("قيم المغذيات يجب أن تكون أرقامًا غير سالبة.");
+  const dateTime=input.dateTime||new Date().toISOString();
+  if(!Number.isFinite(Date.parse(dateTime))) errors.push("تاريخ ووقت الإدخال غير صالح.");
+  if(errors.length) return {ok:false,errors,value:null};
+  const complete=Object.values(values).every(value=>value!==null);
+  return {ok:true,errors:[],value:{id:String(input.id||makeNutritionId("log")),foodNameSnapshot:name,amount:1,unit:"entry",dateTime,localDate:String(input.localDate||dateTime.slice(0,10)),mealType:String(input.mealType||"other"),notes:String(input.notes||""),source:String(input.source||"quick-macros"),entryKind:String(input.entryKind||"QuickMacros"),confidence:"Exact",completeness:complete?"complete":"partial",nutrientsSnapshot:values,createdAt:input.createdAt||new Date().toISOString()}};
+}
+export function buildOutsideHomeLog(input={}) {
+  const base=buildQuickNutritionLog({...input,source:"outside-home-estimate",entryKind:"OutOfHome"});
+  if(!base.ok) return base;
+  const calories=base.value.nutrientsSnapshot.calories;
+  const min=input.rangeMin===""||input.rangeMin===null||input.rangeMin===undefined?null:Number(input.rangeMin);
+  const max=input.rangeMax===""||input.rangeMax===null||input.rangeMax===undefined?null:Number(input.rangeMax);
+  const errors=[];
+  if(!String(input.venue||"").trim()) errors.push("اسم المكان أو المطعم مطلوب.");
+  if(min!==null&&(!Number.isFinite(min)||min<0||min>calories)) errors.push("الحد الأدنى يجب أن يكون رقمًا غير سالب ولا يتجاوز السعرات المقدرة.");
+  if(max!==null&&(!Number.isFinite(max)||max<calories)) errors.push("الحد الأعلى يجب ألا يقل عن السعرات المقدرة.");
+  if(min!==null&&max!==null&&min>max) errors.push("الحد الأعلى يجب ألا يقل عن الحد الأدنى.");
+  if(!["Menu","SimilarItem","Visual","Guess"].includes(input.estimationMethod||"Visual")) errors.push("طريقة التقدير غير صالحة.");
+  if(errors.length) return {ok:false,errors,value:null};
+  return {ok:true,errors:[],value:{...base.value,venueLabel:String(input.venue).trim(),rangeMinKcal:min,rangeMaxKcal:max,estimationMethod:input.estimationMethod||"Visual",confidence:"Estimated",notes:String(input.notes||"")}};
 }
 export function validateFoodLog(input, foods=[]) {
   const x=input&&typeof input==="object"?input:{},errors=[];
@@ -78,6 +135,7 @@ export function validateFoodLog(input, foods=[]) {
   if(!x.dateTime||!Number.isFinite(Date.parse(x.dateTime))) errors.push("تاريخ ووقت الوجبة غير صالح.");
   if(!Number.isFinite(Number(x.amount))||Number(x.amount)<=0) errors.push("الكمية يجب أن تكون أكبر من صفر.");
   if(hasFood&&!foods.some(f=>f.id===x.foodId)) errors.push("الغذاء المحدد غير موجود.");
+  if(hasFood&&foods.some(f=>f.id===x.foodId)) { const food=foods.find(f=>f.id===x.foodId); try { convertFoodQuantity(food,x.amount,x.unit||food.basisUnit); } catch(e) { errors.push(e.message); } }
   return {ok:errors.length===0,errors};
 }
 export function calculateRecipeNutrition(recipe, ingredients=[], foods=[]) {
@@ -96,16 +154,22 @@ export function summarizeNutritionDay({date,logs=[],water=[],goals=[]}) {
   const dayLogs=logs.filter(x=>String(x.localDate||x.dateTime||"").slice(0,10)===date&&!x.deleted_at);
   const dayWater=water.filter(x=>String(x.localDate||x.dateTime||"").slice(0,10)===date&&!x.deleted_at);
   const totals=Object.fromEntries(NUTRIENTS.map(k=>[k,0]));
-  for(const log of dayLogs) for(const key of NUTRIENTS) totals[key]+=num(log.nutrientsSnapshot?.[key]);
-  for(const key of NUTRIENTS) totals[key]=Math.round(totals[key]*100)/100;
+  const coverage=Object.fromEntries(NUTRIENTS.map(k=>[k,{known:0,missing:0,complete:true}]));
+  for(const log of dayLogs) for(const key of NUTRIENTS) {
+    const value=log.nutrientsSnapshot?.[key];
+    if(value===null||value===undefined||value==="") coverage[key].missing++;
+    else if(Number.isFinite(Number(value))&&Number(value)>=0) { totals[key]+=Number(value); coverage[key].known++; }
+    else coverage[key].missing++;
+  }
+  for(const key of NUTRIENTS) { totals[key]=Math.round(totals[key]*100)/100; coverage[key].complete=coverage[key].missing===0; }
   const waterMl=dayWater.reduce((sum,x)=>sum+num(x.amountMl),0);
   const goal=goals.find(x=>x.active!==false&&!x.deleted_at)||null;
   const target=goal?.targets&&typeof goal.targets==="object"?goal.targets:{};
   const variance=Object.fromEntries(NUTRIENTS.filter(k=>target[k]!==undefined&&target[k]!==null&&target[k]!=="").map(k=>[k,Math.round((totals[k]-num(target[k]))*100)/100]));
-  return {date,totals,waterMl,mealCount:dayLogs.length,waterEntries:dayWater.length,goalId:goal?.id||null,goalTargets:{...target},variance,completion:dayLogs.length===0?"empty":dayLogs.some(x=>x.completeness==="partial")?"partial":"logged"};
+  return {date,totals,coverage,waterMl,mealCount:dayLogs.length,waterEntries:dayWater.length,goalId:goal?.id||null,goalTargets:{...target},variance,completion:dayLogs.length===0?"empty":dayLogs.some(x=>x.completeness==="partial")?"partial":"logged"};
 }
 export function normalizeSearch(value) {
-  return String(value||"").normalize("NFKC").toLocaleLowerCase("ar").replace(/[أإآ]/g,"ا").replace(/ى/g,"ي").replace(/ة/g,"ه").trim();
+  return String(value||"").normalize("NFKC").toLocaleLowerCase("ar").replace(/[\u064B-\u065F\u0670\u0640]/g,"").replace(/[أإآ]/g,"ا").replace(/ى/g,"ي").replace(/ة/g,"ه").trim();
 }
 export function searchFoods(foods, query) {
   const q=normalizeSearch(query); if(!q) return foods.slice();
