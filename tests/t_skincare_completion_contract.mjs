@@ -9,6 +9,7 @@ const backup = read("../src/systems/skincare/Backup.jsx");
 const photo = read("../src/systems/skincare/photoStorage.js");
 const ingredients = read("../src/systems/skincare/Ingredients.jsx");
 const followups = read("../src/systems/skincare/FollowUps.jsx");
+const dashboard = read("../src/systems/skincare/Dashboard.jsx");
 const routines = read("../src/systems/skincare/Routines.jsx");
 const trials = read("../src/systems/skincare/Trials.jsx");
 const reactions = read("../src/systems/skincare/Reactions.jsx");
@@ -106,3 +107,9 @@ assert.match(reactions, /reaction\.productNameSnapshot/);
 assert.match(tools, /log\.productNameSnapshot/);
 
 console.log("Skincare completion contract tests passed.");
+
+assert.match(domain, /productSummary/);
+assert.match(dashboard, /data\.productSummary\.activeCount/);
+assert.match(dashboard, /data\.productSummary\.inactiveCount/);
+assert.match(dashboard, /data\.productSummary\.deletedCount/);
+assert.match(index, /deletedProducts=\{deletedProducts\}/);
