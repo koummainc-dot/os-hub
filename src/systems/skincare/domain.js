@@ -865,7 +865,7 @@ const SKIN_PRODUCT_CSV_FIELDS = [
 ];
 
 function parseCsvMatrix(input) {
-  const source = String(input || "").replace(/^\\uFEFF/, "");
+  const source = String(input || "").replace(/^\uFEFF|^\\uFEFF/, "");
   if (source.length > 5 * 1024 * 1024) return { ok: false, error: "ملف CSV أكبر من 5 ميجابايت." };
   const rows = [];
   let row = [], cell = "", quoted = false;
@@ -877,8 +877,8 @@ function parseCsvMatrix(input) {
       else cell += char;
     } else if (char === '"' && cell.length === 0) quoted = true;
     else if (char === ",") { row.push(cell); cell = ""; }
-    else if (char === "\\n" || char === "\\r") {
-      if (char === "\\r" && source[i + 1] === "\\n") i++;
+    else if (char === "\n" || char === "\r") {
+      if (char === "\\r" && source[i + 1] === "\n") i++;
       row.push(cell); cell = "";
       if (row.some(value => String(value).trim() !== "")) rows.push(row);
       row = [];
@@ -924,7 +924,7 @@ export function parseSkinProductsCsv(input) {
 export function serializeSkinProductsCsv(products = [], deletedProducts = []) {
   const escape = value => {
     let text = String(value ?? "");
-    if (/^\\s*[=+@-]/.test(text)) text = "'" + text;
+    if (/^\s*[=+@-]/.test(text)) text = "'" + text;
     return '"' + text.replace(/"/g, '""') + '"';
   };
   const rows = [...products.filter(item => !item.deleted_at), ...deletedProducts.filter(item => Boolean(item.deleted_at))];
