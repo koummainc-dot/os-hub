@@ -69,8 +69,8 @@ export function OutputsView({ projectId }) {
 
 // ═════ Risks (+ 5×5 matrix) ═════
 export function RisksView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, settings, confirm, openProject } = useP();
-  const [form, setForm] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState("open"); const [closing, setClosing] = useState(null); const convertingRiskIds = useRef(new Set());
+  const { data, A: act, can, projectsById, people, toast, settings, confirm, openProject, idx, openTask } = useP();
+  const [form, setForm] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState("open"); const [closing, setClosing] = useState(null); const [creatingMitigation, setCreatingMitigation] = useState({}); const convertingRiskIds = useRef(new Set());
   const base = data.risks.filter((r) => !projectId || r.project_id === projectId);
   const list = base.filter((r) => (st === "all" ? true : st === "open" ? D.isOpenRisk(r) : r.status === st)).sort((a, b) => D.riskScore(b) - D.riskScore(a));
   const canNew = projectId ? can("risk.write", projectsById[projectId]) : data.projects.some((p) => can("risk.write", p));
@@ -98,7 +98,7 @@ export function RisksView({ projectId }) {
     }
     await act.put("risks", { ...r, status: to }, p);
   }
-  const submit = async (v) => { const errs = D.validateRisk(v); if (errs.length) throw new Error(errs[0]); for (const taskId of (v.mitigation_task_ids || [])) { const task = idx.byId[taskId]; if (!task || task.project_id !== v.project_id) throw new Error("مهام تخفيف الخطر يجب أن تتبع المشروع نفسه."); } await act.put("risks", { ...v, id: v.id || uid(), status: v.status || "Open" }, projectsById[v.project_id]); toast("✅ تم الحفظ"); setForm(null); };
+  async function createMitigationTask(r) { if (creatingMitigation[r.id]) return; setCreatingMitigation((x) => ({ ...x, [r.id]: true })); try { const task = await act.createRiskMitigationTask(r.id); if (task) { toast("✅ تم إنشاء مهمة تخفيف الخطر وربطها"); openTask(task.id); } } catch (error) { toast("⛔ لم تُنشأ مهمة التخفيف: " + (error?.message || "فشل الحفظ")); } finally { setCreatingMitigation((x) => { const next = { ...x }; delete next[r.id]; return next; }); } }\n  const submit = async (v) => { const errs = D.validateRisk(v); if (errs.length) throw new Error(errs[0]); const taskIds = [...new Set([...(v.task_ids || []), ...(v.mitigation_task_ids || [])])]; for (const taskId of taskIds) { const task = idx.byId[taskId]; if (!task || task.project_id !== v.project_id) throw new Error("مهام تخفيف الخطر يجب أن تتبع المشروع نفسه."); } await act.put("risks", { ...v, task_ids: taskIds, mitigation_task_ids: taskIds, id: v.id || uid(), status: v.status || "Open" }, projectsById[v.project_id]); toast("✅ تم الحفظ"); setForm(null); };
   return (
     <div>
       {!projectId && <Head title="المخاطر والمشاكل والقرارات" sub="" />}
@@ -115,8 +115,9 @@ export function RisksView({ projectId }) {
         <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((r) => (
           <div key={r.id} style={{ display: "grid", gridTemplateColumns: "44px 1fr auto", gap: 10, padding: "9px 0", borderBottom: `1px solid ${C.line}`, alignItems: "center" }}>
             <div style={{ textAlign: "center" }}><div style={{ fontSize: 17, fontWeight: 800, color: lvlColor(r) }}>{D.riskScore(r)}</div><div style={{ fontSize: 9, color: C.muted }}>{r.probability}×{r.impact}</div></div>
-            <div><div style={{ fontSize: 13, fontWeight: 700 }}>{r.title} <Chip color={STATUS_COLOR[r.status]}>{L.riskStatus[r.status]}</Chip></div><div style={{ fontSize: 11.5, color: C.dim }}>{r.mitigation || "—"}</div><div style={{ fontSize: 11, color: C.muted, display: "flex", gap: 10, alignItems: "center" }}>{!projectId && <ProjectName id={r.project_id} />}<Who id={r.owner_id} size={15} />{r.review_date && <span>مراجعة {fmtShort(r.review_date)}</span>}{r.converted_issue_id && <button type="button" onClick={() => openProject(r.project_id, "issues")} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>↗ فتح المشكلة المرتبطة</button>}</div></div>
+            <div><div style={{ fontSize: 13, fontWeight: 700 }}>{r.title} <Chip color={STATUS_COLOR[r.status]}>{L.riskStatus[r.status]}</Chip></div><div style={{ fontSize: 11.5, color: C.dim }}>{r.mitigation || "—"}</div>{(r.task_ids || r.mitigation_task_ids || []).map((id) => idx.byId[id]).filter(Boolean).map((t) => <Btn key={t.id} small onClick={() => openTask(t.id)}>🛠 {t.title}</Btn>)}<div style={{ fontSize: 11, color: C.muted, display: "flex", gap: 10, alignItems: "center" }}>{!projectId && <ProjectName id={r.project_id} />}<Who id={r.owner_id} size={15} />{r.review_date && <span>مراجعة {fmtShort(r.review_date)}</span>}{r.converted_issue_id && <button type="button" onClick={() => openProject(r.project_id, "issues")} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>↗ فتح المشكلة المرتبطة</button>}</div></div>
             <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
+              {D.isOpenRisk(r) && can("risk.write", projectsById[r.project_id]) && can("task.write", projectsById[r.project_id]) && <Btn small disabled={!!creatingMitigation[r.id]} onClick={() => createMitigationTask(r)}>{creatingMitigation[r.id] ? "جارٍ الإنشاء…" : "＋ مهمة تخفيف"}</Btn>}
               {can("risk.write", projectsById[r.project_id]) && (D.RISK_NEXT[r.status] || []).length > 0 && <select style={{ ...S.sel, width: 110, padding: "3px 6px", fontSize: 11 }} value="" onChange={(e) => e.target.value && changeStatus(r, e.target.value)}><option value="">انقل إلى…</option>{D.RISK_NEXT[r.status].filter((s) => s !== "Materialized" || can("issue.write", projectsById[r.project_id])).map((s) => <option key={s} value={s}>{L.riskStatus[s]}</option>)}</select>}
               <RowActions canW={can("risk.write", projectsById[r.project_id])} onEdit={() => setForm(r)} onDelete={() => act.del("risks", r.id, r.title)} />
             </span>
