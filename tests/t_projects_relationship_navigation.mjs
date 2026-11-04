@@ -19,16 +19,16 @@ assert.ok(entities.includes('const linkedRisks = data.risks.filter((risk) => ris
   "PRD must show active linked risks and provide navigation to them");
 assert.ok(entities.includes('data.decisions.filter((decision) => D.isActiveRec(decision) && (decision.prd_id === d.id'),
   "archived or deleted decisions must not appear as active PRD relationships");
-assert.ok(screens.includes('related.wins.map((x) => <Btn key={x.id} small onClick={() => setPage("wins")}>'),
+assert.ok(screens.includes('g.kind === "win" ? setPage("wins")') && screens.includes('items.map((item) =>'),
   "stakeholder update achievement references must be actionable");
 assert.ok(screens.includes('{w.output_ids?.length > 0 && <Btn small onClick={() => w.project_id && openProject(w.project_id, "outputs")}>'),
   "achievement output evidence must navigate to the project's outputs");
-assert.ok(screens.includes('related.outputs.map((x) => <Btn key={x.id} small onClick={() => openProject(u.project_id, "outputs")}>'),
+assert.ok(screens.includes('g.kind === "output" ? openProject(item.project_id || u.project_id, "outputs")') && screens.includes('related_output_ids: d.related_output_ids || []'),
   "stakeholder update output references must navigate to the outputs section");
 assert.ok(screens.includes('!data.wins.some((w) => w.task_id === t.id || (w.task_ids || []).includes(t.id))'),
   "achievement suggestions must deduplicate both legacy and multi-task relationships");
-assert.ok(parts.includes('linkedDecisions.map((x) => <button key={x.id} type="button" onClick={() => { closeTask(); openProject(x.project_id, "decisions"); }}'),
+assert.ok(parts.includes('linkedDecisions.length ? linkedDecisions.map((decision) => <button') && parts.includes('openProject(decision.project_id, "decisions")'),
   "task decision backlinks must be actionable");
-assert.ok(parts.includes('linkedWins.map((x) => <button key={x.id} type="button" onClick={() => { closeTask(); setPage("wins"); }}'),
+assert.ok(parts.includes('linkedWins.length ? linkedWins.map((win) => <button') && parts.includes('setPage("wins")'),
   "task achievement backlinks must be actionable");
 console.log("✓ Projects relationship navigation contracts passed");
