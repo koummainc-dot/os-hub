@@ -57,16 +57,92 @@ export function validateSkinProduct(input = {}) {
   }};
 }
 
-export function validateSkinUnit(input = {}) {
+export function effectiveSkinUnitExpiry(unit = {}) {
+  const valid = value => /^\\d{4}-\\d{2}-\\d{2}$/.test(String(value || ""));
+  const addMonths = (dateKey, months) => {
+    const [year, month, day] = dateKey.split("-").map(Number);
+    const target = new Date(Date.UTC(year, month - 1 + months, 1));
+    const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+    target.setUTCDate(Math.min(day, lastDay));
+    return target.toISOString().slice(0, 10);
+  };
+  const candidates = [];
+  if (valid(unit.expiresOn)) candidates.push(unit.expiresOn);
+  const pao = Number(unit.paoMonths);
+  if (valid(unit.openedOn) && Number.isInteger(pao) && pao >= 1 && pao <= 60) candidates.push(addMonths(unit.openedOn, pao));
+  return candidates.length ? candidates.sort()[0] : null;
+}
+
+export function skinUnitStatus(unit = {}, todayKey = new Date().toISOString().slice(0, 10), soonDays = 30) {
+  if (unit.finishedDate || unit.status === "finished") return "finished";
+  const expiry = effectiveSkinUnitExpiry(unit);
+  if (expiry && expiry < todayKey) return "expired";
+  if (expiry && expiry <= new Date(Date.parse(todayKey + "T00:00:00Z") + soonDays * 86400000).toISOString().slice(0, 10)) return "expiring_soon";
+  if (!unit.openedOn) return "unopened";
+  return "active";
+}
+
+export function validateSkinUnit(input = {}, todayKey = new Date().toISOString().slice(0, 10)) {
   const name = text(input.name, 100);
   const productId = text(input.productId, 100);
+  const purchaseDate = text(input.purchaseDate, 10);
   const openedOn = text(input.openedOn, 10);
   const expiresOn = text(input.expiresOn, 10);
+  const startedUseDate = text(input.startedUseDate, 10);
+  const finishedDate = text(input.finishedDate, 10);
+  const paoMonths = input.paoMonths === "" || input.paoMonths == null ? null : Number(input.paoMonths);
+  const price = input.price === "" || input.price == null ? null : Number(input.price);
   if (!name) return { ok: false, error: "اسم العبوة مطلوب." };
-  for (const [label, value] of [["تاريخ الفتح", openedOn], ["تاريخ الانتهاء", expiresOn]]) {
-    if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) return { ok: false, error: label + " غير صالح." };
+  for (const [label, value] of [["تاريخ الشراء", purchaseDate], ["تاريخ الفتح", openedOn], ["تاريخ الانتهاء", expiresOn], ["بدء الاستخدام", startedUseDate], ["تاريخ الانتهاء الفعلي", finishedDate]]) {
+    if (value && !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return { ok: false, error: label + " غير صالح." };
   }
-  return { ok: true, value: { ...input, name, productId, openedOn, expiresOn, notes: text(input.notes, 1000) }};
+  if (purchaseDate && todayKey && purchaseDate > todayKey) return { ok: false, error: "تاريخ الشراء لا يمكن أن يكون في المستقبل." };
+  if (startedUseDate && todayKey && startedUseDate > todayKey) return { ok: false, error: "بدء الاستخدام لا يمكن أن يكون في المستقبل." };
+  if (finishedDate && todayKey && finishedDate > todayKey) return { ok: false, error: "تاريخ الانتهاء الفعلي لا يمكن أن يكون في المستقبل." };
+  if (purchaseDate && openedOn && openedOn < purchaseDate) return { ok: false, error: "تاريخ الفتح لا يمكن أن يسبق تاريخ الشراء." };
+  if (purchaseDate && expiresOn && expiresOn < purchaseDate) return { ok: false, error: "تاريخ الانتهاء لا يمكن أن يسبق تاريخ الشراء." };
+  if (paoMonths !== null && (!Number.isInteger(paoMonths) || paoMonths < 1 || paoMonths > 60)) return { ok: false, error: "مدة الصلاحية بعد الفتح يجب أن تكون من شهر إلى 60 شهرًا." };
+  if (price !== null && (!Number.isFinite(price) || price < 0 || price > 1000000000)) return { ok: false, error: "سعر العبوة غير صالح." };
+  const currency = text(input.currency || "EGP", 3).toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) return { ok: false, error: "رمز العملة يجب أن يتكون من 3 أحرف." };
+  return { ok: true, value: {
+    ...input, name, productId, purchaseDate, openedOn, expiresOn, startedUseDate, finishedDate,
+    paoMonths, price, currency, sizeNote: text(input.sizeNote, 120),
+    finishReason: text(input.finishReason, 240), notes: text(input.notes, 1000),
+    effectiveExpiry: effectiveSkinUnitExpiry({ ...input, openedOn, expiresOn, paoMonths }),
+  }};
+}
+
+export function validateSkinList(input = {}) {
+  const name = text(input.name, 100);
+  const kind = text(input.kind || "custom", 20);
+  if (!name) return { ok: false, error: "اسم القائمة مطلوب." };
+  if (!["wishlist", "favorites", "empties", "custom"].includes(kind)) return { ok: false, error: "نوع القائمة غير صالح." };
+  const productIds = [...new Set((Array.isArray(input.productIds) ? input.productIds : []).map(x => text(x, 100)).filter(Boolean))].slice(0, 500);
+  return { ok: true, value: { ...input, name, kind, productIds, notes: text(input.notes, 1000) } };
+}
+
+export function validateSkinSettings(input = {}) {
+  const timezone = text(input.timezone || "Africa/Cairo", 80);
+  const weekStartDay = Number(input.weekStartDay ?? 6);
+  const trialDays = Number(input.trialDays ?? 28);
+  const expirySoonDays = Number(input.expirySoonDays ?? 30);
+  const photoReminderDays = Number(input.photoReminderDays ?? 14);
+  const comparisonWindowDays = Number(input.comparisonWindowDays ?? 30);
+  const adherenceThreshold = Number(input.adherenceThreshold ?? 80);
+  const minDaysForCorrelation = Number(input.minDaysForCorrelation ?? 14);
+  const minDaysForAverage = Number(input.minDaysForAverage ?? 3);
+  const quietStart = text(input.quietStart || "22:00", 5);
+  const quietEnd = text(input.quietEnd || "08:00", 5);
+  if (!timezone || !/^[A-Za-z_+-]+(?:\\/[A-Za-z0-9_+.-]+)*$/.test(timezone)) return { ok: false, error: "المنطقة الزمنية غير صالحة." };
+  if (![0,1,6].includes(weekStartDay)) return { ok: false, error: "بداية الأسبوع غير صالحة." };
+  for (const [label,value,min,max] of [["مدة التجربة",trialDays,1,180],["نافذة الانتهاء",expirySoonDays,1,180],["تذكير الصور",photoReminderDays,1,365],["نافذة المقارنة",comparisonWindowDays,7,180],["عتبة الالتزام",adherenceThreshold,1,100],["أيام الارتباط",minDaysForCorrelation,5,90],["أيام المتوسط",minDaysForAverage,1,30]]) {
+    if (!Number.isInteger(value) || value < min || value > max) return { ok: false, error: label + " خارج النطاق المسموح." };
+  }
+  if (![quietStart,quietEnd].every(v=>/^([01]\\d|2[0-3]):[0-5]\\d$/.test(v))) return { ok: false, error: "ساعات الهدوء غير صالحة." };
+  const unitsSystem = text(input.unitsSystem || "metric", 20);
+  if (!["metric","imperial"].includes(unitsSystem)) return { ok: false, error: "نظام الوحدات غير صالح." };
+  return { ok: true, value: { ...input, id:"settings", timezone, weekStartDay, trialDays, expirySoonDays, photoReminderDays, comparisonWindowDays, adherenceThreshold, minDaysForCorrelation, minDaysForAverage, quietStart, quietEnd, unitsSystem, requireConfirmAvoid:input.requireConfirmAvoid!==false } };
 }
 
 
