@@ -69,3 +69,5 @@ assert.equal(skinUnitCostPerDay({ price: 100, startedUseDate: "2026-11-30" }, "2
 assert.equal(skinUnitCostPerDay({ price: 100, startedUseDate: "2026-02-30" }, "2026-11-04"), null);
 assert.equal(skinUnitCostPerDay({ price: 100, startedUseDate: "2026-11-01", finishedDate: "2026-10-31" }, "2026-11-04"), null);
 assert.equal(skinUnitCostPerDay({ price: 100, startedUseDate: "2026-11-01", deleted_at: "2026-11-02" }, "2026-11-04"), null);
+
+assert.equal(skinUnitCostPerDay({ price: 10, currency: "   ", startedUseDate: "2026-11-01" }, "2026-11-02").currency, "غير محددة");
