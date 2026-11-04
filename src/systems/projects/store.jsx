@@ -277,12 +277,14 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async convertRiskToIssue(riskId) {
       const risk = (data.risks || []).find((item) => item.id === riskId);
       const project = risk && projectsById[risk.project_id];
-      if (!risk || !project || project.is_system || project.archived_at) throw new Error("الخطر أو المشروع غير صالح.");
+      if (!risk || !D.isActiveRec(risk) || !project || project.is_system || project.archived_at) throw new Error("الخطر أو المشروع غير صالح أو غير نشط.");
+      if (!can("risk.write", project) || !can("issue.write", project)) throw new Error("لا تملك صلاحية تحويل الخطر إلى مشكلة في هذا المشروع.");
       const existing = D.issueForRisk(risk, data.issues);
       if (existing) {
         if (existing.project_id !== risk.project_id) throw new Error("المشكلة المرتبطة بالخطر موجودة في مشروع مختلف؛ لم يتم تغيير الارتباط.");
         if (existing.from_risk_id && existing.from_risk_id !== risk.id) throw new Error("المشكلة مرتبطة بالفعل بخطر آخر؛ لم يتم تغيير أي ارتباط.");
-        const issuePatch = existing.from_risk_id === risk.id ? null : { ...existing, from_risk_id: risk.id };
+        const mergedTaskIds = [...new Set([...(existing.task_ids || []), ...(risk.mitigation_task_ids || []).filter((id) => idx.byId[id] && idx.byId[id].project_id === risk.project_id)])];
+        const issuePatch = existing.from_risk_id === risk.id && mergedTaskIds.length === (existing.task_ids || []).length ? null : { ...existing, from_risk_id: risk.id, task_ids: mergedTaskIds };
         const riskPatch = { ...risk, status: "Materialized", converted_issue_id: existing.id };
         const ops = [
           ...(issuePatch ? [{ coll: "issues", rec: issuePatch }] : []),
@@ -312,10 +314,12 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async convertDiscoveryToTask(discoveryId, projectId) {
       const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
       const project = projectsById[projectId];
-      if (!discovery || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      if (!discovery || !D.isActiveRec(discovery) || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      if (!can("discovery.write") || !can("task.write", project)) throw new Error("لا تملك صلاحية تحويل الاكتشاف إلى مهمة في هذا المشروع.");
       const linkedProjects = (discovery.project_ids || []).filter((id) => projectsById[id] && !projectsById[id].archived_at);
       if ((discovery.project_ids || []).length && !linkedProjects.includes(projectId)) throw new Error("المشروع الهدف يجب أن يكون من المشاريع المرتبطة النشطة بالاكتشاف.");
       const existing = (data.tasks || []).find((item) => (item.discovery_ids || []).includes(discoveryId));
+      if (existing && !D.isActiveRec(existing)) throw new Error("توجد مهمة مرتبطة بهذا الاكتشاف لكنها مؤرشفة أو في السلة؛ استعدها قبل إعادة التحويل.");
       if (existing && existing.project_id !== projectId) throw new Error("يوجد بالفعل مسار مهمة لهذا الاكتشاف في مشروع آخر. افتح المهمة الحالية أو حدّث ارتباطها قبل إعادة التحويل.");
       if (existing) {
         const links = [...new Map([...(discovery.resolution_links || []), { kind: "task", id: existing.id }].map((link) => [link.kind + ":" + link.id, link])).values()];
@@ -347,8 +351,10 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     },
     async convertDiscoveryToProject(discoveryId) {
       const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
-      if (!discovery) throw new Error("الاكتشاف غير موجود.");
+      if (!discovery || !D.isActiveRec(discovery)) throw new Error("الاكتشاف غير موجود أو غير نشط.");
+      if (!can("discovery.write") || !can("project.create")) throw new Error("لا تملك صلاحية تحويل الاكتشاف إلى مشروع.");
       const existing = (data.projects || []).find((item) => item.source_discovery_id === discoveryId);
+      if (existing && !D.isActiveRec(existing)) throw new Error("يوجد مشروع مرتبط بهذا الاكتشاف لكنه مؤرشف أو في السلة؛ استعده قبل إعادة التحويل.");
       if (existing) {
         const links = [...new Map([...(discovery.resolution_links || []), { kind: "project", id: existing.id }].map((link) => [link.kind + ":" + link.id, link])).values()];
         const projectIds = [...new Set([...(discovery.project_ids || []), existing.id])];
@@ -376,10 +382,12 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async convertDiscoveryToPrd(discoveryId, projectId) {
       const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
       const project = projectsById[projectId];
-      if (!discovery || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      if (!discovery || !D.isActiveRec(discovery) || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      if (!can("discovery.write") || !can("prd.write", project)) throw new Error("لا تملك صلاحية تحويل الاكتشاف إلى مواصفة في هذا المشروع.");
       const linkedProjects = (discovery.project_ids || []).filter((id) => projectsById[id] && !projectsById[id].archived_at);
       if ((discovery.project_ids || []).length && !linkedProjects.includes(projectId)) throw new Error("المشروع الهدف يجب أن يكون من المشاريع المرتبطة النشطة بالاكتشاف.");
       const existing = (data.prds || []).find((item) => (item.discovery_ids || []).includes(discoveryId));
+      if (existing && !D.isActiveRec(existing)) throw new Error("توجد مواصفة مرتبطة بهذا الاكتشاف لكنها مؤرشفة أو في السلة؛ استعدها قبل إعادة التحويل.");
       if (existing && existing.project_id !== projectId) throw new Error("توجد مواصفة مرتبطة بهذا الاكتشاف في مشروع آخر؛ لن نعيد ربطها بمشروع غير مطابق.");
       const prdId = existing?.id || uid();
       const prd = existing || {
@@ -403,10 +411,12 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async convertDiscoveryToIssue(discoveryId, projectId, discoveredAt) {
       const discovery = (data.discovery || []).find((item) => item.id === discoveryId);
       const project = projectsById[projectId];
-      if (!discovery || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      if (!discovery || !D.isActiveRec(discovery) || !project || project.is_system || project.archived_at) throw new Error("اختر اكتشافًا ومشروعًا نشطًا صالحين.");
+      if (!can("discovery.write") || !can("issue.write", project)) throw new Error("لا تملك صلاحية تحويل الاكتشاف إلى مشكلة في هذا المشروع.");
       const linkedProjects = (discovery.project_ids || []).filter((id) => projectsById[id] && !projectsById[id].archived_at);
       if ((discovery.project_ids || []).length && !linkedProjects.includes(projectId)) throw new Error("المشروع الهدف يجب أن يكون من المشاريع المرتبطة النشطة بالاكتشاف.");
       const existing = (data.issues || []).find((item) => item.from_discovery_id === discoveryId);
+      if (existing && !D.isActiveRec(existing)) throw new Error("توجد مشكلة مرتبطة بهذا الاكتشاف لكنها مؤرشفة أو في السلة؛ استعدها قبل إعادة التحويل.");
       if (existing && existing.project_id !== projectId) throw new Error("توجد مشكلة مرتبطة بهذا الاكتشاف في مشروع آخر؛ لن نعيد ربط الاكتشاف بمشروع غير مطابق.");
       if (existing) {
         const links = [...new Map([...(discovery.resolution_links || []), { kind: "issue", id: existing.id }].map((link) => [link.kind + ":" + link.id, link])).values()];
@@ -431,11 +441,43 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       act("discovery", discovery.id, "converted_to_issue", issue.title);
       return issue;
     },
+    // Save an issue and synchronize its task backlinks in one server transaction.
+    async saveIssue(v) {
+      const project = projectsById[v.project_id];
+      if (!project || project.is_system) throw new Error("اختر مشروعًا صالحًا للمشكلة.");
+      const previous = v.id ? (data.issues || []).find((item) => item.id === v.id) : null;
+      if (v.id && (!previous || previous.project_id !== v.project_id)) throw new Error("المشكلة غير موجودة في المشروع المحدد.");
+      if (v.prd_id && !data.prds.some((prd) => prd.id === v.prd_id && prd.project_id === v.project_id)) throw new Error("المواصفة يجب أن تتبع المشروع نفسه.");
+      const issueId = v.id || uid();
+      const oldIds = [...new Set(previous?.task_ids || [])];
+      const nextIds = [...new Set(v.task_ids || [])];
+      const changedIds = [...new Set([...oldIds, ...nextIds])];
+      const ops = [];
+      for (const taskId of changedIds) {
+        const task = idx.byId[taskId];
+        if (!task || task.project_id !== v.project_id || task.deleted_at) {
+          if (nextIds.includes(taskId)) throw new Error("كل مهمة إصلاح يجب أن تكون نشطة وتتبع المشروع نفسه.");
+          continue;
+        }
+        const issueIds = [...new Set(task.issue_ids || [])].filter((id) => id !== issueId);
+        if (nextIds.includes(taskId)) issueIds.push(issueId);
+        ops.push({ coll: "tasks", rec: { ...stamp({ ...task, issue_ids: issueIds }), _vis: visFor(project) } });
+      }
+      const issue = { ...v, id: issueId, task_ids: nextIds };
+      ops.push({ coll: "issues", rec: { ...stamp(issue), _vis: visFor(project) } });
+      const saved = await R.putAtomic(ops);
+      if (!Array.isArray(saved) || saved.length !== ops.length || saved.some((item) => !item)) throw new Error("لم يتم حفظ المشكلة وروابط مهام الإصلاح معًا.");
+      act("issues", issue.id, previous ? "updated" : "created", issue.title);
+      return issue;
+    },
     // Create a repair task and link it to its issue in one server transaction.
     async createRepairTask(issue) {
       if (!issue?.id || !issue.project_id || !projectsById[issue.project_id] || projectsById[issue.project_id].is_system) throw new Error("المشكلة أو المشروع غير صالح.");
       const currentIssue = (data.issues || []).find((item) => item.id === issue.id);
-      if (!currentIssue || currentIssue.project_id !== issue.project_id) throw new Error("تعذّر العثور على المشكلة في المشروع نفسه.");
+      if (!currentIssue || !D.isActiveRec(currentIssue) || currentIssue.project_id !== issue.project_id) throw new Error("تعذّر العثور على مشكلة نشطة في المشروع نفسه.");
+      const project = projectsById[currentIssue.project_id];
+      if (!project || project.archived_at) throw new Error("المشروع غير نشط.");
+      if (!can("issue.write", project) || !can("task.write", project)) throw new Error("لا تملك صلاحية إنشاء مهمة إصلاح في هذا المشروع.");
       const linkedIds = new Set([...(currentIssue.task_ids || []), ...idx.list.filter((t) => (t.issue_ids || []).includes(currentIssue.id)).map((t) => t.id)]);
       if ([...linkedIds].some((id) => idx.byId[id])) throw new Error("توجد مهمة إصلاح مرتبطة بالفعل بهذه المشكلة.");
       const taskId = uid();
@@ -447,7 +489,6 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
         priority: currentIssue.severity === "Critical" ? "Urgent" : currentIssue.severity === "High" ? "High" : "Medium",
         status: "Not Started",
         planning_bucket: "Inbox",
-        issue_ids: [currentIssue.id],
         created_by: me,
         sort_order: Date.now(),
       };
@@ -459,10 +500,56 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       act("issues", currentIssue.id, "repair_task_created", task.title);
       return task;
     },
+    async createRiskMitigationTask(riskId) {
+      const risk = (data.risks || []).find((x) => x.id === riskId);
+      const project = risk && projectsById[risk.project_id];
+      if (!risk || !project || project.is_system || project.archived_at || !D.isOpenRisk(risk)) throw new Error("الخطر أو المشروع غير صالح أو أن الخطر مغلق.");
+      if (!can("risk.write", project) || !can("task.write", project)) throw new Error("لا تملك صلاحية إنشاء مهام تخفيف لهذا الخطر.");
+      const linkedIds = [...new Set(risk.task_ids || [])];
+      const stableTaskId = "risk_mitigation_task_" + risk.id;
+      const existing = linkedIds.map((id) => idx.byId[id]).find(Boolean) || idx.byId[stableTaskId];
+      if (existing) { if (existing.project_id !== risk.project_id) throw new Error("مهمة التخفيف المرتبطة بالخطر تنتمي إلى مشروع آخر؛ لم يتم تغيير أي ارتباط."); if (!linkedIds.includes(existing.id)) await R.put("risks", { ...risk, task_ids: [...linkedIds, existing.id] }); return existing; }
+      if (linkedIds.some((id) => (data.tasks || []).some((t) => t.id === id)) || (data.tasks || []).some((t) => t.id === stableTaskId)) throw new Error("توجد مهمة تخفيف مؤرشفة أو في السلة؛ استعدها بدل إنشاء نسخة مكررة.");
+      const taskId = stableTaskId;
+      const task = { id: taskId, title: "تخفيف الخطر: " + risk.title, project_id: risk.project_id, description: risk.mitigation || risk.notes || "", priority: D.riskScore(risk) >= settings.riskHigh ? "High" : "Medium", status: "Not Started", planning_bucket: "Inbox", prd_id: risk.prd_id || null, created_by: me, sort_order: Date.now() };
+      const errs = D.validateTaskRefs(task, { projectsById, tasksById: idx.byId, prdsById }); if (errs.length) throw new Error(errs[0]);
+      if (D.traceabilityBlocked(settings, project.type, project.is_system, task)) throw new Error("سياسة التتبع تتطلب ربط الخطر بمواصفة أو اكتشاف قبل إنشاء المهمة.");
+      await R.putAtomic([{ coll: "tasks", rec: task }, { coll: "risks", rec: { ...risk, task_ids: [...linkedIds, taskId] } }]);
+      act("risks", risk.id, "mitigation_task_created", task.title); return task;
+    },
+    async createDecisionTask(decisionId) {
+      const decision = (data.decisions || []).find((x) => x.id === decisionId);
+      const project = decision && projectsById[decision.project_id];
+      if (!decision || !project || project.is_system || project.archived_at) throw new Error("القرار أو المشروع غير صالح.");
+      if (decision.status !== "Approved") throw new Error("اعتمد القرار قبل إنشاء مهمة تنفيذ له.");
+      if (!can("decision.write", project) || !can("task.write", project)) throw new Error("لا تملك صلاحية اعتماد إجراءات القرار في هذا المشروع.");
+      const linkedIds = [...new Set(decision.implementation_task_ids || [])];
+      const stableTaskId = "decision_task_" + decision.id;
+      const existing = linkedIds.map((id) => idx.byId[id]).find(Boolean) || idx.byId[stableTaskId];
+      if (existing) {
+        if (existing.project_id !== decision.project_id) throw new Error("مهمة تنفيذ القرار تنتمي إلى مشروع آخر؛ لم يتم تغيير أي ارتباط.");
+        if (!linkedIds.includes(existing.id)) await R.put("decisions", { ...decision, implementation_task_ids: [...linkedIds, existing.id] });
+        return existing;
+      }
+      if (linkedIds.some((id) => (data.tasks || []).some((t) => t.id === id)) || (data.tasks || []).some((t) => t.id === stableTaskId)) throw new Error("توجد مهمة تنفيذ مؤرشفة أو في السلة؛ استعدها بدل إنشاء نسخة مكررة.");
+      const taskId = stableTaskId;
+      const prdId = decision.prd_id || (decision.affected_prd_ids || []).find((id) => data.prds.some((p) => p.id === id && p.project_id === decision.project_id)) || null;
+      const task = { id: taskId, title: "تنفيذ القرار: " + decision.title, project_id: decision.project_id, description: [decision.rationale, decision.expected_impact && ("الأثر المتوقع: " + decision.expected_impact)].filter(Boolean).join("\n\n"), priority: "Medium", status: "Not Started", planning_bucket: "Inbox", prd_id: prdId, discovery_ids: [...new Set(decision.affected_discovery_ids || [])], created_by: me, sort_order: Date.now() };
+      for (const discoveryId of task.discovery_ids) { const discovery = (data.discovery || []).find((x) => x.id === discoveryId); if (!discovery || (discovery.project_ids || []).length && !discovery.project_ids.includes(task.project_id)) throw new Error("الاكتشاف المرتبط بمهمة القرار غير موجود أو من مشروع آخر."); }
+      const errs = D.validateTaskRefs(task, { projectsById, tasksById: idx.byId, prdsById });
+      if (errs.length) throw new Error(errs[0]);
+      if (D.traceabilityBlocked(settings, project.type, project.is_system, task)) throw new Error("سياسة التتبع تتطلب ربط القرار بمواصفة أو اكتشاف قبل إنشاء المهمة.");
+      const decisionPatch = { ...decision, implementation_task_ids: [...linkedIds, taskId] };
+      await R.putAtomic([{ coll: "tasks", rec: task }, { coll: "decisions", rec: decisionPatch }]);
+      act("decisions", decision.id, "implementation_task_created", task.title);
+      return task;
+    },
     // tasks
     async saveTask(v, isNew) {
       const project = projectsById[v.project_id];
       const errs = D.validateTaskRefs({ ...v, id: v.id || "new" }, { projectsById, tasksById: idx.byId, prdsById }); if (errs.length) throw new Error(errs[0]);
+      if (v.objective_id && !(data.objectives || []).some((objective) => objective.id === v.objective_id && !objective.deleted_at)) throw new Error("الهدف المرتبط غير موجود أو تم حذفه.");
+      if (v.prd_requirement_id) { const prd = data.prds.find((item) => item.id === v.prd_id); if (!prd || !(prd.requirements || []).some((requirement) => requirement.id === v.prd_requirement_id)) throw new Error("المتطلب المحدد يجب أن يكون ضمن المواصفة المرتبطة بالمهمة."); }
       for (const discoveryId of (v.discovery_ids || [])) { const discovery = data.discovery.find((d) => d.id === discoveryId); if (!discovery) throw new Error("عنصر اكتشاف مرتبط غير موجود"); if ((discovery.project_ids || []).length && !discovery.project_ids.includes(v.project_id)) throw new Error("عنصر الاكتشاف يجب أن يكون مرتبطاً بالمشروع نفسه"); }
       if (D.traceabilityBlocked(settings, project && project.type, project && project.is_system, v)) throw new Error("سياسة التتبع: هذا النوع من المشاريع يتطلب ربط المهمة بمواصفة أو اكتشاف");
       const rec = { ...v, id: v.id || uid(), planning_bucket: v.planning_bucket || "Inbox", status: v.status || "Not Started" };
