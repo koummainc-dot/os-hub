@@ -15,7 +15,7 @@ import SkincareBackup from "./Backup.jsx";
 import { uploadSkinPhoto, deleteSkinPhoto } from "./photoStorage.js";
 
 const C = { ink: "#182230", muted: "#64748B", line: "#E2E8F0", bg: "#F8FAFC", accent: "#A855F7", soft: "#FAF5FF", white: "#FFFFFF", danger: "#B91C1C" };
-const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+const today = (timezone = "Africa/Cairo") => new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const panel = { background: C.white, border: "1px solid " + C.line, borderRadius: 16, padding: 18, marginBottom: 14 };
 const field = { width: "100%", boxSizing: "border-box", padding: "10px 11px", border: "1px solid " + C.line, borderRadius: 10, font: "inherit", color: C.ink, background: C.white };
 const label = { display: "grid", gap: 6, color: C.muted, fontSize: 12, fontWeight: 650 };
@@ -71,7 +71,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   const deletedUnits = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.units).filter(x => x.deleted_at), [store.recs]);
   const profile = useMemo(() => arr(store.recs, SKINCARE_COLLECTIONS.profile).find(x => x.id === "profile") || null, [store.recs]);
   const followupItems = useMemo(() => buildSkinFollowUps({
-    today: today(), products, units, routines, routineLogs, trials, reactions,
+    today: today(settings?.timezone || "Africa/Cairo"), timezone: settings?.timezone || "Africa/Cairo", products, units, routines, routineLogs, trials, reactions,
     expiryWindowDays: settings?.expirySoonDays || 30,
     trialWindowDays: settings?.trialDays ? Math.min(30, settings.trialDays) : 7,
   }), [products,units,routines,routineLogs,trials,reactions,settings]);
@@ -85,7 +85,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
       for (const item of followupItems) {
         if (cancelled) return;
         const sourceKey = "skincare:" + item.id;
-        const dueAt = String(item.dueDate || today()) + "T" + String(item.reminderTime || "09:00") + ":00";
+        const dueAt = String(item.dueDate || today(settings?.timezone || "Africa/Cairo")) + "T" + String(item.reminderTime || "09:00") + ":00";
         const common = {
           workspaceId: ws.id, sourceSystem: "skincare", sourceKey,
           title: item.title, description: item.description,
@@ -95,7 +95,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
         };
         const [notification, calendar] = await Promise.all([
           integrations.notifications.upsert(common),
-          integrations.calendar.upsert({ ...common, date: item.dueDate || today(), sourceRecordId: item.sourceId || item.id, eventType: item.type }),
+          integrations.calendar.upsert({ ...common, date: item.dueDate || today(settings?.timezone || "Africa/Cairo"), sourceRecordId: item.sourceId || item.id, eventType: item.type }),
         ]);
         if (cancelled) return;
         if (notification?.ok === false || calendar?.ok === false) {
@@ -116,6 +116,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     });
     return () => { cancelled = true; };
   }, [api, ws?.id, followupItems, shell]);
+  const todayKey = today(settings?.timezone || "Africa/Cairo");
   const [profileDraft, setProfileDraft] = useState({ skinType: "unknown", concernsText: "", sensitivitiesText: "", notes: "" });
   const [productDraft, setProductDraft] = useState(EMPTY_PRODUCT);
   const [unitDraft, setUnitDraft] = useState(EMPTY_UNIT);
@@ -171,7 +172,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   const saveUnit = async e => {
     e.preventDefault();
     if (!canEdit) return;
-    const result = validateSkinUnit(unitDraft, today());
+    const result = validateSkinUnit(unitDraft, todayKey);
     if (!result.ok) return say(result.error);
     if (result.value.productId && !products.some(p => p.id === result.value.productId)) return say("المنتج المرتبط غير موجود.");
     setBusy(true);
@@ -227,7 +228,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   const saveDiaryEntry = async e => {
     e.preventDefault();
     if (!canEdit) return;
-    const result = validateSkinDiaryEntry({ ...diaryDraft, issues: diaryDraft.issuesText.split(/[,،\n]/) }, today());
+    const result = validateSkinDiaryEntry({ ...diaryDraft, issues: diaryDraft.issuesText.split(/[,،\n]/) }, todayKey);
     if (!result.ok) return say(result.error);
     if (result.value.trialId) {
       const linkedTrial = trials.find(trial => trial.id === result.value.trialId);
@@ -251,7 +252,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
   };
   const openTrialDiary = trial => {
     if (!trial || !canEdit) return;
-    const todayKey = today();
+    const todayKey = today(settings?.timezone || "Africa/Cairo");
     const targetDate = todayKey < trial.startDate ? trial.startDate : trial.endDate && todayKey > trial.endDate ? trial.endDate : todayKey;
     const existing = diaryEntries.find(entry => entry.date === targetDate);
     if (existing?.trialId && existing.trialId !== trial.id) {
@@ -417,7 +418,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     if ((input.suspectedIngredientIds || []).some(id => !ingredients.some(item => item.id === id))) {
       return say("توجد مكونات مشتبه بها لم تعد موجودة في المكتبة."), false;
     }
-    const checked = validateSkinReaction(input, today());
+    const checked = validateSkinReaction(input, todayKey);
     if (!checked.ok) return say(checked.error), false;
     setBusy(true);
     try {
@@ -431,7 +432,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
 
   const resolveReaction = async reaction => {
     if (!canEdit || reaction.status !== "open") return false;
-    const checked = validateSkinReaction({ ...reaction, resolvedDate: today(), status: "resolved" }, today());
+    const checked = validateSkinReaction({ ...reaction, resolvedDate: todayKey, status: "resolved" }, todayKey);
     if (!checked.ok) return say(checked.error), false;
     setBusy(true);
     try {
@@ -445,7 +446,7 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
 
   const archiveReaction = async reaction => {
     if (!canEdit || reaction.status !== "open") return false;
-    const checked = validateSkinReaction({ ...reaction, status: "archived" }, today());
+    const checked = validateSkinReaction({ ...reaction, status: "archived" }, todayKey);
     if (!checked.ok) return say(checked.error), false;
     setBusy(true);
     try {
@@ -551,11 +552,11 @@ export default function SkincareOS({ api, access, ws, isDemo, demoStore, page = 
     {!store.ready && <Panel title="تحميل البيانات">جارٍ تحميل سجلات مساحة العمل…</Panel>}
     {store.error && <Panel title="تعذر تحميل البيانات"><p style={{ color: C.danger, fontSize: 13 }}>{store.error.message || "حدث خطأ أثناء الاتصال."}</p><button style={button()} onClick={() => store.api.reload()}>إعادة المحاولة</button></Panel>}
     {store.ready && !store.error && page === "home" && <HomeView profile={profile} products={products} units={units} setPage={setPage} />}
-    {store.ready && !store.error && page === "dashboard" && <SkinDashboard endDate={today()} diaryEntries={diaryEntries} trials={trials} reactions={reactions} photos={photos} routines={routines} routineLogs={routineLogs} products={products} />}
-    {store.ready && !store.error && page === "followups" && <SkinFollowUps today={today()} products={products} units={units} routines={routines} routineLogs={routineLogs} trials={trials} reactions={reactions} setPage={setPage} />}
+    {store.ready && !store.error && page === "dashboard" && <SkinDashboard endDate={todayKey} diaryEntries={diaryEntries} trials={trials} reactions={reactions} photos={photos} routines={routines} routineLogs={routineLogs} products={products} />}
+    {store.ready && !store.error && page === "followups" && <SkinFollowUps today={todayKey} products={products} units={units} routines={routines} routineLogs={routineLogs} trials={trials} reactions={reactions} setPage={setPage} />}
     {store.ready && !store.error && page === "settings" && <><ProfileView profile={profile} draft={profileDraft} setDraft={setProfileDraft} onSave={saveProfile} canEdit={canEdit} busy={busy} /><SkinSettingsView settings={settings} canEdit={canEdit} busy={busy} onSave={saveSettings} /><SkincareBackup records={store.recs} canEdit={canEdit} pending={store.pending > 0} workspaceId={ws?.id} onRestored={() => store.api.reload()} /></>}
     {store.ready && !store.error && page === "products" && <ProductsView products={products} deletedProducts={deletedProducts} onRestore={restoreProduct} draft={productDraft} setDraft={setProductDraft} onSave={saveProduct} onEdit={editProduct} onDelete={deleteProduct} editing={editingProduct} setEditing={setEditingProduct} canEdit={canEdit} busy={busy} />}
-    {store.ready && !store.error && page === "units" && <UnitsView units={units} deletedUnits={deletedUnits} onRestore={restoreUnit} products={products} draft={unitDraft} setDraft={setUnitDraft} onSave={saveUnit} onEdit={editUnit} onDelete={deleteUnit} editing={editingUnit} setEditing={setEditingUnit} canEdit={canEdit} busy={busy} />}
+    {store.ready && !store.error && page === "units" && <UnitsView units={units} deletedUnits={deletedUnits} onRestore={restoreUnit} products={products} todayKey={todayKey} draft={unitDraft} setDraft={setUnitDraft} onSave={saveUnit} onEdit={editUnit} onDelete={deleteUnit} editing={editingUnit} setEditing={setEditingUnit} canEdit={canEdit} busy={busy} />}
     {store.ready && !store.error && page === "routines" && <RoutinesView routines={routines} logs={routineLogs} products={products} reactions={reactions.filter(item => item.status === "open")} canEdit={canEdit} busy={busy} onSave={saveRoutine} onArchive={toggleRoutine} onCopy={copyRoutine} onLog={logRoutineStep} onUndo={undoRoutineLog} />}
     {store.ready && !store.error && page === "routine_logs" && <RoutineLogsView logs={routineLogs} routines={routines} products={products} canEdit={canEdit} onUndo={async log => { if (!canEdit || !window.confirm("نقل سجل التنفيذ إلى المحذوفات؟")) return; const ok=await store.api.softDelete(SKINCARE_COLLECTIONS.routineLogs,log.id); if(ok) say("تم نقل سجل التنفيذ إلى المحذوفات."); }} />}
     {store.ready && !store.error && page === "compare" && <SkinCompareView products={products} units={units} ingredients={ingredients} />}
@@ -617,7 +618,7 @@ function ProductsView({ products, deletedProducts, onRestore, draft, setDraft, o
   </Panel></>;
 }
 
-function UnitsView({ units, deletedUnits, onRestore, products, draft, setDraft, onSave, onEdit, onDelete, editing, setEditing, canEdit, busy }) {
+function UnitsView({ units, deletedUnits, onRestore, products, todayKey, draft, setDraft, onSave, onEdit, onDelete, editing, setEditing, canEdit, busy }) {
   return <><Panel title={editing ? "تعديل عبوة" : "تسجيل عبوة"}>
     {canEdit ? <form onSubmit={onSave} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 11 }}>
       <Field title="اسم العبوة" value={draft.name} onChange={v => setDraft(d => ({ ...d, name: v }))} required />
@@ -637,7 +638,7 @@ function UnitsView({ units, deletedUnits, onRestore, products, draft, setDraft, 
     </form> : <p style={{ color: C.muted, fontSize: 12 }}>صلاحية العرض فقط.</p>}
   </Panel><Panel title={"العبوات (" + units.length + ")"}>
     {units.map(u => <article key={u.id} style={{ padding: "12px 0", borderTop: "1px solid " + C.line, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-      <div><b>{u.name}</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{products.find(p => p.id === u.productId)?.name || "غير مرتبطة بمنتج"} · شراء: {u.purchaseDate || "—"} · فتح: {u.openedOn || "—"} · انتهاء فعلي/محسوب: {effectiveSkinUnitExpiry(u) || "غير معروف"} · الحالة: {skinUnitStatus(u,today())} · السعر: {u.price==null||u.price===""?"—":u.price+" "+(u.currency||"")} </div></div>
+      <div><b>{u.name}</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{products.find(p => p.id === u.productId)?.name || "غير مرتبطة بمنتج"} · شراء: {u.purchaseDate || "—"} · فتح: {u.openedOn || "—"} · انتهاء فعلي/محسوب: {effectiveSkinUnitExpiry(u) || "غير معروف"} · الحالة: {skinUnitStatus(u,todayKey)} · السعر: {u.price==null||u.price===""?"—":u.price+" "+(u.currency||"")} </div></div>
       {canEdit && <div style={{ display: "flex", gap: 6 }}><button style={button()} onClick={() => onEdit(u)}>تعديل</button><button style={{ ...button(), color: C.danger }} onClick={() => onDelete(u)}>حذف</button></div>}
     </article>)}
     {!units.length && <p style={{ color: C.muted, fontSize: 12 }}>لا توجد عبوات مسجلة.</p>}
