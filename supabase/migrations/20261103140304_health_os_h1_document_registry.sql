@@ -21,13 +21,18 @@ revoke all on table public.health_documents from anon,public;
 grant select,insert,update,delete on table public.health_documents to authenticated;
 
 drop policy if exists health_documents_select_scoped on public.health_documents;
-create policy health_documents_select_scoped on public.health_documents for select to authenticated using(public.health_has_access(profile_id,'documents','read'));
+create policy health_documents_select_scoped on public.health_documents for select to authenticated
+using(public.health_has_access(profile_id,'documents','read'));
 drop policy if exists health_documents_insert_scoped on public.health_documents;
-create policy health_documents_insert_scoped on public.health_documents for insert to authenticated with check(uploaded_by=(select auth.uid()) and public.health_has_access(profile_id,'documents','create'));
+create policy health_documents_insert_scoped on public.health_documents for insert to authenticated
+with check(uploaded_by=(select auth.uid()) and public.health_has_access(profile_id,'documents','create'));
 drop policy if exists health_documents_update_scoped on public.health_documents;
-create policy health_documents_update_scoped on public.health_documents for update to authenticated using(public.health_has_access(profile_id,'documents','update')) with check(public.health_has_access(profile_id,'documents','update'));
+create policy health_documents_update_scoped on public.health_documents for update to authenticated
+using(public.health_has_access(profile_id,'documents','update'))
+with check(public.health_has_access(profile_id,'documents','update'));
 drop policy if exists health_documents_delete_scoped on public.health_documents;
-create policy health_documents_delete_scoped on public.health_documents for delete to authenticated using(public.health_has_access(profile_id,'documents','delete'));
+create policy health_documents_delete_scoped on public.health_documents for delete to authenticated
+using(public.health_has_access(profile_id,'documents','delete'));
 
 drop policy if exists health_audit_events_insert_authorized_actor on public.health_audit_events;
 create policy health_audit_events_insert_authorized_actor on public.health_audit_events for insert to authenticated with check (
