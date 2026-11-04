@@ -78,6 +78,81 @@ const FIELDS={
  cro:[
   {k:"page",l:"الصفحة",t:"in",required:true},{k:"zone",l:"المكان",t:"in",p:"Top / Middle / Bottom"},{k:"affiliate",l:"نسبة نقر الأفلييت %",t:"in"},{k:"cta",l:"نسبة نقر CTA %",t:"in"},{k:"table",l:"نسبة نقر الجدول %",t:"in"},{k:"outbound",l:"نسبة النقر الخارجي %",t:"in"},{k:"signup",l:"نسبة التسجيل %",t:"in"},{k:"rps",l:"الربح لكل جلسة",t:"in"}
  ],
+ phases:[
+  {k:"project_id",l:"Project ID",t:"in",required:true},{k:"phase",l:"المرحلة",t:"in",required:true},
+  {k:"objective",l:"الهدف",t:"ta"},{k:"status",l:"الحالة",t:"in",p:"Planned / Active / Completed / Blocked"},
+  {k:"start_at",l:"البداية",t:"in"},{k:"due_at",l:"الموعد",t:"in"},{k:"owner",l:"المسؤول",t:"in"},
+  {k:"project_ref",l:"مرجع Projects",t:"in"},{k:"notes",l:"ملاحظات",t:"ta"}
+ ],
+ team:[
+  {k:"project_id",l:"Project ID",t:"in",required:true},{k:"member_id",l:"معرّف العضو",t:"in",required:true},
+  {k:"role",l:"الدور",t:"in",required:true},{k:"responsibility",l:"المسؤولية",t:"ta"},
+  {k:"allocation",l:"نسبة التخصيص %",t:"in"},{k:"status",l:"الحالة",t:"in",p:"Active / Paused / Ended"}
+ ],
+ members:[
+  {k:"name",l:"اسم العضو",t:"in",required:true},{k:"email",l:"البريد",t:"in"},{k:"role",l:"الدور",t:"in"},
+  {k:"skills",l:"المهارات",t:"ta"},{k:"availability",l:"التوفر",t:"in"},{k:"notes",l:"ملاحظات",t:"ta"}
+ ],
+ calendar:[
+  {k:"project_id",l:"Project ID",t:"in",required:true},{k:"title",l:"العنوان",t:"in",required:true},
+  {k:"start_at",l:"البداية",t:"in",required:true},{k:"end_at",l:"النهاية",t:"in"},
+  {k:"type",l:"النوع",t:"in",p:"Review / Launch / Content / Campaign / Finance / Meeting"},
+  {k:"calendar_ref",l:"مرجع Calendar",t:"in"},{k:"status",l:"الحالة",t:"in",p:"Planned / Done / Cancelled"},
+  {k:"notes",l:"ملاحظات",t:"ta"}
+ ],
+ notes:[
+  {k:"title",l:"عنوان الملاحظة",t:"in",required:true},{k:"body",l:"المحتوى",t:"ta",required:true},
+  {k:"project_id",l:"Project ID",t:"in"},{k:"knowledge_ref",l:"مرجع Knowledge",t:"in"},
+  {k:"tags",l:"الوسوم",t:"in"},{k:"status",l:"الحالة",t:"in",p:"Draft / Active / Archived"}
+ ],
+ tech:[
+  {k:"project_id",l:"Project ID",t:"in",required:true},{k:"technology",l:"التقنية",t:"in",required:true},
+  {k:"category",l:"التصنيف",t:"in",p:"Frontend / Backend / CMS / Analytics / SEO / Hosting / Payments / Other"},
+  {k:"version",l:"الإصدار",t:"in"},{k:"status",l:"الحالة",t:"in",p:"Active / Planned / Deprecated"},
+  {k:"url",l:"الرابط",t:"in"},{k:"notes",l:"ملاحظات",t:"ta"}
+ ],
+ assets:[
+  {k:"project_id",l:"Project ID",t:"in",required:true},{k:"name",l:"اسم الأصل",t:"in",required:true},
+  {k:"type",l:"النوع",t:"in",p:"Logo / Image / Copy / Template / Document / Other"},
+  {k:"url",l:"الرابط",t:"in"},{k:"storage_ref",l:"مرجع التخزين",t:"in"},{k:"owner",l:"المالك",t:"in"},
+  {k:"status",l:"الحالة",t:"in",p:"Draft / Active / Archived"},{k:"notes",l:"ملاحظات",t:"ta"}
+ ],
+ email:[
+  {k:"project_id",l:"Project ID",t:"in",required:true},{k:"name",l:"اسم الأتمتة",t:"in",required:true},
+  {k:"trigger",l:"المشغّل",t:"in"},{k:"audience",l:"الجمهور",t:"in"},{k:"sequence",l:"التسلسل",t:"ta"},
+  {k:"status",l:"الحالة",t:"in",p:"Draft / Active / Paused"},{k:"content_ref",l:"مرجع ContentOS",t:"in"},
+  {k:"notes",l:"ملاحظات",t:"ta"}
+ ],
+ distribution:[
+  {k:"project_id",l:"Project ID",t:"in",required:true},{k:"channel",l:"القناة",t:"in",required:true},
+  {k:"asset_ref",l:"مرجع الأصل",t:"in"},{k:"campaign_ref",l:"مرجع الحملة",t:"in"},{k:"audience",l:"الجمهور",t:"in"},
+  {k:"status",l:"الحالة",t:"in",p:"Planned / Active / Completed"},{k:"published_at",l:"تاريخ النشر",t:"in"},
+  {k:"url",l:"الرابط",t:"in"},{k:"notes",l:"ملاحظات",t:"ta"}
+ ],
+ health:[
+  {k:"project_id",l:"Project ID",t:"in",required:true},{k:"metric",l:"المؤشر",t:"in",required:true},
+  {k:"value",l:"القيمة",t:"in",required:true},{k:"unit",l:"الوحدة",t:"in"},{k:"period",l:"الفترة",t:"in"},
+  {k:"source_ref",l:"مرجع المصدر",t:"in"},{k:"status",l:"الحالة",t:"in",p:"Healthy / Watch / Critical"},
+  {k:"notes",l:"ملاحظات",t:"ta"}
+ ],
+ kpi:[
+  {k:"project_id",l:"Project ID",t:"in",required:true},{k:"name",l:"اسم KPI",t:"in",required:true},
+  {k:"target",l:"الهدف",t:"in",required:true},{k:"actual",l:"الفعلي",t:"in"},{k:"unit",l:"الوحدة",t:"in"},
+  {k:"period",l:"الفترة",t:"in"},{k:"source_ref",l:"مرجع المصدر",t:"in"},{k:"status",l:"الحالة",t:"in",p:"On Track / At Risk / Off Track"},
+  {k:"notes",l:"ملاحظات",t:"ta"}
+ ],
+ alerts:[
+  {k:"project_id",l:"Project ID",t:"in",required:true},{k:"title",l:"عنوان التنبيه",t:"in",required:true},
+  {k:"severity",l:"الخطورة",t:"in",p:"Info / Warning / Critical"},{k:"trigger",l:"المحفز",t:"in"},
+  {k:"owner",l:"المسؤول",t:"in"},{k:"status",l:"الحالة",t:"in",p:"Open / Snoozed / Resolved"},
+  {k:"due_at",l:"الموعد",t:"in"},{k:"notes",l:"ملاحظات",t:"ta"}
+ ],
+ priority:[
+  {k:"project_id",l:"Project ID",t:"in",required:true},{k:"item",l:"العنصر",t:"in",required:true},
+  {k:"score",l:"درجة الأولوية",t:"in",required:true},{k:"reason",l:"السبب",t:"ta"},
+  {k:"owner",l:"المسؤول",t:"in"},{k:"status",l:"الحالة",t:"in",p:"Now / Next / Later / Blocked"},
+  {k:"project_ref",l:"مرجع Projects",t:"in"},{k:"notes",l:"ملاحظات",t:"ta"}
+ ],
  affiliate:[
   {k:"type",l:"النوع",t:"in",required:true,p:"Program / Network"},{k:"name",l:"اسم البرنامج / الشبكة",t:"in",required:true},{k:"category",l:"التصنيف",t:"in"},{k:"network",l:"الشبكة / المنصة",t:"in"},
   {k:"commission",l:"العمولة",t:"in"},{k:"cookie",l:"مدة Cookie",t:"in"},{k:"balance",l:"الرصيد",t:"in"},
