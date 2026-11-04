@@ -1,4 +1,3 @@
--- Audit history is immutable from client roles; future writes go through trusted transactional logic.
 begin;
 drop policy if exists nutrition_ws_insert on public.nutrition_log_entry_history;
 drop policy if exists nutrition_ws_update on public.nutrition_log_entry_history;
