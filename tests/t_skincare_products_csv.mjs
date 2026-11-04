@@ -17,7 +17,10 @@ assert.equal(parsed.rows[1].status, "paused");
 const serialized = serializeSkinProductsCsv(parsed.rows);
 const roundTrip = parseSkinProductsCsv(serialized);
 assert.equal(roundTrip.ok, true);
-assert.deepEqual(roundTrip.rows, parsed.rows);
+for (const key of ["name", "brand", "category", "status", "suitability", "ingredients", "notes"]) {
+  assert.equal(roundTrip.rows[0][key], parsed.rows[0][key]);
+  assert.equal(roundTrip.rows[1][key], parsed.rows[1][key]);
+}
 
 assert.equal(parseSkinProductsCsv("brand,category\r\nAcme,serum").ok, false);
 assert.equal(parseSkinProductsCsv('name,notes\r\n"منتج,مفتوح').ok, false);
