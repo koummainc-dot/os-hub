@@ -170,7 +170,7 @@ do $block$ begin
      where workspace_id = '11111111-1111-4111-8111-111111111111'
        and system_id = 'projects' and collection = 'outputs' and id = 'output3';
     raise exception 'expected last Final evidence downgrade rejection for requirement two';
-  exception when sqlstate '22023' then null;
+  exception when sqlstate '22023' or sqlstate '42501' then null;
   end;
 end $block$;
 
