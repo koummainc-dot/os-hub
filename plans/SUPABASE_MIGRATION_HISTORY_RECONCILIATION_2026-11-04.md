@@ -114,12 +114,9 @@ This is a reconciliation inventory, not authorization to push. Name equality is 
 | `20261103141038_health_os_h3_integrity_fix.sql` | `20261103141038` | `20261103141038` | exact prefix |
 | `20261103142005_health_os_h4_daily_trackers.sql` | `20261103142005` | `20261103142005` | exact prefix |
 | `20261103142017_health_os_h4_daily_trackers_schema.sql` | `20261103142017` | `20261103142017` | exact prefix |
-| `20261103142200_health_os_h4_cycle_settings_owner_only.sql` | `20261103142200` | `20261103142324` | timestamp mismatch |
 | `20261103142324_health_os_h4_cycle_settings_owner_only.sql` | `20261103142324` | `20261103142324` | exact prefix |
 | `20261103142823_health_os_grant_rls_recursion_fix.sql` | `20261103142823` | `20261103142823` | exact prefix |
 | `20261103142910_health_h4_grant_scope_allowlist.sql` | `20261103142910` | `20261103142910` | exact prefix |
-| `20261103143000_health_os_grant_rls_recursion_fix.sql` | `20261103143000` | `20261103142823` | timestamp mismatch |
-| `20261103143500_health_h4_grant_scope_allowlist.sql` | `20261103143500` | `20261103142910` | timestamp mismatch |
 | `20261103145907_health_h2_1_vital_measurements.sql` | `20261103145907` | `20261103145907` | exact prefix |
 | `20261103150138_health_h2_1_measurement_audit_policy_hardening.sql` | `20261103150138` | `20261103150138` | exact prefix |
 | `20261103151035_health_h2_2_body_map_symptom_locations.sql` | `20261103151035` | `20261103151035` | exact prefix |
@@ -455,7 +452,7 @@ A fresh read-only scan was run against `main` at `b263f5c3a18531bd2e6a4f228605b0
 - The three Projects PRD/relationship migrations added through PR #112 increase the pending candidate set; they are not production-applied.
 - All four GitHub Actions checks on current main completed successfully: `test-and-build`, `projects-postgres-smoke`, `knowledge-postgres-smoke`, and `spiritual-postgres-smoke`. The Vercel status check is separate and failed due to the free-plan daily deployment rate limit; no production deployment was performed.
 
-This scan updates the inventory counts only. It does not establish historical SQL byte equivalence, nor authorize a production migration push. The ten previously live-only history rows now have their original stored SQL statements restored as version-matched files in this branch. The 40 timestamp mismatches still require SQL content comparison and filename reconciliation; the 17 pending candidates still require dependency ordering and disposable-chain validation.
+This scan updates the inventory counts and source-content evidence. It does not authorize a production migration push. The ten previously live-only history rows now have their original stored SQL statements restored as version-matched files in this branch. The 17 remaining timestamp mismatches and 11 exact-prefix SQL-content mismatches still require object-by-object review; the 17 pending candidates still require dependency ordering and disposable-chain validation.
 
 
 ### Counting method clarification
