@@ -860,3 +860,79 @@ export function serializeSkinProductsCsv(products = []) {
   return "\\uFEFF" + [SKIN_PRODUCT_CSV_FIELDS, ...products.map(product => SKIN_PRODUCT_CSV_FIELDS.map(field => product[field] ?? ""))]
     .map(row => row.map(escape).join(",")).join("\\r\\n");
 }
+
+
+export function summarizeSkinProductUnits(productId, units = [], today = new Date().toISOString().slice(0, 10)) {
+  const related = units.filter(unit => unit.productId === productId && !unit.deleted_at);
+  const priced = related.filter(unit => unit.price !== "" && unit.price != null && Number.isFinite(Number(unit.price)) && Number(unit.price) >= 0);
+  const totalsByCurrency = {};
+  for (const unit of priced) {
+    const currency = String(unit.currency || "غير محددة").trim() || "غير محددة";
+    totalsByCurrency[currency] = (totalsByCurrency[currency] || 0) + Number(unit.price);
+  }
+  const dailyCosts = priced.filter(unit => unit.startedUseDate).map(unit => {
+    const start = Date.parse(String(unit.startedUseDate) + "T00:00:00Z");
+    const endKey = unit.finishedDate || today;
+    const end = Date.parse(String(endKey) + "T00:00:00Z");
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+    const days = Math.floor((end - start) / 86400000) + 1;
+    return { value: Number(unit.price) / days, currency: String(unit.currency || "غير محددة"), unitId: unit.id };
+  }).filter(Boolean);
+  return {
+    count: related.length,
+    pricedCount: priced.length,
+    totalsByCurrency,
+    mixedCurrencies: Object.keys(totalsByCurrency).length > 1,
+    costPerDay: dailyCosts.length === 1 ? dailyCosts[0] : null,
+    dailyCostAmbiguous: dailyCosts.length > 1,
+  };
+}
+
+export function buildSkinComparisonMatrix(products = [], units = [], ingredients = [], today = new Date().toISOString().slice(0, 10)) {
+  const activeProducts = products.filter(product => !product.deleted_at);
+  const ingredientIndex = new Set();
+  for (const ingredient of ingredients) {
+    for (const alias of [ingredient.inciName, ...(ingredient.aliases || [])]) {
+      const normalized = String(alias || "").trim().toLocaleLowerCase();
+      if (normalized) ingredientIndex.add(normalized);
+    }
+  }
+  const inciParts = product => String(product.ingredients || "").split(/[,،;؛\\n\\r·•]+/).map(value => value.trim()).filter(Boolean);
+  const values = [
+    ["العلامة التجارية", product => product.brand || "—"],
+    ["التصنيف", product => product.category || "—"],
+    ["الحالة", product => product.status || "—"],
+    ["الملاءمة المسجلة", product => product.suitability || "—"],
+    ["تاريخ البدء", product => product.startDate || "—"],
+    ["تاريخ الانتهاء", product => product.expiryDate || "—"],
+    ["العبوات المسجلة", product => summarizeSkinProductUnits(product.id, units, today).count],
+    ["إجمالي أسعار العبوات", product => {
+      const summary = summarizeSkinProductUnits(product.id, units, today);
+      const totals = Object.entries(summary.totalsByCurrency);
+      return totals.length ? totals.map(([currency, amount]) => amount.toFixed(2) + " " + currency).join(" / ") : "—";
+    }],
+    ["تكلفة العبوة/اليوم", product => {
+      const summary = summarizeSkinProductUnits(product.id, units, today);
+      if (summary.costPerDay) return summary.costPerDay.value.toFixed(2) + " " + summary.costPerDay.currency;
+      if (summary.dailyCostAmbiguous) return "غير محسوبة؛ توجد أكثر من عبوة ذات تكلفة يومية";
+      return "غير متاحة؛ يلزم سعر وتاريخ بدء استخدام صالح لعبوة واحدة";
+    }],
+    ["مكونات INCI", product => inciParts(product).length],
+    ["مطابقة مكتبتك", product => inciParts(product).filter(value => ingredientIndex.has(value.toLocaleLowerCase())).length],
+    ["مكونات غير معروفة", product => inciParts(product).filter(value => !ingredientIndex.has(value.toLocaleLowerCase())).length],
+    ["رابط المنتج", product => product.url || "—"],
+  ];
+  return [
+    ["المعيار", ...activeProducts.map(product => product.name || "منتج")],
+    ...values.map(([label, getValue]) => [label, ...activeProducts.map(getValue)]),
+  ];
+}
+
+export function serializeSkinComparisonCsv(matrix = []) {
+  const escape = value => {
+    let text = String(value ?? "");
+    if (/^[\\s]*[=+@-]/.test(text)) text = "'" + text;
+    return '"' + text.replace(/"/g, '""') + '"';
+  };
+  return "\\uFEFF" + matrix.map(row => row.map(escape).join(",")).join("\\r\\n");
+}
