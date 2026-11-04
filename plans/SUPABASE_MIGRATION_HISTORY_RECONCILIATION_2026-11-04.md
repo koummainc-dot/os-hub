@@ -12,9 +12,9 @@
 - SQL migration files on this reconciliation branch: **114**
 - Repository files with one or more same-name live history entries: **97**
 - Repository files with no same-name live history entry (candidate pending): **17**
-- Same-name entries whose file timestamp differs from live history: **40**
+- Same-name entries whose file timestamp differs from live history: **20**
 - Live history entries not mapped to a same-name repository file: **0**
-- Exact version-prefix matches (including duplicate-name exact-version pairing): **57**
+- Exact version-prefix matches (including duplicate-name exact-version pairing): **77**
 - Duplicate live versions: **0**
 
 This is a reconciliation inventory, not authorization to push. Name equality is only a candidate mapping; SQL content/checksum and dependency review are still required.
@@ -24,8 +24,8 @@ This is a reconciliation inventory, not authorization to push. Name equality is 
 | Repository file | File prefix | Live version(s) | Status |
 |---|---:|---:|---|
 | `20261025000000_platform_core.sql` | `20261025000000` | `20261025041105` | timestamp mismatch |
-| `20261025010000_records_visibility_realtime.sql` | `20261025010000` | `20261025155657` | timestamp mismatch |
-| `20261025020000_collection_sections_map.sql` | `20261025020000` | `20261026155131` | timestamp mismatch |
+| `20261025155657_records_visibility_realtime.sql` | `20261025155657` | `20261025155657` | exact version |
+| `20261026155131_collection_sections_map.sql` | `20261026155131` | `20261026155131` | exact version |
 | `20261027180744_finance_internal_function_permissions.sql` | `20261027180744` | `20261027180744`, `20261027180756` | exact prefix |
 | `20261027180756_finance_internal_function_permissions.sql` | `20261027180756` | `20261027180744`, `20261027180756` | exact prefix |
 | `20261027180815_records_touch_search_path.sql` | `20261027180815` | `20261027180815` | exact prefix |
@@ -36,14 +36,14 @@ This is a reconciliation inventory, not authorization to push. Name equality is 
 | `20261027182240_finance_budget_templates_phase_4.sql` | `20261027182240` | `20261027181925` | timestamp mismatch |
 | `20261027182600_finance_budget_rollover_phase_5.sql` | `20261027182600` | `20261027182235` | timestamp mismatch |
 | `20261027182630_finance_budget_rollover_json_array_fix.sql` | `20261027182630` | `20261027182248` | timestamp mismatch |
-| `20261027183200_finance_reconciliation_lock_search_path.sql` | `20261027183200` | `20261027182619` | timestamp mismatch |
+| `20261027182619_finance_reconciliation_lock_search_path.sql` | `20261027182619` | `20261027182619` | exact version |
 | `20261027184000_finance_recurring_phase_9.sql` | `20261027184000` | `20261027183913` | timestamp mismatch |
 | `20261027190000_finance_recurring_quarterly_and_skip_phase_13.sql` | `20261027190000` | `20261027184945` | timestamp mismatch |
 | `20261027191500_finance_recurring_date_anchor_correction_phase_14.sql` | `20261027191500` | `20261027185651` | timestamp mismatch |
 | `20261027192500_finance_projects_ledger_lens_phase_15.sql` | `20261027192500` | `20261027185938` | timestamp mismatch |
 | `20261027194000_finance_net_worth_history_phase_17.sql` | `20261027194000` | `20261027190403` | timestamp mismatch |
 | `20261028092121_finance_budget_categories_debt_upgrade.sql` | `20261028092121` | `20261028092121` | exact prefix |
-| `20261028092600_finance_category_bank_interest_income.sql` | `20261028092600` | `20261028092718` | timestamp mismatch |
+| `20261028092718_finance_category_bank_interest_income.sql` | `20261028092718` | `20261028092718` | exact version |
 | `20261028110150_finance_family_center.sql` | `20261028110150` | `20261028110150` | exact prefix |
 | `20261028110153_finance_family_allocation_rpc.sql` | `20261028110153` | `20261028110153` | exact prefix |
 | `20261028110238_finance_family_rpc_privilege_hardening.sql` | `20261028110238` | `20261028110238` | exact prefix |
@@ -51,27 +51,27 @@ This is a reconciliation inventory, not authorization to push. Name equality is 
 | `20261028130000_finance_default_category_seeding.sql` | `20261028130000` | — | NO LIVE MATCH |
 | `20261028140000_inventory_p1_domain_schema.sql` | `20261028140000` | — | NO LIVE MATCH |
 | `20261028150000_inventory_snapshot_rpc.sql` | `20261028150000` | — | NO LIVE MATCH |
-| `20261028200000_finance_asset_valuation_history_phase_20.sql` | `20261028200000` | `20261027212802` | timestamp mismatch |
-| `20261028203000_finance_asset_function_search_path_hardening.sql` | `20261028203000` | `20261027212952` | timestamp mismatch |
+| `20261027212802_finance_asset_valuation_history_phase_20.sql` | `20261027212802` | `20261027212802` | exact version |
+| `20261027212952_finance_asset_function_search_path_hardening.sql` | `20261027212952` | `20261027212952` | exact version |
 | `20261028210000_finance_budget_period_validation_fix.sql` | `20261028210000` | `20261028051847` | timestamp mismatch |
 | `20261028213000_finance_currency_catalog.sql` | `20261028213000` | `20261028052101` | timestamp mismatch |
 | `20261028214000_finance_fx_rate_currency_validation.sql` | `20261028214000` | `20261028052216` | timestamp mismatch |
 | `20261028220000_finance_budget_insights_read_model.sql` | `20261028220000` | `20261028052603` | timestamp mismatch |
 | `20261028223000_finance_projects_link_to_projects_os.sql` | `20261028223000` | `20261028052945` | timestamp mismatch |
-| `20261028230000_finance_reports_server_analytics.sql` | `20261028230000` | `20261028053220` | timestamp mismatch |
-| `20261028233000_finance_recurring_defer_catchup.sql` | `20261028233000` | `20261028053543` | timestamp mismatch |
+| `20261028053220_finance_reports_server_analytics.sql` | `20261028053220` | `20261028053220` | exact version |
+| `20261028053543_finance_recurring_defer_catchup.sql` | `20261028053543` | `20261028053543` | exact version |
 | `20261028240000_finance_asset_lifecycle.sql` | `20261028240000` | `20261028054012` | timestamp mismatch |
 | `20261029100000_relationships_atomic_batch.sql` | `20261029100000` | `20261029061352` | timestamp mismatch |
-| `20261029121500_relationships_atomic_batch_null_access_fix.sql` | `20261029121500` | `20261029061546` | timestamp mismatch |
-| `20261029160000_projects_atomic_records_batch.sql` | `20261029160000` | `20261029155533` | timestamp mismatch |
-| `20261029170000_projects_atomic_completion_batch.sql` | `20261029170000` | `20261029173536` | timestamp mismatch |
+| `20261029061546_relationships_atomic_batch_null_access_fix.sql` | `20261029061546` | `20261029061546` | exact version |
+| `20261029155533_projects_atomic_records_batch.sql` | `20261029155533` | `20261029155533` | exact version |
+| `20261029173536_projects_atomic_completion_batch.sql` | `20261029173536` | `20261029173536` | exact version |
 | `20261029180000_projects_atomic_trash_batch.sql` | `20261029180000` | `20261029211950` | timestamp mismatch |
-| `20261029190000_projects_purge_records_batch.sql` | `20261029190000` | `20261029213602` | timestamp mismatch |
+| `20261029213602_projects_purge_records_batch.sql` | `20261029213602` | `20261029213602` | exact version |
 | `20261030100000_projects_final_output_guard.sql` | `20261030100000` | — | NO LIVE MATCH |
 | `20261030110000_projects_task_issue_traceability.sql` | `20261030110000` | — | NO LIVE MATCH |
 | `20261030120000_projects_task_issue_deferred_validation.sql` | `20261030120000` | — | NO LIVE MATCH |
 | `20261030130000_finance_family_cash_tracking.sql` | `20261030130000` | — | NO LIVE MATCH |
-| `20261030140000_knowledge_resource_os.sql` | `20261030140000` | `20261030150615` | timestamp mismatch |
+| `20261030150615_knowledge_resource_os.sql` | `20261030150615` | `20261030150615` | exact version |
 | `20261030153224_learning_os_normalized_storage.sql` | `20261030153224` | `20261030153224` | exact prefix |
 | `20261101030716_sports_private_body_progress_storage.sql` | `20261101030716` | `20261101030716` | exact prefix |
 | `20261101102730_nutrition_os_p0_p1_foundation.sql` | `20261101102730` | `20261101102730` | exact prefix |
@@ -94,18 +94,18 @@ This is a reconciliation inventory, not authorization to push. Name equality is 
 | `20261101113723_home_operations_reconciliation_report.sql` | `20261101113723` | `20261101113723` | exact prefix |
 | `20261101113726_home_finance_outbox_ack.sql` | `20261101113726` | `20261101113726` | exact prefix |
 | `20261101113730_home_os_stock_version_bump.sql` | `20261101113730` | `20261101113730` | exact prefix |
-| `20261101130000_spiritual_values_foundation.sql` | `20261101130000` | `20261103090432` | timestamp mismatch |
-| `20261101143000_spiritual_practice_logs.sql` | `20261101143000` | `20261103090434` | timestamp mismatch |
+| `20261103090432_spiritual_values_foundation.sql` | `20261103090432` | `20261103090432` | exact version |
+| `20261103090434_spiritual_practice_logs.sql` | `20261103090434` | `20261103090434` | exact version |
 | `20261101150000_os_integration_events.sql` | `20261101150000` | — | NO LIVE MATCH |
-| `20261101160000_spiritual_practice_log_integrity.sql` | `20261101160000` | `20261103090436` | timestamp mismatch |
-| `20261101173000_spiritual_client_side_encryption.sql` | `20261101173000` | `20261103090438` | timestamp mismatch |
-| `20261101200000_spiritual_record_relations.sql` | `20261101200000` | `20261103090441` | timestamp mismatch |
-| `20261101213000_spiritual_integration_privacy.sql` | `20261101213000` | `20261103090443` | timestamp mismatch |
+| `20261103090436_spiritual_practice_log_integrity.sql` | `20261103090436` | `20261103090436` | exact version |
+| `20261103090438_spiritual_client_side_encryption.sql` | `20261103090438` | `20261103090438` | exact version |
+| `20261103090441_spiritual_record_relations.sql` | `20261103090441` | `20261103090441` | exact version |
+| `20261103090443_spiritual_integration_privacy.sql` | `20261103090443` | `20261103090443` | exact version |
 | `20261102103000_hobbies_journal_private_visibility.sql` | `20261102103000` | — | NO LIVE MATCH |
 | `20261102110000_hobbies_journal_private_storage.sql` | `20261102110000` | — | NO LIVE MATCH |
 | `20261102120000_hobbies_journal_audit_history.sql` | `20261102120000` | — | NO LIVE MATCH |
 | `20261102130000_hobbies_journal_attachment_lifecycle.sql` | `20261102130000` | — | NO LIVE MATCH |
-| `20261103090000_hobbies_import_records_batch.sql` | `20261103090000` | `20261103091014` | timestamp mismatch |
+| `20261103091014_hobbies_import_records_batch.sql` | `20261103091014` | `20261103091014` | exact version |
 | `20261103134221_health_os_h1_foundation.sql` | `20261103134221` | `20261103134221` | exact prefix |
 | `20261103134401_health_os_h1_storage_scope_fix.sql` | `20261103134401` | `20261103134401` | exact prefix |
 | `20261103135639_health_os_h2_core_records.sql` | `20261103135639` | `20261103135639` | exact prefix |
@@ -167,47 +167,28 @@ The ten entries above were recovered from the production `supabase_migrations.sc
 ## Timestamp mismatches
 
 - `20261025000000_platform_core.sql` → live `20261025041105`
-- `20261025010000_records_visibility_realtime.sql` → live `20261025155657`
-- `20261025020000_collection_sections_map.sql` → live `20261026155131`
 - `20261027182240_finance_budget_templates_phase_4.sql` → live `20261027181925`
 - `20261027182600_finance_budget_rollover_phase_5.sql` → live `20261027182235`
 - `20261027182630_finance_budget_rollover_json_array_fix.sql` → live `20261027182248`
-- `20261027183200_finance_reconciliation_lock_search_path.sql` → live `20261027182619`
 - `20261027184000_finance_recurring_phase_9.sql` → live `20261027183913`
 - `20261027190000_finance_recurring_quarterly_and_skip_phase_13.sql` → live `20261027184945`
 - `20261027191500_finance_recurring_date_anchor_correction_phase_14.sql` → live `20261027185651`
 - `20261027192500_finance_projects_ledger_lens_phase_15.sql` → live `20261027185938`
 - `20261027194000_finance_net_worth_history_phase_17.sql` → live `20261027190403`
-- `20261028092600_finance_category_bank_interest_income.sql` → live `20261028092718`
-- `20261028200000_finance_asset_valuation_history_phase_20.sql` → live `20261027212802`
-- `20261028203000_finance_asset_function_search_path_hardening.sql` → live `20261027212952`
 - `20261028210000_finance_budget_period_validation_fix.sql` → live `20261028051847`
 - `20261028213000_finance_currency_catalog.sql` → live `20261028052101`
 - `20261028214000_finance_fx_rate_currency_validation.sql` → live `20261028052216`
 - `20261028220000_finance_budget_insights_read_model.sql` → live `20261028052603`
 - `20261028223000_finance_projects_link_to_projects_os.sql` → live `20261028052945`
-- `20261028230000_finance_reports_server_analytics.sql` → live `20261028053220`
-- `20261028233000_finance_recurring_defer_catchup.sql` → live `20261028053543`
 - `20261028240000_finance_asset_lifecycle.sql` → live `20261028054012`
 - `20261029100000_relationships_atomic_batch.sql` → live `20261029061352`
-- `20261029121500_relationships_atomic_batch_null_access_fix.sql` → live `20261029061546`
-- `20261029160000_projects_atomic_records_batch.sql` → live `20261029155533`
-- `20261029170000_projects_atomic_completion_batch.sql` → live `20261029173536`
 - `20261029180000_projects_atomic_trash_batch.sql` → live `20261029211950`
-- `20261029190000_projects_purge_records_batch.sql` → live `20261029213602`
-- `20261030140000_knowledge_resource_os.sql` → live `20261030150615`
-- `20261101130000_spiritual_values_foundation.sql` → live `20261103090432`
-- `20261101143000_spiritual_practice_logs.sql` → live `20261103090434`
-- `20261101160000_spiritual_practice_log_integrity.sql` → live `20261103090436`
-- `20261101173000_spiritual_client_side_encryption.sql` → live `20261103090438`
-- `20261101200000_spiritual_record_relations.sql` → live `20261103090441`
-- `20261101213000_spiritual_integration_privacy.sql` → live `20261103090443`
-- `20261103090000_hobbies_import_records_batch.sql` → live `20261103091014`
 - `20261103142200_health_os_h4_cycle_settings_owner_only.sql` → live `20261103142324`
 - `20261103143000_health_os_grant_rls_recursion_fix.sql` → live `20261103142823`
 - `20261103143500_health_h4_grant_scope_allowlist.sql` → live `20261103142910`
 
 The full candidate map above includes all detected mismatches, not just the previously documented core/Projects examples.
+
 
 ## Duplicate live migration names
 
@@ -257,8 +238,8 @@ The SHA column below is the **Git blob SHA of the current repository file**, not
 | Live version | Live name | Candidate repository file | Git blob SHA | Mapping |
 |---|---|---|---|---|
 | `20261025041105` | `platform_core` | `supabase/migrations/20261025000000_platform_core.sql` | `19a998d65ff1c5a9ddbbab3485361885c6b4722c` | unique-name |
-| `20261025155657` | `records_visibility_realtime` | `supabase/migrations/20261025010000_records_visibility_realtime.sql` | `4dee61541719f4c231aa92e95e21b3c9576f9353` | unique-name |
-| `20261026155131` | `collection_sections_map` | `supabase/migrations/20261025020000_collection_sections_map.sql` | `5521b8f9df9f50806812ea2b66c03b6fd0780312` | unique-name |
+| `20261025155657` | `records_visibility_realtime` | `supabase/migrations/20261025155657_records_visibility_realtime.sql` | `4dee61541719f4c231aa92e95e21b3c9576f9353` | unique-name |
+| `20261026155131` | `collection_sections_map` | `supabase/migrations/20261026155131_collection_sections_map.sql` | `5521b8f9df9f50806812ea2b66c03b6fd0780312` | unique-name |
 | `20261027074905` | `finance_a_schema` | — | `—` | unmatched |
 | `20261027075030` | `finance_b_engine` | — | `—` | unmatched |
 | `20261027075354` | `finance_c_rpcs` | — | `—` | unmatched |
@@ -275,7 +256,7 @@ The SHA column below is the **Git blob SHA of the current repository file**, not
 | `20261027181925` | `finance_budget_templates_phase_4` | `supabase/migrations/20261027182240_finance_budget_templates_phase_4.sql` | `dfcd37a82ab9b09d61b379f3c8df0b73f0e9ae68` | unique-name |
 | `20261027182235` | `finance_budget_rollover_phase_5` | `supabase/migrations/20261027182600_finance_budget_rollover_phase_5.sql` | `2e090e838263acb7704b3a2d35bb1093df64c257` | unique-name |
 | `20261027182248` | `finance_budget_rollover_json_array_fix` | `supabase/migrations/20261027182630_finance_budget_rollover_json_array_fix.sql` | `51cbd8b972615b18323cd09e265aad15718c061c` | unique-name |
-| `20261027182619` | `finance_reconciliation_lock_search_path` | `supabase/migrations/20261027183200_finance_reconciliation_lock_search_path.sql` | `cfa44fbe1be62ef21dcece6d39d5840e0e61c93d` | unique-name |
+| `20261027182619` | `finance_reconciliation_lock_search_path` | `supabase/migrations/20261027182619_finance_reconciliation_lock_search_path.sql` | `cfa44fbe1be62ef21dcece6d39d5840e0e61c93d` | unique-name |
 | `20261027183913` | `finance_recurring_phase_9` | `supabase/migrations/20261027184000_finance_recurring_phase_9.sql` | `906860210c2a732e8a11686418870fc17a1d6c8a` | unique-name |
 | `20261027184945` | `finance_recurring_quarterly_and_skip_phase_13` | `supabase/migrations/20261027190000_finance_recurring_quarterly_and_skip_phase_13.sql` | `45a7a48ee36669e90012eecdb1e42d2c6af52e3f` | unique-name |
 | `20261027185041` | `finance_recurring_defer_rpc_wrapper_phase_13` | — | `—` | unmatched |
@@ -283,29 +264,29 @@ The SHA column below is the **Git blob SHA of the current repository file**, not
 | `20261027185938` | `finance_projects_ledger_lens_phase_15` | `supabase/migrations/20261027192500_finance_projects_ledger_lens_phase_15.sql` | `eb6b92ce9eb6252e54bc3b984445421bcb5fec90` | unique-name |
 | `20261027190403` | `finance_net_worth_history_phase_17` | `supabase/migrations/20261027194000_finance_net_worth_history_phase_17.sql` | `51331bb73a7f7896d972696c393fa0a147f16249` | unique-name |
 | `20261027190550` | `finance_net_worth_snapshot_json_alias_fix` | — | `—` | unmatched |
-| `20261027212802` | `finance_asset_valuation_history_phase_20` | `supabase/migrations/20261028200000_finance_asset_valuation_history_phase_20.sql` | `177e18fc5107d87534ceeac6267b3cbc49ed5a02` | unique-name |
-| `20261027212952` | `finance_asset_function_search_path_hardening` | `supabase/migrations/20261028203000_finance_asset_function_search_path_hardening.sql` | `79b80eede4f7b956240d1591f6720ac51b887a2f` | unique-name |
+| `20261027212802` | `finance_asset_valuation_history_phase_20` | `supabase/migrations/20261027212802_finance_asset_valuation_history_phase_20.sql` | `177e18fc5107d87534ceeac6267b3cbc49ed5a02` | unique-name |
+| `20261027212952` | `finance_asset_function_search_path_hardening` | `supabase/migrations/20261027212952_finance_asset_function_search_path_hardening.sql` | `79b80eede4f7b956240d1591f6720ac51b887a2f` | unique-name |
 | `20261028051847` | `finance_budget_period_validation_fix` | `supabase/migrations/20261028210000_finance_budget_period_validation_fix.sql` | `e64b428f99d9ec7e193b34dcbb80b29886717b04` | unique-name |
 | `20261028052101` | `finance_currency_catalog` | `supabase/migrations/20261028213000_finance_currency_catalog.sql` | `f4fcfe603f309b929354e69455170fc03ce9c298` | unique-name |
 | `20261028052216` | `finance_fx_rate_currency_validation` | `supabase/migrations/20261028214000_finance_fx_rate_currency_validation.sql` | `38173fd31933c385ee0cde81ebd2d24cb1bd0125` | unique-name |
 | `20261028052603` | `finance_budget_insights_read_model` | `supabase/migrations/20261028220000_finance_budget_insights_read_model.sql` | `da9847061f8fb6d967fdae62100c4c1b6c792980` | unique-name |
 | `20261028052945` | `finance_projects_link_to_projects_os` | `supabase/migrations/20261028223000_finance_projects_link_to_projects_os.sql` | `331f36d51d67ed4353d0d09b97b722a88e122e11` | unique-name |
-| `20261028053220` | `finance_reports_server_analytics` | `supabase/migrations/20261028230000_finance_reports_server_analytics.sql` | `5e266e00f795625a39323eaeeec5f63b78e19207` | unique-name |
-| `20261028053543` | `finance_recurring_defer_catchup` | `supabase/migrations/20261028233000_finance_recurring_defer_catchup.sql` | `30c451b3f7c95ed9bf74f7cf168d2991ee12f94c` | unique-name |
+| `20261028053220` | `finance_reports_server_analytics` | `supabase/migrations/20261028053220_finance_reports_server_analytics.sql` | `5e266e00f795625a39323eaeeec5f63b78e19207` | unique-name |
+| `20261028053543` | `finance_recurring_defer_catchup` | `supabase/migrations/20261028053543_finance_recurring_defer_catchup.sql` | `30c451b3f7c95ed9bf74f7cf168d2991ee12f94c` | unique-name |
 | `20261028054012` | `finance_asset_lifecycle` | `supabase/migrations/20261028240000_finance_asset_lifecycle.sql` | `bcc247fe89d5b7a7f97d7cde258293c3409bf4d8` | unique-name |
 | `20261028054205` | `finance_asset_lifecycle_permission_hardening` | — | `—` | unmatched |
 | `20261028092121` | `finance_budget_categories_debt_upgrade` | `supabase/migrations/20261028092121_finance_budget_categories_debt_upgrade.sql` | `15876ebfc14266cb474887effb0e52fe4af1ecd1` | exact-version |
-| `20261028092718` | `finance_category_bank_interest_income` | `supabase/migrations/20261028092600_finance_category_bank_interest_income.sql` | `d9d36850e593e255f50070f2e7a2f4232729eca0` | unique-name |
+| `20261028092718` | `finance_category_bank_interest_income` | `supabase/migrations/20261028092718_finance_category_bank_interest_income.sql` | `d9d36850e593e255f50070f2e7a2f4232729eca0` | unique-name |
 | `20261028110150` | `finance_family_center` | `supabase/migrations/20261028110150_finance_family_center.sql` | `2036572e206d9a7b2a208d4f238cce65e0ae4b14` | exact-version |
 | `20261028110153` | `finance_family_allocation_rpc` | `supabase/migrations/20261028110153_finance_family_allocation_rpc.sql` | `23e7b07f38a808e873f7858c39248795b72f673d` | exact-version |
 | `20261028110238` | `finance_family_rpc_privilege_hardening` | `supabase/migrations/20261028110238_finance_family_rpc_privilege_hardening.sql` | `31b30d1e0200ac275b64fbd49dff231a66df3573` | exact-version |
 | `20261029061352` | `relationships_atomic_batch` | `supabase/migrations/20261029100000_relationships_atomic_batch.sql` | `6e8c47563a832d473bc1d1bc1108a2517bf6eadf` | unique-name |
-| `20261029061546` | `relationships_atomic_batch_null_access_fix` | `supabase/migrations/20261029121500_relationships_atomic_batch_null_access_fix.sql` | `b6270b5095855ac7b167ae08b27e6a3c4700370e` | unique-name |
-| `20261029155533` | `projects_atomic_records_batch` | `supabase/migrations/20261029160000_projects_atomic_records_batch.sql` | `ba39221a4f3f9889b7ecb7f891ce78efed33e614` | unique-name |
-| `20261029173536` | `projects_atomic_completion_batch` | `supabase/migrations/20261029170000_projects_atomic_completion_batch.sql` | `c00f7c5cd907eaffdaf43ab97f28b3a581601360` | unique-name |
+| `20261029061546` | `relationships_atomic_batch_null_access_fix` | `supabase/migrations/20261029061546_relationships_atomic_batch_null_access_fix.sql` | `b6270b5095855ac7b167ae08b27e6a3c4700370e` | unique-name |
+| `20261029155533` | `projects_atomic_records_batch` | `supabase/migrations/20261029155533_projects_atomic_records_batch.sql` | `ba39221a4f3f9889b7ecb7f891ce78efed33e614` | unique-name |
+| `20261029173536` | `projects_atomic_completion_batch` | `supabase/migrations/20261029173536_projects_atomic_completion_batch.sql` | `c00f7c5cd907eaffdaf43ab97f28b3a581601360` | unique-name |
 | `20261029211950` | `projects_atomic_trash_batch` | `supabase/migrations/20261029180000_projects_atomic_trash_batch.sql` | `e530d532bb924322a09e782c005ab189f1ec5948` | unique-name |
-| `20261029213602` | `projects_purge_records_batch` | `supabase/migrations/20261029190000_projects_purge_records_batch.sql` | `1daebb263adb65a60e537b2f8be03fbc03c061a8` | unique-name |
-| `20261030150615` | `knowledge_resource_os` | `supabase/migrations/20261030140000_knowledge_resource_os.sql` | `7847684adf3dde467062e0e2cbf5fb6a70657433` | unique-name |
+| `20261029213602` | `projects_purge_records_batch` | `supabase/migrations/20261029213602_projects_purge_records_batch.sql` | `1daebb263adb65a60e537b2f8be03fbc03c061a8` | unique-name |
+| `20261030150615` | `knowledge_resource_os` | `supabase/migrations/20261030150615_knowledge_resource_os.sql` | `7847684adf3dde467062e0e2cbf5fb6a70657433` | unique-name |
 | `20261030153224` | `learning_os_normalized_storage` | `supabase/migrations/20261030153224_learning_os_normalized_storage.sql` | `6b9e5a37ae8ac0e16c8cb6f89493426b3d73a7bf` | exact-version |
 | `20261101030716` | `sports_private_body_progress_storage` | `supabase/migrations/20261101030716_sports_private_body_progress_storage.sql` | `daadeb5f0e58ad1fcb16a35ccf10bc1e9d2ea97f` | exact-version |
 | `20261101102730` | `nutrition_os_p0_p1_foundation` | `supabase/migrations/20261101102730_nutrition_os_p0_p1_foundation.sql` | `f3c3358f4790bb9bb88121ce5dc5f54ff7bfd300` | exact-version |
@@ -328,13 +309,13 @@ The SHA column below is the **Git blob SHA of the current repository file**, not
 | `20261101113723` | `home_operations_reconciliation_report` | `supabase/migrations/20261101113723_home_operations_reconciliation_report.sql` | `c5d1d28cc925c2ce215020fb3a2cb78e9a2d57c9` | exact-version |
 | `20261101113726` | `home_finance_outbox_ack` | `supabase/migrations/20261101113726_home_finance_outbox_ack.sql` | `f393f46640c802ca7899bcca31158fa90b1c469b` | exact-version |
 | `20261101113730` | `home_os_stock_version_bump` | `supabase/migrations/20261101113730_home_os_stock_version_bump.sql` | `692239bfbfd7a93126f56f4388bba410a741bdcf` | exact-version |
-| `20261103090432` | `spiritual_values_foundation` | `supabase/migrations/20261101130000_spiritual_values_foundation.sql` | `bab1321c2683253889f553cb16a02bfd9d118919` | unique-name |
-| `20261103090434` | `spiritual_practice_logs` | `supabase/migrations/20261101143000_spiritual_practice_logs.sql` | `26dd80b58a2e5270e6a6e6cab74a41e735166537` | unique-name |
-| `20261103090436` | `spiritual_practice_log_integrity` | `supabase/migrations/20261101160000_spiritual_practice_log_integrity.sql` | `be834738c2ab833a24e8ad03b1ae2c2cd18702a5` | unique-name |
-| `20261103090438` | `spiritual_client_side_encryption` | `supabase/migrations/20261101173000_spiritual_client_side_encryption.sql` | `1488d8fcaeb1a6728a461acd066ae2f5c6dd3587` | unique-name |
-| `20261103090441` | `spiritual_record_relations` | `supabase/migrations/20261101200000_spiritual_record_relations.sql` | `af97d76d93735709e0df16a2d369fd4e7ce9f20e` | unique-name |
-| `20261103090443` | `spiritual_integration_privacy` | `supabase/migrations/20261101213000_spiritual_integration_privacy.sql` | `2a8e5d9c24ad159944473085b6941f0b16a3fb84` | unique-name |
-| `20261103091014` | `hobbies_import_records_batch` | `supabase/migrations/20261103090000_hobbies_import_records_batch.sql` | `52299e2f4254deb16138871d1804667b6f8b4455` | unique-name |
+| `20261103090432` | `spiritual_values_foundation` | `supabase/migrations/20261103090432_spiritual_values_foundation.sql` | `bab1321c2683253889f553cb16a02bfd9d118919` | unique-name |
+| `20261103090434` | `spiritual_practice_logs` | `supabase/migrations/20261103090434_spiritual_practice_logs.sql` | `26dd80b58a2e5270e6a6e6cab74a41e735166537` | unique-name |
+| `20261103090436` | `spiritual_practice_log_integrity` | `supabase/migrations/20261103090436_spiritual_practice_log_integrity.sql` | `be834738c2ab833a24e8ad03b1ae2c2cd18702a5` | unique-name |
+| `20261103090438` | `spiritual_client_side_encryption` | `supabase/migrations/20261103090438_spiritual_client_side_encryption.sql` | `1488d8fcaeb1a6728a461acd066ae2f5c6dd3587` | unique-name |
+| `20261103090441` | `spiritual_record_relations` | `supabase/migrations/20261103090441_spiritual_record_relations.sql` | `af97d76d93735709e0df16a2d369fd4e7ce9f20e` | unique-name |
+| `20261103090443` | `spiritual_integration_privacy` | `supabase/migrations/20261103090443_spiritual_integration_privacy.sql` | `2a8e5d9c24ad159944473085b6941f0b16a3fb84` | unique-name |
+| `20261103091014` | `hobbies_import_records_batch` | `supabase/migrations/20261103091014_hobbies_import_records_batch.sql` | `52299e2f4254deb16138871d1804667b6f8b4455` | unique-name |
 | `20261103134221` | `health_os_h1_foundation` | `supabase/migrations/20261103134221_health_os_h1_foundation.sql` | `1fd3fae27b67f0912e3c9b4112173164598ad890` | exact-version |
 | `20261103134401` | `health_os_h1_storage_scope_fix` | `supabase/migrations/20261103134401_health_os_h1_storage_scope_fix.sql` | `8bacaee4869a3cc47a503fdd819f937dd8ecf087` | exact-version |
 | `20261103135639` | `health_os_h2_core_records` | `supabase/migrations/20261103135639_health_os_h2_core_records.sql` | `3b1afb84bab20ed3d228d55dd9d0afe1ee8dd6ec` | exact-version |
@@ -470,7 +451,7 @@ A fresh read-only scan was run against `main` at `b263f5c3a18531bd2e6a4f228605b0
 - Live Supabase migration history remains **94** entries.
 - This reconciliation branch contains **114** SQL migration files, including ten historical source files restored from production's stored migration statements.
 - **47** repository files have exact version-prefix matches.
-- **40** same-name candidates have timestamp mismatches. The duplicated historical name `finance_internal_function_permissions` has two live versions and two repository files; pair each file to the live entry with the same exact version, rather than collapsing by name.
+- **20** same-name candidates have timestamp mismatches. The duplicated historical name `finance_internal_function_permissions` has two live versions and two repository files; pair each file to the live entry with the same exact version, rather than collapsing by name.
 - **17** repository files have no same-name live history entry.
 - **0** live history entries have no same-name repository file.
 - PR #116 moved only the unapplied Inventory domain migration to `20261028140000_inventory_p1_domain_schema.sql`; Finance retains `20261028130000_finance_default_category_seeding.sql`. The repository now has no duplicate 14-digit migration prefixes.
@@ -482,7 +463,7 @@ This scan updates the inventory counts only. It does not establish historical SQ
 
 ### Counting method clarification
 
-The refreshed totals classify a file as an exact match when its 14-digit prefix is present among all live versions for that same migration name. This preserves the two `finance_internal_function_permissions` history rows as separate exact matches. A file is a timestamp mismatch when its name exists in live history but its prefix does not; a file is pending only when its migration name has no live history row at all. The resulting partition is 57 exact + 40 timestamp mismatches + 17 pending = 114 repository SQL files.
+The refreshed totals classify a file as an exact match when its 14-digit prefix is present among all live versions for that same migration name. This preserves the two `finance_internal_function_permissions` history rows as separate exact matches. A file is a timestamp mismatch when its name exists in live history but its prefix does not; a file is pending only when its migration name has no live history row at all. The resulting partition is 77 exact + 20 timestamp mismatches + 17 pending = 114 repository SQL files.
 
 
 ## Historical SQL source recovery (2026-11-04)
@@ -502,6 +483,35 @@ The production migration-history table exposes a nullable `statements text[]` co
 | `20261028054205` | `20261028054205_finance_asset_lifecycle_permission_hardening.sql` |
 | `20261103141516` | `20261103141516_health_os_h3_state_constraints.sql` |
 
-A fresh branch-tree/history comparison now yields **114 files / 94 live entries / 57 exact-prefix matches / 40 timestamp mismatches / 17 pending candidates / 0 live-only entries / 0 duplicate prefixes**.
+A fresh branch-tree/history comparison now yields **114 files / 94 live entries / 77 exact-prefix matches / 20 timestamp mismatches / 17 pending candidates / 0 live-only entries / 0 duplicate prefixes**.
 
 The restored files represent versions already recorded as applied in production. Adding their source files to Git does not execute them, change Supabase history, or authorize a migration push. They must still be reviewed as source and validated in the clean migration chain before any rollout.
+
+
+## Timestamp-mismatch reconciliation progress
+
+Twenty of the original forty timestamp mismatches were re-versioned using the exact SQL text stored for the corresponding live version. The old file contents remain available in Git history. The remaining twenty files were not renamed because their SQL differs materially from the stored applied statement; simply changing their timestamp would falsely assert source equivalence.
+
+Remaining files requiring SQL-drift review:
+- `20261025000000_platform_core.sql` → live `20261025041105`
+- `20261027182240_finance_budget_templates_phase_4.sql` → live `20261027181925`
+- `20261027182600_finance_budget_rollover_phase_5.sql` → live `20261027182235`
+- `20261027182630_finance_budget_rollover_json_array_fix.sql` → live `20261027182248`
+- `20261027184000_finance_recurring_phase_9.sql` → live `20261027183913`
+- `20261027190000_finance_recurring_quarterly_and_skip_phase_13.sql` → live `20261027184945`
+- `20261027191500_finance_recurring_date_anchor_correction_phase_14.sql` → live `20261027185651`
+- `20261027192500_finance_projects_ledger_lens_phase_15.sql` → live `20261027185938`
+- `20261027194000_finance_net_worth_history_phase_17.sql` → live `20261027190403`
+- `20261028210000_finance_budget_period_validation_fix.sql` → live `20261028051847`
+- `20261028213000_finance_currency_catalog.sql` → live `20261028052101`
+- `20261028214000_finance_fx_rate_currency_validation.sql` → live `20261028052216`
+- `20261028220000_finance_budget_insights_read_model.sql` → live `20261028052603`
+- `20261028223000_finance_projects_link_to_projects_os.sql` → live `20261028052945`
+- `20261028240000_finance_asset_lifecycle.sql` → live `20261028054012`
+- `20261029100000_relationships_atomic_batch.sql` → live `20261029061352`
+- `20261029180000_projects_atomic_trash_batch.sql` → live `20261029211950`
+- `20261103142200_health_os_h4_cycle_settings_owner_only.sql` → live `20261103142324`
+- `20261103143000_health_os_grant_rls_recursion_fix.sql` → live `20261103142823`
+- `20261103143500_health_h4_grant_scope_allowlist.sql` → live `20261103142910`
+
+The source comparison uses the stored SQL statement text, not filename similarity. Prefix matches are not treated as proof of byte-equivalent source; the remaining exact-prefix files still need content verification before the migration history can be called fully reconciled.
