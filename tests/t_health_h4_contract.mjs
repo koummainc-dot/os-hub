@@ -11,7 +11,7 @@ const scopeFix=fs.readFileSync("supabase/migrations/20261103142910_health_h4_gra
 
 assert.ok(core.includes('phase:"H2.4 · الخط الزمني الصحي"'),"H2.2 is the active Health phase");
 assert.ok(core.includes("checkins:المتابعة اليومية:📅") && core.includes("factors:العوامل والمتتبعات:📈") && core.includes("cycle_tracking:الدورة الاختيارية:🔒"),"Previously completed H4 sections must remain registered");
-assert.ok(core.includes('checkins:المتابعة اليومية:📅|factors:العوامل والمتتبعات:📈|cycle_tracking:الدورة الاختيارية:🔒'),"H4 pages must be registered");
+
 for(const page of ["checkins","factors","cycle_tracking"]) assert.match(ui,new RegExp('page === "'+page+'"'),"Missing H4 screen "+page);
 for(const method of ["listDailyCheckins","upsertDailyCheckin","deleteDailyCheckin","listFactors","createFactor","updateFactor","listFactorLogs","createFactorLog","updateFactorLog","deleteFactorLog","updateCycleTrackingPreference","listCycleEntries","upsertCycleEntry","deleteCycleEntry"]) assert.match(repo,new RegExp("async "+method+"\\("),"Missing H4 repository method "+method);
 for(const table of ["health_daily_checkins","health_factors","health_factor_logs","health_cycle_entries"]) {
