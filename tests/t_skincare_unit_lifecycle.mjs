@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {
-  effectiveSkinUnitExpiry, skinUnitStatus, validateSkinUnit,
+  effectiveSkinUnitExpiry, skinUnitStatus, validateSkinUnit, isValidSkinDateKey, skinUnitCostPerDay,
   validateSkinProduct, validateSkinList, validateSkinSettings, canRestoreSkinUnit, canRestoreSkinRoutineLog, canRestoreSkinList, hasDuplicateSkinListName, normalizeSkinSearchText,
 } from "../src/systems/skincare/domain.js";
 
@@ -54,3 +54,18 @@ assert.equal(normalizeSkinSearchText("آثارُ الحُبوب"), "اثار ا�
 assert.equal(normalizeSkinSearchText("كريم_البشرة"), "كريم البشرة");
 assert.equal(normalizeSkinSearchText("  Niacinamide  "), "niacinamide");
 assert.equal(normalizeSkinSearchText("ياسمين"), normalizeSkinSearchText("یاسمین"));
+
+assert.equal(isValidSkinDateKey("2026-02-28"), true);
+assert.equal(isValidSkinDateKey("2026-02-30"), false);
+assert.equal(isValidSkinDateKey("2026-13-01"), false);
+assert.equal(effectiveSkinUnitExpiry({ expiresOn: "2026-02-30" }), null);
+assert.equal(effectiveSkinUnitExpiry({ openedOn: "2026-02-30", paoMonths: 1 }), null);
+assert.equal(validateSkinUnit({ name: "Bottle", expiresOn: "2026-02-30" }, "2026-02-01").ok, false);
+assert.equal(skinUnitStatus({ expiresOn: "2026-11-20", openedOn: "2026-11-01" }, "2026-11-04", 7), "active");
+assert.equal(skinUnitStatus({ expiresOn: "2026-11-10", openedOn: "2026-11-01" }, "2026-11-04", 7), "expiring_soon");
+assert.equal(skinUnitStatus({ expiresOn: "2026-11-10", openedOn: "2026-11-01" }, "2026-11-04", 3), "active");
+assert.deepEqual(skinUnitCostPerDay({ id: "u1", price: 100, currency: "EGP", startedUseDate: "2026-11-01" }, "2026-11-10"), { value: 10, currency: "EGP", unitId: "u1" });
+assert.equal(skinUnitCostPerDay({ price: 100, startedUseDate: "2026-11-30" }, "2026-11-04"), null);
+assert.equal(skinUnitCostPerDay({ price: 100, startedUseDate: "2026-02-30" }, "2026-11-04"), null);
+assert.equal(skinUnitCostPerDay({ price: 100, startedUseDate: "2026-11-01", finishedDate: "2026-10-31" }, "2026-11-04"), null);
+assert.equal(skinUnitCostPerDay({ price: 100, startedUseDate: "2026-11-01", deleted_at: "2026-11-02" }, "2026-11-04"), null);
