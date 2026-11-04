@@ -563,11 +563,11 @@ This is evidence that the corresponding feature migrations are not represented i
 | Personal Inventory P0/P1 + snapshot RPC | 3 | No dedicated smoke workflow found; add one before production consideration |
 | Finance default category seeding + family cash | 2 | No dedicated smoke workflow found; add one before production consideration |
 | Projects final-output / task-issue / PRD / relationship guards | 6 | Projects PostgreSQL smoke passed on disposable PostgreSQL 16 |
-| OS integration events | 1 | No dedicated smoke workflow found |
+| OS integration events | 1 | Dedicated PostgreSQL 16 smoke workflow exists; latest mainline run status must be checked separately |
 | Hobbies Journal privacy / storage / audit / attachment lifecycle | 4 | Hobbies Journal PostgreSQL smoke passed on disposable PostgreSQL |
 | Skincare private storage and collection permissions | 1 | No dedicated smoke workflow found |
 
-The Projects and Hobbies smoke workflows validate SQL in disposable PostgreSQL environments only; they do not apply anything to Supabase production. Inventory, Finance family cash/default seeding, OS integration events, and Skincare still need dedicated disposable-database/storage test coverage.
+The Projects and Hobbies smoke workflows validate SQL in disposable PostgreSQL environments only; they do not apply anything to Supabase production. Inventory and Finance default-category/family-cash migrations still need dedicated SQL smoke coverage; Skincare needs isolated Storage policy/bucket coverage. OS integration events already has a dedicated PostgreSQL 16 smoke workflow and should be validated through that workflow.
 
 ### Production-safety decision
 
