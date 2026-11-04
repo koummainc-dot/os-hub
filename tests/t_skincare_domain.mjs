@@ -125,7 +125,7 @@ const dashboard = buildSkinDashboardData({
     { id: "d2", date: "2026-10-08", skinRating: 4, areaMeasurements: { forehead: 2, nose: null } },
     { id: "d3", date: "2026-11-04", skinRating: "", areaMeasurements: { forehead: 5 } },
   ],
-  trials: [{ id: "t1", status: "running", startDate: "2026-10-20" }],
+  products: [{ id: "p1", name: "Active cleanser", status: "active" }],\n  trials: [{ id: "t1", productId: "p1", status: "running", startDate: "2026-10-20" }],
   reactions: [
     { id: "r1", status: "open", dateStarted: "2026-11-02", severity: "severe" },
     { id: "r2", status: "resolved", dateStarted: "2026-11-01", severity: "mild" },
