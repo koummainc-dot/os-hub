@@ -36,3 +36,18 @@ export async function replayVenturesMetricsQueue(){
   for(const item of q){const r=await saveVenturesMetrics(item.workspaceId,item.rows);results.push(r);if(!r.ok) remaining.push(item);}
   writeQueue(remaining);return {replayed:q.length-remaining.length,remaining:remaining.length,results};
 }
+
+let replayPromise=null;
+export function installVenturesMetricOfflineReplay({intervalMs=30000}={}){
+  if(typeof window==="undefined") return ()=>{};
+  const replay=async()=>{
+    if(replayPromise) return replayPromise;
+    replayPromise=replayVenturesMetricsQueue().catch(error=>({replayed:0,remaining:venturesMetricQueueStatus().count,results:[{ok:false,error}]})).finally(()=>{replayPromise=null;});
+    return replayPromise;
+  };
+  const onOnline=()=>{void replay();};
+  window.addEventListener("online",onOnline);
+  const timer=window.setInterval(()=>{if(window.navigator?.onLine!==false) void replay();},Math.max(5000,Number(intervalMs)||30000));
+  if(window.navigator?.onLine!==false) void replay();
+  return ()=>{window.removeEventListener("online",onOnline);window.clearInterval(timer);};
+}
