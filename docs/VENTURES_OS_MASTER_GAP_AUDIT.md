@@ -8,11 +8,17 @@ This is the ordered implementation ledger. A feature is marked **DONE** only whe
 
 | Gate | Source requirement | Current status |
 |---|---|---|
-| V1 | Verify whether platform-integrations is read by Today/Notifications/Calendar | **OPEN** — current integration service exposes write/upsert/cancel contracts; no Ventures read path was verified. |
-| V2 | Read Projects records from `workspace_records` | **PARTIAL/DONE for snapshot counts** — Ventures source adapter reads Projects records; full project-page/metrics contract remains. |
-| V3 | Read Content OS plan/blob and determine account/platform health storage | **PARTIAL** — Ventures reads authoritative ContentOS `workspace_records`; the full ContentOS platform-plan contract from the source is not yet implemented. |
-| V4 | Knowledge project link after #97 | **DONE/PARTIAL** — Knowledge snapshot read/write bridge exists; final UX link contract still needs acceptance coverage. |
-| V5 | Projects write RPC for Masterplan import with traceability rules | **OPEN** — no `ventures_import_apply` / `ventures_import_undo` implementation yet. |
+| V1 | Verify whether platform-integrations is read by Today/Notifications/Calendar | **CLOSED — NEGATIVE**. No verified read dependency exists; Ventures remains on in-app alerts until a platform read contract is intentionally added. |
+| V2 | Read Projects records from `workspace_records` | **CLOSED for the current read boundary** — Ventures source adapter reads authoritative Projects records; project-specific migration/metrics work remains Phase 3. |
+| V3 | Read Content OS plan/blob and determine account/platform health storage | **PARTIAL** — authoritative ContentOS reads exist, but the source-defined plan/blob + `_pageHealth` runtime contract is not yet verified. |
+| V4 | Knowledge project link after #97 | **PARTIAL** — Projects lookup/external-link validation exist; final Ventures→Knowledge UX acceptance remains. |
+| V5 | Projects write RPC for Masterplan import with traceability rules | **OPEN / BLOCKER** — no `ventures_import_apply` / `ventures_import_undo`; server-side authorization + traceability boundary is next. |
+
+## V6 — website/email platform gate
+
+| Gate | Source requirement | Current status |
+|---|---|---|
+| V6 | Verify `website` platform id reaches ContentOS category/runtime path | **PARTIAL** — literal `website` seed exists in Ventures config, but runtime ContentOS acceptance is still missing. |
 
 ## Phase 1 — foundation
 
@@ -50,7 +56,7 @@ This is the ordered implementation ledger. A feature is marked **DONE** only whe
 | Basic/Full metric toggle | **DONE** |
 | Paste/Sheets parsing | **DONE/PARTIAL** — shared delimited parser, Arabic/Hindi numerals, Arabic decimal separator, TSV/CSV paste and 500-row validation added. |
 | No-data vs zero semantics | **DONE** |
-| Offline metric queue | OPEN |
+| Offline metric queue | **DONE/PARTIAL** — persistent queue now has automatic online/interval replay; hosted acceptance still required. |
 | Weekly period navigation | **DONE** |
 | Real two-project weekly entry acceptance | **OPEN** — requires hosted authenticated acceptance run. |
 
@@ -147,9 +153,9 @@ OPEN:
 
 ## Current execution order
 
-1. Finish Phase 2 acceptance: hosted two-project weekly entry + offline queue, then close remaining Phase 2 gaps.
-2. Add the real metric RPC client and acceptance tests.
-3. Close Phase 0 V1/V3/V5 and the remaining Phase 1 extraction gates.
+1. Finish Phase 2 hosted acceptance: two-project weekly entry + real offline replay.
+2. Phase 0 gate decisions are documented; V5 remains the blocker for Phase 3 and V3/V6 remain runtime integration gaps.
+3. Implement the server-side V5 Projects import/undo boundary and acceptance tests.
 4. Build Phase 3 project creation + 27-project Masterplan import/undo.
 5. Complete Phase 4 Finance/Content blocks.
 6. Complete Phase 5 grouped units + Email + Tools.
