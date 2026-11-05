@@ -1,4 +1,5 @@
 import {VENTURES_MODULES,VENTURES_PLATFORM} from "./config.js";
+import {metricDef,VENTURES_METRIC_DEFS} from "./lookups.js";
 export function summarizeVentures(data={}){
  const records=Object.values(data).flatMap(v=>Array.isArray(v)?v.filter(x=>!x._deleted_at):[]);
  const types=VENTURES_PLATFORM.platform.contentTypes||[];
@@ -59,33 +60,34 @@ export async function buildVenturesImportFingerprint(incoming={}) {
 
 
 export function evalMetric(def={}, values={}) {
-  if (def.type === "count") return Number(def.key ? (values[def.key] ?? null) : null);
-  if (def.formula && typeof def.formula === "function") {
-    try { const v=def.formula(values); return Number.isFinite(Number(v)) ? Number(v) : null; } catch { return null; }
+  const definition=typeof def==="string"?metricDef(def):def;
+  const key=definition?.key;
+  if(definition?.kind==="input"||definition?.kind==="bool"||definition?.kind==="text"){
+    const value=values[key];
+    return {value:value==null||value===""?null:value,missing:value==null||value===""?[key]:[]};
   }
-  const op=def.op;
-  const a=def.inputs?.[0] ? values[def.inputs[0]] : undefined;
-  const b=def.inputs?.[1] ? values[def.inputs[1]] : undefined;
-  if (a==null || (op==="ratio" && b==null)) return {value:null,missing:(def.inputs||[]).filter(k=>values[k]==null)};
-  const n=Number(a), d=Number(b);
-  if (op==="sum") return {value:(def.inputs||[]).reduce((s,k)=>s+Number(values[k]??0),0),missing:[]};
-  if (op==="ratio") return {value:d===0?null:(n/d)*100,missing:[]};
-  if (op==="difference") return {value:n-d,missing:[]};
-  if (op==="multiply") return {value:n*d,missing:[]};
-  return {value:Number.isFinite(n)?n:null,missing:[]};
+  const formula=definition?.formula;
+  if(!formula) return {value:null,missing:key?[key]:[]};
+  const missing=[];
+  const expr=formula.replace(/[A-Za-z_][A-Za-z0-9_]*/g,name=>{
+    if(["Math","true","false","null"].includes(name)) return name;
+    const v=values[name];
+    if(v==null||v===""){missing.push(name);return "NaN";}
+    return String(Number(v));
+  });
+  if(missing.length) return {value:null,missing:[...new Set(missing)]};
+  try{
+    const value=Function("return ("+expr+")")();
+    return {value:Number.isFinite(Number(value))?Number(value):null,missing:[]};
+  }catch{return {value:null,missing:[]};}
 }
 
 export function aggregatePeriod(def={}, rows=[], periodType="W") {
   const xs=(rows||[]).filter(r=>r&&!r.no_data);
   if(!xs.length) return null;
-  const kind=def.aggregation||def.type||"sum";
+  const kind=def.aggregation||def.kind||"sum";
   if(kind==="last"||kind==="balance") return xs.slice().sort((a,b)=>String(a.period_start).localeCompare(String(b.period_start))).at(-1)?.value_num??null;
   if(kind==="average"||kind==="avg") return xs.reduce((s,r)=>s+Number(r.value_num||0),0)/xs.length;
-  if(kind==="ratio" && def.numerator && def.denominator){
-    const n=xs.reduce((s,r)=>s+Number(r[def.numerator]??r.value_num??0),0);
-    const d=xs.reduce((s,r)=>s+Number(r[def.denominator]??0),0);
-    return d===0?null:(n/d)*100;
-  }
   return xs.reduce((s,r)=>s+Number(r.value_num||0),0);
 }
 
@@ -167,3 +169,6 @@ export function ventureAlerts(memberId, ctx={}) {
   });
   return alerts.map(a=>({...a,member_id:memberId}));
 }
+
+export function derivedMetric(defKey, values={}) { return evalMetric(metricDef(defKey), values); }
+export function basicMetricDefs(profile, periodType="W") { return VENTURES_METRIC_DEFS.filter(d=>(d.applies_to||[]).includes(String(profile?.kind||"").toLowerCase()) && d.basic && (periodType==="W" ? d.frequency==="W" : true)); }
