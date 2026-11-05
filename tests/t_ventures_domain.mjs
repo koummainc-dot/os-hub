@@ -30,5 +30,7 @@ assert.deepEqual(sourceSummaryCheck,{projects:1,content:2,finance:1,knowledge:1,
 console.log("Ventures source-of-truth adapter contract: PASS");
 
 assert.equal(typeof requestVenturesSourceWrite,"function");
-assert.match((await import("../src/systems/finance/index.jsx")).default.toString(), /os:source-write/);
+const financeSource=await (await import("node:fs/promises")).readFile(new URL("../src/systems/finance/index.jsx",import.meta.url),"utf8");
+assert.match(financeSource,/os:source-write/);
+assert.match(financeSource,/ventures-finance-/);
 console.log("Ventures finance write-through contract: PASS");
