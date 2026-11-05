@@ -1,5 +1,5 @@
 import {VENTURES_MODULES,VENTURES_PLATFORM} from "./config.js";
-import {metricDef,VENTURES_METRIC_DEFS} from "./lookups.js";
+import {metricDef,VENTURES_METRIC_DEFS,metricDefsForProfile} from "./lookups.js";
 export function summarizeVentures(data={}){
  const records=Object.values(data).flatMap(v=>Array.isArray(v)?v.filter(x=>!x._deleted_at):[]);
  const types=VENTURES_PLATFORM.platform.contentTypes||[];
@@ -171,4 +171,4 @@ export function ventureAlerts(memberId, ctx={}) {
 }
 
 export function derivedMetric(defKey, values={}) { return evalMetric(metricDef(defKey), values); }
-export function basicMetricDefs(profile, periodType="W") { return VENTURES_METRIC_DEFS.filter(d=>(d.applies_to||[]).includes(String(profile?.kind||"").toLowerCase()) && d.basic && (periodType==="W" ? d.frequency==="W" : true)); }
+export function basicMetricDefs(profile, periodType="W") { return metricDefsForProfile(profile,{basicOnly:true,periodType}); }
