@@ -4,7 +4,7 @@ import {VENTURES_PLATFORM} from "./config.js";
 import {loadVenturesSourceSnapshot,sourceSummary,requestVenturesSourceNavigation} from "./integrations.js";
 import {loadVenturesMetrics} from "./repository.js";
 import {metricDefsForProfile} from "./lookups.js";
-import {decisionMetric,ventureAlerts} from "./domain.js";
+import {decisionMetric,ventureAlerts,scorecardFor,portfolioQuestions,suggestCall} from "./domain.js";
 
 const C=(p)=> <div style={{...S.card,padding:p.padding||16,...p.style}}>{p.children}</div>;
 const Btn=({children,onClick,primary=false,disabled=false})=><button disabled={disabled} onClick={onClick} style={primary?S.btnA:S.btn}>{children}</button>;
@@ -31,24 +31,28 @@ function projectTrend(metrics,projectId,key){
 }
 function diagnoseProject(p,metrics){
   const values=projectValues(metrics,p.project_id);
-  const issues=[];
-  const checks=[["revenue","الإيراد","up"],["sessions","الزيارات","up"],["orders","الطلبات","up"],["cvr","التحويل","up"],["gross_margin_pct","الهامش","up"],["net_profit","صافي الربح","up"],["cash_flow","التدفق النقدي","up"],["cac","CAC","down"],["return_rate","المرتجعات","down"],["crash_free","Crash-free","up"]];
-  checks.forEach(([key,label,better])=>{
-    const t=projectTrend(metrics,p.project_id,key);
-    if(t==null||Math.abs(t)<0.15)return;
-    if((better==="up"&&t<0)||(better==="down"&&t>0))issues.push({key,label,trend:t});
+  const defs=metricDefsForProfile(p,{basicOnly:false,periodType:"W"})||[];
+  const scoreDefs=scorecardFor(p,defs).filter(d=>d.kind!=="text"&&d.kind!=="bool").slice(0,12);
+  const evaluated=scoreDefs.map(d=>{
+    const current=values[d.key];
+    const trend=projectTrend(metrics,p.project_id,d.key);
+    const adverse=trend!=null&&((d.better==="up"&&trend<0)||(d.better==="down"&&trend>0));
+    return {...d,current,trend,adverse};
   });
-  const score=Math.max(0,Math.min(100,75-issues.length*12+(Object.keys(values).length?10:0)));
+  const missing=evaluated.filter(x=>x.current==null).map(x=>x.key);
+  const adverse=evaluated.filter(x=>x.adverse);
+  const score=Math.max(0,Math.min(100,100-Math.round(adverse.length*12+missing.length*3)));
   const state=score<45?"critical":score<70?"watch":"active";
-  return {values,issues,score,state,decisionMetricValue:decisionMetric(p,values)};
+  const decisionMetricValue=decisionMetric(p,values);
+  const suggestion=suggestCall(p,{values,thresholds:p.thresholds||{}});
+  return {values,issues:adverse.map(x=>({key:x.key,label:x.label,trend:x.trend})),score,state,missing,scorecard:evaluated,decisionMetricValue,suggestion};
 }
 function scoreProject(p,metrics){return diagnoseProject(p,metrics).score;}
-function portfolioDecision(p,metrics){
-  const d=diagnoseProject(p,metrics);
-  if(d.state==="critical")return {decision:"Fix",reason:"تراجع في مؤشرات أساسية"};
-  if(d.state==="watch")return {decision:"Fix",reason:"تحتاج مراجعة الاتجاه قبل التوسع"};
-  if(d.decisionMetricValue.value!=null)return {decision:"Scale",reason:"مؤشر القرار متاح ولا توجد إشارة تراجع قوية"};
-  return {decision:null,reason:"بيانات القرار غير مكتملة"};
+function portfolioDecision(p,metrics){const d=diagnoseProject(p,metrics);return d.suggestion?.decision?{decision:d.suggestion.decision,reason:d.suggestion.reason}:{decision:null,reason:"لا توجد عتبات قرار كافية للحسم"};}
+function buildPortfolioContext(projects,metrics){
+  const values=Object.fromEntries(projects.map(p=>[p.id||p.project_id,projectValues(metrics,p.project_id)]));
+  const enriched=projects.map(p=>({...p,health:diagnoseProject(p,metrics).state,decision_metric_key:decisionMetric(p,values[p.id||p.project_id]).key,decision_metric:decisionMetric(p,values[p.id||p.project_id]).value}));
+  return {projects:enriched,values};
 }
 function ProjectCard({p,metrics,onOpen}){
   const score=scoreProject(p,metrics);
@@ -62,13 +66,13 @@ function ProjectCard({p,metrics,onOpen}){
     <div style={{display:"flex",justifyContent:"space-between",marginTop:14,fontSize:10}}><span>{meta[0]}</span><span style={{color:"#64748B"}}>{diagnosis.issues.length?`${diagnosis.issues.length} إشارات سلبية`:"لا توجد إشارة قوية"}</span></div>
   </button>
 }
-function ProjectView({project,metrics,setPage,workspaceId,onBack}){
+function ProjectView({project,metrics,setPage,workspaceId,onBack,save,data,portfolioCalls=[]}){
   const defs=metricDefsForProfile(project,{basicOnly:true,periodType:"W"})||[];
   const vals=Object.fromEntries(metrics.filter(x=>x.project_id===project.project_id).map(x=>[x.key,x.value_num]));
   const diagnosis=diagnoseProject(project,metrics);
   const alerts=diagnosis.issues.slice(0,5);
   const values=diagnosis.values;
-  const decision=portfolioDecision(project,metrics);
+  const decision=portfolioDecision(project,metrics);\n  const latestCall=portfolioCalls.filter(x=>x.project_id===project.project_id&&!x._deleted_at).sort((a,b)=>String(b.created_at||"").localeCompare(String(a.created_at||"")))[0];\n  const [decisionBusy,setDecisionBusy]=useState(false);\n  const [decisionMessage,setDecisionMessage]=useState("");\n  const recordDecision=async()=>{if(!decision.decision||decisionBusy)return;setDecisionBusy(true);try{const call={id:`pc_${project.project_id}_${new Date().toISOString().slice(0,10).replaceAll("-","")}_${Date.now()}`,project_id:project.project_id,decision:decision.decision,reason:decision.reason,decision_metric_key:diagnosis.decisionMetricValue.key,decision_metric_value:diagnosis.decisionMetricValue.value,created_at:new Date().toISOString(),status:"proposed",source:"ventures_engine"};await save({...data,portfolio_calls:[...(portfolioCalls||[]),call]});setDecisionMessage("تم تسجيل القرار في سجل المحفظة.");}catch(e){setDecisionMessage("تعذر تسجيل القرار.");}finally{setDecisionBusy(false);}};
   return <div dir="rtl">
     <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}><Btn onClick={onBack}>← المحفظة</Btn><span style={{fontSize:11,color:"#64748B"}}>{project.code||project.project_id}</span></div>
     <C style={{marginBottom:12}}>
@@ -88,7 +92,7 @@ function ProjectView({project,metrics,setPage,workspaceId,onBack}){
     </div>
     <div style={{display:"grid",gridTemplateColumns:"minmax(0,2fr) minmax(280px,1fr)",gap:12}}>
       <C><h3 style={{marginTop:0}}>أداء المشروع</h3><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8}}>{defs.slice(0,8).map(d=>{const v=values[d.key];const t=projectTrend(metrics,project.project_id,d.key);const adverse=t!=null&&((d.better==="up"&&t<0)||(d.better==="down"&&t>0));return <div key={d.key} style={{padding:12,border:"1px solid #E5E7EB",borderRadius:10}}><div style={{fontSize:10,color:"#64748B"}}>{d.label}</div><div style={{fontSize:20,fontWeight:850,marginTop:5}}>{fmt(v)} <small style={{fontSize:9,color:"#94A3B8"}}>{d.unit||""}</small></div>{t!=null&&<div style={{fontSize:9,color:adverse?"#B45309":"#64748B",marginTop:3}}>{t>0?"↑":"↓"} {Math.abs(t*100).toFixed(1)}%</div>}</div>})}</div></C>
-      <C><h3 style={{marginTop:0}}>التشخيص</h3>{alerts.length?alerts.map(x=><div key={x.key} style={{padding:"10px 0",borderBottom:"1px solid #E5E7EB"}}><b>{x.label}</b><div style={{fontSize:10,color:"#B45309",marginTop:3}}>الاتجاه {x.trend>0?"↑":"↓"} مقارنة بالفترة السابقة</div></div>):<div style={{fontSize:12,color:"#64748B"}}>لا توجد إشارة اتجاه قوية من البيانات الحالية.</div>}<div style={{marginTop:12,padding:10,borderRadius:10,background:"#F8FAFC"}}><b>القرار المقترح: {decision.decision||"غير كافٍ للحسم"}</b><div style={{fontSize:10,color:"#64748B",marginTop:4}}>{decision.reason}</div></div></C>
+      <C><h3 style={{marginTop:0}}>التشخيص</h3>{alerts.length?alerts.map(x=><div key={x.key} style={{padding:"10px 0",borderBottom:"1px solid #E5E7EB"}}><b>{x.label}</b><div style={{fontSize:10,color:"#B45309",marginTop:3}}>الاتجاه {x.trend>0?"↑":"↓"} مقارنة بالفترة السابقة</div></div>):<div style={{fontSize:12,color:"#64748B"}}>لا توجد إشارة اتجاه قوية من البيانات الحالية.</div>}<div style={{marginTop:12,padding:10,borderRadius:10,background:"#F8FAFC"}}><b>القرار المقترح: {decision.decision||"غير كافٍ للحسم"}</b><div style={{fontSize:10,color:"#64748B",marginTop:4}}>{decision.reason}</div>{diagnosis.decisionMetricValue.key&&<div style={{fontSize:10,color:"#64748B",marginTop:4}}>مؤشر القرار: {diagnosis.decisionMetricValue.key} = {fmt(diagnosis.decisionMetricValue.value)}</div>}{latestCall&&<div style={{fontSize:10,color:"#0F766E",marginTop:4}}>آخر قرار مسجل: {latestCall.decision} · {new Date(latestCall.created_at).toLocaleDateString("ar-EG")}</div>}{decision.decision&&<div style={{marginTop:8}}><Btn primary disabled={decisionBusy} onClick={recordDecision}>{decisionBusy?"جارٍ التسجيل…":"تسجيل القرار"}</Btn></div>}{decisionMessage&&<div style={{fontSize:10,color:"#0F766E",marginTop:5}}>{decisionMessage}</div>}</div></C>
     </div>
     <C style={{marginTop:12}}><h3 style={{marginTop:0}}>تشغيل المشروع</h3><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8}}>{[["strategy","الاستراتيجية"],["competitors","المنافسون"],["experiments","التجارب"],["seoAudit","SEO"],["content","المحتوى"],["products","المنتجات"],["finance","المال"],["compliance","الامتثال"]].map(([id,l])=><button key={id} onClick={()=>setPage(id)} style={{...S.card,padding:12,textAlign:"right",cursor:"pointer",background:"#FAFAFA"}}><b>{l}</b><div style={{fontSize:9,color:"#64748B",marginTop:3}}>إدارة هذا الجانب</div></button>)}</div></C>
   </div>
@@ -96,16 +100,16 @@ function ProjectView({project,metrics,setPage,workspaceId,onBack}){
 export default function VenturesRealWorkspace({api,access,page,setPage,ws}){
   const [data,setData]=useState({}); const [metrics,setMetrics]=useState([]); const [source,setSource]=useState({}); const [selected,setSelected]=useState(null); const [view,setView]=useState("portfolio"); const [q,setQ]=useState(""); const [loading,setLoading]=useState(true);
   useEffect(()=>{let alive=true;(async()=>{try{const r=await api.load();if(alive)setData(r?.data||{});const snap=await loadVenturesSourceSnapshot(ws?.id);if(alive)setSource(sourceSummary(snap));const m=await loadVenturesMetrics(ws?.id,{periodType:"W"});if(alive)setMetrics(m?.rows||[]);}finally{if(alive)setLoading(false)}})();return()=>{alive=false}},[api,ws?.id]);
-  const projects=useMemo(()=>Array.isArray(data.profiles)?data.profiles.filter(x=>!x._deleted_at):[],[data]);
+  const projects=useMemo(()=>Array.isArray(data.profiles)?data.profiles.filter(x=>!x._deleted_at):[],[data]);\n  const portfolioCalls=useMemo(()=>Array.isArray(data.portfolio_calls)?data.portfolio_calls.filter(x=>!x._deleted_at):[],[data]);\n  const saveWithData=async(next)=>{await api.save(next);setData(next);};
   const filtered=projects.filter(p=>JSON.stringify(p).toLowerCase().includes(q.toLowerCase()));
   const totalRevenue=metrics.filter(x=>x.key==="revenue").reduce((s,x)=>s+(Number(x.value_num)||0),0);
   const diagnoses=projects.map(p=>({p,d:diagnoseProject(p,metrics)}));
   const needsAttention=diagnoses.filter(x=>x.d.score<70).map(x=>x.p);
-  const portfolioCtx={projects,values:Object.fromEntries(diagnoses.map(x=>[x.p.id||x.p.project_id,x.d.values]))};
+  const portfolioCtx=buildPortfolioContext(projects,metrics);\n  const questions=portfolioQuestions(portfolioCtx);
   const engineAlerts=ventureAlerts(ws?.user_id||"current",portfolioCtx);
   const go=v=>{setView(v);setPage(v==="portfolio"?"dashboard":v)};
   if(loading)return <div dir="rtl" style={{padding:40,textAlign:"center"}}>جاري تجهيز محفظة المشاريع…</div>;
-  if(selected)return <ProjectView project={selected} metrics={metrics} setPage={setPage} workspaceId={ws?.id} onBack={()=>setSelected(null)}/>;
+  if(selected)return <ProjectView project={selected} metrics={metrics} setPage={setPage} workspaceId={ws?.id} onBack={()=>setSelected(null)} save={saveWithData} data={data} portfolioCalls={portfolioCalls}/>;
   return <div dir="rtl">
     <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 300px",gap:12,alignItems:"stretch"}}>
       <C style={{padding:22,background:"linear-gradient(135deg,#0F766E 0%,#134E4A 100%)",color:"#fff"}}>
@@ -128,7 +132,7 @@ export default function VenturesRealWorkspace({api,access,page,setPage,ws}){
       {filtered.length===0&&<C><div style={{padding:30,textAlign:"center",color:"#64748B"}}>لا توجد مشاريع مرتبطة بالمحفظة بعد.</div></C>}
     </div>}
     {view==="performance"&&<C><h2 style={{marginTop:0}}>الأداء</h2><div style={{fontSize:12,color:"#64748B",marginBottom:12}}>هذه الصفحة تقرأ مؤشرات Ventures الأسبوعية وتفصل بين الأداء التجاري وصحة التنفيذ في Projects.</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:8}}>{projects.map(p=><ProjectCard key={p.id} p={p} metrics={metrics} onOpen={()=>setSelected(p)}/>)}</div></C>}
-    {view==="decisions"&&<C><h2 style={{marginTop:0}}>قرارات المحفظة</h2><div style={{fontSize:12,color:"#64748B"}}>القرارات الفعلية تُدار من وحدة Decisions/Portfolio، بينما هذه الصفحة تعطيك السياق قبل اتخاذ القرار.</div><div style={{display:"flex",gap:8,marginTop:14}}><Btn primary onClick={()=>setPage("portfolio")}>فتح سجل القرارات</Btn><Btn onClick={()=>setPage("alerts")}>مراجعة التنبيهات</Btn></div></C>}
+    {view==="decisions"&&<C><h2 style={{marginTop:0}}>قرارات المحفظة</h2><div style={{fontSize:12,color:"#64748B",marginBottom:12}}>المحرك يقترح القرار فقط؛ لا يغيّر حالة المشروع تلقائيًا.</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8}}>{projects.map(p=>{const d=diagnoseProject(p,metrics);return <div key={p.id||p.project_id} style={{padding:12,border:"1px solid #E5E7EB",borderRadius:10}}><b>{p.name||p.project_id}</b><div style={{fontSize:10,color:"#64748B",marginTop:4}}>Score {d.score} · {d.decisionMetricValue.key||"لا يوجد مؤشر قرار"}</div><div style={{fontSize:11,fontWeight:800,marginTop:7,color:d.suggestion?.decision==="Scale"?"#0F766E":d.suggestion?.decision?"#B45309":"#64748B"}}>{d.suggestion?.decision||"غير كافٍ للحسم"}</div><div style={{fontSize:10,color:"#64748B",marginTop:3}}>{d.suggestion?.reason||"لا توجد عتبات كافية."}</div><div style={{marginTop:8}}><Btn onClick={()=>setSelected(p)}>فتح التشخيص</Btn></div></div>})}</div><div style={{marginTop:14,padding:12,background:"#F8FAFC",borderRadius:10,fontSize:11}}><b>أسئلة المحفظة Q1–Q5</b><div style={{marginTop:6}}>Q1 مربح: {questions.q1.length} · Q2 يحتاج مراجعة: {questions.q2.length} · Q3 تركّز الإيراد: {questions.q3.length} · Q4 مرشح للتوسع: {questions.q4.length} · Q5 يحتاج قرار: {questions.q5.length}</div></div></C>}
     {view==="operations"&&<C><h2 style={{marginTop:0}}>التشغيل</h2><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:8}}>{[["entry","Weekly Entry"],["projects","Projects"],["finance","Finance"],["content","Content"],["seoAudit","SEO"],["experiments","Experiments"]].map(([id,l])=><button key={id} onClick={()=>setPage(id)} style={{...S.card,padding:14,textAlign:"right",cursor:"pointer"}}><b>{l}</b><div style={{fontSize:10,color:"#64748B",marginTop:4}}>افتح مساحة العمل</div></button>)}</div></C>}
     <div style={{marginTop:12,fontSize:10,color:"#64748B"}}>مصادر مرتبطة: Projects {source.projects||0} · ContentOS {source.content||0} · Finance {source.finance||0} · Knowledge {source.knowledge||0}</div>
   </div>
