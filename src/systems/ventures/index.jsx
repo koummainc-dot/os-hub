@@ -4,7 +4,7 @@ import {VENTURES_MODULES,VENTURES_PLATFORM} from "./config.js";
 import {validateVenturesImport,mergeVenturesData,buildVenturesImportFingerprint} from "./domain.js";
 import {publishOSEvent} from "../integrationEvents.js";
 import {loadVenturesSourceSnapshot,sourceSummary,requestVenturesSourceNavigation,requestVenturesSourceWrite} from "./integrations.js";
-import {loadVenturesMetrics,saveVenturesMetrics,enqueueVenturesMetrics,replayVenturesMetricsQueue,venturesMetricQueueStatus} from "./repository.js";
+import {loadVenturesMetrics,saveVenturesMetrics,enqueueVenturesMetrics,replayVenturesMetricsQueue,venturesMetricQueueStatus,installVenturesMetricOfflineReplay} from "./repository.js";
 import {metricDefsForProfile,VENTURES_METRIC_DEFS} from "./lookups.js";
 import {evalMetric} from "./domain.js";
 import {parseVenturesEntryPaste} from "../../core/csv.js";
@@ -205,6 +205,7 @@ function saturdayOfWeek(date=new Date()){
   const d=new Date(date); const day=d.getDay(); const diff=(day+1)%7; d.setDate(d.getDate()-diff); d.setHours(0,0,0,0); return d;
 }
 function EntryModule({data,access,workspaceId}){
+  useEffect(()=>installVenturesMetricOfflineReplay({intervalMs:30000}),[]);
   const profiles=Array.isArray(data.profiles)?data.profiles.filter(r=>!r._deleted_at):[];
   const [period,setPeriod]=useState(()=>isoDateLocal(saturdayOfWeek()));
   const [rows,setRows]=useState({});
