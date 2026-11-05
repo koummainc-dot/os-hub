@@ -165,3 +165,13 @@ OPEN:
 12. Merge/deploy only after the above gates pass.
 
 No item is considered closed merely because a generic CRUD table exists.
+
+
+## 2026-11-05 execution note
+
+- Portfolio-first UX was rebuilt in PR #128 and is now the primary Ventures workspace.
+- The next portfolio-engine slice was implemented on branch `feat/ventures-portfolio-engine`: scorecard evaluation now uses source metric definitions, Q1–Q5 are surfaced, and suggestion-only decision logic is connected to the workspace.
+- Proposed decisions are recorded from the project diagnosis without automatically changing Projects status.
+- A dedicated contract test `tests/t_ventures_portfolio_engine.mjs` was added.
+- Vercel preview for commit `c2bb9a8084438a0f913aab902d48ef92649fd75c` reached READY: `os-f9vrdx3gj-koumma.vercel.app`.
+- Full CI remains blocked by pre-existing Projects/ContentOS harness failures (`ReferenceError: A is not defined`); these failures are outside the Ventures diff and must be repaired separately before treating the whole repository CI as green.
