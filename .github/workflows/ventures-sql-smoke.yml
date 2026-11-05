@@ -1,0 +1,51 @@
+name: Ventures OS SQL smoke tests
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/ventures_os_rls_smoke.sql"
+      - "tests/ventures_sql_bootstrap.sql"
+      - ".github/workflows/ventures-sql-smoke.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/ventures_os_rls_smoke.sql"
+      - "tests/ventures_sql_bootstrap.sql"
+      - ".github/workflows/ventures-sql-smoke.yml"
+
+jobs:
+  ventures-postgres-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ventures_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ventures_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: ventures_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Bootstrap auth compatibility
+        run: psql -v ON_ERROR_STOP=1 -f tests/ventures_sql_bootstrap.sql
+      - name: Apply platform core migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261025000000_platform_core.sql
+      - name: Apply record visibility migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261025155657_records_visibility_realtime.sql
+      - name: Verify Ventures workspace isolation and write permissions
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/ventures_os_rls_smoke.sql
