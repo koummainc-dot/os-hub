@@ -150,6 +150,24 @@ export function canApplyCall(project={}, call={}, idx={}) {
   return {ok:true,to,effect:decision==="Kill"?"cancel_then_archive":"status_change"};
 }
 
+export function portfolioTrendSeries(projects=[],metrics=[],key="revenue",limit=12){
+  const byPeriod=new Map();
+  metrics.filter(x=>x.key===key&&x.value_num!=null).forEach(x=>{
+    const p=String(x.period_start||"");
+    if(!p)return;
+    byPeriod.set(p,(byPeriod.get(p)||0)+Number(x.value_num));
+  });
+  return [...byPeriod.entries()].sort((a,b)=>a[0].localeCompare(b[0])).slice(-limit).map(([period,value])=>({period,value}));
+}
+export function missingWeekCount(projects=[],metrics=[],maxAgeDays=3,now=Date.now()){
+  return projects.filter(p=>{
+    const rows=metrics.filter(x=>x.project_id===p.project_id&&x.value_num!=null);
+    if(!rows.length)return true;
+    const latest=rows.map(x=>new Date(String(x.period_start)).getTime()).filter(Number.isFinite).sort((a,b)=>b-a)[0];
+    return !latest || ((now-latest)/86400000)>maxAgeDays;
+  }).length;
+}
+
 export function ventureAlerts(memberId, ctx={}) {
   const alerts=[]; const projects=Array.isArray(ctx.projects)?ctx.projects:[]; const values=ctx.values||{};
   projects.forEach(p=>{
