@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {VENTURES_MODULES,VENTURES_PLATFORM} from "../src/systems/ventures/config.js";
 import {summarizeVentures,getContentWorkflow,validateVenturesImport,mergeVenturesData} from "../src/systems/ventures/domain.js";
-assert.equal(VENTURES_MODULES.length,30);
+assert.equal(VENTURES_MODULES.length,31);
 assert.ok(VENTURES_MODULES.some(x=>x.id==="cro"));
 assert.equal(VENTURES_PLATFORM.platform.id,"website");
 assert.ok(VENTURES_PLATFORM.platform.contentTypes.length>=11);
@@ -15,7 +15,7 @@ assert.equal(summary.records,2);
 assert.equal(summary.contentRecords,1);
 console.log("Ventures domain contract: PASS");
 
-const expectedOperational=["phases","team","members","calendar","notes","tech","assets","email","distribution","health","kpi","alerts","priority","finance","cro"];
+const expectedOperational=["entry","phases","team","members","calendar","notes","tech","assets","email","distribution","health","kpi","alerts","priority","finance","cro"];
 assert.ok(expectedOperational.every(id=>VENTURES_MODULES.some(x=>x.id===id)));
 const summary2=summarizeVentures({phases:[{id:"p1"}],notes:[{id:"n1"}],kpi:[{id:"k1",_deleted_at:"x"}],finance:[{id:"f1"}]});
 assert.equal(summary2.moduleCounts.phases,1);
