@@ -72,7 +72,11 @@ function ProjectView({project,metrics,setPage,workspaceId,onBack,save,data,portf
   const diagnosis=diagnoseProject(project,metrics);
   const alerts=diagnosis.issues.slice(0,5);
   const values=diagnosis.values;
-  const decision=portfolioDecision(project,metrics);\n  const latestCall=portfolioCalls.filter(x=>x.project_id===project.project_id&&!x._deleted_at).sort((a,b)=>String(b.created_at||"").localeCompare(String(a.created_at||"")))[0];\n  const [decisionBusy,setDecisionBusy]=useState(false);\n  const [decisionMessage,setDecisionMessage]=useState("");\n  const recordDecision=async()=>{if(!decision.decision||decisionBusy)return;setDecisionBusy(true);try{const call={id:`pc_${project.project_id}_${new Date().toISOString().slice(0,10).replaceAll("-","")}_${Date.now()}`,project_id:project.project_id,decision:decision.decision,reason:decision.reason,decision_metric_key:diagnosis.decisionMetricValue.key,decision_metric_value:diagnosis.decisionMetricValue.value,created_at:new Date().toISOString(),status:"proposed",source:"ventures_engine"};await save({...data,portfolio_calls:[...(portfolioCalls||[]),call]});setDecisionMessage("تم تسجيل القرار في سجل المحفظة.");}catch(e){setDecisionMessage("تعذر تسجيل القرار.");}finally{setDecisionBusy(false);}};
+  const decision=portfolioDecision(project,metrics);
+  const latestCall=portfolioCalls.filter(x=>x.project_id===project.project_id&&!x._deleted_at).sort((a,b)=>String(b.created_at||"").localeCompare(String(a.created_at||"")))[0];
+  const [decisionBusy,setDecisionBusy]=useState(false);
+  const [decisionMessage,setDecisionMessage]=useState("");
+  const recordDecision=async()=>{if(!decision.decision||decisionBusy)return;setDecisionBusy(true);try{const call={id:`pc_${project.project_id}_${new Date().toISOString().slice(0,10).replaceAll("-","")}_${Date.now()}`,project_id:project.project_id,decision:decision.decision,reason:decision.reason,decision_metric_key:diagnosis.decisionMetricValue.key,decision_metric_value:diagnosis.decisionMetricValue.value,created_at:new Date().toISOString(),status:"proposed",source:"ventures_engine"};await save({...data,portfolio_calls:[...(portfolioCalls||[]),call]});setDecisionMessage("تم تسجيل القرار في سجل المحفظة.");}catch(e){setDecisionMessage("تعذر تسجيل القرار.");}finally{setDecisionBusy(false);}};
   return <div dir="rtl">
     <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}><Btn onClick={onBack}>← المحفظة</Btn><span style={{fontSize:11,color:"#64748B"}}>{project.code||project.project_id}</span></div>
     <C style={{marginBottom:12}}>
@@ -100,12 +104,15 @@ function ProjectView({project,metrics,setPage,workspaceId,onBack,save,data,portf
 export default function VenturesRealWorkspace({api,access,page,setPage,ws}){
   const [data,setData]=useState({}); const [metrics,setMetrics]=useState([]); const [source,setSource]=useState({}); const [selected,setSelected]=useState(null); const [view,setView]=useState("portfolio"); const [q,setQ]=useState(""); const [loading,setLoading]=useState(true);
   useEffect(()=>{let alive=true;(async()=>{try{const r=await api.load();if(alive)setData(r?.data||{});const snap=await loadVenturesSourceSnapshot(ws?.id);if(alive)setSource(sourceSummary(snap));const m=await loadVenturesMetrics(ws?.id,{periodType:"W"});if(alive)setMetrics(m?.rows||[]);}finally{if(alive)setLoading(false)}})();return()=>{alive=false}},[api,ws?.id]);
-  const projects=useMemo(()=>Array.isArray(data.profiles)?data.profiles.filter(x=>!x._deleted_at):[],[data]);\n  const portfolioCalls=useMemo(()=>Array.isArray(data.portfolio_calls)?data.portfolio_calls.filter(x=>!x._deleted_at):[],[data]);\n  const saveWithData=async(next)=>{await api.save(next);setData(next);};
+  const projects=useMemo(()=>Array.isArray(data.profiles)?data.profiles.filter(x=>!x._deleted_at):[],[data]);
+  const portfolioCalls=useMemo(()=>Array.isArray(data.portfolio_calls)?data.portfolio_calls.filter(x=>!x._deleted_at):[],[data]);
+  const saveWithData=async(next)=>{await api.save(next);setData(next);};
   const filtered=projects.filter(p=>JSON.stringify(p).toLowerCase().includes(q.toLowerCase()));
   const totalRevenue=metrics.filter(x=>x.key==="revenue").reduce((s,x)=>s+(Number(x.value_num)||0),0);
   const diagnoses=projects.map(p=>({p,d:diagnoseProject(p,metrics)}));
   const needsAttention=diagnoses.filter(x=>x.d.score<70).map(x=>x.p);
-  const portfolioCtx=buildPortfolioContext(projects,metrics);\n  const questions=portfolioQuestions(portfolioCtx);
+  const portfolioCtx=buildPortfolioContext(projects,metrics);
+  const questions=portfolioQuestions(portfolioCtx);
   const engineAlerts=ventureAlerts(ws?.user_id||"current",portfolioCtx);
   const go=v=>{setView(v);setPage(v==="portfolio"?"dashboard":v)};
   if(loading)return <div dir="rtl" style={{padding:40,textAlign:"center"}}>جاري تجهيز محفظة المشاريع…</div>;
