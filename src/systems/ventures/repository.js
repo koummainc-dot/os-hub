@@ -30,7 +30,7 @@ const QUEUE_KEY="ventures.metric.offline.queue.v1";
 function readQueue(){try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||"[]");}catch{return []}}
 function writeQueue(q){try{localStorage.setItem(QUEUE_KEY,JSON.stringify(q));return true}catch{return false}}
 export function venturesMetricQueueStatus(){const q=readQueue();return {count:q.length,available:typeof localStorage!=="undefined"}}
-export function enqueueVenturesMetrics(workspaceId,rows){const q=readQueue();q.push({id:crypto?.randomUUID?.()||String(Date.now())+"-"+Math.random(),workspaceId,rows,createdAt:new Date().toISOString()});writeQueue(q);return {queued:true,count:q.length};}
+export function enqueueVenturesMetrics(workspaceId,rows){const q=readQueue();q.push({id:(typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():String(Date.now())+"-"+Math.random()),workspaceId,rows,createdAt:new Date().toISOString()});writeQueue(q);return {queued:true,count:q.length};}
 export async function replayVenturesMetricsQueue(){
   const q=readQueue(),remaining=[],results=[];
   for(const item of q){const r=await saveVenturesMetrics(item.workspaceId,item.rows);results.push(r);if(!r.ok) remaining.push(item);}
