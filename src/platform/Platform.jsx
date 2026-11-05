@@ -81,6 +81,33 @@ function Platform(){
   // ── cross-module navigation (ContentOS team page → platform team page) ──
   useEffect(()=>{const f=(e)=>{const d=(e&&e.detail)||{};if(d.workspaceId&&String(d.workspaceId)!==String(wsId))return;setRoute({view:d.view||"today",system:d.system||null});if(d.system&&d.section)setSectionBy(p=>({...p,[d.system]:d.section}));setNavOpen(false);};window.addEventListener("os:goto",f);return()=>window.removeEventListener("os:goto",f);},[wsId]);
 
+  // ── cross-OS source writes (authoritative repositories) ──
+  useEffect(()=>{
+    const handler=async(e)=>{
+      const d=e?.detail;
+      if(!d||d.workspaceId==null||String(d.workspaceId)!==String(wsId)||d.source!=="ventures"||!d.systemId) return;
+      if(d.systemId!=="content") return;
+      const action=d.action||"update";
+      const payload=d.payload&&typeof d.payload==="object"?d.payload:{};
+      const result={workspaceId:wsId,systemId:"content",action,recordId:d.recordId||null,ok:false,error:null};
+      try{
+        if(!wsId) throw new Error("workspace-required");
+        if(!["create","update"].includes(action)) throw new Error("unsupported-content-write-action");
+        const recordId=String(d.recordId||payload.id||("ventures_content_"+Date.now()));
+        const {data:existing,error:readError}=await supabase.from("workspace_records").select("id,data,collection,deleted").eq("workspace_id",wsId).eq("system_id","content").eq("id",recordId).maybeSingle();
+        if(readError) throw readError;
+        const merged={...(existing?.data||{}),...payload,id:recordId,updated_at:new Date().toISOString()};
+        const row={workspace_id:wsId,system_id:"content",collection:String(payload.collection||existing?.collection||"content"),id:recordId,data:merged,deleted:false,updated_at:new Date().toISOString()};
+        const {error:writeError}=await supabase.from("workspace_records").upsert(row,{onConflict:"workspace_id,system_id,collection,id"});
+        if(writeError) throw writeError;
+        result.ok=true; result.recordId=recordId;
+      }catch(err){result.error=err?.message||String(err);}
+      window.dispatchEvent(new CustomEvent("os:source-write-result",{detail:result}));
+    };
+    window.addEventListener("os:source-write",handler);
+    return()=>window.removeEventListener("os:source-write",handler);
+  },[wsId]);
+ 
   // ── auth session ──
   useEffect(()=>{
     let cancelled=false;
