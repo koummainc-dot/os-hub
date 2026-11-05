@@ -160,7 +160,7 @@ OPEN:
 7. Complete Phase 4 Finance/Content blocks.
 8. Complete Phase 5 grouped units + Email + Tools.
 9. **Phase 6 PARTIAL:** portfolio engine, decision approval bridge, and quarterly review are now implemented; next is full alert lifecycle + PF-01…PF-32.
-10. Complete remaining Phase 6 alert lifecycle and portfolio charts/missing-week counter, then Phase 7 scorecards and final parity.
+10. **Phase 6 PARTIAL:** alert lifecycle V-A1…V-A13 now has persisted dedupe/snooze/dismissal handling in the portfolio workspace. Remaining: full alert source coverage validation, portfolio charts, missing-week counter, and PF-01…PF-32.
 11. Full test/build/preview.
 12. Merge/deploy only after the above gates pass.
 
@@ -181,3 +181,8 @@ No item is considered closed merely because a generic CRUD table exists.
 - Decision lifecycle now captures reason, evidence snapshot, next review date, owner, follow-up-task preference, validates the Projects transition with `canApplyCall`, and sends an `apply_ventures_decision` bridge event to Projects after approval.
 - Quarterly review is surfaced in Decisions with a current-quarter summary and CSV export.
 - Production deployment of the merged commit is currently blocked by Vercel's free deployment quota (`api-deployments-free-per-day`); no paid environment/plan was created.
+
+
+- PR #130 merged to `main` at `5f7a1534a7126169f9ae3323d2d5555429966087`.
+- Alerts now reconcile source-generated V-A1…V-A13 keys into persisted `venture_alerts`, dedupe by alert key, support 7-day snooze and dismissal, and derive V-A1 missing-week and V-A9 overdue-review context from current Ventures data.
+- Production deployment remains deferred because Vercel free deployment quota is exhausted; no paid environment was created.
