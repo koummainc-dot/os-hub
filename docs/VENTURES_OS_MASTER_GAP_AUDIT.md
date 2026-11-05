@@ -186,3 +186,8 @@ No item is considered closed merely because a generic CRUD table exists.
 - PR #130 merged to `main` at `5f7a1534a7126169f9ae3323d2d5555429966087`.
 - Alerts now reconcile source-generated V-A1…V-A13 keys into persisted `venture_alerts`, dedupe by alert key, support 7-day snooze and dismissal, and derive V-A1 missing-week and V-A9 overdue-review context from current Ventures data.
 - Production deployment remains deferred because Vercel free deployment quota is exhausted; no paid environment was created.
+
+
+- PR #131 merged to `main` at `c9ac8d2fa649894ff98559bd7933a233b83b1d20`.
+- Final portfolio slice implemented: revenue trend visualization, 3-day missing-week counter, project scorecards, and aggregation contract tests.
+- Phase 6/7 implementation work is complete for the currently source-backed portfolio scope. Remaining external integrations/paid infrastructure are deferred per the master plan.
