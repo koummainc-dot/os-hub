@@ -45,14 +45,14 @@ This is the ordered implementation ledger. A feature is marked **DONE** only whe
 | `ventures_metrics_get` | **DONE — just added** |
 | `ventures_sku_upsert` | **DONE — just added** |
 | `ventures_next_code` | **DONE — just added** |
-| Metric definition engine (`evalMetric`, aggregation, scorecards, thresholds) | OPEN |
-| Weekly Entry screen | OPEN |
-| Basic/Full metric toggle | OPEN |
+| Metric definition engine (`evalMetric`, aggregation, scorecards, thresholds) | **PARTIAL/DONE** — source-aligned metric definitions and formula evaluation added; exact portfolio decision formulas remain Phase 6. |
+| Weekly Entry screen | **DONE/PARTIAL** — source-aligned basic/full grid, period navigation, copy previous week, no-data semantics, atomic save, derived read-only values, CSV export. |
+| Basic/Full metric toggle | **DONE** |
 | Paste/Sheets parsing | OPEN |
-| No-data vs zero semantics | OPEN |
+| No-data vs zero semantics | **DONE** |
 | Offline metric queue | OPEN |
-| Weekly period navigation | OPEN |
-| Real two-project weekly entry acceptance | OPEN |
+| Weekly period navigation | **DONE** |
+| Real two-project weekly entry acceptance | **OPEN** — requires hosted authenticated acceptance run. |
 
 ## Phase 3 — projects and Masterplan migration
 
@@ -147,7 +147,7 @@ OPEN:
 
 ## Current execution order
 
-1. Finish Phase 2 domain metric engine + weekly Entry.
+1. Finish Phase 2 acceptance: hosted two-project weekly entry + paste/CSV import + offline queue, then close remaining Phase 2 gaps.
 2. Add the real metric RPC client and acceptance tests.
 3. Close Phase 0 V1/V3/V5 and the remaining Phase 1 extraction gates.
 4. Build Phase 3 project creation + 27-project Masterplan import/undo.
