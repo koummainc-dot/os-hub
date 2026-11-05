@@ -39,7 +39,7 @@ This is the ordered implementation ledger. A feature is marked **DONE** only whe
 
 ## Phase 2 — metrics and weekly tracking
 
-**This is the next implementation block.**
+**Phase 2 implementation is substantially complete; hosted acceptance remains open.**
 
 | Requirement | Status |
 |---|---|
@@ -66,13 +66,13 @@ OPEN:
 - Project creation/selection bridge to Projects OS.
 - Project subtype/module matrix.
 - 27-project CSV batch creation.
-- Four-step Masterplan import wizard.
-- Dry-run/apply batches.
-- Deterministic import IDs and source hashes.
+- Four-step Masterplan import wizard. **DONE/PARTIAL — integrated into Projects OS with File → Review → Dry Run/Execution → Report/Undo.**
+- Dry-run/apply batches. **DONE/PARTIAL — local dry-run validation plus V5 RPC execution in 200-record resumable batches.**
+- Deterministic import IDs and source hashes. **DONE/PARTIAL — deterministic browser-safe IDs/source metadata; full source-hash parity remains to verify.**
 - Conflict resolution where edited user data wins.
 - Projects traceability exception handling.
-- 14-day undo.
-- Private-project `visible_to` inheritance.
+- 14-day undo. **DONE — server boundary implemented and exposed by wizard.**
+- Private-project `visible_to` inheritance. **DONE/PARTIAL — importer carries visibility and V5 preserves it; full multi-user acceptance remains open.**
 - Project status transition effects for Scale/Fix/Pause/Kill.
 - Full MP-01…MP-30 acceptance coverage.
 
@@ -157,11 +157,11 @@ OPEN:
 2. Phase 0 gate decisions are documented; V5 remains the blocker for Phase 3 and V3/V6 remain runtime integration gaps.
 3. Phase 3.1 **DONE/PARTIAL**: deterministic Masterplan JSON validation/conversion planner + mapping/idempotency tests are now implemented. Next: wire the approved 4-step UI into Projects OS and connect Dry Run → V5 RPC batches.
 4. Build Phase 3 project creation + 27-project Masterplan import/undo.
-5. Complete Phase 4 Finance/Content blocks.
-6. Complete Phase 5 grouped units + Email + Tools.
-7. Complete Phase 6 portfolio engine/review/alerts.
-8. Complete Phase 7 scorecards and final parity.
-9. Full test/build/preview.
-10. Merge/deploy only after the above gates pass.
+7. Complete Phase 4 Finance/Content blocks.
+8. Complete Phase 5 grouped units + Email + Tools.
+9. Complete Phase 6 portfolio engine/review/alerts.
+10. Complete Phase 7 scorecards and final parity.
+11. Full test/build/preview.
+12. Merge/deploy only after the above gates pass.
 
 No item is considered closed merely because a generic CRUD table exists.
