@@ -79,8 +79,61 @@ function Platform(){
   // ── responsive ──
   useEffect(()=>{const f=()=>setNarrow(window.innerWidth<860);window.addEventListener("resize",f);return()=>window.removeEventListener("resize",f);},[]);
   // ── cross-module navigation (ContentOS team page → platform team page) ──
-  useEffect(()=>{const f=(e)=>{const d=(e&&e.detail)||{};setRoute({view:d.view||"today",system:d.system||null});setNavOpen(false);};window.addEventListener("os:goto",f);return()=>window.removeEventListener("os:goto",f);},[]);
+  useEffect(()=>{const f=(e)=>{const d=(e&&e.detail)||{};if(d.workspaceId&&String(d.workspaceId)!==String(wsId))return;setRoute({view:d.view||"today",system:d.system||null});if(d.system&&d.section)setSectionBy(p=>({...p,[d.system]:d.section}));setNavOpen(false);};window.addEventListener("os:goto",f);return()=>window.removeEventListener("os:goto",f);},[wsId]);
 
+  // ── cross-OS source writes (authoritative repositories) ──
+  useEffect(()=>{
+    const handler=async(e)=>{
+      const d=e?.detail;
+      if(!d||d.workspaceId==null||String(d.workspaceId)!==String(wsId)||d.source!=="ventures"||!d.systemId) return;
+      if(!["content","knowledge"].includes(d.systemId)) return;
+      const action=d.action||"update";
+      if(d.systemId==="knowledge"){
+        const payload=d.payload&&typeof d.payload==="object"?d.payload:{};
+        const result={workspaceId:wsId,systemId:"knowledge",action,recordId:d.recordId||null,ok:false,error:null};
+        try{
+          if(!wsId) throw new Error("workspace-required");
+          if(!["create","update"].includes(action)) throw new Error("unsupported-knowledge-write-action");
+          const {data:snapshotResult,error:loadError}=await supabase.rpc("knowledge_load_snapshot",{p_workspace_id:wsId});
+          if(loadError) throw loadError;
+          const snapshot=snapshotResult?.data||{};
+          const collection=String(payload.collection||"notes");
+          const allowed=["resources","ideas","notes","meetings","events","inbox"];
+          if(!allowed.includes(collection)) throw new Error("unsupported-knowledge-collection");
+          const recordId=String(d.recordId||payload.id||("ventures_knowledge_"+Date.now()));
+          const current=Array.isArray(snapshot[collection])?snapshot[collection]:[];
+          const item={...(current.find(x=>String(x?.id)===recordId)||{}),...payload,id:recordId};
+          delete item.collection;
+          const next={...snapshot,[collection]:current.some(x=>String(x?.id)===recordId)?current.map(x=>String(x?.id)===recordId?item:x):[item,...current]};
+          const {data:saveResult,error:saveError}=await supabase.rpc("knowledge_save_snapshot",{p_workspace_id:wsId,p_snapshot:next,p_expected_updated_at:snapshotResult?.updatedAt||null});
+          if(saveError) throw saveError;
+          if(saveResult?.conflict) throw new Error("knowledge-write-conflict");
+          if(saveResult?.ok===false) throw new Error("knowledge-write-failed");
+          result.ok=true; result.recordId=recordId;
+        }catch(err){result.error=err?.message||String(err);}
+        window.dispatchEvent(new CustomEvent("os:source-write-result",{detail:result}));
+        return;
+      }
+      const payload=d.payload&&typeof d.payload==="object"?d.payload:{};
+      const result={workspaceId:wsId,systemId:"content",action,recordId:d.recordId||null,ok:false,error:null};
+      try{
+        if(!wsId) throw new Error("workspace-required");
+        if(!["create","update"].includes(action)) throw new Error("unsupported-content-write-action");
+        const recordId=String(d.recordId||payload.id||("ventures_content_"+Date.now()));
+        const {data:existing,error:readError}=await supabase.from("workspace_records").select("id,data,collection,deleted").eq("workspace_id",wsId).eq("system_id","content").eq("id",recordId).maybeSingle();
+        if(readError) throw readError;
+        const merged={...(existing?.data||{}),...payload,id:recordId,updated_at:new Date().toISOString()};
+        const row={workspace_id:wsId,system_id:"content",collection:String(payload.collection||existing?.collection||"content"),id:recordId,data:merged,deleted:false,updated_at:new Date().toISOString()};
+        const {error:writeError}=await supabase.from("workspace_records").upsert(row,{onConflict:"workspace_id,system_id,collection,id"});
+        if(writeError) throw writeError;
+        result.ok=true; result.recordId=recordId;
+      }catch(err){result.error=err?.message||String(err);}
+      window.dispatchEvent(new CustomEvent("os:source-write-result",{detail:result}));
+    };
+    window.addEventListener("os:source-write",handler);
+    return()=>window.removeEventListener("os:source-write",handler);
+  },[wsId]);
+ 
   // ── auth session ──
   useEffect(()=>{
     let cancelled=false;

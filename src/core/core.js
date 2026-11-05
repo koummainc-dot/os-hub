@@ -17,6 +17,7 @@ const OS_GROUPS=[{id:"work",label:"العمل والمعرفة"},{id:"life",labe
 function osSec(str){return str.split("|").map(x=>{const p=x.split(":");return{id:p[0],label:p[1],icon:p[2]||"•"};});}
 // status: live = built · planned = scaffold only. phase = proposed build order (see PLATFORM_MASTER_PLAN.md)
 const OS_SYSTEMS=[
+{id:"ventures",group:"work",scope:"shared",icon:"📈",color:"#0F766E",name:"Ventures OS",title:"محفظة المشاريع التجارية",status:"planned",phase:"المرحلة 3 · المشاريع وMasterplan",sensitive:true,plan:"docs/VENTURES_OS_BUILD_SPEC.md",desc:"تتبّع أداء المتاجر والتطبيقات والمدونات والبزنس الأرضي كمحفظة، مع قرارات Scale/Fix/Pause/Kill.",sections:osSec("dashboard:الرئيسية:⌂|phases:المراحل:🧩|business:الاستراتيجية:🧭|competitors:المنافسون:🥊|experiments:التجارب وCRO:🧪|cro:تحسين التحويل:📊|finance:الأداء المالي:💰|affiliate:الأفلييت:🔗|links:الروابط الخلفية:↗️|team:الفريق:👥|members:الأعضاء:🧑‍🤝‍🧑|calendar:التقويم:📅|notes:الملاحظات:📝|compliance:الامتثال:🛡️|security:الأمان:🔐|tech:التقنيات:⚙️|content:المحتوى:✍️|products:المنتجات:📦|assets:المخرجات:📤|keywords:الكلمات المفتاحية:🔎|seoAudit:تدقيق SEO:🧪|geo:SEO محلي:📍|ai:ظهور الذكاء الاصطناعي:🤖|email:البريد:✉️|distribution:التوزيع:📣|health:الصحة:❤️‍🩹|kpi:OKR / KPI:🎯|alerts:التنبيهات:🔔|priority:الأولوية:🔥|portfolio:قرارات المحفظة:⚖️|settings:الإعدادات:⚙️")},
 {id:"content",group:"work",scope:"shared",icon:"✍️",color:"#EF9F27",name:"Content OS",title:"إدارة المحتوى",status:"live",phase:"جاهز",sensitive:false,plan:"docs/ContentOS_Phases_Roadmap.md",sections:null,
  desc:"تخطيط وإنتاج ونشر وتحليل المحتوى عبر الحسابات والمنصات."},
 {id:"projects",group:"work",scope:"shared",icon:"🚀",color:"#6366F1",name:"Projects OS",title:"المشاريع والمخرجات",status:"live",phase:"جاهز",sensitive:false,plan:"Projects_OS_v4_Unified_Master_Plan.md",
@@ -231,19 +232,22 @@ function osMakeApi(wsId,systemId,part){
     },
     async save(data,expected){
       const nowIso=new Date().toISOString();
-      try{localStorage.setItem(lk,JSON.stringify(data));}catch(e){}
+      let previousLocal=null;
+      try{previousLocal=localStorage.getItem(lk);}catch(e){}
+      const restoreLocal=()=>{try{if(previousLocal===null)localStorage.removeItem(lk);else localStorage.setItem(lk,previousLocal);}catch(e){}};
+      const commitLocal=()=>{try{localStorage.setItem(lk,JSON.stringify(data));}catch(e){}};
       try{
         if(!uidCache){const s=await supabase.auth.getSession();uidCache=(s&&s.data&&s.data.session&&s.data.session.user&&s.data.session.user.id)||null;}
         if(expected){
           const {data:rows,error}=await supabase.from("workspace_data").update({data,updated_at:nowIso,updated_by:uidCache}).eq("workspace_id",wsId).eq("system_id",systemId).eq("part",part).eq("updated_at",expected).select("updated_at");
-          if(error){console.error("Supabase Sync Error:",error);return{ok:false,conflict:false,updatedAt:expected};}
-          if(!rows||rows.length===0){console.warn("Supabase save conflict: server has newer data.");return{ok:false,conflict:true,updatedAt:expected};}
-          return {ok:true,conflict:false,updatedAt:nowIso};
+          if(error){restoreLocal();console.error("Supabase Sync Error:",error);return{ok:false,conflict:false,updatedAt:expected};}
+          if(!rows||rows.length===0){restoreLocal();console.warn("Supabase save conflict: server has newer data.");return{ok:false,conflict:true,updatedAt:expected};}
+          commitLocal(); return {ok:true,conflict:false,updatedAt:nowIso};
         }
         const {error}=await supabase.from("workspace_data").upsert({workspace_id:wsId,system_id:systemId,part,data,updated_at:nowIso,updated_by:uidCache},{onConflict:"workspace_id,system_id,part"});
-        if(error){console.error("Supabase Sync Error:",error);return{ok:false,conflict:false,updatedAt:null};}
-        return {ok:true,conflict:false,updatedAt:nowIso};
-      }catch(e){console.error("Supabase Sync Error:",e);return{ok:false,conflict:false,updatedAt:expected||null};}
+        if(error){restoreLocal();console.error("Supabase Sync Error:",error);return{ok:false,conflict:false,updatedAt:null};}
+        commitLocal(); return {ok:true,conflict:false,updatedAt:nowIso};
+      }catch(e){restoreLocal();console.error("Supabase Sync Error:",e);return{ok:false,conflict:false,updatedAt:expected||null};}
     }
   };
 }

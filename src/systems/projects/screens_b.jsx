@@ -11,7 +11,7 @@ import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView } from "./e
 import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
 
 export function Projects() {
-  const { data, metrics, view, setView, can, A: act, templates, toast, people, openProject, today, settings, trash } = useP();
+  const { data, metrics, view, setView, setPage, can, A: act, templates, toast, people, openProject, today, settings, trash } = useP();
   const [mode, setMode] = useState("table"); const [q, setQ] = useState(""); const [st, setSt] = useState("active"); const [type, setType] = useState(""); const [lead, setLead] = useState(""); const [health, setHealth] = useState(""); const [form, setForm] = useState(null); const [tplPick, setTplPick] = useState(false); const [month, setMonth] = useState(today.slice(0, 7));
   if (view.projectId) return <ProjectDetail />;
   const real = data.projects.filter((p) => !p.is_system);
@@ -27,7 +27,7 @@ export function Projects() {
     <div>
       <Head title="المشاريع" sub={`${list.length} مشروع`} right={<>
         <Seg value={mode} onChange={setMode} options={[{ v: "table", l: "جدول" }, { v: "board", l: "لوحة" }, { v: "timeline", l: "خط زمني" }, { v: "calendar", l: "تقويم" }]} />
-        {can("project.create") && <><Btn onClick={() => setTplPick(true)}>🧩 من قالب</Btn><Btn kind="primary" onClick={() => setForm({})}>➕ مشروع</Btn></>}</>} />
+        {can("project.create") && <><Btn onClick={() => setPage("masterplanImport")}>⤓ نقل من Masterplan</Btn><Btn onClick={() => setTplPick(true)}>🧩 من قالب</Btn><Btn kind="primary" onClick={() => setForm({})}>➕ مشروع</Btn></>}</>} />
       <SearchBar value={q} onChange={setQ} placeholder="بحث باسم المشروع…">
         <select style={{ ...S.sel, width: 140 }} value={st} onChange={(e) => setSt(e.target.value)}><option value="active">الجارية</option><option value="all">الكل</option>{opts(L.projectStatus).filter((o) => o.v !== "Archived").map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}<option value="archived">المؤرشفة</option></select>
         <select style={{ ...S.sel, width: 120 }} value={type} onChange={(e) => setType(e.target.value)}><option value="">كل الأنواع</option>{types.map((t) => <option key={t}>{t}</option>)}</select>

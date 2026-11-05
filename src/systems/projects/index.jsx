@@ -11,6 +11,7 @@ import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView, DiscoveryV
 import { Okrs, Updates, Wins, Reviews, Contacts, Team, Templates, Meetings, Settings } from "./screens_c.jsx";
 import { buildSeed } from "./demo.js";
 import { readOSEvents, subscribeOSEvents, loadDurableOSEvents, subscribeDurableOSEvents } from "../integrationEvents.js";
+import MasterplanWizard from "./masterplanWizard.jsx";
 
 function RisksPage() {
   const [tab, setTab] = useState("risks"); const { data } = useP();
@@ -18,11 +19,36 @@ function RisksPage() {
     <Tabs value={tab} onChange={setTab} tabs={[{ id: "risks", label: "⚠️ المخاطر", count: data.risks.length }, { id: "issues", label: "🔥 المشاكل", count: data.issues.length }, { id: "decisions", label: "⚖️ القرارات", count: data.decisions.length }]} />
     {tab === "risks" && <RisksView />}{tab === "issues" && <IssuesView />}{tab === "decisions" && <DecisionsView />}</div>;
 }
-const SCREENS = { dashboard: Dashboard, today: Today, week: Week, projects: Projects, tasks: Tasks, issues: IssuesView, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: RisksPage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings };
+const SCREENS = { dashboard: Dashboard, today: Today, week: Week, projects: Projects, tasks: Tasks, issues: IssuesView, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: RisksPage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings, masterplanImport: MasterplanWizard };
 
 function Router() {
   const ctx = useP(); const { page, ready, error, store, access, role, shell, ws } = ctx; const lvl = osSectionLevel(access, page);
   const [crossSystemActivity, setCrossSystemActivity] = useState([]);
+  useEffect(() => {
+    const handler = async (event) => {
+      const d = event?.detail || {};
+      if (d.systemId !== "projects" || (d.workspaceId && String(d.workspaceId) !== String(ws?.id))) return;
+      try {
+        if (d.action === "create") {
+          await A.saveProject({ ...(d.payload || {}), id: d.recordId || undefined }, true);
+        } else if (d.action === "update" && d.recordId) {
+          const current = data.projects.find((item) => String(item.id) === String(d.recordId));
+          if (!current) throw new Error("المشروع المرتبط غير موجود أو غير متاح.");
+          await A.saveProject({ ...current, ...(d.payload || {}), id: current.id }, false);
+        }
+        window.dispatchEvent(new CustomEvent("os:source-write-result", {
+          detail: { systemId: "projects", action: d.action, recordId: d.recordId || null, ok: true, source: "projects" }
+        }));
+      } catch (error) {
+        window.dispatchEvent(new CustomEvent("os:source-write-result", {
+          detail: { systemId: "projects", action: d.action, recordId: d.recordId || null, ok: false, error: error?.message || String(error), source: "projects" }
+        }));
+      }
+    };
+    window.addEventListener("os:source-write", handler);
+    return () => window.removeEventListener("os:source-write", handler);
+  }, [ws?.id, A, data.projects]);
+
   useEffect(() => {
     let alive = true;
     const options = { workspaceId: ws?.id || "default", limit: 10, types: ["learning.study_session.completed", "learning.lesson.completed", "learning.course.completed", "hobbies.practice_session.completed"] };
@@ -55,7 +81,7 @@ function Router() {
     };
   }, [ws?.id]);
   // sections hidden for Viewers (plan §13.2) are removed from the shell menu
-  useEffect(() => { if (shell && shell.publish) shell.publish("projects", { visible: Object.keys(SCREENS).filter((k) => !(role === "Viewer" && ["reviews", "contacts"].includes(k))) }); }, [role]);
+  useEffect(() => { if (shell && shell.publish) shell.publish("projects", { visible: Object.keys(SCREENS).filter((k) => k !== "masterplanImport" && !(role === "Viewer" && ["reviews", "contacts"].includes(k))) }); }, [role]);
   if (error) return <ErrorState error={error} onRetry={() => store.api.reload()} />;
   if (!ready) return <Skeleton />;
   if (lvl === "none") return <AccessDenied />;

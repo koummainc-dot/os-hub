@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+global.localStorage={_m:new Map(),getItem(k){return this._m.get(k)||null},setItem(k,v){this._m.set(k,String(v))}};
+global.crypto={randomUUID:()=> "queue-test-id"};
+const repo=await import("../src/systems/ventures/repository.js");
+const q=repo.enqueueVenturesMetrics("ws-1",[{project_id:"p1",key:"revenue",value_num:100,period_type:"W",period_start:"2026-11-01"}]);
+assert.equal(q.count,1);
+assert.equal(repo.venturesMetricQueueStatus().count,1);
+assert.equal(typeof repo.installVenturesMetricOfflineReplay,"function");
+const listeners=new Map();
+const oldWindow=global.window;
+global.window={navigator:{onLine:false},addEventListener(type,fn){listeners.set(type,fn)},removeEventListener(type,fn){listeners.delete(type)},setInterval(fn){return 1},clearInterval(){}};
+const cleanup=repo.installVenturesMetricOfflineReplay({intervalMs:5000});
+assert.equal(listeners.has("online"),true);
+cleanup();
+assert.equal(listeners.has("online"),false);
+global.window=oldWindow;
+console.log("Ventures offline queue tests passed");
