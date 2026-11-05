@@ -54,7 +54,30 @@ function buildPortfolioContext(projects,metrics){
   const values=Object.fromEntries(projects.map(p=>[p.id||p.project_id,projectValues(metrics,p.project_id)]));
   const enriched=projects.map(p=>({...p,health:diagnoseProject(p,metrics).state,decision_metric_key:decisionMetric(p,values[p.id||p.project_id]).key,decision_metric:decisionMetric(p,values[p.id||p.project_id]).value}));
   return {projects:enriched,values};
+}function buildAlertContext(projects,metrics,portfolioCalls){
+  const base=buildPortfolioContext(projects,metrics);
+  const now=Date.now();
+  base.projects.forEach(p=>{
+    const pid=p.id||p.project_id;
+    const v=base.values[pid]||{};
+    const h=metrics.filter(x=>x.project_id===p.project_id&&x.value_num!=null).sort((a,b)=>String(b.period_start).localeCompare(String(a.period_start)));
+    const latest=h[0]?.period_start;
+    if(latest)v.week_missing_after_days=Math.floor((now-new Date(latest).getTime())/86400000)>9;
+    const lastCall=portfolioCalls.filter(x=>x.project_id===p.project_id&&!x._deleted_at).sort((a,b)=>String(b.created_at||"").localeCompare(String(a.created_at||"")))[0];
+    v.review_overdue=!!(lastCall?.next_review_date&&new Date(lastCall.next_review_date+"T23:59:59").getTime()<now&&lastCall.status==="approved");
+  });
+  return base;
 }
+function reconcileAlerts(existing,generated){
+  const byKey=new Map((existing||[]).filter(x=>!x._deleted_at).map(x=>[x.key,x]));
+  generated.forEach(a=>{
+    const old=byKey.get(a.key);
+    if(old&&old.status==="snoozed"&&old.snooze_until&&new Date(old.snooze_until).getTime()>Date.now())return;
+    byKey.set(a.key,{...(old||{}),...a,status:old?.status==="dismissed"?"dismissed":"active",updated_at:new Date().toISOString()});
+  });
+  return [...byKey.values()];
+}
+
 function ProjectCard({p,metrics,onOpen}){
   const score=scoreProject(p,metrics);
   const state=score<50?"critical":score<70?"watch":"active";
@@ -152,7 +175,11 @@ export default function VenturesRealWorkspace({api,access,page,setPage,ws}){
   const needsAttention=diagnoses.filter(x=>x.d.score<70).map(x=>x.p);
   const portfolioCtx=buildPortfolioContext(projects,metrics);
   const questions=portfolioQuestions(portfolioCtx);
-  const engineAlerts=ventureAlerts(ws?.user_id||"current",portfolioCtx);
+  const alertCtx=buildAlertContext(projects,metrics,portfolioCalls);
+  const engineAlerts=ventureAlerts(ws?.user_id||"current",alertCtx);
+  const storedAlerts=Array.isArray(data.venture_alerts)?data.venture_alerts:[];
+  const alerts=useMemo(()=>reconcileAlerts(storedAlerts,engineAlerts),[storedAlerts,engineAlerts]);
+  const activeAlerts=alerts.filter(a=>a.status==="active" || (a.status==="snoozed" && a.snooze_until && new Date(a.snooze_until).getTime()<=Date.now()));
   const go=v=>{setView(v);setPage(v==="portfolio"?"dashboard":v)};
   if(loading)return <div dir="rtl" style={{padding:40,textAlign:"center"}}>جاري تجهيز محفظة المشاريع…</div>;
   if(selected)return <ProjectView project={selected} metrics={metrics} setPage={setPage} workspaceId={ws?.id} onBack={()=>setSelected(null)} save={saveWithData} data={data} portfolioCalls={portfolioCalls}/>;
@@ -173,7 +200,11 @@ export default function VenturesRealWorkspace({api,access,page,setPage,ws}){
     <div style={{display:"flex",gap:6,margin:"12px 0",overflowX:"auto"}}>{[["portfolio","المحفظة"],["performance","الأداء"],["decisions","القرارات"],["operations","التشغيل"]].map(([id,l])=><button key={id} onClick={()=>setView(id)} style={{...S.btn,background:view===id?"#0F766E":"#fff",color:view===id?"#fff":"#57606A"}}>{l}</button>)}</div>
     {view==="portfolio"&&<div>
       <C style={{marginBottom:12}}><div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}><div><h2 style={{margin:"0 0 4px"}}>قراءة المحفظة</h2><div style={{fontSize:11,color:"#64748B"}}>ابدأ بالمشاريع التي تحتاج قرارًا، وليس بجداول البيانات.</div></div><input style={{...S.input,maxWidth:280}} placeholder="ابحث عن مشروع…" value={q} onChange={e=>setQ(e.target.value)}/></div></C>
-      {needsAttention.length>0&&<C style={{marginBottom:12,border:"1px solid #FDE68A",background:"#FFFBEB"}}><b>تحتاج تدخل الآن</b><div style={{fontSize:10,color:"#64748B",marginTop:4}}>{engineAlerts.length?`${engineAlerts.length} تنبيهًا من محرك المحفظة`:"لا توجد تنبيهات آلية"}</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8,marginTop:10}}>{needsAttention.slice(0,4).map(p=><button key={p.id} onClick={()=>setSelected(p)} style={{...S.card,padding:12,textAlign:"right",cursor:"pointer"}}><b>{p.name||p.project_id}</b><div style={{fontSize:10,color:"#B45309",marginTop:4}}>افتح التشخيص</div></button>)}</div></C>}
+      {(needsAttention.length>0||activeAlerts.length>0)&&<C style={{marginBottom:12,border:"1px solid #FDE68A",background:"#FFFBEB"}}>
+<div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center"}}><div><b>تحتاج تدخل الآن</b><div style={{fontSize:10,color:"#64748B",marginTop:4}}>{activeAlerts.length} تنبيه نشط · dedupe تلقائي</div></div><Btn onClick={()=>saveWithData({...data,venture_alerts:alerts.map(a=>({...a,status:"dismissed",dismissed_at:new Date().toISOString()}))})}>إخفاء التنبيهات</Btn></div>
+<div style={{display:"grid",gap:8,marginTop:10}}>{activeAlerts.slice(0,8).map(a=><div key={a.key} style={{padding:10,border:"1px solid #FDE68A",borderRadius:10,background:"#fff"}}><div style={{display:"flex",justifyContent:"space-between",gap:8}}><div><b>{a.title}</b><div style={{fontSize:10,color:"#64748B",marginTop:3}}>{a.severity} · {a.project_id}</div></div><div style={{display:"flex",gap:5}}><Btn onClick={()=>saveWithData({...data,venture_alerts:alerts.map(x=>x.key===a.key?{...x,status:"snoozed",snooze_until:new Date(Date.now()+7*86400000).toISOString()}:x)})}>تأجيل 7 أيام</Btn><Btn onClick={()=>saveWithData({...data,venture_alerts:alerts.map(x=>x.key===a.key?{...x,status:"dismissed",dismissed_at:new Date().toISOString()}:x)})}>إغلاق</Btn></div></div></div>)}</div>
+{needsAttention.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8,marginTop:10}}>{needsAttention.slice(0,4).map(p=><button key={p.id} onClick={()=>setSelected(p)} style={{...S.card,padding:12,textAlign:"right",cursor:"pointer"}}><b>{p.name||p.project_id}</b><div style={{fontSize:10,color:"#B45309",marginTop:4}}>افتح التشخيص</div></button>)}</div>}
+</C>}}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:10}}>{filtered.map(p=><ProjectCard key={p.id} p={p} metrics={metrics} onOpen={()=>setSelected(p)}/>)}</div>
       {filtered.length===0&&<C><div style={{padding:30,textAlign:"center",color:"#64748B"}}>لا توجد مشاريع مرتبطة بالمحفظة بعد.</div></C>}
     </div>}
