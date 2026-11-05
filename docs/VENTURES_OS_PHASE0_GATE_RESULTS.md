@@ -47,9 +47,9 @@ The existing read/validation boundaries are reusable; final UX/link acceptance s
 - No `ventures_import_apply` / `ventures_import_undo` RPC was found in the current branch.
 - Therefore Ventures must not bypass Projects authorization by client-side writes.
 
-**Decision:** **OPEN / BLOCKER FOR PHASE 3.**
+**Decision:** **CLOSED AS A SERVER-SIDE GATE.**
 
-The next implementation after Phase 0 is the server-side Projects import boundary. It must enforce `ws_access_level(workspace_id,'projects',collection)='edit'` per affected collection, preserve project privacy/visibility inheritance, record the import decision, and provide the source-defined undo path.
+The server-side Projects import boundary is now implemented. It enforces Ventures import edit access plus Projects collection edit access, records the traceability decision, preserves `visible_to`, uses the existing Projects atomic batch RPC, and provides a 14-day undo path with optimistic-concurrency conflict detection. The full Masterplan wizard/UI and MP acceptance suite remain Phase 3 work.
 
 ## V6 — website/email platform identifier
 **Evidence reviewed**
@@ -64,6 +64,6 @@ Keep the approved literal id `website`; do not mark V6 complete until the Conten
 ## Phase 0 outcome
 Phase 0 documentation is now complete: every source gate has an explicit result and downstream decision.
 
-**Remaining blockers before Phase 3:** V5 and the runtime portion of V3/V6.
+**Remaining blockers before Phase 3:** runtime portions of V3/V6. V5 server boundary is no longer a blocker.
 
 **Next ordered implementation:** build the server-side V5 Projects import/undo boundary, then add its acceptance tests before starting the 27-project Masterplan migration.
