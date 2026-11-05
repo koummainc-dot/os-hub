@@ -174,6 +174,68 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     const offStorage = subscribeToStoredOSEvents(sync, { workspaceId: ws.id, types, limit: 100 });
     return () => { offEvent(); offStorage(); };
   }, [ws?.id, isDemo, transactions]);
+  useEffect(() => {
+    if (isDemo || !ws?.id || typeof window === "undefined") return;
+    const handler = async (event) => {
+      const d = event?.detail;
+      if (!d || d.systemId !== "finance" || d.workspaceId !== ws.id || d.source !== "ventures") return;
+      if (!canEdit || !d.action || !["create", "update"].includes(d.action)) {
+        window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws.id, systemId: "finance", action: d.action || "update", recordId: d.recordId || null, ok: false, error: "صلاحية الكتابة غير متاحة." } }));
+        return;
+      }
+      setSaving(true); setError("");
+      try {
+        const p = d.payload || {};
+        const type = p.type === "Revenue" ? "Income" : p.type === "Expense" ? "Expense" : (p.type || "Expense");
+        const amount = Number(p.amount ?? (type === "Income" ? p.revenue : p.expense));
+        if (!(amount > 0) || !p.local_date) throw new Error("بيانات الحركة المالية القادمة من Ventures غير مكتملة.");
+        if (d.action === "create") {
+          const { data: accountsData, error: accountsError } = await supabase.from("finance_accounts").select("id,currency,status").eq("workspace_id", ws.id).eq("status", "Active").limit(50);
+          if (accountsError) throw accountsError;
+          const account = (accountsData || []).find(a => a.currency === (p.currency || baseCurrency)) || (accountsData || [])[0];
+          if (!account) throw new Error("لا يوجد حساب مالي نشط مناسب للعملة لتسجيل حركة Ventures.");
+          const { error: txError } = await supabase.from("finance_transactions").insert({
+            workspace_id: ws.id,
+            name: p.name || (type === "Income" ? "دخل من Ventures" : "مصروف Ventures"),
+            type,
+            purpose: "Ventures",
+            status: "Posted",
+            amount: String(amount),
+            currency: p.currency || account.currency || baseCurrency,
+            local_date: p.local_date,
+            from_account_id: account.id,
+            category_id: p.category_id || null,
+            merchant: p.merchant || null,
+            notes: [p.note, p.notes].filter(Boolean).join(" · ") || null,
+            client_generated_id: "ventures-finance-" + String(d.recordId || globalThis.crypto?.randomUUID?.() || Date.now()),
+            idempotency_key: "ventures-finance-" + String(d.recordId || globalThis.crypto?.randomUUID?.() || Date.now())
+          });
+          if (txError) throw txError;
+        } else {
+          const transactionId = d.recordId || p.finance_transaction_id;
+          if (!transactionId) throw new Error("تحديث حركة Ventures يحتاج finance transaction id.");
+          const { error: txError } = await supabase.from("finance_transactions").update({
+            name: p.name || undefined,
+            type,
+            amount: String(amount),
+            currency: p.currency || undefined,
+            local_date: p.local_date,
+            category_id: p.category_id || null,
+            merchant: p.merchant || null,
+            notes: [p.note, p.notes].filter(Boolean).join(" · ") || null
+          }).eq("workspace_id", ws.id).eq("id", transactionId);
+          if (txError) throw txError;
+        }
+        window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws.id, systemId: "finance", action: d.action, recordId: d.recordId || null, ok: true } }));
+        setNotice(d.action === "create" ? "تم تسجيل حركة Ventures داخل Finance OS." : "تم تحديث حركة Ventures داخل Finance OS.");
+        await load();
+      } catch (e) {
+        window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws.id, systemId: "finance", action: d.action, recordId: d.recordId || null, ok: false, error: e?.message || String(e) } }));
+      } finally { setSaving(false); }
+    };
+    window.addEventListener("os:source-write", handler);
+    return () => window.removeEventListener("os:source-write", handler);
+  }, [ws?.id, isDemo, canEdit, baseCurrency, load]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(""), 5000); return () => clearTimeout(t); }, [notice]);
 
