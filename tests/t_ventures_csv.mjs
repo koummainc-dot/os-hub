@@ -1,0 +1,11 @@
+import assert from "node:assert/strict";
+import {normalizeVenturesNumber,parseVenturesEntryPaste} from "../src/core/csv.js";
+assert.equal(normalizeVenturesNumber("١٬٢٥٠٫٥"),1250.5);
+const parsed=parseVenturesEntryPaste("project_id\tkey\tvalue\np1\trevenue\t١٬٠٠٠٫٥\np1\torders\t20");
+assert.equal(parsed.errors.length,0);
+assert.equal(parsed.rows[0].value_num,1000.5);
+assert.equal(parsed.rows[1].value_num,20);
+const bad=parseVenturesEntryPaste("project_id,key,value\np1,revenue,abc");
+assert.equal(bad.rows.length,0);
+assert.equal(bad.errors.length,1);
+console.log("Ventures CSV tests passed");
