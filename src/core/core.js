@@ -232,19 +232,22 @@ function osMakeApi(wsId,systemId,part){
     },
     async save(data,expected){
       const nowIso=new Date().toISOString();
-      try{localStorage.setItem(lk,JSON.stringify(data));}catch(e){}
+      let previousLocal=null;
+      try{previousLocal=localStorage.getItem(lk);}catch(e){}
+      const restoreLocal=()=>{try{if(previousLocal===null)localStorage.removeItem(lk);else localStorage.setItem(lk,previousLocal);}catch(e){}};
+      const commitLocal=()=>{try{localStorage.setItem(lk,JSON.stringify(data));}catch(e){}};
       try{
         if(!uidCache){const s=await supabase.auth.getSession();uidCache=(s&&s.data&&s.data.session&&s.data.session.user&&s.data.session.user.id)||null;}
         if(expected){
           const {data:rows,error}=await supabase.from("workspace_data").update({data,updated_at:nowIso,updated_by:uidCache}).eq("workspace_id",wsId).eq("system_id",systemId).eq("part",part).eq("updated_at",expected).select("updated_at");
-          if(error){console.error("Supabase Sync Error:",error);return{ok:false,conflict:false,updatedAt:expected};}
-          if(!rows||rows.length===0){console.warn("Supabase save conflict: server has newer data.");return{ok:false,conflict:true,updatedAt:expected};}
-          return {ok:true,conflict:false,updatedAt:nowIso};
+          if(error){restoreLocal();console.error("Supabase Sync Error:",error);return{ok:false,conflict:false,updatedAt:expected};}
+          if(!rows||rows.length===0){restoreLocal();console.warn("Supabase save conflict: server has newer data.");return{ok:false,conflict:true,updatedAt:expected};}
+          commitLocal(); return {ok:true,conflict:false,updatedAt:nowIso};
         }
         const {error}=await supabase.from("workspace_data").upsert({workspace_id:wsId,system_id:systemId,part,data,updated_at:nowIso,updated_by:uidCache},{onConflict:"workspace_id,system_id,part"});
         if(error){console.error("Supabase Sync Error:",error);return{ok:false,conflict:false,updatedAt:null};}
         return {ok:true,conflict:false,updatedAt:nowIso};
-      }catch(e){console.error("Supabase Sync Error:",e);return{ok:false,conflict:false,updatedAt:expected||null};}
+      }catch(e){restoreLocal();console.error("Supabase Sync Error:",e);return{ok:false,conflict:false,updatedAt:expected||null};}
     }
   };
 }
