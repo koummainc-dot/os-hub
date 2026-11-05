@@ -212,8 +212,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
           });
           if (txError) throw txError;
         } else {
-          const transactionId = d.recordId || p.finance_transaction_id;
-          if (!transactionId) throw new Error("تحديث حركة Ventures يحتاج finance transaction id.");
+          const clientGeneratedId = "ventures-finance-" + String(d.recordId || p.finance_transaction_id || "");
+          if (!d.recordId && !p.finance_transaction_id) throw new Error("تحديث حركة Ventures يحتاج معرف السجل.");
           const { error: txError } = await supabase.from("finance_transactions").update({
             name: p.name || undefined,
             type,
@@ -223,7 +223,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
             category_id: p.category_id || null,
             merchant: p.merchant || null,
             notes: [p.note, p.notes].filter(Boolean).join(" · ") || null
-          }).eq("workspace_id", ws.id).eq("id", transactionId);
+          }).eq("workspace_id", ws.id).eq("client_generated_id", clientGeneratedId);
           if (txError) throw txError;
         }
         window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws.id, systemId: "finance", action: d.action, recordId: d.recordId || null, ok: true } }));
