@@ -1,5 +1,3 @@
-import crypto from "node:crypto";
-
 /**
  * Pure Masterplan -> Ventures/Projects import planner.
  * No network, storage, or writes. The caller applies the returned plan
@@ -29,11 +27,18 @@ function sourceId(siteId,module,id){
   const raw=["masterplan",siteId,module,id].map(clean).join("|");
   return "imp_"+raw.replace(/[^a-zA-Z0-9_-]/g,"_").slice(0,180);
 }
+function hashString(value){
+  let h=2166136261;
+  for(let i=0;i<value.length;i++){h^=value.charCodeAt(i);h=Math.imul(h,16777619);}
+  return (h>>>0).toString(16).padStart(8,"0");
+}
 function stableId(parts){
-  return "mp_"+crypto.createHash("sha256").update(parts.map(clean).join("|")).digest("hex").slice(0,24);
+  const raw=parts.map(clean).join("|");
+  return "mp_"+hashString(raw)+hashString(raw.split("").reverse().join(""));
 }
 function fingerprint(value){
-  return crypto.createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  const raw=JSON.stringify(value);
+  return hashString(raw)+hashString(raw.split("").reverse().join(""));
 }
 function recordsFor(data,module){
   const value=data?.[module];
@@ -120,19 +125,23 @@ export function masterplanToVenture(raw={},opts={}){
       modules_override:cfg.modules_override||null,
       name:projectName
     };
-    projects.push({
-      project:{
-        id:projectId,
-        name:projectName,
-        status:mapStatus(cfg.status||site?.status),
-        priority:clean(cfg.priority||site?.priority||"Medium"),
-        visibility:profile.visibility,
-        visible_to:profile.visible_to,
-        source:profile.source,
-        legacy_status:STATUS_MAP[clean(cfg.status||site?.status).toLowerCase()]?null:clean(cfg.status||site?.status)
-      },
-      profile
-    });
+    const projectRecord={
+      id:projectId,
+      name:projectName,
+      status:mapStatus(cfg.status||site?.status),
+      priority:clean(cfg.priority||site?.priority||"Medium"),
+      visibility:profile.visibility,
+      visible_to:profile.visible_to,
+      source:profile.source,
+      legacy_status:STATUS_MAP[clean(cfg.status||site?.status).toLowerCase()]?null:clean(cfg.status||site?.status),
+      lead_id:clean(cfg.lead_id||cfg.owner_id||site?.owner_id)||null,
+      created_by:clean(cfg.created_by||site?.created_by)||null,
+      description:clean(cfg.description||site?.description),
+      type:type
+    };
+    projects.push({project:projectRecord,profile});
+    records.push({collection:"projects",id:projectId,data:projectRecord,deleted:false,visible_to:profile.visible_to,source:profile.source});
+    records.push({collection:"profiles",id:profile.id,data:profile,deleted:false,visible_to:profile.visible_to,source:profile.source});
 
     for(const [module,rawValue] of Object.entries(data)){
       const rows=Array.isArray(rawValue)?rawValue:Object.entries(rawValue||{}).map(([id,row])=>({id,...row}));
@@ -149,8 +158,12 @@ export function masterplanToVenture(raw={},opts={}){
         }
         if(module==="members") {report.push({site_id:siteId,module,id:originalId,status:"deferred",reason:"الأعضاء لا تُنقل"});continue;}
         const source=makeSource(siteId,module,originalId,importId);
-        const targetCollection=module==="compliance"||module==="security"?"checklist":module==="team"?"tasks":module==="assets"?"outputs":module==="notes"?"updates":module;
+        const targetCollection=module==="compliance"||module==="security"?"tasks":module==="team"?"tasks":module==="assets"?"outputs":module==="notes"?"updates":module==="decisions"?"decisions":module==="risks"?"risks":module==="issues"?"issues":module==="prds"?"prds":module==="updates"?"updates":module==="outputs"?"outputs":module==="tasks"?"tasks":null;
         const targetId=sourceId(siteId,module,originalId);
+        if(!targetCollection){
+          report.push({site_id:siteId,module,id:originalId,status:"deferred",reason:"لا يوجد target collection في Projects OS؛ يحتاج ربطًا بنظامه المالك.",source});
+          continue;
+        }
         const visibility=profile.visibility==="private"?profile.visible_to:null;
         const base={id:targetId,project_id:projectId,source,visible_to:visibility};
         let dataOut={...row,...base};
@@ -166,7 +179,7 @@ export function masterplanToVenture(raw={},opts={}){
         } else if(module==="kpi"){
           dataOut={...dataOut,target_value:num(row.target12??row.target??row.target_value),current_value:num(row.current??row.current_value),initial_value:num(row.initial??row.initial_value),notes:[row.target3,row.target6].filter(x=>clean(x)).map(x=>String(x)).join(" | ")};
         } else if(module==="compliance"||module==="security"){
-          dataOut={...dataOut,kind:"checklist",status:clean(row.status||"Todo")};
+          dataOut={...dataOut,kind:"checklist",status:clean(row.status||"Todo"),title:clean(row.title||row.name||module+" item")};
         }
         records.push({collection:targetCollection,id:targetId,data:dataOut,deleted:false,visible_to:visibility,source});
       }
