@@ -245,8 +245,8 @@ function osMakeApi(wsId,systemId,part){
           commitLocal(); return {ok:true,conflict:false,updatedAt:nowIso};
         }
         const {error}=await supabase.from("workspace_data").upsert({workspace_id:wsId,system_id:systemId,part,data,updated_at:nowIso,updated_by:uidCache},{onConflict:"workspace_id,system_id,part"});
-        if(error){console.error("Supabase Sync Error:",error);return{ok:false,conflict:false,updatedAt:null};}
-        return {ok:true,conflict:false,updatedAt:nowIso};
+        if(error){restoreLocal();console.error("Supabase Sync Error:",error);return{ok:false,conflict:false,updatedAt:null};}
+        commitLocal(); return {ok:true,conflict:false,updatedAt:nowIso};
       }catch(e){restoreLocal();console.error("Supabase Sync Error:",e);return{ok:false,conflict:false,updatedAt:expected||null};}
     }
   };
