@@ -25,6 +25,19 @@ export async function nextVenturesCode(workspaceId) {
   if(error) return {available:true,ok:false,error};
   return {available:true,ok:true,code:data};
 }
+export async function applyVenturesProjectsImport(workspaceId,importId,changes,traceabilityDecision){
+  if(!workspaceId||!importId||!Array.isArray(changes)||!supabase||typeof supabase.rpc!=="function") return unavailable("invalid-import-request");
+  const {data,error}=await supabase.rpc("ventures_import_apply",{p_workspace_id:workspaceId,p_import_id:importId,p_changes:changes,p_traceability_decision:traceabilityDecision});
+  if(error) return {available:true,ok:false,error};
+  return {available:true,ok:true,...(data||{})};
+}
+export async function undoVenturesProjectsImport(workspaceId,importId){
+  if(!workspaceId||!importId||!supabase||typeof supabase.rpc!=="function") return unavailable("invalid-import-undo-request");
+  const {data,error}=await supabase.rpc("ventures_import_undo",{p_workspace_id:workspaceId,p_import_id:importId});
+  if(error) return {available:true,ok:false,error};
+  return {available:true,ok:true,...(data||{})};
+}
+
 
 const QUEUE_KEY="ventures.metric.offline.queue.v1";
 function readQueue(){try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||"[]");}catch{return []}}
