@@ -38,14 +38,12 @@ function normalizePlan(plan,authUser){
     profile
   }));
   const projectRecords=projects.map(x=>x.project);
-  const profileRecords=projects.map(x=>x.profile);
   const projectIds=new Set(projectRecords.map(p=>p.id));
   return {
     ...plan,
     projects,
     records:[
       ...projectRecords.map(p=>({collection:"projects",id:p.id,data:p,deleted:false,visible_to:p.visible_to||null,source:p.source})),
-      ...profileRecords.map(p=>({collection:"profiles",id:p.id,data:p,deleted:false,visible_to:p.visible_to||null,source:p.source})),
       ...plan.records.filter(r=>r.collection!=="projects"&&r.collection!=="profiles"&&(!r.project_id||projectIds.has(r.project_id)))
     ]
   };
