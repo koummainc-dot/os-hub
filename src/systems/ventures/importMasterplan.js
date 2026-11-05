@@ -141,7 +141,6 @@ export function masterplanToVenture(raw={},opts={}){
     };
     projects.push({project:projectRecord,profile});
     records.push({collection:"projects",id:projectId,data:projectRecord,deleted:false,visible_to:profile.visible_to,source:profile.source});
-    records.push({collection:"profiles",id:profile.id,data:profile,deleted:false,visible_to:profile.visible_to,source:profile.source});
 
     for(const [module,rawValue] of Object.entries(data)){
       const rows=Array.isArray(rawValue)?rawValue:Object.entries(rawValue||{}).map(([id,row])=>({id,...row}));
@@ -172,9 +171,7 @@ export function masterplanToVenture(raw={},opts={}){
           if(row.phase) dataOut.phase=clean(row.phase);
           if(row.cancelled||String(row.status).toLowerCase().includes("cancel")) dataOut.cancelled_reason="مستورد";
         } else if(module==="finance"){
-          const month=clean(row.month||row.period_start||row.date).slice(0,7);
-          if(month) records.push({collection:"metric_import",id:stableId(["finance",projectId,month,originalId]),project_id:projectId,key:"finance_import_total",period_type:"M",period_start:month+"-01",value_num:num(row.amount??row.revenue??row.expense),source:{...source,source:"import"},visible_to:visibility});
-          report.push({site_id:siteId,module,id:originalId,status:"converted_to_metric"});
+          report.push({site_id:siteId,module,id:originalId,status:"deferred",reason:"Finance يصبح Metrics في Ventures وليس سجل Projects؛ سيُربط في مسار Phase 4.",source});
           continue;
         } else if(module==="kpi"){
           dataOut={...dataOut,target_value:num(row.target12??row.target??row.target_value),current_value:num(row.current??row.current_value),initial_value:num(row.initial??row.initial_value),notes:[row.target3,row.target6].filter(x=>clean(x)).map(x=>String(x)).join(" | ")};
