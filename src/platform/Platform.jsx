@@ -86,8 +86,34 @@ function Platform(){
     const handler=async(e)=>{
       const d=e?.detail;
       if(!d||d.workspaceId==null||String(d.workspaceId)!==String(wsId)||d.source!=="ventures"||!d.systemId) return;
-      if(d.systemId!=="content") return;
+      if(!["content","knowledge"].includes(d.systemId)) return;
       const action=d.action||"update";
+      if(d.systemId==="knowledge"){
+        const payload=d.payload&&typeof d.payload==="object"?d.payload:{};
+        const result={workspaceId:wsId,systemId:"knowledge",action,recordId:d.recordId||null,ok:false,error:null};
+        try{
+          if(!wsId) throw new Error("workspace-required");
+          if(!["create","update"].includes(action)) throw new Error("unsupported-knowledge-write-action");
+          const {data:snapshotResult,error:loadError}=await supabase.rpc("knowledge_load_snapshot",{p_workspace_id:wsId});
+          if(loadError) throw loadError;
+          const snapshot=snapshotResult?.data||{};
+          const collection=String(payload.collection||"notes");
+          const allowed=["resources","ideas","notes","meetings","events","inbox"];
+          if(!allowed.includes(collection)) throw new Error("unsupported-knowledge-collection");
+          const recordId=String(d.recordId||payload.id||("ventures_knowledge_"+Date.now()));
+          const current=Array.isArray(snapshot[collection])?snapshot[collection]:[];
+          const item={...(current.find(x=>String(x?.id)===recordId)||{}),...payload,id:recordId};
+          delete item.collection;
+          const next={...snapshot,[collection]:current.some(x=>String(x?.id)===recordId)?current.map(x=>String(x?.id)===recordId?item:x):[item,...current]};
+          const {data:saveResult,error:saveError}=await supabase.rpc("knowledge_save_snapshot",{p_workspace_id:wsId,p_snapshot:next,p_expected_updated_at:snapshotResult?.updatedAt||null});
+          if(saveError) throw saveError;
+          if(saveResult?.conflict) throw new Error("knowledge-write-conflict");
+          if(saveResult?.ok===false) throw new Error("knowledge-write-failed");
+          result.ok=true; result.recordId=recordId;
+        }catch(err){result.error=err?.message||String(err);}
+        window.dispatchEvent(new CustomEvent("os:source-write-result",{detail:result}));
+        return;
+      }
       const payload=d.payload&&typeof d.payload==="object"?d.payload:{};
       const result={workspaceId:wsId,systemId:"content",action,recordId:d.recordId||null,ok:false,error:null};
       try{
