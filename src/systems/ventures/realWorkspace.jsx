@@ -83,7 +83,7 @@ function QuarterlyReview({projects,metrics,calls}){
     const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`ventures-quarterly-${report.year}-Q${report.quarter}.csv`;a.click();URL.revokeObjectURL(url);
   };
   return <div style={{marginTop:14,padding:12,border:"1px solid #E5E7EB",borderRadius:10}}><div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center"}}><div><b>المراجعة الربع سنوية · {report.year} Q{report.quarter}</b><div style={{fontSize:10,color:"#64748B",marginTop:3}}>ملخص المحفظة والقرارات المسجلة في الربع الحالي.</div></div><Btn onClick={exportReport}>تصدير التقرير CSV</Btn></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8,marginTop:10}}><div><b>{report.rows.length}</b><div style={{fontSize:9,color:"#64748B"}}>مشاريع</div></div><div><b>{report.rows.filter(x=>x.diagnosis.state==="critical").length}</b><div style={{fontSize:9,color:"#64748B"}}>حرجة</div></div><div><b>{report.rows.filter(x=>x.diagnosis.state==="watch").length}</b><div style={{fontSize:9,color:"#64748B"}}>تحتاج متابعة</div></div><div><b>{report.inQuarter.length}</b><div style={{fontSize:9,color:"#64748B"}}>قرارات هذا الربع</div></div></div></div>
-}\nfunction ProjectView({project,metrics,setPage,workspaceId,onBack,save,data,portfolioCalls=[]}){{project,metrics,setPage,workspaceId,onBack,save,data,portfolioCalls=[]}){
+}\nfunction ProjectView({project,metrics,setPage,workspaceId,onBack,save,data,portfolioCalls=[]}){
   const [decisionOpen,setDecisionOpen]=useState(false);
   const [decisionReason,setDecisionReason]=useState("");
   const [reviewDate,setReviewDate]=useState("");
@@ -114,9 +114,7 @@ function QuarterlyReview({projects,metrics,calls}){
   const values=diagnosis.values;
   const decision=portfolioDecision(project,metrics);
   const latestCall=portfolioCalls.filter(x=>x.project_id===project.project_id&&!x._deleted_at).sort((a,b)=>String(b.created_at||"").localeCompare(String(a.created_at||"")))[0];
-  const [decisionBusy,setDecisionBusy]=useState(false);
-  const [decisionMessage,setDecisionMessage]=useState("");
-  const recordDecision=async()=>{if(!decision.decision||decisionBusy)return;setDecisionBusy(true);try{const call={id:`pc_${project.project_id}_${new Date().toISOString().slice(0,10).replaceAll("-","")}_${Date.now()}`,project_id:project.project_id,decision:decision.decision,reason:decision.reason,decision_metric_key:diagnosis.decisionMetricValue.key,decision_metric_value:diagnosis.decisionMetricValue.value,created_at:new Date().toISOString(),status:"proposed",source:"ventures_engine"};await save({...data,portfolio_calls:[...(portfolioCalls||[]),call]});setDecisionMessage("تم تسجيل القرار في سجل المحفظة.");}catch(e){setDecisionMessage("تعذر تسجيل القرار.");}finally{setDecisionBusy(false);}};
+
   return <div dir="rtl">
     <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}><Btn onClick={onBack}>← المحفظة</Btn><span style={{fontSize:11,color:"#64748B"}}>{project.code||project.project_id}</span></div>
     <C style={{marginBottom:12}}>
