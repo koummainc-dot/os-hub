@@ -1,5 +1,6 @@
 import {VENTURES_MODULES,VENTURES_PLATFORM} from "./config.js";
 import {metricDef,VENTURES_METRIC_DEFS,metricDefsForProfile} from "./lookups.js";
+export {validateMasterplanExport,masterplanToVenture} from "./importMasterplan.js";
 export function summarizeVentures(data={}){
  const records=Object.values(data).flatMap(v=>Array.isArray(v)?v.filter(x=>!x._deleted_at):[]);
  const types=VENTURES_PLATFORM.platform.contentTypes||[];
