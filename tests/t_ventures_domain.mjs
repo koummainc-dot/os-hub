@@ -37,3 +37,10 @@ const platformSource=await (await import("node:fs/promises")).readFile(new URL("
 assert.match(platformSource,/systemId!==\"content\"/);
 assert.match(platformSource,/workspace_records/);
 console.log("Ventures finance write-through contract: PASS");
+
+const knowledgeBridgeCheck=platformSource;
+assert.match(knowledgeBridgeCheck,/systemId===\"knowledge\"/);
+assert.match(knowledgeBridgeCheck,/knowledge_load_snapshot/);
+assert.match(knowledgeBridgeCheck,/knowledge_save_snapshot/);
+assert.match(financeSource,/systemId===\"knowledge\"/);
+console.log("Ventures Knowledge write-through contract: PASS");
