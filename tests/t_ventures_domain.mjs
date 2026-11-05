@@ -52,3 +52,11 @@ assert.equal(merged.data.keywords.length,2);
 assert.equal(merged.data.keywords.find(x=>x.id==="k1").keyword,"new");
 assert.equal(merged.importedIds.length,2);
 console.log("Ventures import hardening contract: PASS");
+
+const importErrors=validateVenturesImport({keywords:[{id:"k1",keyword:"test"}],badGroup:[{id:"x"}]});
+assert.ok(importErrors.some(x=>x.includes("مجموعة غير معروفة")));
+const merged=mergeVenturesData({keywords:[{id:"k1",keyword:"old"}]},{keywords:[{id:"k1",keyword:"new"},{keyword:"second"}]});
+assert.equal(merged.data.keywords.length,2);
+assert.equal(merged.data.keywords.find(x=>x.id==="k1").keyword,"new");
+assert.equal(merged.importedIds.length,2);
+console.log("Ventures import hardening contract: PASS");
