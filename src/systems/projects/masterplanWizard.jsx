@@ -63,6 +63,25 @@ export function MasterplanWizard({ ws, authUser, access, store, onDone }){
   const fileRef=useRef(null);
   const canEdit=access?.owner||access?.manage||access?.level==="edit";
   const batches=useMemo(()=>plan?Array.from({length:Math.ceil(plan.records.length/BATCH_SIZE)},(_,i)=>plan.records.slice(i*BATCH_SIZE,(i+1)*BATCH_SIZE)):[],[plan]);
+  const dryRunErrors=useMemo(()=>{
+    if(!plan)return [];
+    const allowed=new Set(["projects","tasks","outputs","risks","issues","decisions","prds","updates"]);
+    const errors=[];
+    const ids=new Set();
+    for(const r of plan.records){
+      if(!allowed.has(r.collection))errors.push(r.collection+"/"+r.id+" غير مسموح في Projects import");
+      if(!r.id||!r.data)errors.push("سجل بلا id/data: "+r.collection);
+      if(r.project_id&&!plan.projects.some(p=>p.project.id===r.project_id))errors.push("سجل يتيم: "+r.collection+"/"+r.id);
+      const key=r.collection+"/"+r.id;
+      if(ids.has(key))errors.push("تكرار داخل الدفعة: "+key);
+      ids.add(key);
+    }
+    return [...new Set(errors)].slice(0,20);
+  },[plan]);
+  function updateProject(projectId,patch){
+    setPlan(p=>({...p,projects:p.projects.map(x=>x.project.id===projectId?{...x,project:{...x.project,...patch}}:x),
+      records:p.records.map(r=>r.collection==="projects"&&r.id===projectId?{...r,data:{...r.data,...patch}}:r)}));
+  }
 
   async function chooseFile(file){
     setError(""); setValidation(null); setPlan(null); setCursor(0); setApplied([]); setReport([]);
@@ -154,7 +173,12 @@ export function MasterplanWizard({ ws, authUser, access, store, onDone }){
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
           <thead><tr>{["المشروع","النوع","الحالة","الأولوية","الرؤية","الكود"].map(x=><th key={x} style={{padding:9,textAlign:"right",borderBottom:"1px solid "+C.line}}>{x}</th>)}</tr></thead>
           <tbody>{plan.projects.map(({project,profile})=><tr key={project.id}>
-            <td style={{padding:9}}>{project.name}</td><td style={{padding:9}}>{profile.kind}</td><td style={{padding:9}}>{project.status}</td><td style={{padding:9}}>{project.priority}</td><td style={{padding:9}}>{project.visibility}</td><td style={{padding:9}}>{profile.code||"—"}</td>
+            <td style={{padding:9}}><input value={project.name||""} onChange={e=>updateProject(project.id,{name:e.target.value})} style={{width:180,padding:"5px 7px",border:"1px solid "+C.line,borderRadius:6,fontFamily:"inherit"}}/></td>
+            <td style={{padding:9}}><select value={project.type||profile.kind||"other"} onChange={e=>updateProject(project.id,{type:e.target.value})} style={{padding:"5px 7px",border:"1px solid "+C.line,borderRadius:6,fontFamily:"inherit"}}>{["website_content","store","digital_product","app","brand","business","other"].map(v=><option key={v}>{v}</option>)}</select></td>
+            <td style={{padding:9}}><select value={project.status||"Idea"} onChange={e=>updateProject(project.id,{status:e.target.value})} style={{padding:"5px 7px",border:"1px solid "+C.line,borderRadius:6,fontFamily:"inherit"}}>{["Idea","Planned","In Progress","On Hold","Completed","Cancelled","Archived"].map(v=><option key={v}>{v}</option>)}</select></td>
+            <td style={{padding:9}}><select value={project.priority||"Medium"} onChange={e=>updateProject(project.id,{priority:e.target.value})} style={{padding:"5px 7px",border:"1px solid "+C.line,borderRadius:6,fontFamily:"inherit"}}>{["Low","Medium","High","Urgent"].map(v=><option key={v}>{v}</option>)}</select></td>
+            <td style={{padding:9}}><select value={project.visibility||"workspace"} onChange={e=>updateProject(project.id,{visibility:e.target.value,visible_to:e.target.value==="private"?project.visible_to:null})} style={{padding:"5px 7px",border:"1px solid "+C.line,borderRadius:6,fontFamily:"inherit"}}><option value="workspace">workspace</option><option value="private">private</option></select></td>
+            <td style={{padding:9}}><input value={profile.code||""} onChange={e=>setPlan(p=>({...p,projects:p.projects.map(x=>x.project.id===project.id?{...x,profile:{...x.profile,code:e.target.value}}:x)}))} style={{width:90,padding:"5px 7px",border:"1px solid "+C.line,borderRadius:6,fontFamily:"inherit"}}/></td>
           </tr>)}</tbody>
         </table>
       </div>
@@ -168,6 +192,7 @@ export function MasterplanWizard({ ws, authUser, access, store, onDone }){
       <div style={{padding:14,borderRadius:12,border:"1px solid "+C.line}}>
         <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center"}}><b>Dry Run</b><Chip color={plan.summary.records?C.ok:C.warn}>{plan.summary.records?plan.summary.records+" سجل جاهز":"لا توجد سجلات"}</Chip></div>
         <div style={{fontSize:12,color:C.muted,marginTop:6}}>لا توجد كتابة في Dry Run؛ تم التحقق من البنية والتعيين قبل التنفيذ.</div>
+        {dryRunErrors.length>0&&<div style={{marginTop:10,padding:10,borderRadius:8,background:"#FEF2F2",color:"#991B1B",fontSize:11}}><b>أخطاء تمنع التنفيذ:</b>{dryRunErrors.map((x,i)=><div key={i}>• {x}</div>)}</div>}
         <div style={{marginTop:12}}><Progress value={plan.summary.records?1:0} showLabel={false}/></div>
         <div style={{marginTop:12,fontSize:12}}>دفعات التنفيذ: <b>{batches.length}</b> · حجم الدفعة: <b>{BATCH_SIZE}</b></div>
       </div>
@@ -177,7 +202,7 @@ export function MasterplanWizard({ ws, authUser, access, store, onDone }){
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         <Btn onClick={()=>setStep(2)} disabled={busy}>← المراجعة</Btn>
-        <Btn kind="primary" onClick={execute} disabled={busy||cursor>=plan.records.length}>{busy?"⏳ جارٍ التنفيذ…":cursor?"استئناف التنفيذ":"بدء التنفيذ"}</Btn>
+        <Btn kind="primary" onClick={execute} disabled={busy||cursor>=plan.records.length||dryRunErrors.length>0}>{busy?"⏳ جارٍ التنفيذ…":cursor?"استئناف التنفيذ":"بدء التنفيذ"}</Btn>
         {cursor>0&&cursor<plan.records.length&&<Chip color={C.warn}>متوقف عند الدفعة {Math.floor(cursor/BATCH_SIZE)+1}</Chip>}
       </div>
     </div>}
