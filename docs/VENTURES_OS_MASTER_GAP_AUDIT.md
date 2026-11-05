@@ -159,8 +159,8 @@ OPEN:
 4. Build Phase 3 project creation + 27-project Masterplan import/undo.
 7. Complete Phase 4 Finance/Content blocks.
 8. Complete Phase 5 grouped units + Email + Tools.
-9. Complete Phase 6 portfolio engine/review/alerts.
-10. Complete Phase 7 scorecards and final parity.
+9. **Phase 6 PARTIAL:** portfolio engine, decision approval bridge, and quarterly review are now implemented; next is full alert lifecycle + PF-01…PF-32.
+10. Complete remaining Phase 6 alert lifecycle and portfolio charts/missing-week counter, then Phase 7 scorecards and final parity.
 11. Full test/build/preview.
 12. Merge/deploy only after the above gates pass.
 
@@ -175,3 +175,9 @@ No item is considered closed merely because a generic CRUD table exists.
 - A dedicated contract test `tests/t_ventures_portfolio_engine.mjs` was added.
 - Vercel preview for commit `c2bb9a8084438a0f913aab902d48ef92649fd75c` reached READY: `os-f9vrdx3gj-koumma.vercel.app`.
 - Full CI remains blocked by pre-existing Projects/ContentOS harness failures (`ReferenceError: A is not defined`); these failures are outside the Ventures diff and must be repaired separately before treating the whole repository CI as green.
+
+
+- PR #129 merged to `main` at `67112aebf6609304b30a95694cbdc0209109fb09`.
+- Decision lifecycle now captures reason, evidence snapshot, next review date, owner, follow-up-task preference, validates the Projects transition with `canApplyCall`, and sends an `apply_ventures_decision` bridge event to Projects after approval.
+- Quarterly review is surfaced in Decisions with a current-quarter summary and CSV export.
+- Production deployment of the merged commit is currently blocked by Vercel's free deployment quota (`api-deployments-free-per-day`); no paid environment/plan was created.
