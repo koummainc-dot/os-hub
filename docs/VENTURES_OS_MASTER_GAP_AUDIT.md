@@ -147,7 +147,7 @@ OPEN:
 
 ## Current execution order
 
-1. Finish Phase 2 acceptance: hosted two-project weekly entry + offline queue + private visibility, then close remaining Phase 2 gaps.
+1. Finish Phase 2 acceptance: hosted two-project weekly entry + offline queue, then close remaining Phase 2 gaps.
 2. Add the real metric RPC client and acceptance tests.
 3. Close Phase 0 V1/V3/V5 and the remaining Phase 1 extraction gates.
 4. Build Phase 3 project creation + 27-project Masterplan import/undo.
