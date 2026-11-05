@@ -28,3 +28,22 @@ export function parseVenturesEntryPaste(text){
     out.push({project_id,key,value_num:value,no_data:raw===""}); });
   return {headers,rows:out,errors:errors.slice(0,100)};
 }
+
+export function parseVenturesProjectBatchCsv(text){
+  const rows=parseDelimitedText(text);
+  if(!rows.length)return {headers:[],rows:[],errors:["لا توجد بيانات."]};
+  const headers=rows[0].map(x=>String(x).trim());
+  const required=["unit_code","name","kind","subtype","owner_email","currency","status","link","area_sqm"];
+  const missing=required.filter(k=>!headers.includes(k));
+  if(missing.length)return {headers,rows:[],errors:["الأعمدة المطلوبة: "+missing.join("، ")]};
+  const ix=Object.fromEntries(headers.map((h,i)=>[h,i])),out=[],errors=[];
+  rows.slice(1).forEach((r,i)=>{
+    const row=Object.fromEntries(headers.map((h,j)=>[h,String(r[j]??"").trim()]));
+    if(!row.unit_code||!row.name){errors.push("الصف "+(i+2)+": unit_code/name ناقص.");return;}
+    const area=row.area_sqm===""?null:normalizeVenturesNumber(row.area_sqm);
+    if(row.area_sqm!==""&&area===null){errors.push("الصف "+(i+2)+": area_sqm غير رقمي.");return;}
+    out.push({...row,area_sqm:area});
+  });
+  if(out.length>27)errors.push("دفعة Masterplan الأساسية حدها 27 مشروعًا؛ راجع الملف.");
+  return {headers,rows:out,errors:errors.slice(0,100)};
+}
