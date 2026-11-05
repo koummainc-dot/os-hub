@@ -155,7 +155,7 @@ OPEN:
 
 1. Finish Phase 2 hosted acceptance: two-project weekly entry + real offline replay.
 2. Phase 0 gate decisions are documented; V5 remains the blocker for Phase 3 and V3/V6 remain runtime integration gaps.
-3. Start Phase 3: build the four-step Masterplan import wizard and connect it to the now-available V5 RPC boundary.
+3. Phase 3.1 **DONE/PARTIAL**: deterministic Masterplan JSON validation/conversion planner + mapping/idempotency tests are now implemented. Next: wire the approved 4-step UI into Projects OS and connect Dry Run → V5 RPC batches.
 4. Build Phase 3 project creation + 27-project Masterplan import/undo.
 5. Complete Phase 4 Finance/Content blocks.
 6. Complete Phase 5 grouped units + Email + Tools.
