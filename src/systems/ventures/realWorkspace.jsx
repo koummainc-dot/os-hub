@@ -62,7 +62,7 @@ function buildPortfolioContext(projects,metrics){
     const v=base.values[pid]||{};
     const h=metrics.filter(x=>x.project_id===p.project_id&&x.value_num!=null).sort((a,b)=>String(b.period_start).localeCompare(String(a.period_start)));
     const latest=h[0]?.period_start;
-    if(latest)v.week_missing_after_days=Math.floor((now-new Date(latest).getTime())/86400000)>9;
+    if(latest)v.week_missing_after_days=Math.floor((now-new Date(latest).getTime())/86400000)>3;
     const lastCall=portfolioCalls.filter(x=>x.project_id===p.project_id&&!x._deleted_at).sort((a,b)=>String(b.created_at||"").localeCompare(String(a.created_at||"")))[0];
     v.review_overdue=!!(lastCall?.next_review_date&&new Date(lastCall.next_review_date+"T23:59:59").getTime()<now&&lastCall.status==="approved");
   });
