@@ -137,7 +137,8 @@ export function masterplanToVenture(raw={},opts={}){
       lead_id:clean(cfg.lead_id||cfg.owner_id||site?.owner_id)||null,
       created_by:clean(cfg.created_by||site?.created_by)||null,
       description:clean(cfg.description||site?.description),
-      type:type
+      type:type,
+      ventures_code:clean(cfg.code)
     };
     projects.push({project:projectRecord,profile});
     records.push({collection:"projects",id:projectId,data:projectRecord,deleted:false,visible_to:profile.visible_to,source:profile.source});
