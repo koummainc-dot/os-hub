@@ -48,7 +48,7 @@ This is the ordered implementation ledger. A feature is marked **DONE** only whe
 | Metric definition engine (`evalMetric`, aggregation, scorecards, thresholds) | **PARTIAL/DONE** — source-aligned metric definitions and formula evaluation added; exact portfolio decision formulas remain Phase 6. |
 | Weekly Entry screen | **DONE/PARTIAL** — source-aligned basic/full grid, period navigation, copy previous week, no-data semantics, atomic save, derived read-only values, CSV export. |
 | Basic/Full metric toggle | **DONE** |
-| Paste/Sheets parsing | OPEN |
+| Paste/Sheets parsing | **DONE/PARTIAL** — shared delimited parser, Arabic/Hindi numerals, Arabic decimal separator, TSV/CSV paste and 500-row validation added. |
 | No-data vs zero semantics | **DONE** |
 | Offline metric queue | OPEN |
 | Weekly period navigation | **DONE** |
@@ -147,7 +147,7 @@ OPEN:
 
 ## Current execution order
 
-1. Finish Phase 2 acceptance: hosted two-project weekly entry + paste/CSV import + offline queue, then close remaining Phase 2 gaps.
+1. Finish Phase 2 acceptance: hosted two-project weekly entry + offline queue + private visibility, then close remaining Phase 2 gaps.
 2. Add the real metric RPC client and acceptance tests.
 3. Close Phase 0 V1/V3/V5 and the remaining Phase 1 extraction gates.
 4. Build Phase 3 project creation + 27-project Masterplan import/undo.
