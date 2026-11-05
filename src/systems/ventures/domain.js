@@ -56,3 +56,114 @@ export async function buildVenturesImportFingerprint(incoming={}) {
   }
   return `fallback-${canonical.length}-${btoa(unescape(encodeURIComponent(canonical))).slice(0,32)}`;
 }
+
+
+export function evalMetric(def={}, values={}) {
+  if (def.type === "count") return Number(def.key ? (values[def.key] ?? null) : null);
+  if (def.formula && typeof def.formula === "function") {
+    try { const v=def.formula(values); return Number.isFinite(Number(v)) ? Number(v) : null; } catch { return null; }
+  }
+  const op=def.op;
+  const a=def.inputs?.[0] ? values[def.inputs[0]] : undefined;
+  const b=def.inputs?.[1] ? values[def.inputs[1]] : undefined;
+  if (a==null || (op==="ratio" && b==null)) return {value:null,missing:(def.inputs||[]).filter(k=>values[k]==null)};
+  const n=Number(a), d=Number(b);
+  if (op==="sum") return {value:(def.inputs||[]).reduce((s,k)=>s+Number(values[k]??0),0),missing:[]};
+  if (op==="ratio") return {value:d===0?null:(n/d)*100,missing:[]};
+  if (op==="difference") return {value:n-d,missing:[]};
+  if (op==="multiply") return {value:n*d,missing:[]};
+  return {value:Number.isFinite(n)?n:null,missing:[]};
+}
+
+export function aggregatePeriod(def={}, rows=[], periodType="W") {
+  const xs=(rows||[]).filter(r=>r&&!r.no_data);
+  if(!xs.length) return null;
+  const kind=def.aggregation||def.type||"sum";
+  if(kind==="last"||kind==="balance") return xs.slice().sort((a,b)=>String(a.period_start).localeCompare(String(b.period_start))).at(-1)?.value_num??null;
+  if(kind==="average"||kind==="avg") return xs.reduce((s,r)=>s+Number(r.value_num||0),0)/xs.length;
+  if(kind==="ratio" && def.numerator && def.denominator){
+    const n=xs.reduce((s,r)=>s+Number(r[def.numerator]??r.value_num??0),0);
+    const d=xs.reduce((s,r)=>s+Number(r[def.denominator]??0),0);
+    return d===0?null:(n/d)*100;
+  }
+  return xs.reduce((s,r)=>s+Number(r.value_num||0),0);
+}
+
+export function thresholdState(def={}, value, thresholds={}) {
+  if(value==null || !thresholds) return "none";
+  const key=def.key||"value"; const t=thresholds[key]||thresholds;
+  if(t.good==null && t.warn==null && t.bad==null) return "none";
+  if(t.good!=null && value>=Number(t.good)) return "good";
+  if(t.bad!=null && value<=Number(t.bad)) return "bad";
+  if(t.warn!=null && value<=Number(t.warn)) return "warn";
+  return "good";
+}
+
+export function scorecardFor(profile={}, defs=[]) {
+  return (defs||[]).filter(d=>!d.applies_to || d.applies_to.includes(profile.kind) || d.applies_to.includes(profile.subtype))
+    .map(d=>({...d,required:d.required===true||d.class==="ops"}));
+}
+
+export function decisionMetric(profile={}, values={}) {
+  const key=profile.decision_metric||profile.decisionMetric;
+  if(key && values[key]!=null) return {key,value:Number(values[key])};
+  const candidates=["net_profit","contribution_margin","revenue_growth","d30_retention","organic_traffic_growth","crash_free","conversion_rate"];
+  const found=candidates.find(k=>values[k]!=null);
+  return found?{key:found,value:Number(values[found])}:{key:null,value:null};
+}
+
+export function portfolioQuestions(ctx={}) {
+  const projects=Array.isArray(ctx.projects)?ctx.projects:[];
+  const values=ctx.values||{};
+  const thresholds=ctx.thresholds||{};
+  const rows=projects.map(p=>({project:p,...(values[p.id]||{})}));
+  const revenueTotal=rows.reduce((s,r)=>s+Number(r.revenue||0),0);
+  const q1=rows.filter(r=>Number(r.net_profit||0)>0);
+  const q2=rows.filter(r=>Number(r.cash_flow||0)<=0 && Number(r.revenue_trend||0)<=0 && (Number(r.tracked_minutes||0)>Number(ctx.timeThreshold||Infinity)));
+  const q3=rows.map(r=>({...r,revenue_concentration_pct:revenueTotal?Number(r.revenue||0)/revenueTotal*100:0})).sort((a,b)=>b.revenue_concentration_pct-a.revenue_concentration_pct);
+  const q4=rows.filter(r=>Number(r.net_profit||0)>0 && Number(r.decision_trend||0)>0 && r.health!=="Critical" && Number(r.critical_risks||0)===0);
+  const q5=rows.filter(r=>thresholdState({key:r.decision_metric_key},r.decision_metric,thresholds[r.decision_metric_key])==="bad" || Number(r.net_profit||0)<0 || r.review_overdue);
+  return {q1,q2,q3,q4,q5};
+}
+
+export function suggestCall(profile={}, ctx={}) {
+  const metric=decisionMetric(profile,ctx.values||{});
+  const t=thresholdState({key:metric.key},metric.value,(ctx.thresholds||{})[metric.key]);
+  if(t==="none") return {decision:null,reason:"no_thresholds"};
+  if(t==="good") return {decision:"Scale",reason:"decision_metric_good"};
+  if(t==="bad") return {decision:Number((ctx.values||{}).net_profit)<0?"Fix":"Pause",reason:"decision_metric_bad"};
+  return {decision:"Fix",reason:"decision_metric_warning"};
+}
+
+export function canApplyCall(project={}, call={}, idx={}) {
+  const decision=call.decision;
+  if(decision==="Scale") return {ok:true,effect:"keep_status"};
+  if(decision==="Fix") return {ok:true,effect:"create_fix_tasks"};
+  const to=decision==="Pause"?"On Hold":decision==="Kill"?"Cancelled":null;
+  if(!to) return {ok:false,error:"قرار غير معروف"};
+  const status=project.status||"Idea";
+  const allowed={Idea:["Planned","Cancelled"],Planned:["In Progress","On Hold","Cancelled","Idea"],"In Progress":["On Hold","Completed","Cancelled","Planned"],"On Hold":["In Progress","Cancelled","Planned"],Completed:["Archived","In Progress"],Cancelled:["Archived","Planned"],Archived:["Planned","In Progress","Completed","Cancelled"]};
+  if(!allowed[status]?.includes(to)) return {ok:false,error:"انتقال الحالة غير مسموح"};
+  return {ok:true,to,effect:decision==="Kill"?"cancel_then_archive":"status_change"};
+}
+
+export function ventureAlerts(memberId, ctx={}) {
+  const alerts=[]; const projects=Array.isArray(ctx.projects)?ctx.projects:[]; const values=ctx.values||{};
+  projects.forEach(p=>{
+    const v=values[p.id]||{};
+    if(v.week_missing_after_days) alerts.push({key:"V-A1:"+p.id,severity:"Info",title:"بيانات الأسبوع ناقصة",project_id:p.id});
+    if(Number(v.net_profit_period2)<0 && Number(v.net_profit_period1)<0 && ["store","ecommerce"].includes(String(p.kind))) alerts.push({key:"V-A2:"+p.id,severity:"Warning",title:"صافي المساهمة سلبي لفترتين",project_id:p.id});
+    if(v.refunds_over_threshold) alerts.push({key:"V-A3:"+p.id,severity:"Warning",title:"المرتجعات فوق العتبة",project_id:p.id});
+    if(v.d30_under_threshold && Number(v.acquisition_spend||0)>0 && String(p.kind)==="app") alerts.push({key:"V-A4:"+p.id,severity:"Warning",title:"D30 تحت العتبة مع إنفاق اكتساب",project_id:p.id});
+    if(v.crash_free_under_threshold) alerts.push({key:"V-A5:"+p.id,severity:"Critical",title:"Crash-free تحت العتبة",project_id:p.id});
+    if(v.sku_negative_4w) alerts.push({key:"V-A6:"+p.id,severity:"Info",title:"SKU مساهمته سالبة لأربعة أسابيع",project_id:p.id});
+    if(v.single_dependency_over_threshold) alerts.push({key:"V-A7:"+p.id,severity:"Warning",title:"اعتماد مرتفع على مورد/منتج واحد",project_id:p.id});
+    if(v.inventory_variance_over_threshold) alerts.push({key:"V-A8:"+p.id,severity:"Warning",title:"فاقد أو فرق جرد فوق العتبة",project_id:p.id});
+    if(v.review_overdue) alerts.push({key:"V-A9:"+p.id,severity:"Warning",title:"قرار منتهي موعد مراجعته",project_id:p.id});
+    if(v.content_decay_over_threshold) alerts.push({key:"V-A10:"+p.id,severity:"Info",title:"محتوى متهاوٍ",project_id:p.id});
+    if(v.keywords_outside_top10) alerts.push({key:"V-A11:"+p.id,severity:"Info",title:"كلمات خارج أول 10",project_id:p.id});
+    if(v.affiliate_balance_available) alerts.push({key:"V-A12:"+p.id,severity:"Info",title:"رصيد أفلييت متاح",project_id:p.id});
+    if(v.manual_finance_without_link) alerts.push({key:"V-A13:"+p.id,severity:"Info",title:"إدخالات مالية دون ربط Finance",project_id:p.id});
+  });
+  return alerts.map(a=>({...a,member_id:memberId}));
+}
