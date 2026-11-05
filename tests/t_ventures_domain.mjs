@@ -33,4 +33,7 @@ assert.equal(typeof requestVenturesSourceWrite,"function");
 const financeSource=await (await import("node:fs/promises")).readFile(new URL("../src/systems/finance/index.jsx",import.meta.url),"utf8");
 assert.match(financeSource,/os:source-write/);
 assert.match(financeSource,/ventures-finance-/);
+const platformSource=await (await import("node:fs/promises")).readFile(new URL("../src/platform/Platform.jsx",import.meta.url),"utf8");
+assert.match(platformSource,/systemId!==\"content\"/);
+assert.match(platformSource,/workspace_records/);
 console.log("Ventures finance write-through contract: PASS");
