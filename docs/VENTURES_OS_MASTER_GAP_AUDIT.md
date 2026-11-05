@@ -12,7 +12,7 @@ This is the ordered implementation ledger. A feature is marked **DONE** only whe
 | V2 | Read Projects records from `workspace_records` | **CLOSED for the current read boundary** — Ventures source adapter reads authoritative Projects records; project-specific migration/metrics work remains Phase 3. |
 | V3 | Read Content OS plan/blob and determine account/platform health storage | **PARTIAL** — authoritative ContentOS reads exist, but the source-defined plan/blob + `_pageHealth` runtime contract is not yet verified. |
 | V4 | Knowledge project link after #97 | **PARTIAL** — Projects lookup/external-link validation exist; final Ventures→Knowledge UX acceptance remains. |
-| V5 | Projects write RPC for Masterplan import with traceability rules | **OPEN / BLOCKER** — no `ventures_import_apply` / `ventures_import_undo`; server-side authorization + traceability boundary is next. |
+| V5 | Projects write RPC for Masterplan import with traceability rules | **CLOSED — server boundary implemented**. `ventures_import_apply/undo` now enforce Ventures+Projects edit access, record traceability decisions, preserve visibility, and support 14-day optimistic-concurrency undo. Full wizard/UI remains Phase 3. |
 
 ## V6 — website/email platform gate
 
@@ -155,7 +155,7 @@ OPEN:
 
 1. Finish Phase 2 hosted acceptance: two-project weekly entry + real offline replay.
 2. Phase 0 gate decisions are documented; V5 remains the blocker for Phase 3 and V3/V6 remain runtime integration gaps.
-3. Implement the server-side V5 Projects import/undo boundary and acceptance tests.
+3. Start Phase 3: build the four-step Masterplan import wizard and connect it to the now-available V5 RPC boundary.
 4. Build Phase 3 project creation + 27-project Masterplan import/undo.
 5. Complete Phase 4 Finance/Content blocks.
 6. Complete Phase 5 grouped units + Email + Tools.
