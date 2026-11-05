@@ -24,7 +24,7 @@ assert.equal(a.ok,true);
 assert.equal(a.summary.projects,2);
 const task=a.records.find(x=>x.id.includes("t1"));
 assert.equal(task.data.status,"Completed");
-assert.equal(task.data.project_id,"mp_5dbf0b0d08cf6dbd4efc0f3c");
+assert.equal(task.data.project_id,"mp_ea9324d7c5456027a71b92d2");
 assert.equal(a.report.some(x=>x.module==="members"&&x.status==="deferred"),true);
 assert.equal(a.report.some(x=>x.module==="content"&&x.status==="deferred"),true);
 const finance=a.records.find(x=>x.collection==="metric_import");
