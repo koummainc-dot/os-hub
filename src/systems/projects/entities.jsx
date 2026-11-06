@@ -87,6 +87,7 @@ export function RisksView({ projectId }) {
   const [form, setForm] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState(view.focusRecord?.kind === "risk" ? "all" : "open"); const [closing, setClosing] = useState(null); const [reopening, setReopening] = useState(null); const [creatingMitigation, setCreatingMitigation] = useState({}); const convertingRiskIds = useRef(new Set());
   const base = data.risks.filter((r) => !projectId || r.project_id === projectId);
   const list = base.filter((r) => (st === "all" ? true : st === "open" ? D.isOpenRisk(r) : r.status === st)).sort((a, b) => D.riskScore(b) - D.riskScore(a));
+  useEffect(() => { if (view.focusRecord?.kind === "risk") setSt("all"); }, [view.focusRecord?.kind, view.focusRecord?.id]);
   useRecordFocus(view, "risk", projectId, list.length);
   const canNew = projectId ? can("risk.write", projectsById[projectId]) : data.projects.some((p) => can("risk.write", p));
   const lvlColor = (r) => ({ High: C.bad, Medium: C.warn, Low: C.ok })[D.riskLevel(r, settings)];
@@ -158,6 +159,7 @@ export function IssuesView({ projectId }) {
   const [form, setForm] = useState(null); const [st, setSt] = useState(view.focusRecord?.kind === "issue" ? "all" : view.issueStatusFilter || "open"); const [sev, setSev] = useState(view.issueSeverityFilter || ""); const [resolving, setResolving] = useState(null); const [reopening, setReopening] = useState(null); const [repairing, setRepairing] = useState({});
   const list = data.issues.filter((i) => (!projectId || i.project_id === projectId) && (st === "all" ? true : st === "open" ? D.isOpenIssue(i) : i.status === st) && (!sev || i.severity === sev)).sort((a, b) => ["Critical", "High", "Medium", "Low"].indexOf(a.severity) - ["Critical", "High", "Medium", "Low"].indexOf(b.severity));
   const canNew = projectId ? can("issue.write", projectsById[projectId]) : data.projects.some((p) => can("issue.write", p));
+  useEffect(() => { if (view.focusRecord?.kind === "issue") { setSt("all"); setSev(""); setView((current) => ({ ...current, issueStatusFilter: "all", issueSeverityFilter: "" })); } }, [view.focusRecord?.kind, view.focusRecord?.id]);
   useRecordFocus(view, "issue", projectId, list.length);
   const repairTasks = (issue) => [...new Set([...(issue.task_ids || []), ...idx.list.filter((t) => (t.issue_ids || []).includes(issue.id)).map((t) => t.id)])].map((id) => idx.byId[id]).filter(Boolean);
   async function createRepairTask(i) {
@@ -241,7 +243,7 @@ export function DecisionsView({ projectId }) {
 
 // ═════ PRDs ═════
 export function PrdsView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, me, PRD_TEMPLATE, idx, confirm, nameOf } = useP();
+  const { data, A: act, can, projectsById, people, toast, me, PRD_TEMPLATE, idx, confirm, nameOf, view } = useP();
   const [sel, setSel] = useState(null); const [form, setForm] = useState(null);
   const list = data.prds.filter((p) => !projectId || p.project_id === projectId);
   useEffect(() => { if (view.focusRecord?.kind === "prd") { const target = data.prds.find((p) => p.id === view.focusRecord.id); if (target && (!projectId || target.project_id === projectId)) setSel(target.id); } }, [view.focusRecord, data.prds, projectId]);
