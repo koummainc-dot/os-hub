@@ -39,6 +39,14 @@ const store = await readFile(new URL("../src/systems/projects/store.jsx", import
 const entities = await readFile(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
 assert.match(store, /async createPrdVersion\(prd\)[\s\S]*?R\.putAtomic\(\[[\s\S]*?coll: "prds", rec: next[\s\S]*?coll: "prds", rec: previous/,
   "new PRD version and superseded predecessor must be written atomically");
+assert.match(entities, /const \[taskForm, setTaskForm\] = useState\(null\)/,
+  "PRD editor must own the requirement-created task form");
+assert.match(entities, /setTaskForm\(\{ project_id: d\.project_id, prd_id: d\.id, prd_requirement_id: r\.id \}\)/,
+  "creating a task from a requirement must pre-link its project, PRD, and exact requirement");
+assert.match(entities, /reqTasks\.length \|\| reqOutputs\.length \? "إيقاف" : "حذف"/,
+  "requirement lifecycle action must use the local linked-task/output counts");
+assert.doesNotMatch(entities, /tasksForRequirement|outputsForRequirement/,
+  "requirement UI must not reference undefined count variables");
 assert.match(entities, /act\.createPrdVersion\(d\)/,
   "PRD editor must use the atomic versioning action");
 assert.match(entities, /const save = async \(patch\) => \{ setBusy\(true\); try \{[\s\S]*?finally \{ setBusy\(false\); \} \};/,
