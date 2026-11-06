@@ -9,6 +9,7 @@ import { L, opts, STATUS_COLOR } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, ProjectName, ProjectForm, TaskTree, mOpts } from "./parts.jsx";
 import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView } from "./entities.jsx";
 import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
+import { listKnowledgeMeetings } from "../knowledge/repository.js";
 
 export function Projects() {
   const { data, metrics, view, setView, setPage, can, A: act, templates, toast, people, openProject, today, settings, trash } = useP();
@@ -179,15 +180,122 @@ function ProjectOkr({ p }) {
   return <div style={S.card}>{objectives.map((o) => <div key={o.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13 }}>🎯 <b>{o.name}</b><div style={{ fontSize: 11, color: C.muted }}>{fmtShort(o.period_start)} → {fmtShort(o.period_end)}</div></div>)}{krs.map((k) => { const ob = data.objectives.find((o) => o.id === k.objective_id); return <div key={k.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13 }}>🎯 {ob && ob.name} ← <b>{k.name}</b><div style={{ marginTop: 4 }}><Progress value={D.krProgressValue(k, projectProgress)} /></div></div>; })}</div>;
 }
 function RelatedTab({ p, canE }) {
-  const { A: act, toast } = useP(); const links = p.links || []; const [f, setF] = useState(false);
-  return <div style={S.card}>
-    <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>روابط ومراجع خارجية. ستظهر هنا اجتماعات وفعاليات Knowledge OS تلقائياً عند بنائه (قراءة فقط).</div>
-    {links.map((l, i) => <div key={i} style={{ marginBottom: 10 }}>
-      <div style={{ display: "flex", gap: 8, padding: "5px 0", fontSize: 13, alignItems: "center" }}>🔗 <a href={l.url} target="_blank" rel="noreferrer" style={{ color: C.info }}>{l.title || l.url}</a><span style={{ flex: 1 }} />{canE && <Btn small danger onClick={() => act.saveProject({ ...p, links: links.filter((_, j) => j !== i) }, false)}>×</Btn>}</div>
-      {["youtube","vimeo","loom","file"].includes(getMediaEmbed(l.url)?.provider) && <MediaEmbed url={l.url} title={l.title || "فيديو مرتبط بالمشروع"} workspaceId="projects" itemId={p.id + ":" + i} />}
-    </div>)}
-    {!links.length && <span style={{ fontSize: 12, color: C.muted }}>لا مراجع</span>}
-    {canE && <div style={{ marginTop: 10 }}><Btn small onClick={() => setF(true)}>➕ رابط</Btn></div>}
-    {f && <FormModal title="رابط مرجعي" initial={{}} onClose={() => setF(false)} fields={[{ key: "title", label: "العنوان" }, { key: "url", label: "الرابط", type: "url", required: true }]} onSubmit={async (v) => { await act.saveProject({ ...p, links: [...links, v] }, false); setF(false); }} />}
+  const { A: act, toast, ws, data, can, me, today, setPage } = useP();
+  const links = p.links || [];
+  const [f, setF] = useState(false);
+  const [meetings, setMeetings] = useState([]);
+  const [loadingMeetings, setLoadingMeetings] = useState(true);
+  const [meetingError, setMeetingError] = useState("");
+  const [creatingFollowup, setCreatingFollowup] = useState("");
+
+  const refreshMeetings = async () => {
+    if (!ws?.id) { setMeetings([]); setLoadingMeetings(false); return; }
+    setLoadingMeetings(true); setMeetingError("");
+    try {
+      const result = await listKnowledgeMeetings(ws.id);
+      if (!result.ok) throw result.error || new Error("تعذر تحميل اجتماعات المعرفة.");
+      setMeetings(result.meetings || []);
+    } catch (error) {
+      setMeetingError(error?.message || "تعذر تحميل اجتماعات المعرفة.");
+    } finally {
+      setLoadingMeetings(false);
+    }
+  };
+  useEffect(() => { refreshMeetings(); }, [ws?.id]);
+
+  const linkedMeetings = meetings
+    .filter((meeting) => !meeting.archived && meeting.status !== "archived")
+    .filter((meeting) => meeting.relatedSystem === "projects" && String(meeting.relatedId) === String(p.id))
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+
+  async function createFollowupTask(meeting, followup, index) {
+    const key = String(meeting.id) + ":" + index;
+    if (creatingFollowup === key) return;
+    if (p.archived_at || p.status === "Archived") {
+      toast("استعد المشروع قبل إنشاء مهام متابعة جديدة.");
+      return;
+    }
+    if (!can("task.write", p)) {
+      toast("ليس لديك صلاحية إنشاء مهام في هذا المشروع.");
+      return;
+    }
+    const existing = data.tasks.find((task) =>
+      task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index
+    );
+    if (existing) {
+      toast("هذه المتابعة مرتبطة بالفعل بمهمة: " + existing.title);
+      return;
+    }
+    const title = String(followup || "").trim();
+    if (!title || typeof act.saveTask !== "function") return;
+    setCreatingFollowup(key);
+    try {
+      const saved = await act.saveTask({
+        title,
+        project_id: p.id,
+        assignee_id: me,
+        status: "Not Started",
+        planning_bucket: "Inbox",
+        due_date: meeting.date && meeting.date >= today ? meeting.date : "",
+        source_meeting_id: meeting.id,
+        source_meeting_title: meeting.title || "",
+        source_followup_index: index,
+      }, true);
+      if (saved) toast("✅ أُنشئت مهمة متابعة مرتبطة باجتماع Knowledge OS.");
+    } catch (error) {
+      toast("⛔ تعذّر إنشاء المهمة: " + (error?.message || "فشل الحفظ"));
+    } finally {
+      setCreatingFollowup("");
+    }
+  }
+
+  return <div style={{ display: "grid", gap: 12 }}>
+    <section style={S.card}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <b style={{ fontSize: 13 }}>اجتماعات مرتبطة بالمشروع</b>
+        <Chip>{linkedMeetings.length}</Chip>
+        <span style={{ flex: 1 }} />
+        <Btn small onClick={refreshMeetings} disabled={loadingMeetings}>تحديث</Btn>
+        <Btn small onClick={() => setPage("meetings")}>كل الاجتماعات</Btn>
+      </div>
+      <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 8 }}>مصدر السجلات وملكيتها Knowledge OS؛ يعرض Projects الاجتماعات المرتبطة بهذا المشروع فقط.</div>
+      {loadingMeetings ? <div style={{ fontSize: 12, color: C.muted }}>جارٍ تحميل الاجتماعات…</div>
+        : meetingError ? <div role="alert" style={{ fontSize: 12, color: C.bad }}>{meetingError} <Btn small onClick={refreshMeetings}>إعادة المحاولة</Btn></div>
+        : !linkedMeetings.length ? <div style={{ fontSize: 12, color: C.muted }}>لا توجد اجتماعات مرتبطة بهذا المشروع. اربط الاجتماع بالمشروع من Knowledge OS.</div>
+        : linkedMeetings.map((meeting) => {
+          const followups = Array.isArray(meeting.followups) ? meeting.followups : [];
+          return <article key={meeting.id} style={{ borderTop: "1px solid " + C.line, padding: "9px 0" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <b style={{ fontSize: 13, flex: 1 }}>🗓️ {meeting.title}</b>
+              <Chip color={C.info}>{meeting.date || "بدون تاريخ"}</Chip>
+              {meeting.startTime && <span style={{ fontSize: 11, color: C.muted }}>{meeting.startTime}{meeting.endTime ? "–" + meeting.endTime : ""}</span>}
+            </div>
+            {meeting.summary && <div style={{ fontSize: 12, lineHeight: 1.8, marginTop: 5, whiteSpace: "pre-wrap" }}>{meeting.summary}</div>}
+            {Array.isArray(meeting.attendees) && meeting.attendees.length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>المشاركون: {meeting.attendees.join("، ")}</div>}
+            {meeting.decisions && <div style={{ fontSize: 12, lineHeight: 1.8, marginTop: 5 }}><b>القرارات:</b> {meeting.decisions}</div>}
+            {followups.length > 0 && <div style={{ marginTop: 7, fontSize: 12 }}><b>بنود المتابعة</b><ul style={{ margin: "4px 0", paddingInlineStart: 20 }}>{followups.map((followup, index) => {
+              const existing = data.tasks.find((task) => task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index);
+              const key = String(meeting.id) + ":" + index;
+              return <li key={index} style={{ marginBottom: 6 }}>
+                <div>{String(followup)}</div>
+                {existing ? <div style={{ fontSize: 11, color: C.ok, marginTop: 2 }}>✓ مهمة مرتبطة: {existing.title}</div>
+                  : !p.archived_at && p.status !== "Archived" && can("task.write", p) ? <Btn small disabled={creatingFollowup === key} onClick={() => createFollowupTask(meeting, followup, index)}>{creatingFollowup === key ? "جارٍ الإنشاء…" : "تحويل إلى مهمة"}</Btn>
+                    : <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{p.archived_at || p.status === "Archived" ? "استعد المشروع لإنشاء مهمة متابعة." : "لا تملك صلاحية إنشاء مهام في هذا المشروع."}</div>}
+              </li>;
+            })}</ul></div>}
+          </article>;
+        })}
+    </section>
+    <section style={S.card}>
+      <b style={{ fontSize: 13 }}>روابط ومراجع خارجية</b>
+      <div style={{ fontSize: 12, color: C.muted, margin: "6px 0 8px" }}>تظل الروابط الخارجية مملوكة للمشروع.</div>
+      {links.map((l, i) => <div key={i} style={{ marginBottom: 10 }}>
+        <div style={{ display: "flex", gap: 8, padding: "5px 0", fontSize: 13, alignItems: "center" }}>🔗 <a href={l.url} target="_blank" rel="noreferrer" style={{ color: C.info }}>{l.title || l.url}</a><span style={{ flex: 1 }} />{canE && <Btn small danger onClick={() => act.saveProject({ ...p, links: links.filter((_, j) => j !== i) }, false)}>×</Btn>}</div>
+        {["youtube","vimeo","loom","file"].includes(getMediaEmbed(l.url)?.provider) && <MediaEmbed url={l.url} title={l.title || "فيديو مرتبط بالمشروع"} workspaceId="projects" itemId={p.id + ":" + i} />}
+      </div>)}
+      {!links.length && <span style={{ fontSize: 12, color: C.muted }}>لا مراجع</span>}
+      {canE && <div style={{ marginTop: 10 }}><Btn small onClick={() => setF(true)}>➕ رابط</Btn></div>}
+      {f && <FormModal title="رابط مرجعي" initial={{}} onClose={() => setF(false)} fields={[{ key: "title", label: "العنوان" }, { key: "url", label: "الرابط", type: "url", required: true }]} onSubmit={async (v) => { await act.saveProject({ ...p, links: [...links, v] }, false); setF(false); }} />}
+    </section>
   </div>;
 }
