@@ -15,9 +15,9 @@ import MasterplanWizard from "./masterplanWizard.jsx";
 
 function RisksPage() {
   const [tab, setTab] = useState("risks"); const { data } = useP();
-  return <div><div style={{ fontSize: 21, fontWeight: 700, marginBottom: 12 }}>المخاطر والمشاكل والقرارات</div>
-    <Tabs value={tab} onChange={setTab} tabs={[{ id: "risks", label: "⚠️ المخاطر", count: data.risks.length }, { id: "issues", label: "🔥 المشاكل", count: data.issues.length }, { id: "decisions", label: "⚖️ القرارات", count: data.decisions.length }]} />
-    {tab === "risks" && <RisksView />}{tab === "issues" && <IssuesView />}{tab === "decisions" && <DecisionsView />}</div>;
+  return <div><div style={{ fontSize: 21, fontWeight: 700, marginBottom: 12 }}>المخاطر والقرارات</div>
+    <Tabs value={tab} onChange={setTab} tabs={[{ id: "risks", label: "⚠️ المخاطر", count: data.risks.length }, { id: "decisions", label: "⚖️ القرارات", count: data.decisions.length }]} />
+    {tab === "risks" && <RisksView />}{tab === "decisions" && <DecisionsView />}</div>;
 }
 const SCREENS = { dashboard: Dashboard, today: Today, week: Week, projects: Projects, tasks: Tasks, issues: IssuesView, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: RisksPage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings, masterplanImport: MasterplanWizard };
 
