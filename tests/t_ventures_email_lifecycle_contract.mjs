@@ -16,5 +16,5 @@ assert.equal(src.includes("existing.set(r.import_row_hash,row)"),true,"dedupe du
 assert.equal(src.includes("import_row_hash"),true);
 assert.equal(src.includes("saveVenturesMetrics(workspaceId,Object.entries"),true);
 assert.equal(src.includes('systemId:"finance",action:"create",recordId:id'),true);
-assert.equal(src.includes('systemId:"projects",action:"create",recordId:r.recordId'),true);
+assert.equal(src.includes('systemId:"projects",action:"create_risk",recordId:r.recordId'),true,"Email Check dispatches a Risk-specific Projects action");
 console.log("t_ventures_email_lifecycle_contract: OK");
