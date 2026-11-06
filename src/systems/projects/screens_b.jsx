@@ -90,7 +90,17 @@ function ProjectDetail() {
   if (!p) return <div><Btn onClick={() => setView({ projectId: null, tab: "overview" })}>← المشاريع</Btn><Empty icon="🔎" title="المشروع غير موجود أو محجوب" /></div>;
   const m = metrics[p.id]; const tab = view.tab; const setTab = (t) => setView({ ...view, tab: t });
   const counts = { tasks: m.leafTotal, outputs: m.outputsCount, risks: m.openRisks, issues: m.openIssues, decisions: m.decisionsCount, prds: data.prds.filter((x) => x.project_id === p.id).length };
-  const tabs = [{ id: "overview", label: "نظرة عامة" }, { id: "tasks", label: "المهام", count: counts.tasks }, { id: "outputs", label: "المخرجات", count: counts.outputs }, { id: "work", label: "العمل والوقت" }, { id: "prds", label: "المواصفات", count: counts.prds }, { id: "risks", label: "المخاطر", count: counts.risks }, { id: "issues", label: "المشاكل", count: counts.issues }, { id: "decisions", label: "القرارات", count: counts.decisions }, { id: "people", label: "الأشخاص" }, { id: "okr", label: "الأهداف" }, { id: "related", label: "المراجع" }, { id: "activity", label: "النشاط" }];
+  const tabGroups = [
+    { id: "overview", label: "نظرة عامة", defaultTab: "overview", tabs: [{ id: "overview", label: "نظرة عامة" }] },
+    { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "tasks", label: "المهام", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }] },
+    { id: "delivery", label: "التسليم", defaultTab: "outputs", tabs: [{ id: "outputs", label: "المخرجات", count: counts.outputs }, { id: "work", label: "العمل والوقت" }] },
+    { id: "governance", label: "الحوكمة", defaultTab: "risks", tabs: [{ id: "risks", label: "المخاطر", count: counts.risks }, { id: "issues", label: "المشاكل", count: counts.issues }, { id: "decisions", label: "القرارات", count: counts.decisions }] },
+    { id: "goals", label: "الأهداف", defaultTab: "okr", tabs: [{ id: "okr", label: "الأهداف" }] },
+    { id: "collaboration", label: "التعاون", defaultTab: "people", tabs: [{ id: "people", label: "الأشخاص" }, { id: "related", label: "المراجع" }] },
+    { id: "activity", label: "النشاط", defaultTab: "activity", tabs: [{ id: "activity", label: "النشاط" }] },
+  ];
+  const activeGroup = tabGroups.find((group) => group.tabs.some((item) => item.id === tab)) || tabGroups[0];
+  const setGroup = (groupId) => { const group = tabGroups.find((item) => item.id === groupId); if (group) setTab(group.defaultTab); };
   const canE = can("project.edit", p);
   return (
     <div>
@@ -99,7 +109,8 @@ function ProjectDetail() {
         <StatusChip s={p.status} />
         {canE && <select style={{ ...S.sel, width: 150 }} value="" onChange={(e) => e.target.value && act.setProjectStatus(p, e.target.value)}><option value="">تغيير الحالة…</option>{Object.keys(L.projectStatus).filter((s) => s !== p.status && s !== "Archived").map((s) => <option key={s} value={s}>{L.projectStatus[s]}</option>)}</select>}
         {canE && <Btn onClick={() => setEdit(true)}>✎ تعديل</Btn>}{can("project.archive", p) && (p.archived_at ? <Btn onClick={() => act.restoreProject(p)}>♻️ استرجاع</Btn> : <Btn onClick={() => act.archiveProject(p)}>🗄 أرشفة</Btn>)}{can("project.delete", p) && <Btn danger onClick={async () => { if (await act.deleteProject(p)) setView({ projectId: null, tab: "overview" }); }}>🗑</Btn>}</>} />
-      <Tabs tabs={tabs} value={tab} onChange={setTab} small />
+      <Tabs tabs={tabGroups.map(({ id, label }) => ({ id, label }))} value={activeGroup.id} onChange={setGroup} small />
+      {activeGroup.tabs.length > 1 && <Tabs tabs={activeGroup.tabs} value={tab} onChange={setTab} small />}
       {tab === "overview" && <Overview p={p} m={m} />}
       {tab === "tasks" && <TaskTree projectId={p.id} />}
       {tab === "outputs" && <OutputsView projectId={p.id} />}
