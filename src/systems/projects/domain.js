@@ -220,6 +220,7 @@ export function validateRisk(r) {
 export function validateKR(k, ctx = {}) {
   const e = [];
   if (k.type === "Numeric" && k.target_value === k.initial_value) e.push("V-13: القيمة المستهدفة يجب أن تختلف عن القيمة الابتدائية");
+  if (k.type === "Project Based" && (!Array.isArray(k.project_ids) || !k.project_ids.length)) e.push("النتيجة المبنية على مشاريع يجب أن ترتبط بمشروع واحد على الأقل");
   if (k.task_ids != null && !Array.isArray(k.task_ids)) e.push("قائمة المهام المرتبطة غير صالحة");
   const taskIds = Array.isArray(k.task_ids) ? k.task_ids : [];
   if (new Set(taskIds).size !== taskIds.length) e.push("لا يمكن ربط المهمة نفسها أكثر من مرة بالنتيجة");
