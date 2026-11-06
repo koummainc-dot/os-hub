@@ -85,7 +85,7 @@ begin
       )
     );
     raise exception 'expected forced rollback';
-  exception when sqlstate='P0001' then
+  exception when sqlstate 'P0001' then
     if sqlerrm='expected forced rollback' then raise; end if;
   end;
 
