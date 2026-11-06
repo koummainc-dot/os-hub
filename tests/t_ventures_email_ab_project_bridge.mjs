@@ -31,3 +31,8 @@ assert.match(financeSource,/purpose: "Regular"/,"Finance purpose must match allo
 assert.match(financeSource,/pnl_effect: type === "Income" \? "Income" : "Expense"/,"required P&L effect is supplied");
 assert.match(financeSource,/flow_class: "Operating"/,"required flow class is supplied");
 assert.doesNotMatch(financeSource,/if \(txError\) throw txError/,"do not reference an undefined create-branch error variable");
+
+const financeAcks = [...financeSource.matchAll(/os:source-write-result/g)];
+assert.ok(financeAcks.length >= 3, "all Finance outcomes dispatch a result");
+const ackSlices = financeAcks.map((m) => financeSource.slice(m.index, m.index + 500));
+for (const ack of ackSlices) assert.match(ack,/source: "ventures"/,"Finance result must be accepted by Ventures listener");
