@@ -308,8 +308,9 @@ export function objectiveTaskExecution(obj, krs, idx) {
   const projectIds = [...new Set(linkedKrs.flatMap((kr) => Array.isArray(kr.project_ids) ? kr.project_ids.filter(Boolean) : []))];
   const projectSet = new Set(projectIds);
   const projectTasks = projectIds.length ? (idx.list || []).filter((task) => projectSet.has(task.project_id)) : [];
+  const directLegacyRoots = (idx.list || []).filter((task) => task.objective_id === obj?.id).map((task) => task.id);
   const legacyTasks = [
-    ...(idx.list || []).filter((task) => task.objective_id === obj?.id),
+    ...expandLegacyTaskRoots(directLegacyRoots, idx),
     ...linkedKrs.flatMap((kr) => {
       const hasProjectLinks = Array.isArray(kr.project_ids) && kr.project_ids.length > 0;
       return hasProjectLinks ? [] : expandLegacyTaskRoots(kr.task_ids || [], idx);
