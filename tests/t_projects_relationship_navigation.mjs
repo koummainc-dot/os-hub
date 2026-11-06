@@ -28,7 +28,7 @@ assert.ok(screens.includes('g.kind === "output" ? openProject(item.project_id ||
   "stakeholder update output references must navigate to the outputs section");
 assert.ok(screens.includes('!data.wins.some((w) => w.task_id === t.id || (w.task_ids || []).includes(t.id))'),
   "achievement suggestions must deduplicate both legacy and multi-task relationships");
-assert.ok(parts.includes('linkedDecisions.length ? linkedDecisions.map((decision) => <button') && parts.includes('openProject(decision.project_id, "decisions")'),
+assert.ok(parts.includes('linkedDecisions.length ? linkedDecisions.map((decision) => <button') && parts.includes('openProject(decision.project_id, "decisions", { kind: "decision", id: decision.id })'),
   "task decision backlinks must be actionable");
 assert.ok(parts.includes('linkedWins.length ? linkedWins.map((win) => <button') && parts.includes('setPage("wins")'),
   "task achievement backlinks must be actionable");
