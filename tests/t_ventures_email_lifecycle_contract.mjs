@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {mergeVenturesEspCampaignRows} from "../src/systems/ventures/domain.js";
 const src=fs.readFileSync(new URL("../src/systems/ventures/realWorkspace.jsx",import.meta.url),"utf8");
+const domain=fs.readFileSync(new URL("../src/systems/ventures/domain.js",import.meta.url),"utf8");
 for (const collection of ["email_campaigns","email_lists","email_flows","email_checks"]) {
   assert.equal(src.includes('rows("'+collection+'")'),true,collection+" active rows");
   assert.equal(src.includes('emailTrash("'+collection+'")'),true,collection+" restore UI");
@@ -14,7 +15,7 @@ assert.equal(src.includes("created_at:existing?.created_at||new Date().toISOStri
 assert.equal(src.includes('const currentRows=allRows("email_campaigns")'),true,"campaign writes preserve deleted rows");
 assert.equal(src.includes("mergeVenturesEspCampaignRows(currentRows,parsed.rows)"),true,"ESP import uses the tested idempotent merge helper");
 assert.equal(src.includes("mergeVenturesEspCampaignRows"),true,"ESP merge helper is wired");
-assert.equal(src.includes("import_row_hash"),true);
+assert.equal(domain.includes("import_row_hash"),true,"ESP hash identity is implemented in the pure merge helper");
 assert.equal(src.includes("saveVenturesMetrics(workspaceId,Object.entries"),true);
 assert.equal(src.includes('systemId:"finance",action:"create",recordId:id'),true);
 assert.equal(src.includes('systemId:"projects",action:"create",recordId:r.recordId'),true);
