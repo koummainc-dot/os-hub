@@ -85,8 +85,6 @@ as $function$
 declare
   project_id text;
   target_data jsonb;
-  linked_id text;
-  project_list jsonb;
   refs_changed boolean := true;
 begin
   if new.system_id <> 'projects'
@@ -131,6 +129,10 @@ begin
 
   if new.collection = 'tasks' then
     if project_id is null then raise exception 'Task must belong to a project' using errcode = '22023'; end if;
+    if nullif(new.data->>'objective_id','') is not null
+       and (tg_op = 'INSERT' or new.data->>'objective_id' is distinct from old.data->>'objective_id') then
+      raise exception 'Task→Objective is derived through Project→KR→Objective; do not store objective_id on Task' using errcode = '22023';
+    end if;
     if nullif(new.data->>'parent_task_id','') is not null then
       if new.data->>'parent_task_id' = new.id then raise exception 'A task cannot be its own parent' using errcode = '22023'; end if;
       perform public.projects_assert_linked_records(new.workspace_id, project_id, 'tasks', jsonb_build_array(new.data->>'parent_task_id'), 'task.parent_task_id');
@@ -200,36 +202,28 @@ begin
     perform public.projects_assert_linked_records(new.workspace_id, project_id, 'wins', new.data->'related_win_ids', 'update.related_win_ids');
 
   elsif new.collection = 'objectives' then
-    perform public.projects_assert_linked_records(new.workspace_id, null, 'projects', new.data->'project_ids', 'objective.project_ids');
+    if coalesce(jsonb_array_length(case when jsonb_typeof(new.data->'project_ids')='array' then new.data->'project_ids' else '[]'::jsonb end),0) > 0
+       and (tg_op = 'INSERT' or new.data->'project_ids' is distinct from old.data->'project_ids') then
+      raise exception 'Objective→Project is derived through KR; do not store project_ids on Objective' using errcode = '22023';
+    end if;
 
   elsif new.collection = 'krs' then
     perform public.projects_assert_linked_records(new.workspace_id, null, 'projects', new.data->'project_ids', 'kr.project_ids');
+    if nullif(new.data->>'objective_id','') is null
+       and (tg_op = 'INSERT' or nullif(old.data->>'objective_id','') is not null) then
+      raise exception 'A KR must belong to an Objective' using errcode = '22023';
+    end if;
     if nullif(new.data->>'objective_id','') is not null then
       perform public.projects_assert_linked_records(new.workspace_id, null, 'objectives', jsonb_build_array(new.data->>'objective_id'), 'kr.objective_id', true);
     end if;
-    -- Task groups may span projects. When project_ids is specified, every linked task
-    -- must belong to one of those explicitly linked projects.
-    if jsonb_typeof(new.data->'task_ids') = 'array' then
-      for linked_id in select value from jsonb_array_elements_text(new.data->'task_ids')
-      loop
-        target_data := null;
-        select t.data into target_data from public.workspace_records t
-         where t.workspace_id = new.workspace_id and t.system_id = 'projects' and t.collection = 'tasks'
-           and t.id = linked_id and t.deleted = false
-           and (t.visible_to is null or auth.uid() = any(t.visible_to))
-           and public.ws_access_level(new.workspace_id, 'projects', 'tasks') in ('view','edit')
-         limit 1;
-        if target_data is null or target_data->>'deleted_at' is not null or target_data->>'archived_at' is not null then
-          raise exception 'KR task link references a missing or inactive task: %', linked_id using errcode = '22023';
-        end if;
-        project_list := case when jsonb_typeof(new.data->'project_ids')='array' then new.data->'project_ids' else '[]'::jsonb end;
-        if jsonb_array_length(project_list) > 0 and not exists (
-          select 1 from jsonb_array_elements_text(project_list) as project_ref(value)
-          where value = target_data->>'project_id'
-        ) then
-          raise exception 'KR task must belong to one of the KR linked projects: %', linked_id using errcode = '22023';
-        end if;
-      end loop;
+    if coalesce(jsonb_array_length(case when jsonb_typeof(new.data->'task_ids')='array' then new.data->'task_ids' else '[]'::jsonb end),0) > 0
+       and (tg_op = 'INSERT' or new.data->'task_ids' is distinct from old.data->'task_ids') then
+      raise exception 'KR→Task is derived through linked Projects; do not store task_ids on KR' using errcode = '22023';
+    end if;
+    if new.data->>'type' = 'Project Based'
+       and coalesce(jsonb_array_length(case when jsonb_typeof(new.data->'project_ids')='array' then new.data->'project_ids' else '[]'::jsonb end),0) = 0
+       and (tg_op = 'INSERT' or new.data->>'type' is distinct from old.data->>'type' or new.data->'project_ids' is distinct from old.data->'project_ids') then
+      raise exception 'A Project Based KR must link at least one active Project' using errcode = '22023';
     end if;
 
   elsif new.collection = 'discovery' then
