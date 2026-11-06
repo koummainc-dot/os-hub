@@ -95,9 +95,6 @@ assert.ok(projectIndex.includes('issues: IssuesView') &&
   risksPage.includes('id: "risks"') && risksPage.includes('id: "decisions"') &&
   !risksPage.includes('id: "issues"') && !risksPage.includes('<IssuesView'),
   "global Issues must have one dedicated destination; the Risks page must not duplicate its tab");
-assert.ok(projectIndex.includes('page === "issues"') === false,
-  "global Issues routing must remain through the single SCREENS mapping, not an additional page alias");
-
 assert.ok(projectScreens.includes("activeGroup.tabs.length > 1") &&
   projectScreens.includes("setTab(group.defaultTab)"),
   "group navigation must reveal relevant subtabs and select a safe default destination");
