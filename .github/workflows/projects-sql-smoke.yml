@@ -46,7 +46,7 @@ jobs:
       - name: Bootstrap disposable Projects schema
         run: psql -v ON_ERROR_STOP=1 -f tests/projects_sql_bootstrap.sql
       - name: Apply Projects atomic discovery RPC correction
-        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261104100000_projects_atomic_discovery_batch_fix.sql
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261106230000_projects_atomic_discovery_batch_fix.sql
       - name: Verify atomic discovery writes, permissions and rollback
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_atomic_discovery_batch_smoke.sql
       - name: Apply final output, session, task-reference and PRD lifecycle guards
