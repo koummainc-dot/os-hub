@@ -22,6 +22,45 @@ const {makeEnv,sleep,appJs}=require('./harness');
   }
   ok(errors.length===0,'no console errors while walking sections ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
 
+  console.log('— read-only detail modal UI flows');
+  const closeDetail=async()=>{const close=doc.querySelector('[role="dialog"] button[aria-label="إغلاق"]');if(close)close.click();await sleep(100);};
+  const detailFlow=async(section,openLabel,expected,title)=>{
+    await goSection(section);
+    const opened=await click(openLabel,null,150);
+    const dialog=doc.querySelector('[role="dialog"]');
+    ok(opened&&!!dialog&&dialog.textContent.includes(expected),title+' opens a read-only detail modal');
+    await closeDetail();
+    ok(!doc.querySelector('[role="dialog"]'),title+' detail modal closes cleanly');
+  };
+  await detailFlow('المخرجات','عرض التفاصيل','تفاصيل المخرج','Output');
+  await detailFlow('المخاطر والمشاكل والقرارات','عرض التفاصيل','تفاصيل الخطر','Risk');
+  await detailFlow('المواصفات','عرض التفاصيل','تفاصيل المواصفة','PRD');
+  await detailFlow('الاكتشاف','عرض التفاصيل','تفاصيل الاكتشاف','Discovery');
+  await goSection('المشاريع');
+  const projectRow=all('tr').find(el=>el.textContent.includes('تطبيق إدارة الوقت'));
+  ok(!!projectRow,'project list exposes the seeded project row');
+  if(projectRow){projectRow.querySelector('td')?.click();await sleep(250);}
+  ok(txt().includes('الحوكمة')&&txt().includes('تطبيق إدارة الوقت'),'opening the project row enters Project Detail');
+  ok(await click('الحوكمة',null,100),'Project Detail exposes the Governance group');
+  const decisionTab=all('button').find(b=>b.textContent.trim().startsWith('القرارات'));
+  ok(!!decisionTab,'Governance exposes the exact Decisions subtab');
+  if(decisionTab){decisionTab.click();await sleep(120);}
+  ok(txt().includes('اعتماد Supabase كقاعدة بيانات'),'project-scoped Decisions list is visible');
+  const decisionOpened=await click('عرض التفاصيل',null,150);
+  const decisionDialog=doc.querySelector('[role="dialog"]');
+  ok(decisionOpened&&!!decisionDialog&&decisionDialog.textContent.includes('تفاصيل القرار'),'Project Governance → Decision opens a read-only detail modal');
+  await closeDetail();
+  const issueTab=all('button').find(b=>b.textContent.trim().startsWith('المشاكل'));
+  ok(!!issueTab,'Governance exposes the exact Issues subtab');
+  if(issueTab){issueTab.click();await sleep(120);}
+  ok(txt().includes('توقف التطبيق عند فتح التقارير على Android'),'project-scoped Issues list is visible');
+  const issueOpened=await click('عرض التفاصيل',null,150);
+  const issueDialog=doc.querySelector('[role="dialog"]');
+  ok(issueOpened&&!!issueDialog&&issueDialog.textContent.includes('تفاصيل المشكلة'),'Project Governance → Issue opens a read-only detail modal');
+  await closeDetail();
+  await click('← المشاريع',null,100);
+  ok(errors.length===0,'no console errors while opening detail modals ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
+
   console.log('— template editor validation');
   await goSection('القوالب'); ok(await click('＋ إنشاء قالب مخصص'),'custom template editor opens');
   let tdlg=doc.querySelector('[role=dialog]');
