@@ -19,6 +19,6 @@ assert.match(platform,/const setSection=\(sysId,v\)=>\{[\s\S]*allowed=osSections
 assert.match(platform,/localStorage\.getItem\("os_nav_"/);
 assert.match(platform,/localStorage\.setItem\("os_nav_"/);
 assert.match(real,/useEffect\(\(\)=>\{if\(page&&CANONICAL_SCREENS\.some/);
-assert.match(real,/setPage\(v\)/);
+assert.match(real,/setPage\(v\)/);\nconst invalidSetPage=[...real.matchAll(/setPage\("([^"]+)"/g)].map(m=>m[1]).filter(id=>!expected.includes(id));\nassert.deepEqual(invalidSetPage,[],"internal navigation uses non-canonical section ids: "+invalidSetPage.join(","));
 
 console.log("navigation contract: PASS — 14 Ventures canonical tabs are registered, rendered, routed, and persisted across reloads.");
