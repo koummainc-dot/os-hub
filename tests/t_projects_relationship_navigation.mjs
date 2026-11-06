@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const projectScreens = await readFile(new URL("../src/systems/projects/screens_b.jsx", import.meta.url), "utf8");
+const projectIndex = await readFile(new URL("../src/systems/projects/index.jsx", import.meta.url), "utf8");
 const store = await readFile(new URL("../src/systems/projects/store.jsx", import.meta.url), "utf8");
 const entities = await readFile(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
 const screens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
@@ -88,6 +89,14 @@ assert.ok(projectScreens.includes('import { listKnowledgeMeetings } from "../kno
   "Project Detail must read its linked meetings from Knowledge OS and preserve meeting provenance when creating follow-up tasks");
 assert.ok(projectScreens.includes('task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index'),
   "Project Detail meeting follow-ups must not create duplicate tasks after a task already exists");
+
+const risksPage = projectIndex.slice(projectIndex.indexOf("function RisksPage()"), projectIndex.indexOf("const SCREENS"));
+assert.ok(projectIndex.includes('issues: IssuesView') &&
+  risksPage.includes('id: "risks"') && risksPage.includes('id: "decisions"') &&
+  !risksPage.includes('id: "issues"') && !risksPage.includes('<IssuesView'),
+  "global Issues must have one dedicated destination; the Risks page must not duplicate its tab");
+assert.ok(projectIndex.includes('page === "issues"') === false,
+  "global Issues routing must remain through the single SCREENS mapping, not an additional page alias");
 
 assert.ok(projectScreens.includes("activeGroup.tabs.length > 1") &&
   projectScreens.includes("setTab(group.defaultTab)"),
