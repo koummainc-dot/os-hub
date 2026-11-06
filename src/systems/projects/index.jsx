@@ -31,6 +31,23 @@ function Router() {
       try {
         if (d.action === "create") {
           await A.saveProject({ ...(d.payload || {}), id: d.recordId || undefined }, true);
+        } else if (d.action === "create_risk" && d.recordId) {
+          const payload = d.payload || {};
+          const project = ctx.projectsById?.[payload.project_id];
+          if (!project || project.is_system || project.archived_at) throw new Error("المشروع المرتبط غير موجود أو غير نشط.");
+          if (!ctx.can("risk.write", project)) throw new Error("لا تملك صلاحية إضافة خطر إلى هذا المشروع.");
+          const existing = (ctx.data.risks || []).find((item) => item.id === d.recordId);
+          if (existing && (existing.project_id !== project.id || existing.source_record_id !== payload.source_record_id)) throw new Error("معرّف الربط مستخدم لسجل مختلف.");
+          const risk = { ...existing, ...payload, id: d.recordId, project_id: project.id, probability: Number(payload.probability) || 3, impact: Number(payload.impact) || 3, status: existing?.status || "Open", source_system: "ventures", source_record_id: payload.source_record_id };
+          await A.put("risks", risk, project);
+        } else if (d.action === "create_issue" && d.recordId) {
+          const payload = d.payload || {};
+          const project = ctx.projectsById?.[payload.project_id];
+          if (!project || project.is_system || project.archived_at) throw new Error("المشروع المرتبط غير موجود أو غير نشط.");
+          if (!ctx.can("issue.write", project)) throw new Error("لا تملك صلاحية إضافة مشكلة إلى هذا المشروع.");
+          const existing = (ctx.data.issues || []).find((item) => item.id === d.recordId);
+          if (existing && (existing.project_id !== project.id || existing.source_record_id !== payload.source_record_id)) throw new Error("معرّف الربط مستخدم لسجل مختلف.");
+          await A.saveIssue({ ...existing, ...payload, id: d.recordId, project_id: project.id, title: payload.title || "مشكلة من Ventures Email", status: existing?.status || "Open", source_system: "ventures", source_record_id: payload.source_record_id, description: payload.description || "" });
         } else if (d.action === "update" && d.recordId) {
           const current = data.projects.find((item) => String(item.id) === String(d.recordId));
           if (!current) throw new Error("المشروع المرتبط غير موجود أو غير متاح.");
