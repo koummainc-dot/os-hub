@@ -37,7 +37,7 @@ Status:
 | Currency | ✅ |
 | Note | ✅ |
 | Project linkage | ✅ |
-| Finance write-through from Ventures | 🟡 |
+| Finance write-through from Ventures | 🟡 | The bridge now uses a stable campaign key and the Finance transaction schema fields (`purpose=Regular`, `pnl_effect`, `flow_class`); SQL insert/update/rollback smoke test passed. Authenticated app-level reload and campaign-edit no-duplicate acceptance remain open. |
 
 The current PR explicitly preserves the Projects/Finance source-write contract. A real authenticated create → reload → edit → delete/restore acceptance test is still required.
 
@@ -81,12 +81,12 @@ The important architectural rule remains: Ventures analyzes and coordinates sour
 | Duplicate protection via import row hash | ✅ |
 | Derived delivery/open/CTR/CTOR/unsubscribe/bounce/spam/conversion/revenue metrics | ✅ |
 | A/B winner + reason | ✅ |
-| Email Check → Projects Risk/Issue bridge | ✅ |
-| Email → Finance revenue write-through | 🟡 |
+| Email Check → Projects Risk/Issue bridge | 🟡 | PR #138 routes checks through a dedicated Projects Risk action, validates project/permission, stores source linkage, and returns source-write results. Authenticated persistence/reload acceptance remains open. |
+| Email → Finance revenue write-through | 🟡 | Schema mismatch and undefined error-variable defects fixed in PRs #139 and #140; database transaction smoke test passed with rollback. Authenticated Finance UI visibility/reload remains unverified. |
 | Full lifecycle Create → Reload → Edit → Delete/Restore | 🟡 | UI actions are implemented for all four collections. Supabase JSONB persistence smoke test passed for create/read/edit/read/soft-delete/restore/read across all four collections; temporary QA row was cleaned up. Authenticated browser acceptance is still open. |
 | Real ESP same-CSV-twice no-duplicate acceptance | 🟡 | Import merge now preserves soft-deleted rows and updates its hash index during a file pass to prevent repeated hashes in one file; actual same-file-twice acceptance is still open. |
 
-The lifecycle UI and JSONB persistence mechanism have now been implemented and smoke-tested. PR #135 added edit/soft-delete/restore controls; PR #136 fixed campaign metadata preservation and ESP import merge behavior. Both are merged to main, and the latest main commit is deployed to Vercel Production (READY). The remaining Email items are authenticated end-to-end acceptance/integration proof gaps, not missing domain concepts.
+The lifecycle UI and JSONB persistence mechanism have been implemented and smoke-tested. PR #135 added edit/soft-delete/restore controls; PR #136 fixed campaign metadata preservation and ESP import merge behavior; PR #138 repaired the Email Check → Projects Risk route; PRs #139–#140 repaired Finance idempotency and the actual transaction schema contract. A rolled-back SQL smoke test verified that a Finance transaction can be inserted and updated with the expected schema fields. Authenticated end-to-end UI acceptance remains open. The latest Finance/Projects bridge commits have not yet been confirmed on Production; Vercel build-rate limits have blocked automatic deployment checks.
 
 ## CRO / experiments
 
@@ -153,7 +153,7 @@ The current canonical 14-screen workspace is a presentation/navigation layer ove
 1. Run a literal field-by-field diff against the original masterplan/source dataset, not a conceptual comparison.
 2. Complete authenticated browser acceptance for Email:
    **Create → Reload → Edit → Reload → Soft Delete → Verify hidden → Restore → Reload** across campaigns, lists, flows, and checks. The database-layer JSONB smoke test is complete; this is not a substitute for the authenticated UI test.
-3. Verify Finance revenue written from Email is visible from the Finance source system after reload and does not duplicate when a campaign is edited.
+3. Verify Finance revenue written from Email is visible from the Finance source system after reload and does not duplicate when a campaign is edited. SQL schema/write smoke test is complete; authenticated UI verification remains open.
 4. Run the same ESP CSV twice through the real UI and assert zero duplicate records after reload.
 5. Verify A/B winner and winner_reason persist after reload.
 6. Verify Email Check → Projects Risk/Issue persists and remains linked to the originating Email Check.
