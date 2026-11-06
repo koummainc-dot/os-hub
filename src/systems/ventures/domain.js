@@ -193,6 +193,39 @@ export function ventureAlerts(memberId, ctx={}) {
 export function derivedMetric(defKey, values={}) { return evalMetric(metricDef(defKey), values); }
 export function basicMetricDefs(profile, periodType="W") { return metricDefsForProfile(profile,{basicOnly:true,periodType}); }
 
+export function mergeVenturesEspCampaignRows(existingRows=[],incomingRows=[],now=new Date().toISOString()) {
+  const rows=Array.isArray(existingRows)?existingRows.slice():[];
+  const byHash=new Map();
+  rows.forEach(row=>{
+    const key=String(row.import_row_hash||"");
+    if(key) byHash.set(key,row);
+  });
+  let added=0,updated=0;
+  for(const incoming of (Array.isArray(incomingRows)?incomingRows:[])){
+    const hash=String(incoming?.import_row_hash||"");
+    if(!hash) continue;
+    const old=byHash.get(hash);
+    const row={
+      ...(old||{}),
+      ...incoming,
+      id:old?.id||("esp_"+hash),
+      created_at:old?.created_at||now,
+      updated_at:now
+    };
+    if(old){
+      const index=rows.findIndex(item=>item.id===old.id);
+      if(index>=0) rows[index]=row;
+      else rows.push(row);
+      updated++;
+    }else{
+      rows.push(row);
+      added++;
+    }
+    byHash.set(hash,row);
+  }
+  return {rows,added,updated};
+}
+
 export function emailDerivedMetrics(campaign={}){
   const sent=Number(campaign.sent)||0, delivered=Number(campaign.delivered)||0, opens=Number(campaign.opens)||0, clicks=Number(campaign.clicks)||0;
   const unsubs=Number(campaign.unsubs)||0, hard=Number(campaign.bounces_hard)||0, soft=Number(campaign.bounces_soft)||0, complaints=Number(campaign.spam_complaints)||0, conversions=Number(campaign.conversions)||0, revenue=Number(campaign.revenue)||0;
