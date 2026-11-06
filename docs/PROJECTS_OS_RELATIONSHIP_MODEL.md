@@ -82,6 +82,20 @@ Canonical hierarchy:
 - Some relationship links route to generic pages (for example, win links use the general wins page) instead of opening a specific record.
 - Other parts of Projects already validate important same-project relationships (examples include task/output/PRD requirement and risk/issue paths); those validations should be retained and expanded rather than replaced wholesale.
 
+
+### Inventory pass 1 — source-level evidence (2026-11-06)
+
+A targeted scan of the Projects source files on this branch confirms the following concrete read/write paths. This is a source inventory, not a scan of production rows or every repository file:
+
+- `objective_id`: read by Objective/KR calculations in `domain.js` and Objective screens in `screens_c.jsx`; task creation and validation are handled in `screens_c.jsx` / `store.jsx`. The store validates that the referenced Objective exists and is not deleted.
+- `task_ids`: read by KR progress and leaf-task aggregation in `domain.js`; used by Risk/Issue/Win/Update relationships in `entities.jsx` and `screens_c.jsx`; store paths merge or persist task links for risk mitigation, issue remediation, and wins.
+- `parent_task_id`: the existing task tree is already traversed in `domain.js`; the store validates parent existence and performs parent moves. This is sufficient evidence to keep using the existing tree as the task-group container for now; it is not evidence that a new task-group table is needed.
+- `prd_id` / `prd_requirement_id`: validation exists in `domain.js`, `entities.jsx`, and `store.jsx`; requirement-to-task views are derived from task references and outputs.
+- The direct Objective task path and KR task-group path are both live in the current UI/domain. Their coexistence is confirmed; a single canonical source has **not** yet been selected or backfilled.
+- The source scan did not inspect live persisted rows, all non-Projects writers, RLS behavior, or two-account visibility. Those remain mandatory before any migration.
+
+**Safe interim decision:** retain both existing fields unchanged; do not create a task-group table; do not run a migration. The next implementation gate is a complete repository-wide writer/reader inventory plus a read-only inventory of existing values, followed by a no-loss reconciliation proposal.
+
 ## 6. Implementation sequence
 
 1. Inventory all writers/readers and persisted values for `objective_id`, `task_ids`, `parent_task_id`, `prd_id`, `prd_requirement_id`, and record backlink arrays.
