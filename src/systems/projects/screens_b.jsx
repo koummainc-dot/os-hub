@@ -96,7 +96,7 @@ function ProjectDetail() {
     { id: "delivery", label: "التسليم", defaultTab: "outputs", tabs: [{ id: "outputs", label: "المخرجات", count: counts.outputs }, { id: "work", label: "العمل والوقت" }] },
     { id: "governance", label: "الحوكمة", defaultTab: "risks", tabs: [{ id: "risks", label: "المخاطر", count: counts.risks }, { id: "issues", label: "المشاكل", count: counts.issues }, { id: "decisions", label: "القرارات", count: counts.decisions }] },
     { id: "goals", label: "الأهداف", defaultTab: "okr", tabs: [{ id: "okr", label: "الأهداف" }] },
-    { id: "collaboration", label: "التعاون", defaultTab: "people", tabs: [{ id: "people", label: "الأشخاص" }, { id: "related", label: "المراجع والاجتماعات" }] },
+    { id: "collaboration", label: "التعاون", defaultTab: "people", tabs: [{ id: "people", label: "الأشخاص" }, { id: "related", label: "المراجع" }] },
     { id: "activity", label: "النشاط", defaultTab: "activity", tabs: [{ id: "activity", label: "النشاط" }] },
   ];
   const activeGroup = tabGroups.find((group) => group.tabs.some((item) => item.id === tab)) || tabGroups[0];
