@@ -11,8 +11,32 @@ import { TemplatePicker } from "./screens_b.jsx";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
 
 // ═════ OKRs ═════
+const okrFocusDomId = (kind, id) => "projects-okr-" + kind + "-" + String(id).replace(/[^a-zA-Z0-9_-]/g, "_");
+
 export function Okrs() {
-  const { data, A: act, projectProgress, today, settings, people, me, toast, role, nameOf, confirm, idx, openTask, setPage, openProject } = useP();
+  const { data, A: act, projectProgress, today, settings, people, me, toast, role, nameOf, confirm, idx, openTask, setPage, openProject, view, setView } = useP();
+  const [focusTarget, setFocusTarget] = useState(null);
+  useEffect(() => {
+    const target = view?.okrFocus;
+    if (!target) return;
+    const record = target.kind === "objective" ? data.objectives.find((item) => item.id === target.id) : target.kind === "kr" ? data.krs.find((item) => item.id === target.id) : null;
+    if (!record) {
+      toast("الهدف أو النتيجة الرئيسية المرتبطة غير موجودة أو تم حذفها.");
+      setView((current) => ({ ...current, okrFocus: null }));
+      return;
+    }
+    setFilter("all");
+    setFocusTarget(target);
+    const scrollTimer = window.setTimeout(() => {
+      const element = document.getElementById(okrFocusDomId(target.kind, target.id));
+      if (element?.scrollIntoView) element.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+    const clearTimer = window.setTimeout(() => {
+      setFocusTarget(null);
+      setView((current) => ({ ...current, okrFocus: null }));
+    }, 2400);
+    return () => { window.clearTimeout(scrollTimer); window.clearTimeout(clearTimer); };
+  }, [view?.okrFocus, data.objectives, data.krs, setView, toast]);
   const [oForm, setOForm] = useState(null); const [kForm, setKForm] = useState(null); const [ci, setCi] = useState(null); const [hist, setHist] = useState(null); const [taskForm, setTaskForm] = useState(null); const [taskAllowedProjectIds, setTaskAllowedProjectIds] = useState(null); const [taskProjectForm, setTaskProjectForm] = useState(null); const [filter, setFilter] = useState("Active");
   const objs = data.objectives.filter((o) => filter === "all" || o.status === filter);
   const canEditObj = (o) => role === "Owner" || role === "Admin" || !o || o.owner_id === me || o.created_by === me;
@@ -35,7 +59,7 @@ export function Okrs() {
       {objs.map((o) => {
         const krs = data.krs.filter((k) => k.objective_id === o.id); const pr = D.objectiveProgress(o, data.krs, projectProgress); const taskExecution = D.objectiveTaskExecution(o, krs, idx); const pc = D.pace(pr, o.period_start, o.period_end, o.status, today, settings); const pm = D.PACE_META[pc];
         return (
-          <div key={o.id} style={{ ...S.card, marginBottom: 12 }}>
+          <div key={o.id} id={okrFocusDomId("objective", o.id)} style={{ ...S.card, marginBottom: 12, ...(focusTarget?.kind === "objective" && focusTarget.id === o.id ? { outline: "2px solid " + C.info, outlineOffset: 2 } : {}) }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 15, fontWeight: 800, flex: 1 }}>🎯 {o.name}</span><Chip color={C.violet}>{D.quarterOf(o.period_start)}</Chip><Chip color={pm.color}>{pm.label}</Chip><Chip color={C.info}>{L.objectiveStatus[o.status]}</Chip><Who id={o.owner_id} size={18} />
               {canEditObj(o) && <><Btn small onClick={() => setOForm(o)}>✎</Btn><Btn small onClick={() => setKForm({ objective_id: o.id, type: "Numeric", owner_id: o.owner_id })}>➕ نتيجة</Btn><Btn small danger onClick={async () => { const linkedTasks = D.objectiveTaskExecution(o, krs, idx).tasks; const linkedWins = data.wins.filter((w) => w.objective_id === o.id); const linkedKrs = data.krs.filter((k) => k.objective_id === o.id); if (linkedTasks.length || linkedWins.length || linkedKrs.length) return toast("لا يمكن حذف هدف مرتبط بمهام أو نتائج رئيسية أو إنجازات. غيّر حالة الهدف إلى ملغى للاحتفاظ بالتاريخ."); if (await confirm("حذف الهدف؟ لا يمكن التراجع عن هذا الإجراء.")) await act.del("objectives", o.id, o.name); }}>🗑</Btn></>}</div>
             {o.why && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>لماذا؟ {o.why}</div>}
@@ -48,7 +72,7 @@ export function Okrs() {
             {(() => { const linkedWins = data.wins.filter((w) => w.objective_id === o.id); return linkedWins.length ? <div style={{ marginTop: 7, fontSize: 12, color: C.dim }}>🏆 الإنجازات المرتبطة: {linkedWins.map((w) => <button key={w.id} type="button" onClick={() => setPage("wins")} style={{ border: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline", marginInlineEnd: 6 }}>{w.title} ↗</button>)}</div> : null; })()}
             <div style={{ margin: "8px 0" }}><Progress value={pr} height={9} />{taskExecution.progress != null && <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3 }}>تنفيذ مهام النتائج المرتبطة: {taskExecution.leafDone}/{taskExecution.leafTotal} ({Math.round(taskExecution.progress * 100)}%) — منفصل عن تقدم النتائج المقاس</div>}</div><div style={{ fontSize: 11, color: C.muted }}>{fmt(o.period_start)} → {fmt(o.period_end)}</div>
             <div style={{ marginTop: 8 }}>{krs.map((k) => { const r = D.krProgress(k, projectProgress); const val = r == null ? null : typeof r === "number" ? r : r.clamped; const raw = r && typeof r === "object" ? r.raw : null; const execution = D.krTaskExecution(k, idx); const kp = D.pace(val, o.period_start, o.period_end, o.status === "Achieved" ? "Achieved" : "Active", today, settings); return (
-              <div key={k.id} style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.5fr) minmax(110px,1fr) 100px auto", gap: 8, padding: "7px 0", borderTop: `1px solid ${C.line}`, alignItems: "center", fontSize: 12.5 }}>
+              <div key={k.id} id={okrFocusDomId("kr", k.id)} style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.5fr) minmax(110px,1fr) 100px auto", gap: 8, padding: "7px 0", borderTop: `1px solid ${C.line}`, alignItems: "center", fontSize: 12.5, ...(focusTarget?.kind === "kr" && focusTarget.id === k.id ? { outline: "2px solid " + C.info, outlineOffset: 2, borderRadius: 6 } : {}) }}>
                 <div><b>{k.name}</b><div style={{ fontSize: 10.5, color: C.muted }}>{k.type === "Numeric" ? `${k.initial_value ?? 0} → ${k.target_value} ${k.unit || ""} · الحالي ${k.current_value ?? k.initial_value ?? 0}${(k.project_ids || []).length ? ` · ${(k.project_ids || []).length} مشروع داعم` : ""}` : `${(k.project_ids || []).length} مشروع`}{raw != null && raw > 1 ? ` · تجاوز الهدف ${Math.round(raw * 100)}%` : ""}</div></div>
                 <div><Progress value={val} />{execution.progress != null && <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3 }}>تنفيذ المهام المرتبطة: {execution.leafDone}/{execution.leafTotal} ({Math.round(execution.progress * 100)}%)</div>}</div><Chip color={D.PACE_META[kp].color}>{D.PACE_META[kp].label}</Chip>
                 <span style={{ display: "inline-flex", gap: 4 }}>{k.type === "Numeric" && canEditObj(o) && <Btn small onClick={() => setCi({ kr: k, value: k.current_value ?? k.initial_value ?? 0 })}>📍 Check-in</Btn>}<Btn small onClick={() => setHist(k)}>سجل</Btn>{canEditObj(o) && <><Btn small onClick={() => setKForm(k)}>✎</Btn><Btn small danger onClick={() => act.del("krs", k.id, k.name)}>🗑</Btn></>}</span>
