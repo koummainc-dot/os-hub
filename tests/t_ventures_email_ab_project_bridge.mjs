@@ -30,7 +30,10 @@ const financeSource = readFileSync(new URL("../src/systems/finance/index.jsx", i
 assert.match(financeSource,/purpose: "Regular"/,"Finance purpose must match allowed enum");
 assert.match(financeSource,/pnl_effect: type === "Income" \? "Income" : "Expense"/,"required P&L effect is supplied");
 assert.match(financeSource,/flow_class: "Operating"/,"required flow class is supplied");
-assert.doesNotMatch(financeSource,/if \(txError\) throw txError/,"do not reference an undefined create-branch error variable");
+const financeCreateBranch=financeSource.match(/if \(d\.action === "create"\) \{([\\s\\S]*?)\\n        \} else \{/);
+assert.ok(financeCreateBranch,"Finance create and update branches remain distinct");
+assert.doesNotMatch(financeCreateBranch[1],/txError/,"create branch must not reference update-only error variable");
+assert.match(financeSource,/const \{ error: txError \} = await supabase\.from\("finance_transactions"\)\.update\(/,"update branch captures and checks its own write error");
 
 const financeAcks = [...financeSource.matchAll(/os:source-write-result/g)];
 assert.ok(financeAcks.length >= 3, "all Finance outcomes dispatch a result");
