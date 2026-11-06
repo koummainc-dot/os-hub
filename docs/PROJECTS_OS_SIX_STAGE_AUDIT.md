@@ -137,7 +137,9 @@ In the inspected workspace: 6 active Projects, 1 active Objective, 0 KRs, 29 act
 - **PR #158 — merged:** Project Detail derives Objectives through linked KRs instead of the obsolete `objective.project_ids` field; added domain and UI contract tests.
 - **PR #159 — merged:** fixed undefined requirement-count identifiers that broke PRD requirement rendering; added direct task creation from a requirement with Project, PRD, and requirement prefilled; added regression assertions.
 
-These fixes do not close the broader relationship/navigation and data-model gaps listed above.
+- **PR #161 — merged and deployed:** introduced typed focus targets for related records. Following links from Issues, Risks, Decisions, PRDs, Discovery, and Task backlinks now opens the owning Projects tab, reveals filtered-out closed Issues / Risks when necessary, scrolls the exact target row into view, and highlights it. Added regression assertions. Production deployment `dpl_7ukDQFTWHZCZVyu7KPQZvhN7GW8f` reached `READY` on commit `30987042d7117df0be316aed2a69c221a66323b6`; production alias `os-hub-seven.vercel.app`.
+
+This improves exact-record discovery, but does not yet provide a dedicated read-only record detail drawer/page for every entity. That remains part of the wireframe/navigation follow-up. It also does not close the broader data-model and live acceptance gaps listed above.
 
 ---
 
@@ -155,7 +157,7 @@ These fixes do not close the broader relationship/navigation and data-model gaps
 
 - [ ] Browser acceptance on the deployed commit for PRD requirement rendering and create-task prefill.
 - [ ] Browser acceptance for Project Detail → OKR derived Objective links.
-- [ ] Exact-record navigation for all relationship links listed in §3.
+- [x] Core exact-record focus navigation for Issue, Risk, Decision, PRD, Output, and Discovery links (PR #161; row scroll + highlight).\n- [ ] Dedicated read-only detail surface for every related entity, plus remaining global links not yet covered.
 - [ ] Knowledge Meeting → Project linking and Action Item → Task persistence after reload.
 - [ ] Collection lifecycle matrix: create → reload → edit relationship → reload → archive/delete → restore → reload.
 - [ ] Real two-account privacy and role-permission tests.
