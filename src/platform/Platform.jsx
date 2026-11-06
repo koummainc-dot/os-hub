@@ -165,6 +165,21 @@ function Platform(){
     }catch(e){console.error("Platform bootstrap failed:",e);setBoot({state:"error",error:e,setup:osIsSchemaMissing(e)});}
   }
   bootRef.current=bootstrap;
+  const uid=auth.user&&auth.user.id;
+  useEffect(()=>{if(auth.status==="in"&&auth.user&&!recovery){bootRef.current(auth.user);} else if(auth.status==="out"){setBoot({state:"idle",error:null,setup:false});setData({workspaces:[],profile:null,incoming:[]});setWsId(null);}},[uid,auth.status,recovery]);
+  useEffect(()=>{if(wsId&&!isDemo){try{localStorage.setItem("os_current_ws",wsId);}catch(e){}}},[wsId,isDemo]);
+
+  // ── derived ──
+  const authMe=auth.user?{id:auth.user.id,email:String(auth.user.email||"").toLowerCase(),name:(data.profile&&data.profile.name)||(auth.user.user_metadata&&auth.user.user_metadata.name)||String(auth.user.email||"").split("@")[0]}:null;
+  const me=isDemo?demo.me:authMe;
+  const workspaces=isDemo?demo.workspaces:data.workspaces;
+  const incoming=isDemo?demo.incoming:data.incoming;
+  const baseWs=workspaces.find(w=>w.id===wsId)||workspaces[0]||null;
+  let ws=baseWs;
+  if(isDemo&&baseWs&&baseWs.id==="demo_ws"&&demo.viewAs!=="owner"){const m=demo.members.find(x=>x.userId===demo.viewAs);if(m)ws={...baseWs,isOwner:false,access:m.access,ownerName:demo.me.name};}
+  const realWsId=baseWs&&baseWs.id; const realIsOwner=!!(ws&&ws.isOwner);
+  const admin=isDemo?(realWsId==="demo_ws"?{members:demo.members,sent:demo.sent,loading:false}:{members:[],sent:[],loading:false}):wsAdmin;
+
   // ── persistent navigation state ──
   // Keep the active OS/section across reloads so an opened tab remains active.
   useEffect(()=>{
@@ -194,20 +209,6 @@ function Platform(){
       localStorage.setItem("os_nav_"+wsId,JSON.stringify({route,section,updated_at:new Date().toISOString()}));
     }catch{}
   },[wsId,boot.state,navRestoredFor,route,sectionBy]);
-  const uid=auth.user&&auth.user.id;
-  useEffect(()=>{if(auth.status==="in"&&auth.user&&!recovery){bootRef.current(auth.user);} else if(auth.status==="out"){setBoot({state:"idle",error:null,setup:false});setData({workspaces:[],profile:null,incoming:[]});setWsId(null);}},[uid,auth.status,recovery]);
-  useEffect(()=>{if(wsId&&!isDemo){try{localStorage.setItem("os_current_ws",wsId);}catch(e){}}},[wsId,isDemo]);
-
-  // ── derived ──
-  const authMe=auth.user?{id:auth.user.id,email:String(auth.user.email||"").toLowerCase(),name:(data.profile&&data.profile.name)||(auth.user.user_metadata&&auth.user.user_metadata.name)||String(auth.user.email||"").split("@")[0]}:null;
-  const me=isDemo?demo.me:authMe;
-  const workspaces=isDemo?demo.workspaces:data.workspaces;
-  const incoming=isDemo?demo.incoming:data.incoming;
-  const baseWs=workspaces.find(w=>w.id===wsId)||workspaces[0]||null;
-  let ws=baseWs;
-  if(isDemo&&baseWs&&baseWs.id==="demo_ws"&&demo.viewAs!=="owner"){const m=demo.members.find(x=>x.userId===demo.viewAs);if(m)ws={...baseWs,isOwner:false,access:m.access,ownerName:demo.me.name};}
-  const realWsId=baseWs&&baseWs.id; const realIsOwner=!!(ws&&ws.isOwner);
-  const admin=isDemo?(realWsId==="demo_ws"?{members:demo.members,sent:demo.sent,loading:false}:{members:[],sent:[],loading:false}):wsAdmin;
 
   // ── members / invitations of the current workspace ──
   useEffect(()=>{
