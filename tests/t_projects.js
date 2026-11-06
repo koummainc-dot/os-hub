@@ -38,9 +38,11 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await detailFlow('الاكتشاف','عرض التفاصيل','تفاصيل الاكتشاف','Discovery');
   await goSection('المشاريع');
   const projectRow=all('tr').find(el=>el.textContent.includes('تطبيق إدارة الوقت'));
-  if(projectRow){projectRow.click();await sleep(200);}
-  await click('الحوكمة',null,100);
-  await click('القرارات',null,100);
+  ok(!!projectRow,'project list exposes the seeded project row');
+  if(projectRow){projectRow.querySelector('td')?.click();await sleep(250);}
+  ok(txt().includes('الحوكمة')&&txt().includes('تطبيق إدارة الوقت'),'opening the project row enters Project Detail');
+  ok(await click('الحوكمة',null,100),'Project Detail exposes the Governance group');
+  ok(await click('القرارات',null,100),'Governance exposes the Decisions subtab');
   const decisionOpened=await click('عرض التفاصيل',null,150);
   const decisionDialog=doc.querySelector('[role="dialog"]');
   ok(decisionOpened&&!!decisionDialog&&decisionDialog.textContent.includes('تفاصيل القرار'),'Project Governance → Decision opens a read-only detail modal');
