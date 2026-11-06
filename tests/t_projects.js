@@ -41,8 +41,10 @@ const {makeEnv,sleep,appJs}=require('./harness');
   ok(!!projectRow,'project list exposes the seeded project row');
   if(projectRow){projectRow.querySelector('td')?.click();await sleep(250);}
   ok(txt().includes('الحوكمة')&&txt().includes('تطبيق إدارة الوقت'),'opening the project row enters Project Detail');
-  await click('الأهداف',null,100);
-  const objectiveLink=all('button').find(b=>b.textContent.includes('إطلاق منتج ناجح هذا الربع'));
+  const goalsGroup=all('main button').find(b=>b.textContent.trim().startsWith('الأهداف'));
+  ok(!!goalsGroup,'Project Detail exposes its Goals group tab');
+  if(goalsGroup){goalsGroup.click();await sleep(100);}
+  const objectiveLink=all('main button').find(b=>b.textContent.includes('إطلاق منتج ناجح هذا الربع'));
   ok(!!objectiveLink,'Project Goals exposes the linked Objective as a link');
   if(objectiveLink){objectiveLink.click();await sleep(250);}
   ok(txt().includes('الأهداف والنتائج الرئيسية'),'Objective link opens the global OKR destination');
@@ -50,8 +52,9 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await goSection('المشاريع');
   const projectRowForKr=all('tr').find(el=>el.textContent.includes('تطبيق إدارة الوقت'));
   if(projectRowForKr){projectRowForKr.querySelector('td')?.click();await sleep(250);}
-  await click('الأهداف',null,100);
-  const krLink=all('button').find(b=>b.textContent.includes('إكمال مشروعَي الإطلاق'));
+  const goalsGroupForKr=all('main button').find(b=>b.textContent.trim().startsWith('الأهداف'));
+  if(goalsGroupForKr){goalsGroupForKr.click();await sleep(100);}
+  const krLink=all('main button').find(b=>b.textContent.includes('إكمال مشروعَي الإطلاق'));
   ok(!!krLink,'Project Goals exposes the linked Key Result as a link');
   if(krLink){krLink.click();await sleep(250);}
   ok(txt().includes('الأهداف والنتائج الرئيسية'),'Key Result link opens the global OKR destination');
