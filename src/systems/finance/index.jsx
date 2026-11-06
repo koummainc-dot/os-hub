@@ -194,8 +194,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
           if (accountsError) throw accountsError;
           const account = (accountsData || []).find(a => a.currency === (p.currency || baseCurrency)) || (accountsData || [])[0];
           if (!account) throw new Error("لا يوجد حساب مالي نشط مناسب للعملة لتسجيل حركة Ventures.");
-          const { error: txError } = await supabase.from("finance_transactions").insert({
-            workspace_id: ws.id,
+          const stableId = "ventures-finance-" + String(d.recordId || globalThis.crypto?.randomUUID?.() || Date.now());
+          const txPayload = {
             name: p.name || (type === "Income" ? "دخل من Ventures" : "مصروف Ventures"),
             type,
             purpose: "Ventures",
@@ -207,9 +207,16 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
             category_id: p.category_id || null,
             merchant: p.merchant || null,
             notes: [p.note, p.notes].filter(Boolean).join(" · ") || null,
-            client_generated_id: "ventures-finance-" + String(d.recordId || globalThis.crypto?.randomUUID?.() || Date.now()),
-            idempotency_key: "ventures-finance-" + String(d.recordId || globalThis.crypto?.randomUUID?.() || Date.now())
-          });
+            source_system: "ventures",
+            source_type: "email_campaign",
+            source_id: String(d.recordId || "")
+          };
+          const { data: existingTx, error: lookupError } = await supabase.from("finance_transactions").select("id").eq("workspace_id", ws.id).eq("client_generated_id", stableId).maybeSingle();
+          if (lookupError) throw lookupError;
+          const write = existingTx
+            ? await supabase.from("finance_transactions").update(txPayload).eq("workspace_id", ws.id).eq("id", existingTx.id)
+            : await supabase.from("finance_transactions").insert({ ...txPayload, workspace_id: ws.id, client_generated_id: stableId });
+          if (write.error) throw write.error;
           if (txError) throw txError;
         } else {
           const clientGeneratedId = "ventures-finance-" + String(d.recordId || p.finance_transaction_id || "");

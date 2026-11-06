@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { emailWinnerPatch, emailCheckProjectIssue, validateEmailABTest } from "../src/systems/ventures/domain.js";
 const projects = readFileSync(new URL("../src/systems/projects/index.jsx", import.meta.url), "utf8");
 const ventures = readFileSync(new URL("../src/systems/ventures/realWorkspace.jsx", import.meta.url), "utf8");
@@ -17,3 +18,11 @@ assert.match(projects,/A\.put\("risks", risk, project\)/,"risk is persisted in P
 assert.match(projects,/source_record_id: payload\.source_record_id/,"source record link is retained");
 assert.match(projects,/ctx\.can\("risk\.write", project\)/,"Projects permission check is enforced");
 console.log("t_ventures_email_ab_project_bridge: OK");
+
+const finance = readFileSync(new URL("../src/systems/finance/index.jsx", import.meta.url), "utf8");
+assert.match(finance,/\.from\("finance_transactions"\)\.select\("id"\).*\.maybeSingle\(\)/s,"lookup existing transaction before creating");
+assert.match(finance,/\.eq\("client_generated_id", stableId\)/,"stable campaign write key");
+assert.match(finance,/\.update\(txPayload\)/,"repeat revenue write updates existing transaction");
+assert.match(finance,/source_system: "ventures"/,"finance source metadata");
+assert.match(finance,/source_type: "email_campaign"/,"email campaign source type");
+assert.doesNotMatch(finance,/idempotency_key: "ventures-finance-/,"do not send nonexistent idempotency_key column");
