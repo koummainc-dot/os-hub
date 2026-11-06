@@ -273,6 +273,17 @@ export function krProgress(kr, projectProgress) {
 }
 export function krProgressValue(kr, pp) { const r = krProgress(kr, pp); if (r == null) return null; return typeof r === "number" ? r : r.clamped; }
 
+// Project→Objective is derived through KR→Project→Objective (v4).
+// Objectives do not own project_ids; KR.project_ids is the canonical relationship.
+export function objectivesForProject(projectId, objectives, krs) {
+  if (!projectId) return [];
+  const linkedObjectiveIds = new Set((krs || [])
+    .filter((kr) => isActiveRec(kr) && Array.isArray(kr.project_ids) && kr.project_ids.includes(projectId))
+    .map((kr) => kr.objective_id)
+    .filter(Boolean));
+  return (objectives || []).filter((objective) => isActiveRec(objective) && linkedObjectiveIds.has(objective.id));
+}
+
 // Task execution is derived from KR-linked Projects (v4: Task → Project → KR → Objective).
 // Legacy direct task links remain visible as a read-only compatibility fallback until reconciled.
 function expandLegacyTaskRoots(rootIds, idx) {
