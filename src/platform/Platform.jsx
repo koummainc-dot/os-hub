@@ -381,7 +381,32 @@ function Platform(){
           </div>
         )}
       </div>
+      <div aria-label="التنقل بين الأنظمة" style={{padding:"8px 8px 10px",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
+        <div style={{fontSize:10.5,fontWeight:800,color:"#6E7781",padding:"2px 8px 7px"}}>الأنظمة</div>
+        <div style={{maxHeight:"38vh",overflowY:"auto",overscrollBehavior:"contain"}}>
+          {OS_GROUPS.map(g=>{
+            const list=visibleSystems.filter(s=>s.group===g.id);
+            if(!list.length)return null;
+            return <div key={g.id}>
+              <div style={{fontSize:9.5,color:"#9CA3AF",fontWeight:700,padding:"7px 9px 3px"}}>{g.label}</div>
+              {list.map(s=><button
+                key={s.id}
+                type="button"
+                aria-current={sys?.id===s.id?"page":undefined}
+                title={s.title}
+                onClick={()=>{setRoute({view:"system",system:s.id});setPop(null);setNavOpen(false);}}
+                style={{...itemStyle(sys?.id===s.id),margin:"1px 0",width:"100%",padding:"7px 9px"}}
+              >
+                <span style={{fontSize:13,minWidth:18,textAlign:"center"}}>{s.icon}</span>
+                <span style={{flex:1,textAlign:"right",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title}</span>
+                <span style={{width:6,height:6,borderRadius:"50%",background:s.status==="live"?"#10B981":"#CBD5E1",flexShrink:0}} title={s.status==="live"?"جاهز":"قيد البناء"}/>
+              </button>)}
+            </div>;
+          })}
+        </div>
+      </div>
       <div style={{padding:"8px 0",flex:1}}>
+        {sys&&<div style={{fontSize:10.5,fontWeight:800,color:"#6E7781",padding:"3px 16px 7px"}}>أقسام {sys.title}</div>}
         {sys?navSections.map(n=>(
           <button key={n.id} onClick={()=>{setSection(sys.id,n.id);setNavOpen(false);}} style={itemStyle(currentSection===n.id)}>
             <span style={{fontSize:13,minWidth:18,textAlign:"center"}}>{n.icon}</span><span style={{flex:1}}>{n.label}</span>
