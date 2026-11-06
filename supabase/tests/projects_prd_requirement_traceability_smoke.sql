@@ -150,8 +150,9 @@ insert into public.workspace_records (workspace_id, system_id, collection, id, d
 values
  ('11111111-1111-4111-8111-111111111111','projects','outputs','output2','{"project_id":"p1","approval":"Draft","name":"Draft output"}'),
  ('11111111-1111-4111-8111-111111111111','projects','outputs','output3','{"project_id":"p2","prd_id":"prd2","prd_requirement_id":"req2","approval":"Final","name":"Final evidence for requirement two"}'),
- ('11111111-1111-4111-8111-111111111111','projects','objectives','obj1','{"name":"Objective One","project_ids":["p1"]}'),
- ('11111111-1111-4111-8111-111111111111','projects','krs','kr1','{"name":"KR One","objective_id":"obj1","project_ids":["p1"],"task_ids":["task1"]}'),
+ ('11111111-1111-4111-8111-111111111111','projects','objectives','obj1','{"name":"Objective One"}'),
+ ('11111111-1111-4111-8111-111111111111','projects','krs','kr1','{"name":"KR One","type":"Project Based","objective_id":"obj1","project_ids":["p1"]}'),
+ ('11111111-1111-4111-8111-111111111111','projects','krs','kr2','{"name":"Numeric KR","type":"Numeric","objective_id":"obj1","project_ids":["p2"],"initial_value":0,"target_value":10,"current_value":2}'),
  ('11111111-1111-4111-8111-111111111111','projects','risks','risk1','{"project_id":"p1","title":"Risk One","task_ids":["task1"],"prd_id":"prd1"}'),
  ('11111111-1111-4111-8111-111111111111','projects','risks','risk2','{"project_id":"p2","title":"Risk Two","task_ids":["task2"]}'),
  ('11111111-1111-4111-8111-111111111111','projects','issues','issue1','{"project_id":"p1","title":"Issue One","task_ids":["task1"]}'),
@@ -242,12 +243,23 @@ do $block$ begin
   end;
 end $block$;
 
+-- Objective→Project and Task→Objective are derived through KR→Project; reject direct stored links.
 do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','objectives','bad-objective',
-            '{"name":"Bad objective","project_ids":["missing-project"]}');
-    raise exception 'expected missing objective project rejection';
+            '{"name":"Bad objective","project_ids":["p1"]}');
+    raise exception 'expected direct Objective project link rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $block$;
+
+do $block$ begin
+  begin
+    insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+    values ('11111111-1111-4111-8111-111111111111','projects','tasks','bad-objective-task',
+            '{"project_id":"p1","objective_id":"obj1","title":"Bad direct Objective task link"}');
+    raise exception 'expected direct Task objective link rejection';
   exception when sqlstate '22023' then null;
   end;
 end $block$;
@@ -256,8 +268,18 @@ do $block$ begin
   begin
     insert into public.workspace_records (workspace_id, system_id, collection, id, data)
     values ('11111111-1111-4111-8111-111111111111','projects','krs','bad-kr',
-            '{"name":"Bad KR","objective_id":"obj1","project_ids":["p1"],"task_ids":["task2"]}');
-    raise exception 'expected KR task/project mismatch rejection';
+            '{"name":"Bad KR","type":"Project Based","objective_id":"obj1","project_ids":["p1"],"task_ids":["task1"]}');
+    raise exception 'expected direct KR task_ids rejection';
+  exception when sqlstate '22023' then null;
+  end;
+end $block$;
+
+do $block$ begin
+  begin
+    insert into public.workspace_records (workspace_id, system_id, collection, id, data)
+    values ('11111111-1111-4111-8111-111111111111','projects','krs','bad-project-kr',
+            '{"name":"Bad Project Based KR","type":"Project Based","objective_id":"obj1","project_ids":[]}');
+    raise exception 'expected Project Based KR project requirement';
   exception when sqlstate '22023' then null;
   end;
 end $block$;
