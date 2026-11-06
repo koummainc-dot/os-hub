@@ -2,7 +2,7 @@
 
 Date: 2026-11-06
 Branch: main (follow-up status)
-PRs: #134, #135, #136
+PRs: #134–#144 (Email lifecycle follow-ups and ESP idempotency tests)
 
 ## Audit rule
 
@@ -81,12 +81,12 @@ The important architectural rule remains: Ventures analyzes and coordinates sour
 | Duplicate protection via import row hash | ✅ |
 | Derived delivery/open/CTR/CTOR/unsubscribe/bounce/spam/conversion/revenue metrics | ✅ |
 | A/B winner + reason | ✅ |
-| Email Check → Projects Risk/Issue bridge | 🟡 | PR #138 routes checks through a dedicated Projects Risk action and PR #143 adds the real validated `A.saveRisk` persistence method (the prior generic `A.put` call did not exist); the saved record inherits project visibility and source linkage. Authenticated persistence/reload acceptance remains open. Authenticated persistence/reload acceptance remains open. |
+| Email Check → Projects Risk/Issue bridge | 🟡 | PR #138 routes checks through a dedicated Projects Risk action and PR #143 adds the real validated `A.saveRisk` persistence method (the prior generic `A.put` call did not exist); the saved record inherits project visibility and source linkage. Authenticated persistence/reload acceptance remains open. |
 | Email → Finance revenue write-through | 🟡 | Schema mismatch and undefined error-variable defects fixed in PRs #139 and #140; database transaction smoke test passed with rollback. Authenticated Finance UI visibility/reload remains unverified. |
 | Full lifecycle Create → Reload → Edit → Delete/Restore | 🟡 | UI actions are implemented for all four collections. Supabase JSONB persistence smoke test passed for create/read/edit/read/soft-delete/restore/read across all four collections; temporary QA row was cleaned up. Authenticated browser acceptance is still open. |
-| Real ESP same-CSV-twice no-duplicate acceptance | 🟡 | Import merge now preserves soft-deleted rows and updates its hash index during a file pass to prevent repeated hashes in one file; actual same-file-twice acceptance is still open. |
+| Real ESP same-CSV-twice no-duplicate acceptance | 🟡 | PR #144 extracts the production merge function and adds executable cases for duplicate hashes within one file, importing the same file twice, stable IDs/created_at, updated_at, and soft-deleted records. CI is pending; actual authenticated UI upload/reload acceptance remains open. |
 
-The lifecycle UI and JSONB persistence mechanism have been implemented and smoke-tested. PR #135 added edit/soft-delete/restore controls; PR #136 fixed campaign metadata preservation and ESP import merge behavior; PR #138 repaired the Email Check → Projects Risk route; PRs #139–#140 repaired Finance idempotency and the actual transaction schema contract; PR #142 fixed missing Finance result-event source markers so Ventures can display success/failure acknowledgements. A rolled-back SQL smoke test verified that a Finance transaction can be inserted and updated with the expected schema fields. Authenticated end-to-end UI acceptance remains open. The latest Finance/Projects bridge commits have not yet been confirmed on Production; Vercel build-rate limits have blocked automatic deployment checks.
+The lifecycle UI and JSONB persistence mechanism have been implemented and smoke-tested. PR #135 added edit/soft-delete/restore controls; PR #136 fixed campaign metadata preservation; PR #144 extracts the ESP import merge path and adds deterministic idempotency tests; PR #138 repaired the Email Check → Projects Risk route; PRs #139–#140 repaired Finance idempotency and the actual transaction schema contract; PR #142 fixed missing Finance result-event source markers so Ventures can display success/failure acknowledgements. A rolled-back SQL smoke test verified that a Finance transaction can be inserted and updated with the expected schema fields. Authenticated end-to-end UI acceptance remains open. The latest Finance/Projects bridge commits have not yet been confirmed on Production; Vercel build-rate limits have blocked automatic deployment checks.
 
 ## CRO / experiments
 
