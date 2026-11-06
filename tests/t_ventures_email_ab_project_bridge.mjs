@@ -29,7 +29,7 @@ const financeSource = readFileSync(new URL("../src/systems/finance/index.jsx", i
 assert.match(financeSource,/purpose: "Regular"/,"Finance purpose must match allowed enum");
 assert.match(financeSource,/pnl_effect: type === "Income" \? "Income" : "Expense"/,"required P&L effect is supplied");
 assert.match(financeSource,/flow_class: "Operating"/,"required flow class is supplied");
-assert.doesNotMatch(financeSource,/if \(txError\) throw txError/,"do not reference an undefined create-branch error variable");
+assert.match(financeSource,/if \(write\.error\) throw write\.error/,"create branch must check its own write result");
 
 const financeAcks = [...financeSource.matchAll(/os:source-write-result/g)];
 assert.ok(financeAcks.length >= 3, "all Finance outcomes dispatch a result");
