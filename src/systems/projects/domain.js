@@ -273,28 +273,54 @@ export function krProgress(kr, projectProgress) {
 }
 export function krProgressValue(kr, pp) { const r = krProgress(kr, pp); if (r == null) return null; return typeof r === "number" ? r : r.clamped; }
 
-// Task execution is deliberately separate from KR outcome progress. A linked task group
-// contributes its active leaf tasks; overlapping groups are counted once.
-export function krTaskExecution(kr, idx) {
-  const roots = [...new Set(Array.isArray(kr?.task_ids) ? kr.task_ids.filter(Boolean) : [])];
-  if (!idx) return { roots: [], tasks: [], leafTotal: 0, leafDone: 0, progress: null };
+// Task execution is derived from KR-linked Projects (v4: Task → Project → KR → Objective).
+// Legacy direct task links remain visible as a read-only compatibility fallback until reconciled.
+function expandLegacyTaskRoots(rootIds, idx) {
   const ids = new Set();
-  roots.forEach((id) => { if (idx.byId[id]) { ids.add(id); idx.descendants(id).forEach((childId) => ids.add(childId)); } });
-  const tasks = [...ids].map((id) => idx.byId[id]).filter(Boolean);
-  const leaves = tasks.filter((task) => idx.isLeaf(task.id) && cat(task.status) !== "cancelled");
+  (rootIds || []).forEach((id) => {
+    if (idx?.byId?.[id]) {
+      ids.add(id);
+      (idx.descendants(id) || []).forEach((childId) => ids.add(childId));
+    }
+  });
+  return [...ids].map((id) => idx.byId[id]).filter(Boolean);
+}
+function taskExecutionSummary(tasks, idx, extra = {}) {
+  const byId = new Map((tasks || []).filter(Boolean).map((task) => [task.id, task]));
+  const uniqueTasks = [...byId.values()];
+  const leaves = uniqueTasks.filter((task) => idx?.isLeaf?.(task.id) && cat(task.status) !== "cancelled");
   const leafDone = leaves.filter((task) => cat(task.status) === "done").length;
-  return { roots: roots.filter((id) => !!idx.byId[id]), tasks, leafTotal: leaves.length, leafDone, progress: leaves.length ? leafDone / leaves.length : null };
+  return { tasks: uniqueTasks, leafTotal: leaves.length, leafDone, progress: leaves.length ? leafDone / leaves.length : null, ...extra };
+}
+export function krTaskExecution(kr, idx) {
+  if (!idx) return { roots: [], tasks: [], leafTotal: 0, leafDone: 0, progress: null, projectIds: [] };
+  const projectIds = [...new Set(Array.isArray(kr?.project_ids) ? kr.project_ids.filter(Boolean) : [])];
+  const projectSet = new Set(projectIds);
+  const projectTasks = projectIds.length ? (idx.list || []).filter((task) => projectSet.has(task.project_id)) : [];
+  const legacyRoots = projectIds.length ? [] : [...new Set(Array.isArray(kr?.task_ids) ? kr.task_ids.filter(Boolean) : [])];
+  const legacyTasks = expandLegacyTaskRoots(legacyRoots, idx);
+  const result = taskExecutionSummary([...projectTasks, ...legacyTasks], idx, { roots: legacyRoots.filter((id) => !!idx.byId[id]), projectIds, legacy: legacyTasks.length > 0 });
+  return result;
 }
 export function objectiveTaskExecution(obj, krs, idx) {
+  if (!idx) return { tasks: [], leafTotal: 0, leafDone: 0, progress: null, projectIds: [], legacyTaskCount: 0 };
   const linkedKrs = (krs || []).filter((kr) => kr.objective_id === obj?.id && isActiveRec(kr));
-  const ids = new Set();
-  linkedKrs.forEach((kr) => (kr.task_ids || []).forEach((id) => {
-    if (idx?.byId[id]) { ids.add(id); idx.descendants(id).forEach((childId) => ids.add(childId)); }
-  }));
-  const tasks = [...ids].map((id) => idx.byId[id]).filter(Boolean);
-  const leaves = tasks.filter((task) => idx.isLeaf(task.id) && cat(task.status) !== "cancelled");
-  const leafDone = leaves.filter((task) => cat(task.status) === "done").length;
-  return { tasks, leafTotal: leaves.length, leafDone, progress: leaves.length ? leafDone / leaves.length : null };
+  const projectIds = [...new Set(linkedKrs.flatMap((kr) => Array.isArray(kr.project_ids) ? kr.project_ids.filter(Boolean) : []))];
+  const projectSet = new Set(projectIds);
+  const projectTasks = projectIds.length ? (idx.list || []).filter((task) => projectSet.has(task.project_id)) : [];
+  const directLegacyRoots = (idx.list || []).filter((task) => task.objective_id === obj?.id).map((task) => task.id);
+  const legacyTasks = [
+    ...expandLegacyTaskRoots(directLegacyRoots, idx),
+    ...linkedKrs.flatMap((kr) => {
+      const hasProjectLinks = Array.isArray(kr.project_ids) && kr.project_ids.length > 0;
+      return hasProjectLinks ? [] : expandLegacyTaskRoots(kr.task_ids || [], idx);
+    }),
+  ];
+  const result = taskExecutionSummary([...projectTasks, ...legacyTasks], idx, {
+    projectIds,
+    legacyTaskCount: new Set(legacyTasks.map((task) => task.id)).size,
+  });
+  return result;
 }
 export function objectiveProgress(obj, krs, pp) {
   const vals = krs.filter((k) => k.objective_id === obj.id && isActiveRec(k)).map((k) => krProgressValue(k, pp)).filter((v) => v != null);
