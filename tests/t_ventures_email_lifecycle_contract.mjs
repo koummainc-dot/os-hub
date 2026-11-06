@@ -11,9 +11,9 @@ assert.equal(src.includes("const softDeleteEmail=async(k,x)=>"),true,"soft delet
 assert.equal(src.includes("const restoreEmail=async(k,x)=>"),true,"restore");
 assert.equal(src.includes("created_at:editing?.created_at||new Date().toISOString()"),true,"generic edit preserves created_at");
 assert.equal(src.includes("created_at:existing?.created_at||new Date().toISOString()"),true,"campaign edit preserves created_at");
-assert.equal(src.includes("const currentRows=allRows(\"email_campaigns\")"),true,"campaign writes preserve deleted rows");
-assert.equal(src.includes("const existing=new Map(currentRows.map(x=>[x.import_row_hash||x.id,x]));"),true,"ESP dedupe index");
-assert.equal(src.includes("existing.set(r.import_row_hash,row)"),true,"dedupe duplicate rows within same CSV");
+assert.equal(src.includes('const currentRows=allRows("email_campaigns")'),true,"campaign writes preserve deleted rows");
+assert.equal(src.includes("mergeVenturesEspCampaignRows(currentRows,parsed.rows)"),true,"ESP import uses the tested idempotent merge helper");
+assert.equal(src.includes("mergeVenturesEspCampaignRows"),true,"ESP merge helper is wired");
 assert.equal(src.includes("import_row_hash"),true);
 assert.equal(src.includes("saveVenturesMetrics(workspaceId,Object.entries"),true);
 assert.equal(src.includes('systemId:"finance",action:"create",recordId:id'),true);
