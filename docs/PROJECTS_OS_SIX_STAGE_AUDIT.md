@@ -20,7 +20,7 @@ Project Detail separately exposes 12 tabs: Overview, Tasks, Outputs, Work & Time
 1. **Risk / Issue duplication:** the global `risks` route already groups Risks, Issues, and Decisions in tabs, while a separate `issues` route exposes Issues again.
 2. **Repeated navigation without a clear ownership rule:** Tasks, PRDs, Outputs, Risks, Issues, and OKRs exist globally and again inside Project Detail. Global views and project-scoped views should be explicit variants of the same records, not separate workflows.
 3. **Project Detail is over-tabbed:** 12 horizontal tabs make the core project journey hard to scan and are not a practical mobile navigation model.
-4. **References tab is incomplete:** it currently stores external URLs and says Knowledge meetings/events will appear later, although a separate Meetings screen already reads Knowledge OS meetings.
+4. **References tab integration:** PR #166 adds a read-only list of Knowledge OS meetings linked to the current Project and explicit follow-up-to-task creation with source provenance. Browser acceptance and deployment are still pending.
 5. **Meetings ownership must remain in Knowledge OS:** Projects may filter/read meetings by project reference and create tasks from action items, but must not become a second meeting database.
 
 ### Recommended IA (preserve existing record ownership)
@@ -86,7 +86,7 @@ Every flow must explicitly cover:
 - PRD → related Decision is rendered as plain text.
 - PRD → related Risk and Output open the project collection, not the exact record.
 - Project Detail → Objective/KR names are not yet exact-record navigation targets.
-- Project Detail → References does not expose linked Knowledge meetings.
+- Project Detail → References now has an implementation in PR #166 to expose linked Knowledge meetings; verify on a deployed build and confirm exact project filtering.
 
 ### Wireframe requirements
 
@@ -140,6 +140,7 @@ In the inspected workspace: 6 active Projects, 1 active Objective, 0 KRs, 29 act
 - **PR #163 — merged, production deployment pending:** grouped Project Detail navigation into seven functional destinations while preserving all 12 existing child tab IDs and deep links. CI, Verify App, and Finance Family Center checks passed. Merge commit: `1ee7ed9c110f7c4ab1f289d4b5bc198fb0bd9988`. Vercel's Hobby daily deployment-creation quota returned HTTP 402 (retry after 24 hours), so this commit is not yet confirmed on Production.
 - **PR #164 — merged:** fixes a render-time temporal-dead-zone bug in `DecisionsView`: the exact-record focus hook read `list.length` before `list` was initialized. The list is now derived before the hook runs, and a regression assertion protects the declaration order. CI, Verify App, Finance Family Center Checks, and the Spiritual PostgreSQL smoke test passed. Merge commit: `060d1db46d9d0bf90f978c35b2c0456e35b886d3`. Vercel's preview build status reported the Hobby build-rate limit; Production remains pending due the separate daily deployment-creation quota.
 
+- **PR #166 — in review:** adds Knowledge OS meetings to Project Detail → Collaboration → References using the existing `listKnowledgeMeetings` read contract. Meeting records remain owned by Knowledge OS; follow-up tasks are created only on explicit action, with meeting ID/index provenance and duplicate detection. No schema or migration changes. Browser verification and post-deploy persistence checks remain outstanding.
 - **PR #161 — merged and deployed:** introduced typed focus targets for related records. Following links from Issues, Risks, Decisions, PRDs, Discovery, and Task backlinks now opens the owning Projects tab, reveals filtered-out closed Issues / Risks when necessary, scrolls the exact target row into view, and highlights it. Added regression assertions. Production deployment `dpl_7ukDQFTWHZCZVyu7KPQZvhN7GW8f` reached `READY` on commit `30987042d7117df0be316aed2a69c221a66323b6`; production alias `os-hub-seven.vercel.app`.
 
 This improves exact-record discovery, but does not yet provide a dedicated read-only record detail drawer/page for every entity. That remains part of the wireframe/navigation follow-up. It also does not close the broader data-model and live acceptance gaps listed above.
