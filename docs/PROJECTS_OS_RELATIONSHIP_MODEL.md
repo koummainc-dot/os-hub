@@ -1,121 +1,119 @@
 # Projects OS — Canonical Relationship Model & UX Contract
 
-**Status:** Proposed implementation contract; no database migration is authorized by this document.
-**Baseline reviewed:** `main` source and `plans/Projects_OS_v4_Unified_Master_Plan.md`.
-**Purpose:** Make every record navigable through meaningful relationships, with one clear source of truth and useful actions.
+**Status:** Reconciliation contract; no database migration or production data mutation is authorized.
+**Authority:** `plans/Projects_OS_v4_Unified_Master_Plan.md` is the primary specification. Older traceability notes are historical implementation evidence and do not override v4.
+**Baseline:** Current `main` source and Supabase migration `20261031120000_projects_entity_relationship_integrity.sql`.
+**Purpose:** Make every relationship validated, persisted, visible, navigable to the exact record, and lifecycle-tested.
 
 ## 1. Non-negotiable principles
 
-1. A relationship is complete only when it is validated, persisted, visible from the relevant records, navigable to the exact target record, and covered by lifecycle tests.
+1. A relationship is complete only when it is validated, persisted, visible from both relevant records, navigable to the exact target, and covered by lifecycle tests.
 2. Do not create duplicate relationship sources for the same meaning. Prefer canonical ownership and derived views.
-3. Cross-project relationships must be rejected unless a relationship type explicitly permits cross-project scope.
-4. Deleting/archiving a record must not silently orphan or erase historical evidence. Use explicit detach, archive, or safe-delete behavior.
-5. Every relationship picker must show enough context (title, project, status) to avoid linking the wrong record.
-6. Every displayed relationship must open the exact record, not a generic list.
-7. Optional relationships remain optional; do not force meaningless links.
+3. Cross-project/workspace links must be rejected unless v4 explicitly allows them.
+4. Archive/delete must not silently erase historical evidence. Use explicit detach, archive, or safe-delete behavior.
+5. Pickers show title, project, and status; every link opens the exact record.
+6. Derived progress/health is calculated from source records, never manually overwritten.
+7. No production migration until the repository-wide writer/reader inventory, persisted-data inventory, and no-loss backfill plan are reviewed.
 
-## 2. Canonical objective / KR / task model
+## 2. Canonical Objective / KR / Project / Task model — v4
 
-Canonical hierarchy:
+The v4 model is authoritative:
 
-`Objective → Key Result → Task Group (root task) → Child Tasks → Leaf Tasks`
+`Objective → KR → Project (via kr_projects) → Project Tasks → Parent/Child/Leaf Task`
 
-- An Objective owns multiple KRs.
-- A KR may link to one or more task groups (represented by existing root tasks and their descendants); do not introduce a separate task-group table unless a proven requirement cannot be met by the existing task tree.
-- A task group is a root task plus its descendants. The root task is the navigable entry point.
-- A task may have one parent in the same project. Cycles and cross-project parent links are invalid.
-- Objective execution is derived from the unique leaf tasks in its linked KR groups. A leaf task must not be counted twice when linked through multiple KRs.
-- KR measured progress and task execution progress are separate metrics and must never be blended.
-- Direct `task.objective_id` and `kr.task_ids` must not become competing sources of truth. The v4 plan says Objective association is derived through KR/project relationships. Before changing existing data, inventory all existing values and define a deterministic backfill/reconciliation. Do not drop either field until data is reconciled and all readers/writers are migrated.
-- The current UI creates a task with `objective_id` directly, while the KR editor does not expose task-group selection. This is a contract mismatch requiring a deliberate migration, not a cosmetic field addition.
+- Objective owns its KRs through `KR.objective_id`.
+- A KR relates to one or more Projects through the logical `kr_projects` relationship. Current code stores project links as `kr.project_ids`; this storage representation must be reconciled with the v4 relation contract before schema changes.
+- Every task belongs to one Project through `task.project_id`. Task hierarchy is represented by `parent_task_id` and the existing unbounded task tree.
+- **Task → Objective/KR is derived:** `Task → Project → KR → Objective`. The v4 specification explicitly says this association is not stored on Task.
+- Project Based KR progress is derived from its measurable linked Projects. Numeric KR progress comes from check-ins. Objective progress is the average of measurable KR progress. Task execution/Project health is a separate operational metric and must not be blended into measured KR or Objective progress.
+- The v4 plan does **not** define KR task groups as the canonical relationship. Do not introduce a task-group table or make `KR.task_ids` the canonical Objective/KR link.
+- Current code still reads `task.objective_id` for Objective task cards and `kr.task_ids` for KR task execution. These are legacy/implementation paths that conflict with the v4 derived relationship and must be reconciled without losing existing links.
+- Current SQL trigger validates `kr.objective_id`, `kr.project_ids`, and `kr.task_ids`; it does not establish that the current persisted rows have been reconciled to the v4 model. Do not remove those guards until replacement validation and data reconciliation are proven.
 
-## 3. Required record relationships
+### Safe interim rule
+
+Keep all current fields and records unchanged. Do not add a task-group table. Do not remove `task.objective_id`, `kr.task_ids`, `kr.project_ids`, or their SQL guards in this pass. First inventory all readers/writers and existing values, then propose a deterministic mapping from legacy direct task links to the v4 Project/KR relationship. Flag tasks whose project is not linked to the KR; do not silently widen a KR's scope or discard the legacy association.
+
+## 3. Other canonical record relationships
 
 | Record | Canonical relationships | Required behavior |
 |---|---|---|
-| Objective | KRs; task groups through KRs; wins; reviews; decisions affecting it | Show KR progress and distinct leaf-task execution separately; open exact KR/task/win |
-| KR | Objective; task groups; check-ins; linked projects where Project Based | Select/add/remove task groups; validate same workspace and project scope; deduplicate execution |
-| Task | Parent/children; project; PRD requirement; output; discovery; issue/risk/decision; KR group membership | Show relationship chips; open exact record; explain blocked/inherited links |
-| PRD | Project; requirements; tasks per requirement; outputs; decisions; risks; discoveries; versions/reviews | Each requirement shows implementing tasks and acceptance evidence |
-| Issue | Project; affected tasks; resolution tasks; originating risk; PRD/decision when applicable | Separate affected work from remediation work; exact backlinks in both directions |
-| Risk | Project; affected PRD/tasks; mitigation tasks; converted issue; decisions | Risk-to-issue conversion is traceable and idempotent; closed risks retain history |
-| Decision | Project; affected objectives/KRs, PRDs, tasks, issues, risks, discoveries; implementation tasks | Record rationale, alternatives, impact, owner, effective date, implementation status and outcome |
-| Update | Project/period; snapshot of completed/upcoming/late tasks, wins, issues, risks and decisions | Draft from source data; review; publish immutable snapshot; later addenda do not rewrite history |
-| Win | Project; source task/group; objective/KR; output/evidence | Prefer creation from completed work; prevent duplicate recognition; open exact source |
-| Discovery | Source/evidence; project; optional objective/KR; resulting task/PRD/issue/decision | Preserve provenance; conversion is explicit and idempotent |
-| Output | Project; task; PRD requirement; approval/version; win | Validate same-project links and open exact task/requirement/win |
+| Project | Tasks, KRs, PRDs, outputs, risks, issues, decisions, meetings, updates, wins, members | Project is the Roadmap entity; exact-record navigation and derived health |
+| Task | Project; parent/children; PRD + requirement; discovery; issues; outputs/sessions | Same-project validation, exact backlinks, inherited Objective/KR shown as derived |
+| PRD | Project; requirements; tasks per requirement; outputs/evidence; decisions, risks, discoveries; versions/reviews | Requirement view shows implementing tasks and acceptance evidence |
+| Issue | Project; affected tasks; remediation tasks; originating risk | Separate affected work from remediation; preserve source/backlinks |
+| Risk | Project; affected PRD/tasks; mitigation tasks; converted Issue; decisions | Conversion traceable and idempotent; closed risk history retained |
+| Decision | Project; affected tasks/PRDs/issues/risks/discoveries; implementation tasks | Preserve rationale, alternatives, impact, owner, effective date, and outcome |
+| Update | Project/period; snapshot of completed/upcoming/late tasks, wins, issues, risks, decisions | Draft from live source; inspect before publish; immutable published snapshot |
+| Win | Project; source task(s); Objective/KR where derivable; output/evidence | Avoid duplicate recognition; open exact source |
+| Discovery | Source/evidence; Projects; resulting task/PRD/issue/decision | Explicit, idempotent conversion with provenance |
+| Output | Project; task; PRD requirement; approval/version; win | Validate same-project links and navigate to exact source |
+| Weekly Review | Member/week; selected tasks; snapshot of wins and project activity | Private by default; preserve historical snapshot and exact navigation |
 
-## 4. User journeys and useful actions
+## 4. Required UX journeys
 
-### Objective
-- Open objective → inspect KRs → expand task groups → open root task or leaf task.
-- Add KR; link an existing task group; create a root task; review progress.
-- Show measured KR progress separately from execution progress.
-- Do not show the same task list twice.
-
-### KR
-- Create/edit KR → select one or more eligible task groups → preview unique leaf-task count → save.
-- Remove a group with an explicit confirmation if it changes reported progress.
-- For Project Based KRs, show project selection separately from task-group links.
+### Objective / KR
+- Objective shows its KRs and measured progress/pace.
+- KR editor manages its Project relationships according to v4; it must not create a second task-group relationship as a substitute.
+- Objective task execution, if displayed, is derived from Projects linked through its KRs, deduplicated by task ID, and shown separately from measured Objective progress.
+- Remove direct task creation with `objective_id` only after a no-loss reconciliation and a replacement flow that creates/links a Project or task under the correct Project.
+- Do not infer that every task in a Project is a measured KR contribution. Show task execution as operational context, not as KR measurement.
 
 ### PRD / requirement
-- Open PRD → select requirement → see implementation tasks, linked outputs and acceptance evidence.
+- Open PRD → select requirement → see implementation tasks, linked outputs, and acceptance evidence.
 - Create task from requirement with the requirement pre-linked.
-- A task linked to a requirement must validate that the requirement belongs to the selected PRD and project.
+- A task's `prd_requirement_id` must belong to its selected `prd_id`, and both must belong to the same Project.
 
 ### Issue / risk / decision / discovery
 - Each detail view shows incoming and outgoing relationships in named sections.
-- Creation flows inherit the current project and source record where appropriate.
-- Conversion actions explain what will be created and preserve source backlinks.
-- Actions must open exact records and show success/failure only after persistence returns.
+- Creation flows inherit the current Project/source record where appropriate.
+- Conversion actions explain what will be created and preserve provenance/backlinks.
+- Report success only after persistence returns successfully.
 
 ### Update / win
-- Update draft must show source counts and let the user inspect included records before publish.
+- Update draft shows source counts and lets the user inspect included records before publish.
 - Published updates are immutable snapshots; corrections are addenda.
-- Wins must link to verifiable work or evidence and navigate to the source.
+- Wins link to verifiable work/evidence and navigate to exact sources.
 
-## 5. Current source findings (not a completion claim)
+## 5. Current-main evidence and gaps (2026-11-06)
 
-- `src/systems/projects/screens_c.jsx`: Objective card rendered the “المهام المرتبطة بالهدف” section twice. One duplicate was removed in the accompanying code change.
-- The current Objective UI creates tasks with direct `objective_id`; the KR form exposes project selection for Project Based KRs but no task-group picker.
-- The current code calculates KR task execution from `kr.task_ids` and objective task execution from `objective_id`, creating two paths that must be reconciled against the v4 plan.
-- Some relationship links route to generic pages (for example, win links use the general wins page) instead of opening a specific record.
-- Other parts of Projects already validate important same-project relationships (examples include task/output/PRD requirement and risk/issue paths); those validations should be retained and expanded rather than replaced wholesale.
+### Source code
+- `src/systems/projects/domain.js`: `krProgress` reads `kr.project_ids` for Project Based KRs; `krTaskExecution` reads `kr.task_ids`; `objectiveTaskExecution` finds KRs by `objective_id` and aggregates `task_ids`.
+- `src/systems/projects/screens_c.jsx`: Objective card still reads tasks by `task.objective_id`; the KR form exposes `project_ids` only for Project Based KRs. The UI therefore has two competing task-execution paths and does not yet fully implement the v4 derived Task→Project→KR→Objective relationship.
+- `src/systems/projects/store.jsx`: task save validates direct `objective_id`; KR persistence merges and validates task IDs in addition to project IDs.
+- `supabase/migrations/20261031120000_projects_entity_relationship_integrity.sql`: validates `kr.project_ids`, `kr.objective_id`, and `kr.task_ids`; task validation enforces `project_id`, `parent_task_id`, issue links, and discovery links. The trigger is a guard, not proof that all existing data is correct.
+- `plans/Projects_OS_v4_Unified_Master_Plan.md` §4.2 explicitly says Task→Objective/KR is derived via Project→KR→Objective and is not stored. §5.11 defines KRs with `objective_id` and Projects via `kr_projects`. The older `plans/PROJECTS_OS_RELATIONSHIP_TRACEABILITY.md` describes an earlier branch's `KR.task_ids` implementation and is not the controlling contract.
 
+### Confirmed code changes already merged
+- PR #145 removed the duplicate “المهام المرتبطة بالهدف” section and added a regression assertion.
+- The source scan confirms the existing task tree uses `parent_task_id`; no task-group table has been introduced.
 
-### Inventory pass 1 — source-level evidence (2026-11-06)
-
-A targeted scan of the Projects source files on this branch confirms the following concrete read/write paths. This is a source inventory, not a scan of production rows or every repository file:
-
-- `objective_id`: read by Objective/KR calculations in `domain.js` and Objective screens in `screens_c.jsx`; task creation and validation are handled in `screens_c.jsx` / `store.jsx`. The store validates that the referenced Objective exists and is not deleted.
-- `task_ids`: read by KR progress and leaf-task aggregation in `domain.js`; used by Risk/Issue/Win/Update relationships in `entities.jsx` and `screens_c.jsx`; store paths merge or persist task links for risk mitigation, issue remediation, and wins.
-- `parent_task_id`: the existing task tree is already traversed in `domain.js`; the store validates parent existence and performs parent moves. This is sufficient evidence to keep using the existing tree as the task-group container for now; it is not evidence that a new task-group table is needed.
-- `prd_id` / `prd_requirement_id`: validation exists in `domain.js`, `entities.jsx`, and `store.jsx`; requirement-to-task views are derived from task references and outputs.
-- The direct Objective task path and KR task-group path are both live in the current UI/domain. Their coexistence is confirmed; a single canonical source has **not** yet been selected or backfilled.
-- The source scan did not inspect live persisted rows, all non-Projects writers, RLS behavior, or two-account visibility. Those remain mandatory before any migration.
-
-**Safe interim decision:** retain both existing fields unchanged; do not create a task-group table; do not run a migration. The next implementation gate is a complete repository-wide writer/reader inventory plus a read-only inventory of existing values, followed by a no-loss reconciliation proposal.
+### Not yet verified
+- All repository-wide readers/writers outside Projects.
+- Actual persisted values and counts for `task.objective_id`, `kr.task_ids`, `kr.project_ids`, `objective.project_ids`, and all join/backlink fields.
+- Whether the live Supabase database has all relevant migrations applied, and whether its data satisfies the current trigger.
+- Authenticated UI lifecycle, RLS, two-account privacy, and production behavior.
 
 ## 6. Implementation sequence
 
-1. Inventory all writers/readers and persisted values for `objective_id`, `task_ids`, `parent_task_id`, `prd_id`, `prd_requirement_id`, and record backlink arrays.
-2. Decide the single canonical KR-to-task-group representation and produce a no-loss backfill plan. Do not run a production migration before review.
-3. Add domain-level validators and pure tests for same-project scope, invalid/missing references, cycles, duplicate groups, and unique leaf-task aggregation.
-4. Update KR create/edit UX to select existing root task groups and create a task group from the KR flow.
-5. Migrate objective cards to derived relationships and remove the direct objective task path only after all old data and readers are reconciled.
-6. Standardize detail panels and exact-record navigation for PRD, issue, risk, decision, update, win, and discovery.
-7. Add lifecycle tests: create → reload → edit relationship → reload → detach/archive → reload; include permission-denied and cross-workspace cases.
-8. Run authenticated UI acceptance with at least two accounts and verify production only after the deployment contains the tested commit.
+1. Complete repository-wide writer/reader inventory for `objective_id`, `task_ids`, `project_ids`, `parent_task_id`, `prd_id`, `prd_requirement_id`, and related backlinks.
+2. Perform a **read-only** inventory of persisted values/counts by workspace and project. Do not expose private record contents in logs.
+3. Produce a no-loss reconciliation proposal to the v4 model: map legacy task links to Project/KR links only where the relationship is unambiguous; isolate mismatches for explicit review.
+4. Add pure domain tests for v4 progress semantics, task execution derivation, duplicate project/task handling, invalid/missing references, same-workspace/project scope, and legacy-link preservation.
+5. Implement the KR→Project relationship UX and derived Objective task execution; do not store direct task→Objective/KR links.
+6. Update Objective/task detail navigation and the remaining PRD/Issue/Risk/Decision/Update/Win/Discovery relationship panels to open exact records.
+7. Only after review and tests, prepare a migration that preserves legacy fields until backfill verification, updates SQL guards, and has a rollback/no-loss plan.
+8. Run lifecycle acceptance: create → reload → edit relationship → reload → detach/archive → reload; include denied permissions, cross-workspace cases, and at least two accounts.
+9. Verify the tested commit is deployed before calling Projects complete.
 
 ## 7. Acceptance checklist
 
-- [ ] One canonical source of truth for Objective/KR/task-group membership.
-- [ ] Existing links reconciled without loss or duplicate progress.
-- [ ] KR form can add/remove task groups.
-- [ ] Objective and KR progress are distinct and correctly deduplicated.
-- [ ] Every relationship opens the exact record.
-- [ ] Every create/convert action preserves provenance and backlinks.
-- [ ] Cross-project/workspace links are rejected unless explicitly supported.
-- [ ] All relationship changes survive reload and restore.
+- [ ] v4 is implemented: Objective→KR→Project→Task; Task→Objective/KR is derived, not stored.
+- [ ] Legacy `task.objective_id` and `kr.task_ids` are reconciled without data loss.
+- [ ] KR→Project editor and reverse navigation are complete.
+- [ ] Measured KR/Objective progress is separate from task execution.
+- [ ] All links are validated, persisted, visible, and open exact records.
+- [ ] Create/edit/detach/archive/restore survive reload.
+- [ ] SQL guards match the canonical relationship contract.
 - [ ] Permission matrix and two-account isolation pass.
-- [ ] UI acceptance and deployed commit are recorded.
+- [ ] Authenticated UI acceptance and deployed commit are recorded.
