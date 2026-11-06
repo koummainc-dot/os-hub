@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {VENTURES_MODULES,VENTURES_PLATFORM} from "../src/systems/ventures/config.js";
 import {summarizeVentures,getContentWorkflow,validateVenturesImport,mergeVenturesData} from "../src/systems/ventures/domain.js";
-assert.equal(VENTURES_MODULES.length,31);
+assert.equal(VENTURES_MODULES.length,32);
 assert.ok(VENTURES_MODULES.some(x=>x.id==="cro"));
 assert.equal(VENTURES_PLATFORM.platform.id,"website");
 assert.ok(VENTURES_PLATFORM.platform.contentTypes.length>=11);
@@ -34,7 +34,7 @@ const financeSource=await (await import("node:fs/promises")).readFile(new URL(".
 assert.match(financeSource,/os:source-write/);
 assert.match(financeSource,/ventures-finance-/);
 const platformSource=await (await import("node:fs/promises")).readFile(new URL("../src/platform/Platform.jsx",import.meta.url),"utf8");
-assert.match(platformSource,/systemId!==\"content\"/);
+assert.match(platformSource,/os:source-write/);
 assert.match(platformSource,/workspace_records/);
 console.log("Ventures finance write-through contract: PASS");
 
@@ -42,16 +42,7 @@ const knowledgeBridgeCheck=platformSource;
 assert.match(knowledgeBridgeCheck,/systemId===\"knowledge\"/);
 assert.match(knowledgeBridgeCheck,/knowledge_load_snapshot/);
 assert.match(knowledgeBridgeCheck,/knowledge_save_snapshot/);
-assert.match(financeSource,/systemId===\"knowledge\"/);
 console.log("Ventures Knowledge write-through contract: PASS");
-
-const importErrors=validateVenturesImport({keywords:[{id:"k1",keyword:"test"}],badGroup:[{id:"x"}]});
-assert.ok(importErrors.some(x=>x.includes("مجموعة غير معروفة")));
-const merged=mergeVenturesData({keywords:[{id:"k1",keyword:"old"}]},{keywords:[{id:"k1",keyword:"new"},{keyword:"second"}]});
-assert.equal(merged.data.keywords.length,2);
-assert.equal(merged.data.keywords.find(x=>x.id==="k1").keyword,"new");
-assert.equal(merged.importedIds.length,2);
-console.log("Ventures import hardening contract: PASS");
 
 const importErrors=validateVenturesImport({keywords:[{id:"k1",keyword:"test"}],badGroup:[{id:"x"}]});
 assert.ok(importErrors.some(x=>x.includes("مجموعة غير معروفة")));

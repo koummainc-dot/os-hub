@@ -47,3 +47,12 @@ export function parseVenturesProjectBatchCsv(text){
   if(out.length>27)errors.push("دفعة Masterplan الأساسية حدها 27 مشروعًا؛ راجع الملف.");
   return {headers,rows:out,errors:errors.slice(0,100)};
 }
+
+export function parseVenturesEspEmailCsv(text,{mapping={}}={}){
+ const rows=parseDelimitedText(text); if(!rows.length)return {headers:[],rows:[],errors:["لا توجد بيانات."]};
+ const headers=rows[0].map(x=>String(x).trim()); const ix=Object.fromEntries(headers.map((h,i)=>[h,i]));
+ const aliases={campaign_code:["campaign_code","campaign","campaign_id"],project_id:["project_id","project"],sent:["sent","sends"],delivered:["delivered"],opens:["opens","open"],clicks:["clicks","click"],unsubs:["unsubs","unsubscribes","unsubscribe"],bounces_hard:["bounces_hard","hard_bounces","hard_bounce"],bounces_soft:["bounces_soft","soft_bounces","soft_bounce"],spam_complaints:["spam_complaints","spam","complaints"],conversions:["conversions","conversion"],revenue:["revenue","attributed_revenue"],sent_at:["sent_at","date","send_date"]};
+ const resolve=k=>mapping[k]||aliases[k].find(h=>ix[h]!=null)||null; const errors=[],out=[];
+ rows.slice(1).forEach((r,n)=>{const row={}; for(const k of Object.keys(aliases)){const h=resolve(k); if(h) row[k]=k.endsWith("_at")?String(r[ix[h]]??"").trim():normalizeVenturesNumber(r[ix[h]]??"");} if(!row.campaign_code&& !row.project_id){errors.push("الصف "+(n+2)+": campaign_code أو project_id مطلوب.");return;} if(row.sent==null&&row.delivered==null&&row.opens==null&&row.clicks==null){errors.push("الصف "+(n+2)+": لا توجد مقاييس ESP.");return;} row.import_source="esp_csv"; row.import_row_hash=[row.campaign_code||"",row.project_id||"",row.sent_at||"",row.sent||"",row.delivered||"",row.opens||"",row.clicks||""].join("|"); out.push(row);});
+ return {headers,rows:out,errors:errors.slice(0,100),mapping:Object.fromEntries(Object.keys(aliases).map(k=>[k,resolve(k)]))};
+}

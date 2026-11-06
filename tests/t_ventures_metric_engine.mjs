@@ -4,9 +4,9 @@ import {
   decisionMetric, portfolioQuestions, suggestCall, canApplyCall, ventureAlerts
 } from "../src/systems/ventures/domain.js";
 
-const ratio=evalMetric({op:"ratio",inputs:["clicks","delivered"]},{clicks:20,delivered:100});
+const ratio=evalMetric({key:"ctr",kind:"formula",formula:"clicks/delivered*100"},{clicks:20,delivered:100});
 assert.equal(ratio.value,20);
-assert.equal(evalMetric({op:"ratio",inputs:["clicks","delivered"]},{clicks:20,delivered:0}).value,null);
+assert.equal(evalMetric({key:"ctr",kind:"formula",formula:"clicks/delivered*100"},{clicks:20,delivered:0}).value,null);
 
 assert.equal(aggregatePeriod({aggregation:"sum"},[{value_num:2},{value_num:3}],"W"),5);
 assert.equal(aggregatePeriod({aggregation:"last"},[{period_start:"2026-01-01",value_num:2},{period_start:"2026-01-08",value_num:7}],"W"),7);

@@ -14,7 +14,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await clickBtn('جرّب الوضع التجريبي'); await sleep(200);
 
   console.log('— owner');
-  ok(tileTitles().filter(t=>/OS/.test(t)).length===15,'owner sees 15 system tiles (includes personal Health OS)');
+  ok(tileTitles().filter(t=>/OS/.test(t)).length===17,'owner sees 17 system tiles (includes personal Health OS)');
   await openSys('Content OS'); const ownerNav=navItems(); ok(ownerNav.length===11,'owner: ContentOS nav has 11 sections ('+ownerNav.length+')');
 
   console.log('— view as Sara (edit; finance=view; spiritual/relationships none; content hides analytics/team/settings)');

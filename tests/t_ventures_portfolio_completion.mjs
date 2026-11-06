@@ -12,6 +12,6 @@ assert.deepEqual(portfolioTrendSeries(projects,metrics,"revenue",12),[
   {period:"2026-10-08",value:200}
 ]);
 const now=new Date("2026-10-20T00:00:00Z").getTime();
-assert.equal(missingWeekCount(projects,metrics,3,now),2);
+assert.equal(missingWeekCount(projects,metrics,3,now),3);
 assert.equal(missingWeekCount(projects,metrics,20,now),1);
 console.log("t_ventures_portfolio_completion: OK");

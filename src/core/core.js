@@ -1,5 +1,6 @@
 import React,{useState,useEffect,useRef,useContext,useMemo,useCallback} from "react";
 import { supabase } from "./supabase.js";
+import { PLATFORM } from "./platformConstants.js";
 
 const CONTENT_SECTIONS=[{"id": "home", "label": "الرئيسية", "icon": "⌂"}, {"id": "accounts", "label": "الحسابات", "icon": "◎"}, {"id": "calendar", "label": "التقويم", "icon": "▦"}, {"id": "dailyschedule", "label": "جدول النشر اليومي", "icon": "◷"}, {"id": "analytics", "label": "التحليلات", "icon": "◒"}, {"id": "layers", "label": "الطبقات", "icon": "◈"}, {"id": "archive", "label": "الأرشيف", "icon": "▱"}, {"id": "history", "label": "السجل", "icon": "↺"}, {"id": "team", "label": "الفريق", "icon": "♟"}, {"id": "platforms", "label": "المنصات", "icon": "▣"}, {"id": "settings", "label": "الإعدادات", "icon": "⚙"}];
 
@@ -9,7 +10,7 @@ const CONTENT_SECTIONS=[{"id": "home", "label": "الرئيسية", "icon": "⌂
 // Today hub · Demo mode. ContentOS (above) is system #1, mounted in this shell.
 // Every future system is a module with the same contract (see OSSystemHost).
 // ════════════════════════════════════════════════════════════════════════
-const PLATFORM={name:"OS Hub",tagline:"كل أنظمتك في مكان واحد",version:"1.0"};
+
 const OS_LEVEL_RANK={none:0,view:1,edit:2};
 const OS_LEVEL_LABEL={none:"لا وصول",view:"عرض فقط",edit:"عرض وتعديل"};
 const OS_LEVEL_COLOR={none:"#94A3B8",view:"#3B82F6",edit:"#10B981"};

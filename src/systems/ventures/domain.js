@@ -99,6 +99,7 @@ export function thresholdState(def={}, value, thresholds={}) {
   if(t.good!=null && value>=Number(t.good)) return "good";
   if(t.bad!=null && value<=Number(t.bad)) return "bad";
   if(t.warn!=null && value<=Number(t.warn)) return "warn";
+  if(t.good!=null) return "warn";
   return "good";
 }
 
@@ -191,3 +192,47 @@ export function ventureAlerts(memberId, ctx={}) {
 
 export function derivedMetric(defKey, values={}) { return evalMetric(metricDef(defKey), values); }
 export function basicMetricDefs(profile, periodType="W") { return metricDefsForProfile(profile,{basicOnly:true,periodType}); }
+
+export function emailDerivedMetrics(campaign={}){
+  const sent=Number(campaign.sent)||0, delivered=Number(campaign.delivered)||0, opens=Number(campaign.opens)||0, clicks=Number(campaign.clicks)||0;
+  const unsubs=Number(campaign.unsubs)||0, hard=Number(campaign.bounces_hard)||0, soft=Number(campaign.bounces_soft)||0, complaints=Number(campaign.spam_complaints)||0, conversions=Number(campaign.conversions)||0, revenue=Number(campaign.revenue)||0;
+  return {deliveryRate:sent?delivered/sent*100:null,openRate:delivered?opens/delivered*100:null,ctr:delivered?clicks/delivered*100:null,ctor:opens?clicks/opens*100:null,unsubscribeRate:delivered?unsubs/delivered*100:null,bounceRate:sent?(hard+soft)/sent*100:null,spamRate:delivered?complaints/delivered*100:null,conversionRate:clicks?conversions/clicks*100:null,rpr:delivered?revenue/delivered:null};
+}
+export function validateEmailCampaign(campaign={}){
+  const errors=[];
+  ["spam_rate","open_rate","ctr","unsubscribe_rate","bounce_rate"].forEach(k=>{if(campaign[k]!=null&&campaign[k]!==""&&(Number(campaign[k])<0||Number(campaign[k])>100))errors.push(k+" must be between 0 and 100");});
+  if(Number(campaign.delivered||0)>Number(campaign.sent||0))errors.push("delivered cannot exceed sent");
+  if(Number(campaign.opens||0)>Number(campaign.delivered||0))errors.push("opens cannot exceed delivered");
+  if(Number(campaign.clicks||0)>Number(campaign.delivered||0))errors.push("clicks cannot exceed delivered");
+  return errors;
+}
+export function validateEmailABTest(campaign={}) {
+  const errors=[];
+  const enabled=campaign.ab_test===true || campaign.ab_test==="true" || campaign.ab_test==="on";
+  if(!enabled) return errors;
+  if(!String(campaign.variant_a||"").trim()) errors.push("variant_a is required");
+  if(!String(campaign.variant_b||"").trim()) errors.push("variant_b is required");
+  if(campaign.winner_variant!=null && campaign.winner_variant!=="" && !["A","B"].includes(String(campaign.winner_variant))) errors.push("winner_variant must be A or B");
+  if(campaign.winner_variant && !String(campaign.winner_reason||"").trim()) errors.push("winner_reason is required when a winner is selected");
+  return errors;
+}
+export function emailWinnerPatch(campaign={}, winnerVariant="", reason="") {
+  const winner=String(winnerVariant||"").trim();
+  if(!["A","B"].includes(winner)) return {ok:false,error:"winner_variant must be A or B"};
+  if(!String(reason||"").trim()) return {ok:false,error:"winner_reason is required"};
+  return {ok:true,patch:{winner_variant:winner,winner_reason:String(reason).trim(),winner_at:new Date().toISOString(),ab_test:true}};
+}
+export function emailCheckProjectIssue(check={}) {
+  const id=String(check.id||"");
+  if(!id) return {ok:false,error:"check id is required"};
+  const risk=String(check.risk||"").trim();
+  const title=[check.type||"Email check",risk&&`Risk: ${risk}`].filter(Boolean).join(" · ");
+  return {ok:true,recordId:`email-check-${id}`,payload:{id:`email-check-${id}`,title,status:"Open",kind:"Risk",source:"ventures_email",source_record_id:id,project_id:check.project_id||null,risk:risk||"Medium",description:check.note||"",module:"Email",created_at:new Date().toISOString()}};
+}
+export function emailAlerts(campaigns=[],lists=[],checks=[],thresholds={}){
+  const out=[]; const spamMax=thresholds.spam_rate==null?null:Number(thresholds.spam_rate); const bounceMax=thresholds.hard_bounce_rate==null?null:Number(thresholds.hard_bounce_rate);
+  campaigns.forEach(c=>{const m=emailDerivedMetrics(c);if(spamMax!=null&&m.spamRate!=null&&m.spamRate>spamMax)out.push({key:"email_spam_"+c.id,severity:"critical",message:"معدل شكاوى السبام فوق العتبة",campaign_id:c.id});if(bounceMax!=null&&m.bounceRate!=null&&m.bounceRate>bounceMax)out.push({key:"email_bounce_"+c.id,severity:"warning",message:"معدل الارتداد فوق العتبة",campaign_id:c.id});if(c.status==="Scheduled"&&c.scheduled_at&&new Date(c.scheduled_at).getTime()<Date.now())out.push({key:"email_schedule_"+c.id,severity:"warning",message:"حملة مجدولة تجاوزت موعدها دون Sent",campaign_id:c.id});});
+  lists.forEach(l=>{if(l.last_cleaned_at&&thresholds.list_clean_days!=null){const age=(Date.now()-new Date(l.last_cleaned_at).getTime())/86400000;if(age>Number(thresholds.list_clean_days))out.push({key:"email_list_clean_"+l.id,severity:"info",message:"القائمة لم تُنظف منذ العتبة المحددة",list_id:l.id});}});
+  checks.forEach(x=>{if(x.status==="Open"&&x.risk)out.push({key:"email_check_"+x.id,severity:"warning",message:"بند تسليم/امتثال Risk مفتوح",check_id:x.id});});
+  return out;
+}
