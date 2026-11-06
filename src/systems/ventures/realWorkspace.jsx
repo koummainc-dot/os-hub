@@ -106,7 +106,8 @@ function QuarterlyReview({projects,metrics,calls}){
     const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`ventures-quarterly-${report.year}-Q${report.quarter}.csv`;a.click();URL.revokeObjectURL(url);
   };
   return <div style={{marginTop:14,padding:12,border:"1px solid #E5E7EB",borderRadius:10}}><div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center"}}><div><b>المراجعة الربع سنوية · {report.year} Q{report.quarter}</b><div style={{fontSize:10,color:"#64748B",marginTop:3}}>ملخص المحفظة والقرارات المسجلة في الربع الحالي.</div></div><Btn onClick={exportReport}>تصدير التقرير CSV</Btn></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8,marginTop:10}}><div><b>{report.rows.length}</b><div style={{fontSize:9,color:"#64748B"}}>مشاريع</div></div><div><b>{report.rows.filter(x=>x.diagnosis.state==="critical").length}</b><div style={{fontSize:9,color:"#64748B"}}>حرجة</div></div><div><b>{report.rows.filter(x=>x.diagnosis.state==="watch").length}</b><div style={{fontSize:9,color:"#64748B"}}>تحتاج متابعة</div></div><div><b>{report.inQuarter.length}</b><div style={{fontSize:9,color:"#64748B"}}>قرارات هذا الربع</div></div></div></div>
-}\nfunction ProjectView({project,metrics,setPage,workspaceId,onBack,save,data,portfolioCalls=[]}){
+}
+function ProjectView({project,metrics,setPage,workspaceId,onBack,save,data,portfolioCalls=[]}){
   const [decisionOpen,setDecisionOpen]=useState(false);
   const [decisionReason,setDecisionReason]=useState("");
   const [reviewDate,setReviewDate]=useState("");
