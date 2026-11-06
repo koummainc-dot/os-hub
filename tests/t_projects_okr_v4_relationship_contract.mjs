@@ -14,6 +14,8 @@ assert.ok(okrs.includes("taskProjectForm.projectIds"),"Multiple linked projects 
 assert.ok(!okrs.includes("setTaskForm({ objective_id: o.id })"),"Objective task creation no longer writes a direct objective_id");
 assert.ok(!taskForm.includes('key: "objective_id"'),"Task form no longer exposes direct Task→Objective storage");
 assert.ok(taskForm.includes("allowedProjectIds"),"Task form supports restricting the project picker");
+assert.ok(taskForm.includes("...(initial || {}), ...v"),"Task edits preserve legacy fields not exposed in the new form");
+assert.ok(okrs.includes("...(kForm || {}), ...v"),"KR edits preserve legacy relationship fields until explicit reconciliation");
 assert.ok(okrs.includes('label: "المشاريع المرتبطة"'),"All KR types can link supporting Projects");
 assert.ok(okrs.includes("دون تغيير قياسها"),"Numeric KR measurement remains separate from supporting task execution");
 console.log("t_projects_okr_v4_relationship_contract: OK");
