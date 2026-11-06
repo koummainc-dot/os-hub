@@ -731,7 +731,8 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
   useEffect(() => { if (shell && shell.publish) shell.publish("projects", { notifCount: alerts.length, openNotifs: () => setPage("today") }); }, [alerts.length]);
 
   const value = { shell, ws, isDemo, me, role, access, people, nameOf, settings, lookups, today, weekStartStr, recs, data, trash, projectsById, prdsById, idx, metrics, projectProgress, can, projectRole, visFor, A, R, confirm, toast, alerts, runningTimer, view, setView, page, setPage, pending, online, ready, error, store,
-    openProject: (id, tab) => { setView({ projectId: id, tab: tab || "overview", taskId: null }); setPage("projects"); },
+    openProject: (id, tab, focusRecord = null) => { setView((v) => ({ ...v, projectId: id, tab: tab || "overview", taskId: null, focusRecord, ...(focusRecord?.kind === "issue" ? { issueStatusFilter: "all" } : {}) })); setPage("projects"); },
+    openDiscovery: (id) => { setView((v) => ({ ...v, focusRecord: id ? { kind: "discovery", id } : null })); setPage("discovery"); },
     openTask: (id) => setView((v) => ({ ...v, taskId: id })), closeTask: () => setView((v) => ({ ...v, taskId: null })), templates: [...BUILTIN_TEMPLATES, ...data.templates], PRD_TEMPLATE };
   return <Ctx.Provider value={value}>{children}{confirmNode}</Ctx.Provider>;
 }
