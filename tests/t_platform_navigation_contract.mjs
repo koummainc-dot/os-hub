@@ -15,7 +15,7 @@ for(const id of expected){
   assert.match(real,new RegExp('\\["'+id+'","'),"real workspace missing canonical tab "+id);
 }
 assert.match(platform,/const navSections=sys&&acc\.level!=="none"\?osSections\(sys\)/);
-assert.match(platform,/const setSection=\(sysId,v\)=>\{[\s\S]*allowed= osSections/s);
+assert.match(platform,/const setSection=\(sysId,v\)=>\{[\s\S]*allowed=osSections/s);
 assert.match(platform,/localStorage\.getItem\("os_nav_"/);
 assert.match(platform,/localStorage\.setItem\("os_nav_"/);
 assert.match(real,/useEffect\(\(\)=>\{if\(page&&CANONICAL_SCREENS\.some/);
