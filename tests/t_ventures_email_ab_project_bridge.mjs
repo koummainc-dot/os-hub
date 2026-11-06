@@ -30,7 +30,12 @@ const financeSource = readFileSync(new URL("../src/systems/finance/index.jsx", i
 assert.match(financeSource,/purpose: "Regular"/,"Finance purpose must match allowed enum");
 assert.match(financeSource,/pnl_effect: type === "Income" \? "Income" : "Expense"/,"required P&L effect is supplied");
 assert.match(financeSource,/flow_class: "Operating"/,"required flow class is supplied");
-const financeCreateBranch=financeSource.match(/if \(d\.action === "create"\) \{([\\s\\S]*?)\\n        \} else \{/);
+const financeCreateStart=financeSource.indexOf('if (d.action === "create") {');
+const financeUpdateStart=financeSource.indexOf('} else {',financeCreateStart);
+assert.ok(financeCreateStart>=0 && financeUpdateStart>financeCreateStart,"Finance create and update branches remain distinct");
+const financeCreateBranch=financeSource.slice(financeCreateStart,financeUpdateStart);
+assert.doesNotMatch(financeCreateBranch,/txError/,"create branch must not reference update-only error variable");
+assert.match(financeSource,/const \{ error: txError \} = await supabase\.from\("finance_transactions"\)\.update\(/,"update branch captures and checks its own write error");
 assert.ok(financeCreateBranch,"Finance create and update branches remain distinct");
 assert.doesNotMatch(financeCreateBranch[1],/txError/,"create branch must not reference update-only error variable");
 assert.match(financeSource,/const \{ error: txError \} = await supabase\.from\("finance_transactions"\)\.update\(/,"update branch captures and checks its own write error");
