@@ -43,7 +43,7 @@ export function ProjectForm({ initial, onClose }) {
 }
 
 // ── Task form ───────────────────────────────────────────────────────
-export function TaskForm({ initial, projectId, parentId, onClose }) {
+export function TaskForm({ initial, projectId, parentId, allowedProjectIds, onClose }) {
   const { A: act, people, data, idx, projectsById, toast, can } = useP(); const isNew = !initial || !initial.id; const [showAdvanced, setShowAdvanced] = useState(false);
   const base = { project_id: projectId || (initial && initial.project_id) || "", parent_task_id: parentId || null, priority: "Medium", planning_bucket: "Inbox", status: "Not Started", ...initial };
   const isParent = !isNew && !idx.isLeaf(initial.id); const dv = isParent ? idx.derived[initial.id] : null;
@@ -51,7 +51,7 @@ export function TaskForm({ initial, projectId, parentId, onClose }) {
   const descIds = isNew ? [] : [initial.id, ...idx.descendants(initial.id)];
   const fields = [
     { key: "title", label: "عنوان المهمة", required: true, span: 2 },
-    { key: "project_id", label: "المشروع", type: "select", allowEmpty: false, options: projOpts(data.projects), disabled: () => !isNew && !!initial.id, hint: "لنقل المهمة لمشروع آخر استخدم «نقل الشجرة»" },
+    { key: "project_id", label: "المشروع", type: "select", allowEmpty: false, options: projOpts(data.projects.filter((p) => !allowedProjectIds || allowedProjectIds.includes(p.id))), disabled: () => !isNew && !!initial.id, hint: "لنقل المهمة لمشروع آخر استخدم «نقل الشجرة»" },
     { key: "priority", label: "الأولوية", type: "select", options: opts(L.priority), allowEmpty: false },
     { key: "due_date", label: isParent ? "الموعد (مشتق من الأبناء)" : "الموعد النهائي", type: "date", disabled: () => isParent },
     { key: "status", label: isParent ? "الحالة (مشتقة)" : "الحالة", type: "select", allowEmpty: false, options: opts(L.taskStatus), disabled: () => isParent, show: () => !showAdvanced },
@@ -62,7 +62,6 @@ export function TaskForm({ initial, projectId, parentId, onClose }) {
     { key: "estimated_minutes", label: isParent ? "التقدير (مجموع الأبناء)" : "التقدير (دقائق)", type: "number", min: 0, disabled: () => isParent, show: () => showAdvanced },
     { key: "prd_id", label: "المواصفة (PRD)", type: "select", emptyLabel: "— بلا —", options: (v) => data.prds.filter((p) => p.project_id === v.project_id).map((p) => ({ v: p.id, l: p.title })), hint: "يجب أن تتبع نفس المشروع", show: () => showAdvanced },
     { key: "prd_requirement_id", label: "المتطلب المحدد من المواصفة", type: "select", emptyLabel: "— بلا متطلب محدد —", options: (v) => { const prd = data.prds.find((p) => p.id === v.prd_id); return (prd?.requirements || []).filter((r) => r.status !== "Deprecated").map((r) => ({ v: r.id, l: r.title })); }, hint: "اختر المتطلب الذي تنفذه المهمة بعد اختيار المواصفة.", show: () => showAdvanced },
-    { key: "objective_id", label: "الهدف المرتبط", type: "select", emptyLabel: "— بلا هدف —", options: () => data.objectives.filter((o) => o.status !== "Cancelled").map((o) => ({ v: o.id, l: o.name })), hint: "اربط المهمة بالهدف الذي تخدمه؛ تقدم المهام سيظل منفصلًا عن تقدم النتائج الرئيسية.", show: () => showAdvanced },
     { key: "discovery_ids", label: "عناصر الاكتشاف (لماذا وُجدت؟)", type: "multi", options: (v) => data.discovery.filter((d) => !d.project_ids?.length || d.project_ids.includes(v.project_id)).map((d) => ({ v: d.id, l: d.title })), show: () => showAdvanced },
     { key: "blocked", label: "متعطّلة؟", type: "bool", checkLabel: "المهمة متعطّلة (لا يغيّر التقدم)", show: () => showAdvanced },
     { key: "blocked_reason", label: "سبب التعطّل", show: (v) => showAdvanced && !!v.blocked },
