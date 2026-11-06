@@ -122,7 +122,9 @@ Additional aggregate checks:
 
 ### Applied migration inventory
 
-The Supabase migration history includes the Projects atomic batch/trash/purge migrations, but does **not** include the repository migrations `20261030110000_projects_task_issue_traceability.sql`, `20261031110000_projects_prd_requirement_traceability.sql`, `20261031120000_projects_entity_relationship_integrity.sql`, or `20261031130000_projects_prd_verified_evidence_guard.sql`. Do not assume those guards are active in the connected database. Their rollout remains a separate review and migration gate.
+The Supabase migration history includes the Projects atomic batch/trash/purge migrations, but does **not** include `20261030100000_projects_final_output_guard.sql`, `20261030110000_projects_task_issue_traceability.sql`, `20261030120000_projects_task_issue_deferred_validation.sql`, `20261031110000_projects_prd_requirement_traceability.sql`, `20261031120000_projects_entity_relationship_integrity.sql`, or `20261031130000_projects_prd_verified_evidence_guard.sql`. Do not assume those guards are active in the connected database. Their rollout remains a separate review and migration gate.
+
+**Important incompatibility found:** `20261031120000_projects_entity_relationship_integrity.sql` explicitly describes KR task groups and validates `kr.task_ids` plus `objective.project_ids`. That conflicts with the v4 rule that Task→Objective/KR is derived through Project→KR→Objective and not stored. This migration must **not** be applied unchanged. Rewrite its KR/objective branch and its tests to enforce the v4 Project↔KR relationship and derived task path first. The other guard migrations also remain unapplied; review their ordering and dependencies as a single rollout before applying any of them.
 
 ## 6. Implementation sequence
 
