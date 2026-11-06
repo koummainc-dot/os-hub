@@ -173,11 +173,25 @@ function PeopleTab({ p, canE }) {
   </div>;
 }
 function ProjectOkr({ p }) {
-  const { data, projectProgress, setPage } = useP();
+  const { data, projectProgress, setPage, setView, view } = useP();
   const objectives = D.objectivesForProject(p.id, data.objectives, data.krs);
   const krs = data.krs.filter((k) => (k.project_ids || []).includes(p.id));
+  const openOkrRecord = (kind, id) => {
+    setView({ ...view, okrFocus: { kind, id } });
+    setPage("okrs");
+  };
+  const linkStyle = { border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit", textAlign: "start" };
   if (!krs.length && !objectives.length) return <Empty icon="🎯" title="غير مرتبط بأي هدف أو نتيجة رئيسية" sub="اربط المشروع بهدف أو نتيجة رئيسية من شاشة الأهداف (OKR)." action={<Btn onClick={() => setPage("okrs")}>الأهداف</Btn>} />;
-  return <div style={S.card}>{objectives.map((o) => <div key={o.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13 }}>🎯 <b>{o.name}</b><div style={{ fontSize: 11, color: C.muted }}>{fmtShort(o.period_start)} → {fmtShort(o.period_end)}</div></div>)}{krs.map((k) => { const ob = data.objectives.find((o) => o.id === k.objective_id); return <div key={k.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13 }}>🎯 {ob && ob.name} ← <b>{k.name}</b><div style={{ marginTop: 4 }}><Progress value={D.krProgressValue(k, projectProgress)} /></div></div>; })}</div>;
+  return <div style={S.card}>
+    {objectives.map((o) => <div key={o.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13 }}>
+      🎯 <b><button type="button" style={linkStyle} onClick={() => openOkrRecord("objective", o.id)}>{o.name} ↗</button></b>
+      <div style={{ fontSize: 11, color: C.muted }}>{fmtShort(o.period_start)} → {fmtShort(o.period_end)}</div>
+    </div>)}
+    {krs.map((k) => { const ob = data.objectives.find((o) => o.id === k.objective_id); return <div key={k.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13 }}>
+      🎯 {ob && <span>{ob.name} ← </span>}<b><button type="button" style={linkStyle} onClick={() => openOkrRecord("kr", k.id)}>{k.name} ↗</button></b>
+      <div style={{ marginTop: 4 }}><Progress value={D.krProgressValue(k, projectProgress)} /></div>
+    </div>; })}
+  </div>;
 }
 function RelatedTab({ p, canE }) {
   const { A: act, toast, ws, data, can, me, today, setPage } = useP();
