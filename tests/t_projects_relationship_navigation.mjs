@@ -31,4 +31,7 @@ assert.ok(parts.includes('linkedDecisions.length ? linkedDecisions.map((decision
   "task decision backlinks must be actionable");
 assert.ok(parts.includes('linkedWins.length ? linkedWins.map((win) => <button') && parts.includes('setPage("wins")'),
   "task achievement backlinks must be actionable");
+
+assert.equal((screens.match(/المهام المرتبطة بالهدف/g) || []).length, 1,
+  "objective card must render one task relationship section, not duplicate the same list");
 console.log("✓ Projects relationship navigation contracts passed");
