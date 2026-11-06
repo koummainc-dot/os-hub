@@ -22,7 +22,7 @@ function RisksPage() {
 const SCREENS = { dashboard: Dashboard, today: Today, week: Week, projects: Projects, tasks: Tasks, issues: IssuesView, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: RisksPage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings, masterplanImport: MasterplanWizard };
 
 function Router() {
-  const ctx = useP(); const { page, ready, error, store, access, role, shell, ws } = ctx; const lvl = osSectionLevel(access, page);
+  const ctx = useP(); const { page, ready, error, store, access, role, shell, ws, A, data } = ctx; const lvl = osSectionLevel(access, page);
   const [crossSystemActivity, setCrossSystemActivity] = useState([]);
   useEffect(() => {
     const handler = async (event) => {
