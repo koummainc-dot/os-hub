@@ -28,8 +28,8 @@ const recordFocusStyle = (view, kind, id) => view?.focusRecord?.kind === kind &&
 export function OutputsView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, me, confirm, lookups, idx, openTask, openProject, setPage, view } = useP();
   const [form, setForm] = useState(null); const [type, setType] = useState(""); const [ap, setAp] = useState(""); const [q, setQ] = useState("");
-  useRecordFocus(view, "output", projectId, list.length);
   const list = data.outputs.filter((o) => (!projectId || o.project_id === projectId) && (!type || o.type === type) && (!ap || o.approval === ap) && (!q || o.name.toLowerCase().includes(q.toLowerCase())));
+  useRecordFocus(view, "output", projectId, list.length);
   const canNew = projectId ? can("output.write", projectsById[projectId]) : data.projects.some((p) => can("output.write", p));
   const submit = async (v) => {
     const project = projectsById[v.project_id]; const prev = v.id ? data.outputs.find((o) => o.id === v.id) : null; const rec = { ...v, id: v.id || uid() };
