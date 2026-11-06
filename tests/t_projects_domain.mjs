@@ -76,6 +76,19 @@ t("T-58 coverage index + traceability policy", () => { const idx = D.buildTaskIn
 t("T-59 project template copies tree with explicit project_id and shifts dates", () => { let n = 0; const id = () => "id" + ++n; const tpl = { id: "tpl", task_tree: [{ title: "A", offset_days: 5, children: [{ title: "A1", offset_days: 7, estimate_minutes: 60 }] }, { title: "B", offset_days: 20 }], risks: [{ title: "r", probability: 3, impact: 4 }] }; const r = D.instantiateProjectTemplate(tpl, { name: "N", start_date: "2026-11-01" }, id); assert.equal(r.tasks.length, 3); assert.ok(r.tasks.every((x) => x.project_id === r.project.id)); assert.equal(r.tasks[0].due_date, "2026-11-06"); assert.equal(r.tasks[1].parent_task_id, r.tasks[0].id); assert.equal(r.tasks[1].due_date, "2026-11-08"); assert.equal(r.risks[0].project_id, r.project.id); });
 
 console.log("OKR, pace, contacts, feeds, alerts");
+t("T-65a Project detail derives Objectives through linked KRs (v4)", () => {
+  const objectives = [{ id: "o1" }, { id: "o2", archived_at: "2026-01-01" }, { id: "o3", deleted_at: "2026-01-01" }];
+  const krs = [
+    { id: "k1", objective_id: "o1", type: "Project Based", project_ids: ["p1"] },
+    { id: "k2", objective_id: "o1", type: "Numeric", project_ids: ["p2"] },
+    { id: "k3", objective_id: "o2", project_ids: ["p1"] },
+    { id: "k4", objective_id: "o3", project_ids: ["p1"] },
+    { id: "k5", objective_id: "missing-objective", project_ids: ["p1"] },
+  ];
+  assert.deepEqual(D.objectivesForProject("p1", objectives, krs).map((o) => o.id), ["o1"]);
+  assert.deepEqual(D.objectivesForProject("p2", objectives, krs).map((o) => o.id), ["o1"]);
+  assert.deepEqual(D.objectivesForProject("p3", objectives, krs), []);
+});
 t("T-61 numeric KR up and down", () => { assert.equal(D.krProgressValue({ type: "Numeric", initial_value: 0, target_value: 100, current_value: 50 }, {}), 0.5); assert.equal(D.krProgressValue({ type: "Numeric", initial_value: 100, target_value: 50, current_value: 75 }, {}), 0.5); });
 t("T-62 target=initial rejected", () => { assert.ok(D.validateKR({ type: "Numeric", initial_value: 5, target_value: 5 }).length); });
 t("T-63 value beyond target: raw 130%, clamped 100%", () => { const r = D.krProgress({ type: "Numeric", initial_value: 0, target_value: 100, current_value: 130 }, {}); assert.equal(r.raw, 1.3); assert.equal(r.clamped, 1); });
