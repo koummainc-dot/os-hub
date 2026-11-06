@@ -78,24 +78,18 @@ Every flow must explicitly cover:
 
 ### Confirmed navigation gaps
 
-- Issue → originating Risk currently opens the project Risks list, not the exact Risk.
-- Issue → originating Discovery currently opens the Discovery list, not the exact Discovery.
-- Issue → related Decision opens the project Decisions list, not the exact Decision.
-- Decision → related Issue/Risk opens a project collection, not the exact record.
-- Decision → related Discovery opens the Discovery list, not the exact record.
-- PRD → related Decision is rendered as plain text.
-- PRD → related Risk and Output open the project collection, not the exact record.
-- Project Detail → Objective/KR names are not yet exact-record navigation targets.
-- Project Detail → References now has an implementation in PR #166 to expose linked Knowledge meetings; verify on a deployed build and confirm exact project filtering.
+- **Resolved by PR #161:** Issue → originating Risk, Issue → originating Discovery, Issue → related Decision, Risk → converted Issue, Decision → related Issue/Risk/Discovery, PRD → related Decision/Risk/Output, Discovery → converted records, and Task backlinks now navigate to exact rows and highlight them.
+- Project Detail → Objective/KR names are not yet exact-record navigation targets; retain as a remaining relationship-navigation gap until tested.
+- **PR #166 merged:** Project Detail → Collaboration → References reads Knowledge OS meetings filtered to the exact project; verify on a deployed build and confirm action-item task persistence after reload.
 
 ### Wireframe requirements
 
 Before visual polish:
-1. Define a consistent record detail surface (drawer/modal/page) for Risk, Issue, Decision, PRD, Discovery, and Output.
-2. Make every relationship chip/link open that exact record, with a visible breadcrumb to its Project.
+1. **PR #167 merged:** a reusable read-only detail modal now exists for Risk, Issue, Decision, PRD, Discovery, and Output; verify all six on a deployed build, including keyboard and narrow-screen behavior.
+2. Keep every relationship chip/link opening the exact record, with a visible breadcrumb to its Project; remaining Objective/KR links still need exact targets.
 3. Relationship pickers must show title + Project + status and must filter invalid/cross-project targets.
-4. Use grouped Project Detail navigation above; preserve a clear global “all projects” view.
-5. On mobile, replace the 12-tab strip with grouped navigation or a compact selector; do not rely on horizontal scrolling as the only way to reach core actions.
+4. Grouped Project Detail navigation is implemented in PR #163; preserve a clear global “all projects” view.
+5. Verify grouped navigation and detail modals on mobile; do not rely on horizontal scrolling as the only way to reach core actions.
 
 ---
 
