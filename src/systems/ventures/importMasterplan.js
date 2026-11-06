@@ -182,10 +182,11 @@ export function masterplanToVenture(raw={},opts={}){
         records.push({collection:targetCollection,id:targetId,data:dataOut,deleted:false,visible_to:visibility,source});
       }
     }
+    const phaseVisibility=profile.visibility==="private"?profile.visible_to:null;
     const phases=Array.isArray(raw.phaseDefs)?raw.phaseDefs:[];
     phases.filter(p=>clean(p.siteId||p.site_id)===siteId||!p.siteId).forEach((phase,idx)=>{
       const pid=sourceId(siteId,"phaseDefs",clean(phase.id)||String(idx));
-      records.push({collection:"tasks",id:pid,data:{id:pid,project_id:projectId,title:clean(phase.name||phase.title||`مرحلة ${idx+1}`),is_phase:true,status:null,estimate:null,due_date:null,source:makeSource(siteId,"phaseDefs",phase.id||String(idx),importId),visible_to:visibility},deleted:false,visible_to:visibility,source:makeSource(siteId,"phaseDefs",phase.id||String(idx),importId)});
+      records.push({collection:"tasks",id:pid,data:{id:pid,project_id:projectId,title:clean(phase.name||phase.title||`مرحلة ${idx+1}`),is_phase:true,status:null,estimate:null,due_date:null,source:makeSource(siteId,"phaseDefs",phase.id||String(idx),importId),visible_to:phaseVisibility},deleted:false,visible_to:phaseVisibility,source:makeSource(siteId,"phaseDefs",phase.id||String(idx),importId)});
     });
   }
   return {ok:true,validation,importId,projects,records,report,summary:{
