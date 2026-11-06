@@ -6,8 +6,7 @@ DECLARE
   f record;
 BEGIN
   FOR f IN
-    SELECT p.oid,
-           n.nspname AS schema_name,
+    SELECT n.nspname AS schema_name,
            p.proname,
            pg_get_function_identity_arguments(p.oid) AS args
     FROM pg_proc p
@@ -25,6 +24,3 @@ BEGIN
   END LOOP;
 END
 $$;
-
--- Keep the internal namespace contract explicit for future audits.
-COMMENT ON SCHEMA public IS 'Finance internal helpers prefixed fin__ are not client-callable; use fin_* RPCs with workspace authorization.';
