@@ -36,3 +36,10 @@ const financeAcks = [...financeSource.matchAll(/os:source-write-result/g)];
 assert.ok(financeAcks.length >= 3, "all Finance outcomes dispatch a result");
 const ackSlices = financeAcks.map((m) => financeSource.slice(m.index, m.index + 500));
 for (const ack of ackSlices) assert.match(ack,/source: "ventures"/,"Finance result must be accepted by Ventures listener");
+
+const projectStore = readFileSync(new URL("../src/systems/projects/store.jsx", import.meta.url), "utf8");
+assert.match(projects,/await A\.saveRisk\(risk\)/,"Projects event handler uses the public risk save action");
+assert.doesNotMatch(projects,/A\.put\("risks"/,"Projects event handler must not call a nonexistent generic action");
+assert.match(projectStore,/async saveRisk\(v\)/,"Projects exposes a real risk persistence action");
+assert.match(projectStore,/D\.validateRisk\(v\)/,"risk score validation runs before persistence");
+assert.match(projectStore,/putIn\("risks", risk, project\)/,"risk persistence inherits project visibility");

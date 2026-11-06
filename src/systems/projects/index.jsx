@@ -39,7 +39,7 @@ function Router() {
           const existing = (ctx.data.risks || []).find((item) => item.id === d.recordId);
           if (existing && (existing.project_id !== project.id || existing.source_record_id !== payload.source_record_id)) throw new Error("معرّف الربط مستخدم لسجل مختلف.");
           const risk = { ...existing, ...payload, id: d.recordId, project_id: project.id, probability: Number(payload.probability) || 3, impact: Number(payload.impact) || 3, status: existing?.status || "Open", source_system: "ventures", source_record_id: payload.source_record_id };
-          await A.put("risks", risk, project);
+          await A.saveRisk(risk);
         } else if (d.action === "create_issue" && d.recordId) {
           const payload = d.payload || {};
           const project = ctx.projectsById?.[payload.project_id];

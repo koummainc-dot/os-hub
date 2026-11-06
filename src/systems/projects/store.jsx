@@ -441,6 +441,20 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       act("discovery", discovery.id, "converted_to_issue", issue.title);
       return issue;
     },
+    // Save a risk while inheriting the linked project's visibility and validating its scoring.
+    async saveRisk(v) {
+      const project = projectsById[v.project_id];
+      if (!project || project.is_system || project.archived_at) throw new Error("اختر مشروعًا صالحًا ونشطًا للخطر.");
+      const previous = v.id ? (data.risks || []).find((item) => item.id === v.id) : null;
+      if (v.id && (!previous || previous.project_id !== v.project_id)) throw new Error("الخطر غير موجود في المشروع المحدد.");
+      const errors = D.validateRisk(v);
+      if (errors.length) throw new Error(errors[0]);
+      const risk = { ...v, id: v.id || uid() };
+      const saved = await putIn("risks", risk, project);
+      if (!saved) throw new Error("لم يؤكد مخزن البيانات حفظ الخطر.");
+      act("risks", risk.id, previous ? "updated" : "created", risk.title);
+      return risk;
+    },
     // Save an issue and synchronize its task backlinks in one server transaction.
     async saveIssue(v) {
       const project = projectsById[v.project_id];
