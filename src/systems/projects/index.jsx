@@ -54,11 +54,11 @@ function Router() {
           await A.saveProject({ ...current, ...(d.payload || {}), id: current.id }, false);
         }
         window.dispatchEvent(new CustomEvent("os:source-write-result", {
-          detail: { systemId: "projects", action: d.action, recordId: d.recordId || null, ok: true, source: "projects" }
+          detail: { systemId: "projects", action: d.action, recordId: d.recordId || null, ok: true, source: "ventures" }
         }));
       } catch (error) {
         window.dispatchEvent(new CustomEvent("os:source-write-result", {
-          detail: { systemId: "projects", action: d.action, recordId: d.recordId || null, ok: false, error: error?.message || String(error), source: "projects" }
+          detail: { systemId: "projects", action: d.action, recordId: d.recordId || null, ok: false, error: error?.message || String(error), source: "ventures" }
         }));
       }
     };
