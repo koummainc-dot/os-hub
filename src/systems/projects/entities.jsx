@@ -360,7 +360,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
 
 // ═════ Discovery (PIO) ═════
 export function DiscoveryView() {
-  const { data, A: act, can, projectsById, people, toast, me, today, settings, confirm, openProject, idx, nameOf } = useP();
+  const { data, A: act, can, projectsById, people, toast, me, today, settings, confirm, openProject, idx, nameOf, view } = useP();
   const [form, setForm] = useState(null); const [mode, setMode] = useState("board"); const [q, setQ] = useState(""); const [type, setType] = useState(""); const [conv, setConv] = useState(null); const convertingDiscoveryIds = useRef(new Set());
   const runDiscoveryConversionOnce = async (id, work) => { if (convertingDiscoveryIds.current.has(id)) { toast("التحويل جارٍ بالفعل؛ انتظر اكتماله قبل إعادة المحاولة."); return null; } convertingDiscoveryIds.current.add(id); try { return await work(); } finally { convertingDiscoveryIds.current.delete(id); } };
   const list = data.discovery.filter((d) => (!type || d.type === type) && (!q || d.title.toLowerCase().includes(q.toLowerCase())));
