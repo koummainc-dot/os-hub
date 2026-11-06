@@ -1,8 +1,8 @@
 # Ventures OS — Original Data Coverage Audit
 
 Date: 2026-11-06
-Branch: feat-ventures-14-screens-real
-PR: #134
+Branch: main (follow-up status)
+PRs: #134, #135, #136
 
 ## Audit rule
 
@@ -83,10 +83,10 @@ The important architectural rule remains: Ventures analyzes and coordinates sour
 | A/B winner + reason | ✅ |
 | Email Check → Projects Risk/Issue bridge | ✅ |
 | Email → Finance revenue write-through | 🟡 |
-| Full lifecycle Create → Reload → Edit → Delete/Restore | 🟡 |
-| Real ESP same-CSV-twice no-duplicate acceptance | 🟡 |
+| Full lifecycle Create → Reload → Edit → Delete/Restore | 🟡 | UI actions are implemented for all four collections. Supabase JSONB persistence smoke test passed for create/read/edit/read/soft-delete/restore/read across all four collections; temporary QA row was cleaned up. Authenticated browser acceptance is still open. |
+| Real ESP same-CSV-twice no-duplicate acceptance | 🟡 | Import merge now preserves soft-deleted rows and updates its hash index during a file pass to prevent repeated hashes in one file; actual same-file-twice acceptance is still open. |
 
-The last four items are acceptance/integration proof gaps, not missing domain concepts.
+The lifecycle UI and JSONB persistence mechanism have now been implemented and smoke-tested. PR #135 added edit/soft-delete/restore controls; PR #136 fixed campaign metadata preservation and ESP import merge behavior. Both are merged to main, and the latest main commit is deployed to Vercel Production (READY). The remaining Email items are authenticated end-to-end acceptance/integration proof gaps, not missing domain concepts.
 
 ## CRO / experiments
 
@@ -151,10 +151,10 @@ The current canonical 14-screen workspace is a presentation/navigation layer ove
 ## Remaining work before declaring “field-for-field identical”
 
 1. Run a literal field-by-field diff against the original masterplan/source dataset, not a conceptual comparison.
-2. For every 🟡 item, execute authenticated persistence acceptance:
-   **Create → Reload → Edit → Reload → Soft Delete → Verify hidden → Restore → Reload**.
-3. Verify Finance revenue written from Email is visible from the Finance source system after reload.
-4. Run the same ESP CSV twice and assert zero duplicate records.
+2. Complete authenticated browser acceptance for Email:
+   **Create → Reload → Edit → Reload → Soft Delete → Verify hidden → Restore → Reload** across campaigns, lists, flows, and checks. The database-layer JSONB smoke test is complete; this is not a substitute for the authenticated UI test.
+3. Verify Finance revenue written from Email is visible from the Finance source system after reload and does not duplicate when a campaign is edited.
+4. Run the same ESP CSV twice through the real UI and assert zero duplicate records after reload.
 5. Verify A/B winner and winner_reason persist after reload.
 6. Verify Email Check → Projects Risk/Issue persists and remains linked to the originating Email Check.
 7. Verify Portfolio Decision → Projects write-through persists and remains traceable.
