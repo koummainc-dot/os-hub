@@ -206,7 +206,8 @@ export default function VenturesRealWorkspace({api,access,page,setPage,ws}){
   const activeAlerts=alerts.filter(a=>a.status==="active" || (a.status==="snoozed" && a.snooze_until && new Date(a.snooze_until).getTime()<=Date.now()));
   const missingWeeks=missingWeekCount(projects,metrics,3);
   const trend=portfolioTrendSeries(projects,metrics,"revenue",12);
-  const go=v=>{setView(v);setPage(v)};\n  useEffect(()=>{if(page&&CANONICAL_SCREENS.some(([id])=>id===page))setView(page)},[page]);
+  const go=v=>{setView(v);setPage(v)};
+  useEffect(()=>{if(page&&CANONICAL_SCREENS.some(([id])=>id===page))setView(page)},[page]);
   if(loading)return <div dir="rtl" style={{padding:40,textAlign:"center"}}>جاري تجهيز محفظة المشاريع…</div>;
   if(selected)return <ProjectView project={selected} metrics={metrics} setPage={setPage} workspaceId={ws?.id} onBack={()=>setSelected(null)} save={saveWithData} data={data} portfolioCalls={portfolioCalls}/>;
   return <div dir="rtl">
