@@ -42,16 +42,23 @@ const {makeEnv,sleep,appJs}=require('./harness');
   if(projectRow){projectRow.querySelector('td')?.click();await sleep(250);}
   ok(txt().includes('الحوكمة')&&txt().includes('تطبيق إدارة الوقت'),'opening the project row enters Project Detail');
   ok(await click('الحوكمة',null,100),'Project Detail exposes the Governance group');
-  ok(await click('القرارات',null,100),'Governance exposes the Decisions subtab');
+  const decisionTab=all('button').find(b=>['القرارات','⚖️ القرارات'].includes(b.textContent.trim()));
+  ok(!!decisionTab,'Governance exposes the exact Decisions subtab');
+  if(decisionTab){decisionTab.click();await sleep(120);}
+  ok(txt().includes('اعتماد Supabase كقاعدة بيانات'),'project-scoped Decisions list is visible');
   const decisionOpened=await click('عرض التفاصيل',null,150);
   const decisionDialog=doc.querySelector('[role="dialog"]');
   ok(decisionOpened&&!!decisionDialog&&decisionDialog.textContent.includes('تفاصيل القرار'),'Project Governance → Decision opens a read-only detail modal');
   await closeDetail();
-  await click('المشاكل',null,100);
+  const issueTab=all('button').find(b=>b.textContent.trim()==='المشاكل');
+  ok(!!issueTab,'Governance exposes the exact Issues subtab');
+  if(issueTab){issueTab.click();await sleep(120);}
+  ok(txt().includes('توقف التطبيق عند فتح التقارير على Android'),'project-scoped Issues list is visible');
   const issueOpened=await click('عرض التفاصيل',null,150);
   const issueDialog=doc.querySelector('[role="dialog"]');
   ok(issueOpened&&!!issueDialog&&issueDialog.textContent.includes('تفاصيل المشكلة'),'Project Governance → Issue opens a read-only detail modal');
   await closeDetail();
+  await click('← المشاريع',null,100);
   ok(errors.length===0,'no console errors while opening detail modals ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
 
   console.log('— template editor validation');
