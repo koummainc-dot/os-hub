@@ -82,6 +82,7 @@ function ProjectCard({p,metrics,onOpen}){
   const score=scoreProject(p,metrics);
   const state=score<50?"critical":score<70?"watch":"active";
   const meta=statusMeta[state];
+  const diagnosis=diagnoseProject(p,metrics);
   return <button onClick={onOpen} style={{...S.card,padding:16,textAlign:"right",cursor:"pointer",border:"1px solid #E5E7EB",background:"#fff"}}>
     <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"start"}}>
       <div><div style={{fontSize:10,color:"#0F766E",fontWeight:800}}>{p.code||p.unit_code||"VENTURE"}</div><div style={{fontSize:17,fontWeight:850,marginTop:4}}>{p.name||p.project_id}</div><div style={{fontSize:11,color:"#64748B",marginTop:4}}>{p.kind||p.subtype||"مشروع تجاري"}</div></div>
