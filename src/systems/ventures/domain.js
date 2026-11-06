@@ -205,6 +205,29 @@ export function validateEmailCampaign(campaign={}){
   if(Number(campaign.clicks||0)>Number(campaign.delivered||0))errors.push("clicks cannot exceed delivered");
   return errors;
 }
+export function validateEmailABTest(campaign={}) {
+  const errors=[];
+  const enabled=campaign.ab_test===true || campaign.ab_test==="true" || campaign.ab_test==="on";
+  if(!enabled) return errors;
+  if(!String(campaign.variant_a||"").trim()) errors.push("variant_a is required");
+  if(!String(campaign.variant_b||"").trim()) errors.push("variant_b is required");
+  if(campaign.winner_variant!=null && campaign.winner_variant!=="" && !["A","B"].includes(String(campaign.winner_variant))) errors.push("winner_variant must be A or B");
+  if(campaign.winner_variant && !String(campaign.winner_reason||"").trim()) errors.push("winner_reason is required when a winner is selected");
+  return errors;
+}
+export function emailWinnerPatch(campaign={}, winnerVariant="", reason="") {
+  const winner=String(winnerVariant||"").trim();
+  if(!["A","B"].includes(winner)) return {ok:false,error:"winner_variant must be A or B"};
+  if(!String(reason||"").trim()) return {ok:false,error:"winner_reason is required"};
+  return {ok:true,patch:{winner_variant:winner,winner_reason:String(reason).trim(),winner_at:new Date().toISOString(),ab_test:true}};
+}
+export function emailCheckProjectIssue(check={}) {
+  const id=String(check.id||"");
+  if(!id) return {ok:false,error:"check id is required"};
+  const risk=String(check.risk||"").trim();
+  const title=[check.type||"Email check",risk&&`Risk: ${risk}`].filter(Boolean).join(" · ");
+  return {ok:true,recordId:`email-check-${id}`,payload:{id:`email-check-${id}`,title,status:"Open",kind:"Risk",source:"ventures_email",source_record_id:id,project_id:check.project_id||null,risk:risk||"Medium",description:check.note||"",module:"Email",created_at:new Date().toISOString()}};
+}
 export function emailAlerts(campaigns=[],lists=[],checks=[],thresholds={}){
   const out=[]; const spamMax=thresholds.spam_rate==null?null:Number(thresholds.spam_rate); const bounceMax=thresholds.hard_bounce_rate==null?null:Number(thresholds.hard_bounce_rate);
   campaigns.forEach(c=>{const m=emailDerivedMetrics(c);if(spamMax!=null&&m.spamRate!=null&&m.spamRate>spamMax)out.push({key:"email_spam_"+c.id,severity:"critical",message:"معدل شكاوى السبام فوق العتبة",campaign_id:c.id});if(bounceMax!=null&&m.bounceRate!=null&&m.bounceRate>bounceMax)out.push({key:"email_bounce_"+c.id,severity:"warning",message:"معدل الارتداد فوق العتبة",campaign_id:c.id});if(c.status==="Scheduled"&&c.scheduled_at&&new Date(c.scheduled_at).getTime()<Date.now())out.push({key:"email_schedule_"+c.id,severity:"warning",message:"حملة مجدولة تجاوزت موعدها دون Sent",campaign_id:c.id});});
