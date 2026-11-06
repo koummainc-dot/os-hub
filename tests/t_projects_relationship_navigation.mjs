@@ -95,6 +95,17 @@ assert.ok(projectIndex.includes('issues: IssuesView') &&
   risksPage.includes('id: "risks"') && risksPage.includes('id: "decisions"') &&
   !risksPage.includes('id: "issues"') && !risksPage.includes('<IssuesView'),
   "global Issues must have one dedicated destination; the Risks page must not duplicate its tab");
+const projectOkr = projectScreens.slice(projectScreens.indexOf("function ProjectOkr"), projectScreens.indexOf("function RelatedTab"));
+const okrScreens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
+assert.ok(projectOkr.includes('openOkrRecord("objective", o.id)') && projectOkr.includes('openOkrRecord("kr", k.id)') &&
+  projectOkr.includes('setView({ ...view, okrFocus: { kind, id } })') && projectOkr.includes('setPage("okrs")'),
+  "Project Detail OKR links must navigate with the exact Objective or KR ID");
+assert.ok(okrScreens.includes('const target = view?.okrFocus') &&
+  okrScreens.includes('document.getElementById(okrFocusDomId(target.kind, target.id))') &&
+  okrScreens.includes('element.scrollIntoView') &&
+  okrScreens.includes('setFilter("all")'),
+  "OKRs destination must reveal, scroll to, and highlight the exact target even when its status is outside the default filter");
+
 assert.ok(projectScreens.includes("activeGroup.tabs.length > 1") &&
   projectScreens.includes("setTab(group.defaultTab)"),
   "group navigation must reveal relevant subtabs and select a safe default destination");
