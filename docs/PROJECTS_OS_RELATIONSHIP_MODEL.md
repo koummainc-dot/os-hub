@@ -115,7 +115,7 @@ Additional aggregate checks:
 - Task `objective_id`: 0 non-empty values in the queried Projects collections.
 - KR `task_ids`: no KR records exist, so there are no persisted KR task-group links to backfill in this snapshot.
 - Task `prd_id` / `prd_requirement_id`: 0 non-empty values.
-- Task tree integrity: 0 self-parent links, 0 missing/inactive parents, and 0 cross-project parent links.
+- Task tree integrity: 20 parent links and 9 roots; 0 self-parent links, 0 missing/inactive parents, 0 cross-project parent links, and 0 tasks participating in parent cycles. All 29 tasks point to an active Project.
 - `workspace_data` has no `projects/main` row; the observed records are in `workspace_records`.
 
 **Interpretation:** The connected database snapshot contains no current task→Objective or KR→task links to reconcile. It also contains no KRs, so the canonical Objective→KR→Project chain cannot yet be exercised with live records. This is a scoped snapshot of the connected project/workspace, not proof about demo/localStorage data, other environments, backups, or future records.
