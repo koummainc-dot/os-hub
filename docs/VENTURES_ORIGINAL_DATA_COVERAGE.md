@@ -81,7 +81,7 @@ The important architectural rule remains: Ventures analyzes and coordinates sour
 | Duplicate protection via import row hash | ✅ |
 | Derived delivery/open/CTR/CTOR/unsubscribe/bounce/spam/conversion/revenue metrics | ✅ |
 | A/B winner + reason | ✅ |
-| Email Check → Projects Risk/Issue bridge | 🟡 | PR #138 routes checks through a dedicated Projects Risk action, validates project/permission, stores source linkage, and returns source-write results. Authenticated persistence/reload acceptance remains open. |
+| Email Check → Projects Risk/Issue bridge | 🟡 | PR #138 routes checks through a dedicated Projects Risk action and PR #143 adds the real validated `A.saveRisk` persistence method (the prior generic `A.put` call did not exist); the saved record inherits project visibility and source linkage. Authenticated persistence/reload acceptance remains open. Authenticated persistence/reload acceptance remains open. |
 | Email → Finance revenue write-through | 🟡 | Schema mismatch and undefined error-variable defects fixed in PRs #139 and #140; database transaction smoke test passed with rollback. Authenticated Finance UI visibility/reload remains unverified. |
 | Full lifecycle Create → Reload → Edit → Delete/Restore | 🟡 | UI actions are implemented for all four collections. Supabase JSONB persistence smoke test passed for create/read/edit/read/soft-delete/restore/read across all four collections; temporary QA row was cleaned up. Authenticated browser acceptance is still open. |
 | Real ESP same-CSV-twice no-duplicate acceptance | 🟡 | Import merge now preserves soft-deleted rows and updates its hash index during a file pass to prevent repeated hashes in one file; actual same-file-twice acceptance is still open. |
