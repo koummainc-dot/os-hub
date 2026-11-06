@@ -55,6 +55,7 @@ function Platform(){
   const [demo,setDemo]=useState(null);
   const [route,setRoute]=useState({view:"today",system:null});
   const [sectionBy,setSectionBy]=useState({});
+  const [navRestored,setNavRestored]=useState(false);
   const [bridge,setBridge]=useState({});
   const [narrow,setNarrow]=useState(typeof window!=="undefined"&&window.innerWidth<860);
   const [navOpen,setNavOpen]=useState(false);
@@ -164,6 +165,34 @@ function Platform(){
     }catch(e){console.error("Platform bootstrap failed:",e);setBoot({state:"error",error:e,setup:osIsSchemaMissing(e)});}
   }
   bootRef.current=bootstrap;
+  // ── persistent navigation state ──
+  // Keep the active OS/section across reloads so an opened tab remains active.
+  useEffect(()=>{
+    if(!wsId||boot.state!=="ready"||navRestored)return;
+    setNavRestored(true);
+    try{
+      const raw=localStorage.getItem("os_nav_"+wsId);
+      if(!raw)return;
+      const saved=JSON.parse(raw);
+      if(saved?.route?.view==="system"&&saved.route.system){
+        const savedSys=osSystemById(saved.route.system);
+        if(!savedSys||osAccess(ws,savedSys.id).level==="none")return;
+        const allowed=osSections(savedSys).map(x=>x.id);
+        const section=allowed.includes(saved.section)?saved.section:(allowed[0]||"");
+        setRoute({view:"system",system:savedSys.id});
+        if(section)setSectionBy(p=>({...p,[savedSys.id]:section}));
+      }else if(["today","team","invites","account"].includes(saved?.route?.view)){
+        setRoute({view:saved.route.view,system:null});
+      }
+    }catch{}
+  },[wsId,boot.state,navRestored,ws]);
+  useEffect(()=>{
+    if(!wsId||boot.state!=="ready"||!navRestored)return;
+    try{
+      const section=route.view==="system"&&route.system?sectionBy[route.system]||"":null;
+      localStorage.setItem("os_nav_"+wsId,JSON.stringify({route,section,updated_at:new Date().toISOString()}));
+    }catch{}
+  },[wsId,boot.state,navRestored,route,sectionBy]);
   const uid=auth.user&&auth.user.id;
   useEffect(()=>{if(auth.status==="in"&&auth.user&&!recovery){bootRef.current(auth.user);} else if(auth.status==="out"){setBoot({state:"idle",error:null,setup:false});setData({workspaces:[],profile:null,incoming:[]});setWsId(null);}},[uid,auth.status,recovery]);
   useEffect(()=>{if(wsId&&!isDemo){try{localStorage.setItem("os_current_ws",wsId);}catch(e){}}},[wsId,isDemo]);
@@ -284,7 +313,14 @@ function Platform(){
   const br=sys?(bridge[sys.id]||{}):{};
   const defSection=(s)=>{const l=osSections(s);return l[0]?l[0].id:"";};
   const currentSection=sys?(sectionBy[sys.id]||defSection(sys)):"";
-  const setSection=(sysId,v)=>setSectionBy(p=>({...p,[sysId]:typeof v==="function"?v(p[sysId]||defSection(osSystemById(sysId))):v}));
+  const setSection=(sysId,v)=>{
+    const sysDef=osSystemById(sysId);
+    const allowed=osSections(sysDef).map(x=>x.id);
+    const next=typeof v==="function"?v(sectionBy[sysId]||defSection(sysDef)):v;
+    if(allowed.length&&!allowed.includes(next))return;
+    setSectionBy(p=>({...p,[sysId]:next}));
+    setRoute(r=>r.view==="system"&&r.system===sysId?r:{view:"system",system:sysId});
+  };
   const navSections=sys&&acc.level!=="none"?osSections(sys).filter(s=>osSectionLevel(acc,s.id)!=="none"&&(!br.visible||br.visible.indexOf(s.id)>-1)):[];
   const viewMember=isDemo&&demo.viewAs!=="owner"?demo.members.find(x=>x.userId===demo.viewAs):null;
   const hostMe=viewMember?{id:viewMember.userId,email:viewMember.email,name:viewMember.name}:me;
