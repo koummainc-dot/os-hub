@@ -94,6 +94,36 @@ Keep all current fields and records unchanged. Do not add a task-group table. Do
 - Whether the live Supabase database has all relevant migrations applied, and whether its data satisfies the current trigger.
 - Authenticated UI lifecycle, RLS, two-account privacy, and production behavior.
 
+
+### Read-only Supabase data inventory (2026-11-06)
+
+Queried the connected `os-hub` Supabase project's `workspace_records` using aggregate counts only; no record payloads or personal contents were read or changed.
+
+| Collection | Rows | Notes |
+|---|---:|---|
+| Projects | 6 | all active |
+| Objectives | 1 | active; no `project_ids` values |
+| KRs | 0 | no persisted KR rows in this workspace |
+| Tasks | 29 | all active; all have a Project |
+| Parent links | 20 | all resolve to an active task in the same Project |
+| Risks | 2 | active |
+| Reviews | 2 | active |
+| Activity | 9 | active |
+
+Additional aggregate checks:
+- Total Projects-system records: 49 in one workspace; 49 active, 0 soft-deleted.
+- Task `objective_id`: 0 non-empty values in the queried Projects collections.
+- KR `task_ids`: no KR records exist, so there are no persisted KR task-group links to backfill in this snapshot.
+- Task `prd_id` / `prd_requirement_id`: 0 non-empty values.
+- Task tree integrity: 0 self-parent links, 0 missing/inactive parents, and 0 cross-project parent links.
+- `workspace_data` has no `projects/main` row; the observed records are in `workspace_records`.
+
+**Interpretation:** The connected database snapshot contains no current task→Objective or KR→task links to reconcile. It also contains no KRs, so the canonical Objective→KR→Project chain cannot yet be exercised with live records. This is a scoped snapshot of the connected project/workspace, not proof about demo/localStorage data, other environments, backups, or future records.
+
+### Applied migration inventory
+
+The Supabase migration history includes the Projects atomic batch/trash/purge migrations, but does **not** include the repository migrations `20261030110000_projects_task_issue_traceability.sql`, `20261031110000_projects_prd_requirement_traceability.sql`, `20261031120000_projects_entity_relationship_integrity.sql`, or `20261031130000_projects_prd_verified_evidence_guard.sql`. Do not assume those guards are active in the connected database. Their rollout remains a separate review and migration gate.
+
 ## 6. Implementation sequence
 
 1. Complete repository-wide writer/reader inventory for `objective_id`, `task_ids`, `project_ids`, `parent_task_id`, `prd_id`, `prd_requirement_id`, and related backlinks.
