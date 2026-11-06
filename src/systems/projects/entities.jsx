@@ -296,7 +296,7 @@ export function DecisionsView({ projectId }) {
 // ═════ PRDs ═════
 export function PrdsView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, me, PRD_TEMPLATE, idx, confirm, nameOf, view } = useP();
-  const [sel, setSel] = useState(null); const [form, setForm] = useState(null);
+  const [sel, setSel] = useState(null); const [form, setForm] = useState(null); const [detail, setDetail] = useState(null);
   const list = data.prds.filter((p) => !projectId || p.project_id === projectId);
   useEffect(() => { if (view.focusRecord?.kind === "prd") { const target = data.prds.find((p) => p.id === view.focusRecord.id); if (target && (!projectId || target.project_id === projectId)) setSel(target.id); } }, [view.focusRecord, data.prds, projectId]);
   const canNew = projectId ? can("prd.write", projectsById[projectId]) : data.projects.some((p) => can("prd.write", p) && !p.is_system);
@@ -312,8 +312,21 @@ export function PrdsView({ projectId }) {
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}><span style={{ fontSize: 13.5, fontWeight: 700, flex: 1 }}>📝 {p.title}</span><Chip color={p.status === "Approved" ? C.ok : p.status === "Ready for Review" ? C.warn : p.status === "Superseded" ? C.muted : C.info}>{L.prdStatus[p.status]}</Chip></div>
             <div style={{ fontSize: 11, color: C.muted, margin: "3px 0" }}>v{p.version || 1}{!projectId && <> · <ProjectName id={p.project_id} /></>}</div>
             <div style={{ fontSize: 12, color: C.dim, minHeight: 30 }}>{p.tldr || "—"}</div>
-            <div style={{ marginTop: 6 }}><Progress value={tasks.length ? done / tasks.length : null} /></div>
+            <div style={{ marginTop: 6 }}><Progress value={tasks.length ? done / tasks.length : null} /><div style={{ marginTop: 7 }}><Btn small onClick={(e) => { e.stopPropagation(); setDetail(p); }}>عرض التفاصيل</Btn></div></div>
           </div>; })}</div>)}
+      {detail && <RecordDetailModal title={"تفاصيل المواصفة: " + detail.title} onClose={() => setDetail(null)} fields={[
+        { label: "المشروع", value: projectsById[detail.project_id]?.name }, { label: "الحالة", value: L.prdStatus[detail.status] || detail.status },
+        { label: "الإصدار", value: detail.version || 1 }, { label: "المسؤول", value: people.find((x) => x.id === detail.lead_id)?.name },
+        { label: "TL;DR", value: detail.tldr }, { label: "موعد الإطلاق المستهدف", value: detail.target_ship_date },
+        { label: "أقسام المواصفة", value: (detail.sections || []).map((section) => section.title + ": " + (section.content || "—")).join("\\n\\n") },
+        { label: "المتطلبات", value: (detail.requirements || []).map((req) => req.title + " [" + (req.status || "Active") + "]\\nمعايير القبول: " + (req.acceptance_criteria || "—")).join("\\n\\n") },
+        { label: "المهام المرتبطة", value: idx.list.filter((task) => task.prd_id === detail.id).map((task) => task.title).join("، ") },
+        { label: "المخرجات المرتبطة", value: data.outputs.filter((output) => output.prd_id === detail.id).map((output) => output.name).join("، ") },
+        { label: "المخاطر المرتبطة", value: data.risks.filter((risk) => risk.prd_id === detail.id).map((risk) => risk.title).join("، ") },
+        { label: "القرارات المرتبطة", value: data.decisions.filter((decision) => decision.prd_id === detail.id || (decision.affected_prd_ids || []).includes(detail.id)).map((decision) => decision.title).join("، ") },
+        { label: "المراجعون", value: (detail.reviewer_ids || []).map((id) => people.find((person) => person.id === id)?.name).filter(Boolean).join("، ") },
+        { label: "الموافقات", value: (detail.approvals || []).map((approval) => (people.find((person) => person.id === approval.reviewer_id)?.name || "مراجع") + ": " + (approval.decision === "approve" ? "موافقة" : "رفض") + (approval.comment ? " — " + approval.comment : "")).join("\\n") }
+      ]} />}
       {form && <FormModal title="مواصفة جديدة" initial={{ status: "Not Started", ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { const rec = { ...v, id: uid(), version: 1, sections: PRD_TEMPLATE.map((s) => ({ key: s.key, title: s.title, group: s.group, content: "" })), approvals: [], reviewer_ids: [], lead_id: v.lead_id || me }; const saved = await act.put("prds", rec, projectsById[v.project_id]); setForm(null); if (saved) setSel(saved.id); }} fields={[
         { key: "title", label: "عنوان المواصفة", required: true }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) }, { key: "lead_id", label: "المسؤول", type: "select", options: mOpts(people) }]} />}
       {openPrd && <PrdEditor prd={openPrd} onClose={() => setSel(null)} onOpen={(id) => setSel(id)} />}
@@ -415,7 +428,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
 // ═════ Discovery (PIO) ═════
 export function DiscoveryView() {
   const { data, A: act, can, projectsById, people, toast, me, today, settings, confirm, openProject, idx, nameOf, view } = useP();
-  const [form, setForm] = useState(null); const [mode, setMode] = useState("board"); const [q, setQ] = useState(""); const [type, setType] = useState(""); const [conv, setConv] = useState(null); const convertingDiscoveryIds = useRef(new Set());
+  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [mode, setMode] = useState("board"); const [q, setQ] = useState(""); const [type, setType] = useState(""); const [conv, setConv] = useState(null); const convertingDiscoveryIds = useRef(new Set());
   const runDiscoveryConversionOnce = async (id, work) => { if (convertingDiscoveryIds.current.has(id)) { toast("التحويل جارٍ بالفعل؛ انتظر اكتماله قبل إعادة المحاولة."); return null; } convertingDiscoveryIds.current.add(id); try { return await work(); } finally { convertingDiscoveryIds.current.delete(id); } };
   const list = data.discovery.filter((d) => (!type || d.type === type) && (!q || d.title.toLowerCase().includes(q.toLowerCase())));
   const canWriteDiscovery = can("discovery.write");
@@ -485,7 +498,7 @@ export function DiscoveryView() {
     <div id={recordDomId("discovery", d.id)} style={{ ...S.card, padding: "9px 11px", ...recordFocusStyle(view, "discovery", d.id) }} onClick={() => setForm(d)}>
       <div style={{ fontSize: 12.5, fontWeight: 700 }}>{typeIcon[d.type]} {d.title}</div>
       <div style={{ fontSize: 11, color: C.dim, margin: "3px 0" }}>{d.proposed_solution ? "💬 " + d.proposed_solution.slice(0, 60) : d.description ? d.description.slice(0, 60) : ""}</div>
-      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>{d.impact_level && <Chip color={SEV_COLOR[d.impact_level]}>{L.severity[d.impact_level]}</Chip>}{stale(d) && <Chip color={C.warn}>⏳ يحتاج فرزاً</Chip>}{d.owner_id && <Who id={d.owner_id} size={15} />}{(d.resolution_links || []).length > 0 && <Chip color={C.ok}>↪ {(d.resolution_links || []).length}</Chip>}{data.decisions.filter((decision) => (decision.related_discovery_ids || []).includes(d.id)).map((decision) => <Chip key={decision.id} color={C.violet}>⚖ {decision.title}</Chip>)}</div>
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}><Btn small onClick={(e) => { e.stopPropagation(); setDetail(d); }}>عرض التفاصيل</Btn>{d.impact_level && <Chip color={SEV_COLOR[d.impact_level]}>{L.severity[d.impact_level]}</Chip>}{stale(d) && <Chip color={C.warn}>⏳ يحتاج فرزاً</Chip>}{d.owner_id && <Who id={d.owner_id} size={15} />}{(d.resolution_links || []).length > 0 && <Chip color={C.ok}>↪ {(d.resolution_links || []).length}</Chip>}{data.decisions.filter((decision) => (decision.related_discovery_ids || []).includes(d.id)).map((decision) => <Chip key={decision.id} color={C.violet}>⚖ {decision.title}</Chip>)}</div>
       {(d.resolution_links || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>{(d.resolution_links || []).map((link) => { const task = link.kind === "task" ? idx.byId[link.id] : null; const issue = link.kind === "issue" ? data.issues.find((x) => x.id === link.id) : null; const prd = link.kind === "prd" ? data.prds.find((x) => x.id === link.id) : null; const project = link.kind === "project" ? projectsById[link.id] : null; const label = task?.title || issue?.title || prd?.title || project?.name || "عنصر مرتبط"; return <button key={link.kind + ":" + link.id} type="button" onClick={(e) => { e.stopPropagation(); if (task) openTask(task.id); else if (issue) openProject(issue.project_id, "issues", { kind: "issue", id: issue.id }); else if (prd) openProject(prd.project_id, "prds", { kind: "prd", id: prd.id }); else if (project) openProject(project.id); }} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", fontSize: 11 }}>↗ {label}</button>; })}</div>}
     </div>);
   return (
@@ -494,6 +507,22 @@ export function DiscoveryView() {
       <SearchBar value={q} onChange={setQ} placeholder="بحث…"><select style={{ ...S.sel, width: 130 }} value={type} onChange={(e) => setType(e.target.value)}><option value="">كل الأنواع</option>{opts(L.discoveryType).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></SearchBar>
       {mode === "board" ? <Board columns={statuses.map((s) => ({ id: s, label: L.discoveryStatus[s], color: s === "Dropped" ? "#EF4444" : s === "Completed" ? "#10B981" : s === "Working On" ? "#3B82F6" : "#94A3B8", items: list.filter((d) => d.status === s) }))} onMove={canWriteDiscovery ? move : undefined} renderCard={card} />
         : !list.length ? <Empty icon="💡" title="لا عناصر" /> : <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((d) => <div key={d.id} id={recordDomId("discovery", d.id)} onClick={() => setForm(d)} style={{ ...recordFocusStyle(view, "discovery", d.id), display: "flex", gap: 8, padding: "8px 0", borderBottom: `1px solid ${C.line}`, cursor: "pointer", alignItems: "center", fontSize: 13 }}><span>{typeIcon[d.type]}</span><span style={{ flex: 1 }}>{d.title}</span><Chip color={C.info}>{L.discoveryStatus[d.status]}</Chip></div>)}</div>}
+      {detail && <RecordDetailModal title={"تفاصيل الاكتشاف: " + detail.title} onClose={() => setDetail(null)} fields={[
+        { label: "النوع", value: L.discoveryType[detail.type] || detail.type }, { label: "الحالة", value: L.discoveryStatus[detail.status] || detail.status },
+        { label: "مستوى الأثر", value: L.severity[detail.impact_level] || detail.impact_level },
+        { label: "المسؤول", value: people.find((x) => x.id === detail.owner_id)?.name }, { label: "تاريخ التسجيل", value: detail.logged_at },
+        { label: "المشاريع المرتبطة", value: (detail.project_ids || []).map((id) => projectsById[id]?.name).filter(Boolean).join("، ") },
+        { label: "الوصف", value: detail.description }, { label: "الأدلة", value: detail.insights },
+        { label: "الحل المقترح", value: detail.proposed_solution }, { label: "سبب الإسقاط", value: detail.dropped_reason },
+        { label: "ملاحظة الحل", value: detail.resolution_note },
+        { label: "العناصر الناتجة", value: (detail.resolution_links || []).map((link) => {
+          if (link.kind === "task") return idx.byId[link.id]?.title;
+          if (link.kind === "issue") return data.issues.find((item) => item.id === link.id)?.title;
+          if (link.kind === "prd") return data.prds.find((item) => item.id === link.id)?.title;
+          if (link.kind === "project") return projectsById[link.id]?.name;
+          return null;
+        }).filter(Boolean).join("، ") }
+      ]} />}
       {form && canWriteDiscovery && <FormModal title={form.id ? "عنصر اكتشاف" : "عنصر جديد"} wide initial={form} onClose={() => setForm(null)}
         footerExtra={form.id && canWriteDiscovery ? <><Btn onClick={() => { setConv(form); setForm(null); }}>↪ تحويل…</Btn><Btn danger onClick={async () => { await act.del("discovery", form.id, form.title); setForm(null); }}>🗑</Btn></> : null}
         validate={(v) => { const m = D.validateDiscoveryStatus(v, v.status, (v.resolution_links || []).length > 0); return m; }}
