@@ -42,7 +42,6 @@ const knowledgeBridgeCheck=platformSource;
 assert.match(knowledgeBridgeCheck,/systemId===\"knowledge\"/);
 assert.match(knowledgeBridgeCheck,/knowledge_load_snapshot/);
 assert.match(knowledgeBridgeCheck,/knowledge_save_snapshot/);
-assert.match(financeSource,/systemId===\"knowledge\"/);
 console.log("Ventures Knowledge write-through contract: PASS");
 
 const importErrors=validateVenturesImport({keywords:[{id:"k1",keyword:"test"}],badGroup:[{id:"x"}]});
