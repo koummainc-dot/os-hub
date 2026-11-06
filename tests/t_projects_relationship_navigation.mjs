@@ -56,6 +56,10 @@ assert.ok(entities.includes('id={recordDomId("output", o.id)}') && entities.incl
   entities.includes('id={recordDomId("issue", i.id)}') && entities.includes('id={recordDomId("decision", d.id)}'),
   "linked record rows must expose stable DOM targets for navigation");
 
+const decisionsView = entities.slice(entities.indexOf("export function DecisionsView"), entities.indexOf("// ═════ PRDs"));
+assert.ok(decisionsView.indexOf("const list = data.decisions") < decisionsView.indexOf('useRecordFocus(view, "decision", projectId, list.length)'),
+  "DecisionsView must derive its record list before passing its length to the focus hook");
+
 
 assert.ok(projectScreens.includes('const tabGroups = [') &&
   projectScreens.includes('{ id: "plan", label: "التخطيط"') &&

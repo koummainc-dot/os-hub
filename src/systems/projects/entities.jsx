@@ -204,8 +204,8 @@ export function IssuesView({ projectId }) {
 export function DecisionsView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, openDiscovery, view } = useP();
   const [form, setForm] = useState(null); const [creating, setCreating] = useState({});
-  useRecordFocus(view, "decision", projectId, list.length);
   const list = data.decisions.filter((d) => !projectId || d.project_id === projectId).sort((a, b) => (b.decided_at || "").localeCompare(a.decided_at || ""));
+  useRecordFocus(view, "decision", projectId, list.length);
   const canNew = projectId ? can("decision.write", projectsById[projectId]) : data.projects.some((p) => can("decision.write", p));
   return (
     <div>
