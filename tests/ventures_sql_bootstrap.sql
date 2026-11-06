@@ -1,8 +1,14 @@
 create schema if not exists auth;
-do $ begin
-  if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon nologin; end if;
-  if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated noinherit; end if;
-end $;
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'anon') then
+    create role anon nologin;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    create role authenticated noinherit;
+  end if;
+end
+$$;
 create table if not exists auth.users (
   id uuid primary key,
   email text,
