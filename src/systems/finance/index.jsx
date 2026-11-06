@@ -198,7 +198,9 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
           const txPayload = {
             name: p.name || (type === "Income" ? "دخل من Ventures" : "مصروف Ventures"),
             type,
-            purpose: "Ventures",
+            purpose: "Regular",
+            pnl_effect: type === "Income" ? "Income" : "Expense",
+            flow_class: "Operating",
             status: "Posted",
             amount: String(amount),
             currency: p.currency || account.currency || baseCurrency,
@@ -217,7 +219,6 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
             ? await supabase.from("finance_transactions").update(txPayload).eq("workspace_id", ws.id).eq("id", existingTx.id)
             : await supabase.from("finance_transactions").insert({ ...txPayload, workspace_id: ws.id, client_generated_id: stableId });
           if (write.error) throw write.error;
-          if (txError) throw txError;
         } else {
           const clientGeneratedId = "ventures-finance-" + String(d.recordId || p.finance_transaction_id || "");
           if (!d.recordId && !p.finance_transaction_id) throw new Error("تحديث حركة Ventures يحتاج معرف السجل.");

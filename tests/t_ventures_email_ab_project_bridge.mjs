@@ -26,3 +26,9 @@ assert.match(finance,/\.update\(txPayload\)/,"repeat revenue write updates exist
 assert.match(finance,/source_system: "ventures"/,"finance source metadata");
 assert.match(finance,/source_type: "email_campaign"/,"email campaign source type");
 assert.doesNotMatch(finance,/idempotency_key: "ventures-finance-/,"do not send nonexistent idempotency_key column");
+
+const financeSource = readFileSync(new URL("../src/systems/finance/index.jsx", import.meta.url), "utf8");
+assert.match(financeSource,/purpose: "Regular"/,"Finance purpose must match allowed enum");
+assert.match(financeSource,/pnl_effect: type === "Income" \? "Income" : "Expense"/,"required P&L effect is supplied");
+assert.match(financeSource,/flow_class: "Operating"/,"required flow class is supplied");
+assert.doesNotMatch(financeSource,/if \(txError\) throw txError/,"do not reference an undefined create-branch error variable");
