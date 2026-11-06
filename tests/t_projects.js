@@ -22,6 +22,29 @@ const {makeEnv,sleep,appJs}=require('./harness');
   }
   ok(errors.length===0,'no console errors while walking sections ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
 
+  console.log('— read-only detail modal UI flows');
+  const closeDetail=async()=>{const close=doc.querySelector('[role="dialog"] button[aria-label="إغلاق"]');if(close)close.click();await sleep(100);};
+  const detailFlow=async(section,openLabel,expected,title)=>{
+    await goSection(section);
+    const opened=await click(openLabel,null,150);
+    const dialog=doc.querySelector('[role="dialog"]');
+    ok(opened&&!!dialog&&dialog.textContent.includes(expected),title+' opens a read-only detail modal');
+    await closeDetail();
+    ok(!doc.querySelector('[role="dialog"]'),title+' detail modal closes cleanly');
+  };
+  await detailFlow('المخرجات','عرض التفاصيل','تفاصيل المخرج','Output');
+  await detailFlow('المخاطر والمشاكل والقرارات','عرض التفاصيل','تفاصيل الخطر','Risk');
+  await goSection('المخاطر والمشاكل والقرارات'); await click('القرارات',null,100);
+  await detailFlow('المخاطر والمشاكل والقرارات','عرض التفاصيل','تفاصيل القرار','Decision');
+  await detailFlow('المواصفات','عرض التفاصيل','تفاصيل المواصفة','PRD');
+  await detailFlow('الاكتشاف','عرض التفاصيل','تفاصيل الاكتشاف','Discovery');
+  await goSection('الرئيسية'); await click('مشاكل حرجة',null,200);
+  const issueOpened=await click('عرض التفاصيل',null,150);
+  const issueDialog=doc.querySelector('[role="dialog"]');
+  ok(issueOpened&&!!issueDialog&&issueDialog.textContent.includes('تفاصيل المشكلة'),'Issue opens its dedicated read-only detail modal');
+  await closeDetail();
+  ok(errors.length===0,'no console errors while opening detail modals ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
+
   console.log('— template editor validation');
   await goSection('القوالب'); ok(await click('＋ إنشاء قالب مخصص'),'custom template editor opens');
   let tdlg=doc.querySelector('[role=dialog]');
