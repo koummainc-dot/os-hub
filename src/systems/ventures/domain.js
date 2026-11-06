@@ -99,6 +99,7 @@ export function thresholdState(def={}, value, thresholds={}) {
   if(t.good!=null && value>=Number(t.good)) return "good";
   if(t.bad!=null && value<=Number(t.bad)) return "bad";
   if(t.warn!=null && value<=Number(t.warn)) return "warn";
+  if(t.good!=null) return "warn";
   return "good";
 }
 
