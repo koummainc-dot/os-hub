@@ -16,7 +16,7 @@ assert.ok(entities.includes('data.outputs.filter((o) => o.prd_id === d.id && D.i
   "archived or deleted outputs must not count as verification evidence");
 assert.ok(entities.includes('const linkedRisks = data.risks.filter((risk) => risk.prd_id === d.id && D.isActiveRec(risk))') &&
   entities.includes('{ id: "risks", label: "المخاطر", count: linkedRisks.length }') &&
-  entities.includes('onClick={() => openProject(risk.project_id, "risks")}'),
+  entities.includes('onClick={() => openProject(risk.project_id, "risks", { kind: "risk", id: risk.id })}'),
   "PRD must show active linked risks and provide navigation to them");
 assert.ok(entities.includes('data.decisions.filter((decision) => D.isActiveRec(decision) && (decision.prd_id === d.id'),
   "archived or deleted decisions must not appear as active PRD relationships");
