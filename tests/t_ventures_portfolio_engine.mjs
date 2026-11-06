@@ -9,7 +9,7 @@ const defs=[
 ];
 const scorecard=scorecardFor(profile,defs);
 assert.equal(scorecard.length,3);
-assert.equal(scorecard.every(x=>x.required),true);
+assert.equal(scorecard.filter(x=>x.required).length,1);
 
 const good=suggestCall(profile,{values:{net_profit:1200},thresholds:{net_profit:{good:1000,warn:500,bad:0}}});
 assert.equal(good.decision,"Scale");
