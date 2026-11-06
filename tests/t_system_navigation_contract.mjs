@@ -47,3 +47,10 @@ assert.match(core, /id:"skincare"[\s\S]*?status:"live"/, "Skincare OS must be ac
 
 assert.match(core, /id:"spiritual"[\s\S]*?status:"live"/, "Spiritual & Values OS must be activated in the registry");
 console.log("System internal navigation contract passed.");
+
+const platform = fs.readFileSync("src/platform/Platform.jsx", "utf8");
+assert.match(platform, /aria-label="التنقل بين الأنظمة"/, "Sidebar must expose OS switching directly");
+assert.match(platform, /OS_GROUPS\.map\(g=>\{[\s\S]*?visibleSystems\.filter\(s=>s\.group===g\.id\)/, "Sidebar must list accessible systems by group");
+assert.match(platform, /aria-current=\{sys\?\.id===s\.id\?"page":undefined\}/, "Current OS must be identifiable in the sidebar");
+assert.match(platform, /setRoute\(\{view:"system",system:s\.id\}\);setPop\(null\);setNavOpen\(false\)/, "Selecting a sidebar OS must switch systems and close mobile navigation");
+console.log("Platform sidebar OS switching contract passed.");
