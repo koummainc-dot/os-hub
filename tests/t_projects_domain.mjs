@@ -81,6 +81,43 @@ t("T-62 target=initial rejected", () => { assert.ok(D.validateKR({ type: "Numeri
 t("T-63 value beyond target: raw 130%, clamped 100%", () => { const r = D.krProgress({ type: "Numeric", initial_value: 0, target_value: 100, current_value: 130 }, {}); assert.equal(r.raw, 1.3); assert.equal(r.clamped, 1); });
 t("T-64 project-based KR averages measurable projects", () => { assert.equal(D.krProgressValue({ type: "Project Based", project_ids: ["a", "b", "c"] }, { a: 1, b: 0.5, c: null }), 0.75); assert.equal(D.krProgressValue({ type: "Project Based", project_ids: ["c"] }, { c: null }), null); });
 t("T-65 objective = mean of measurable KRs; none => null", () => { const krs = [{ id: "1", objective_id: "o", type: "Numeric", initial_value: 0, target_value: 10, current_value: 10 }, { id: "2", objective_id: "o", type: "Numeric", initial_value: 0, target_value: 10, current_value: 0 }, { id: "3", objective_id: "o", type: "Project Based", project_ids: [] }]; assert.equal(D.objectiveProgress({ id: "o" }, krs, {}), 0.5); assert.equal(D.objectiveProgress({ id: "z" }, krs, {}), null); });
+const okrTasks = [
+  task("p1-root", { project_id: "p1" }),
+  task("p1-done", { project_id: "p1", parent_task_id: "p1-root", status: "Completed" }),
+  task("p1-open", { project_id: "p1", parent_task_id: "p1-root" }),
+  task("p2-root", { project_id: "p2" }),
+  task("p2-done", { project_id: "p2", parent_task_id: "p2-root", status: "Completed" }),
+  task("p3-root", { project_id: "p3", objective_id: "o1" }),
+  task("p3-leaf", { project_id: "p3", parent_task_id: "p3-root" }),
+];
+const okrIdx = D.buildTaskIndex(okrTasks);
+t("T-65a KR task execution derives from linked Projects, not legacy task_ids", () => {
+  const r = D.krTaskExecution({ project_ids: ["p1", "p2"], task_ids: ["p3-root"] }, okrIdx);
+  assert.deepEqual(r.projectIds, ["p1", "p2"]);
+  assert.equal(r.tasks.length, 5);
+  assert.equal(r.leafTotal, 3);
+  assert.equal(r.leafDone, 2);
+  assert.equal(r.progress, 2 / 3);
+});
+t("T-65b Objective task execution derives from KR Projects and deduplicates overlapping Projects", () => {
+  const krs = [
+    { id: "kr1", objective_id: "o1", type: "Project Based", project_ids: ["p1", "p2"], task_ids: ["p3-root"] },
+    { id: "kr2", objective_id: "o1", type: "Project Based", project_ids: ["p2"] },
+  ];
+  const r = D.objectiveTaskExecution({ id: "o1" }, krs, okrIdx);
+  assert.deepEqual(r.projectIds, ["p1", "p2"]);
+  assert.equal(r.tasks.length, 7);
+  assert.equal(r.leafTotal, 4);
+  assert.equal(r.leafDone, 2);
+  assert.equal(r.progress, 0.5);
+  assert.equal(r.legacyTaskCount, 2);
+});
+t("T-65c legacy KR task groups remain visible only as compatibility fallback", () => {
+  const r = D.krTaskExecution({ task_ids: ["p3-root"] }, okrIdx);
+  assert.deepEqual(r.roots, ["p3-root"]);
+  assert.equal(r.tasks.length, 2);
+  assert.equal(r.leafTotal, 1);
+});
 t("T-67 pace thresholds", () => { const s = D.DEFAULT_SETTINGS; assert.equal(D.pace(0.5, "2026-10-01", "2026-12-01", "Active", "2026-11-01", s), "OnTrack"); assert.equal(D.pace(0.35, "2026-10-01", "2026-12-01", "Active", "2026-11-01", s), "AtRisk"); assert.equal(D.pace(0.05, "2026-10-01", "2026-12-01", "Active", "2026-11-01", s), "Behind"); assert.equal(D.pace(null, "2026-10-01", "2026-12-01", "Active", "2026-11-01", s), "NotMeasurable"); assert.equal(D.pace(0, "2026-12-01", "2027-01-01", "Active", "2026-11-01", s), "NotStarted"); assert.equal(D.pace(1, "2026-10-01", "2026-12-01", "Achieved", "2026-11-01", s), "Achieved"); });
 t("T-68 quarter label", () => { assert.equal(D.quarterOf("2026-07-01"), "Q3 2026"); assert.equal(D.quarterOf("2026-12-31"), "Q4 2026"); });
 t("T-73 contact status thresholds incl. last meeting", () => { assert.equal(D.contactStatus({}, TODAY).status, "NoContact"); assert.equal(D.contactStatus({ last_contact_at: "2026-08-01" }, TODAY).status, "Needs"); assert.equal(D.contactStatus({ last_contact_at: "2026-09-10" }, TODAY).status, "Soon"); assert.equal(D.contactStatus({ last_contact_at: "2026-10-20" }, TODAY).status, "InTouch"); assert.equal(D.contactStatus({ last_contact_at: "2026-06-01", last_meeting_at: "2026-10-20" }, TODAY).status, "InTouch"); });
