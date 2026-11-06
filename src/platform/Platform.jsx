@@ -355,7 +355,7 @@ function Platform(){
   );
 
   const nav=(
-    <aside style={{width:narrow?280:220,maxWidth:"85vw",background:"#FFFFFF",borderInlineEnd:"1px solid rgba(0,0,0,0.06)",display:"flex",flexDirection:"column",flexShrink:0,position:narrow?"fixed":"sticky",top:topOffset,insetInlineStart:narrow?0:undefined,height:`calc(100vh - ${topOffset}px)`,overflowY:"auto",zIndex:narrow?4500:1,boxShadow:narrow?"0 0 40px rgba(0,0,0,0.25)":"none"}}>
+    <aside style={{width:narrow?280:220,maxWidth:"85vw",background:"#FFFFFF",borderInlineEnd:"1px solid rgba(0,0,0,0.06)",display:"flex",flexDirection:"column",flexShrink:0,position:narrow?"fixed":"sticky",top:topOffset,insetInlineStart:narrow?0:undefined,height:`calc(100vh - ${topOffset}px)`,overflowY:"auto",zIndex:narrow?4500:(pop?4001:1),boxShadow:narrow?"0 0 40px rgba(0,0,0,0.25)":"none"}}>
       <div style={{padding:"14px 12px 10px",borderBottom:"1px solid rgba(0,0,0,0.06)",position:"relative"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
           <div style={{fontSize:16,fontWeight:800,color:"#16181D",display:"flex",alignItems:"center",gap:7}}><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:A}}/>{PLATFORM.name}</div>
