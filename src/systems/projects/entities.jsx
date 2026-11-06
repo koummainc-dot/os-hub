@@ -23,11 +23,24 @@ const recordFocusStyle = (view, kind, id) => view?.focusRecord?.kind === kind &&
   ? { outline: `2px solid ${A}`, outlineOffset: 2, borderRadius: 8 }
   : undefined;
 
+function RecordDetailModal({ title, fields, onClose }) {
+  const visible = fields.filter((field) => field.value !== null && field.value !== undefined && field.value !== "");
+  return <Modal title={title} wide onClose={onClose}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
+      {visible.map((field) => <section key={field.label} style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: 10, minWidth: 0 }}>
+        <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, marginBottom: 5 }}>{field.label}</div>
+        <div style={{ fontSize: 12.5, color: C.dim, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.8 }}>{String(field.value)}</div>
+      </section>)}
+    </div>
+    {!visible.length && <Empty title="لا توجد تفاصيل إضافية" />}
+  </Modal>;
+}
+
 
 // ═════ Outputs ═════
 export function OutputsView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, me, confirm, lookups, idx, openTask, openProject, setPage, view } = useP();
-  const [form, setForm] = useState(null); const [type, setType] = useState(""); const [ap, setAp] = useState(""); const [q, setQ] = useState("");
+  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [type, setType] = useState(""); const [ap, setAp] = useState(""); const [q, setQ] = useState("");
   const list = data.outputs.filter((o) => (!projectId || o.project_id === projectId) && (!type || o.type === type) && (!ap || o.approval === ap) && (!q || o.name.toLowerCase().includes(q.toLowerCase())));
   useRecordFocus(view, "output", projectId, list.length);
   const canNew = projectId ? can("output.write", projectsById[projectId]) : data.projects.some((p) => can("output.write", p));
@@ -65,9 +78,17 @@ export function OutputsView({ projectId }) {
               {o.url && <a href={o.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.info, display: "block", margin: "4px 0", wordBreak: "break-all" }}>🔗 {o.url}</a>}
               {o.notes && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{o.notes}</div>}
               {o.approved_by && <div style={{ fontSize: 10.5, color: C.muted }}>اعتمده {<Who id={o.approved_by} size={14} />} · {fmt((o.approved_at || "").slice(0, 10))}</div>}
-              <div style={{ marginTop: 6 }}>{o.approval === "Final" ? <Chip color={C.ok}>🔒 مخرج نهائي — لا يُعدَّل</Chip> : <RowActions canW={can("output.write", projectsById[o.project_id])} onEdit={() => setForm(o)} onDelete={() => act.del("outputs", o.id, o.name)} />}</div>
+              <div style={{ marginTop: 6, display: "flex", gap: 6, alignItems: "center" }}><Btn small onClick={() => setDetail(o)}>عرض التفاصيل</Btn>{o.approval === "Final" ? <Chip color={C.ok}>🔒 مخرج نهائي — لا يُعدَّل</Chip> : <RowActions canW={can("output.write", projectsById[o.project_id])} onEdit={() => setForm(o)} onDelete={() => act.del("outputs", o.id, o.name)} />}</div>
             </div>))}
         </div>)}
+      {detail && <RecordDetailModal title={"تفاصيل المخرج: " + detail.name} onClose={() => setDetail(null)} fields={[
+        { label: "المشروع", value: projectsById[detail.project_id]?.name }, { label: "النوع", value: detail.type },
+        { label: "حالة الاعتماد", value: L.approval[detail.approval] || detail.approval }, { label: "الرابط", value: detail.url },
+        { label: "المهمة المرتبطة", value: idx.byId[detail.task_id]?.title }, { label: "المواصفة", value: data.prds.find((x) => x.id === detail.prd_id)?.title },
+        { label: "الملاحظات", value: detail.notes }, { label: "اعتمده", value: people.find((x) => x.id === detail.approved_by)?.name },
+        { label: "تاريخ الاعتماد", value: detail.approved_at ? fmt(detail.approved_at.slice(0, 10)) : "" },
+        { label: "الملفات", value: (detail.files || []).map((file) => typeof file === "string" ? file : file.name || file.url || "ملف").join("، ") }
+      ]} />}
       {form && <FormModal title={form.id ? "تعديل المخرج" : "مخرج جديد"} wide initial={{ approval: "Draft", type: lookups.output_type[0], ...form }} onClose={() => setForm(null)} onSubmit={submit} fields={[
         { key: "name", label: "الاسم", required: true, span: 2 },
         { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(data.projects.filter((p) => !projectId || p.id === projectId)) },
@@ -84,7 +105,7 @@ export function OutputsView({ projectId }) {
 // ═════ Risks (+ 5×5 matrix) ═════
 export function RisksView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, settings, confirm, openProject, idx, openTask, view } = useP();
-  const [form, setForm] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState(view.focusRecord?.kind === "risk" ? "all" : "open"); const [closing, setClosing] = useState(null); const [reopening, setReopening] = useState(null); const [creatingMitigation, setCreatingMitigation] = useState({}); const convertingRiskIds = useRef(new Set());
+  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState(view.focusRecord?.kind === "risk" ? "all" : "open"); const [closing, setClosing] = useState(null); const [reopening, setReopening] = useState(null); const [creatingMitigation, setCreatingMitigation] = useState({}); const convertingRiskIds = useRef(new Set());
   const base = data.risks.filter((r) => !projectId || r.project_id === projectId);
   const list = base.filter((r) => (st === "all" ? true : st === "open" ? D.isOpenRisk(r) : r.status === st)).sort((a, b) => D.riskScore(b) - D.riskScore(a));
   useEffect(() => { if (view.focusRecord?.kind === "risk") setSt("all"); }, [view.focusRecord?.kind, view.focusRecord?.id]);
@@ -137,9 +158,19 @@ export function RisksView({ projectId }) {
             <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
               {D.isOpenRisk(r) && can("risk.write", projectsById[r.project_id]) && can("task.write", projectsById[r.project_id]) && <Btn small disabled={!!creatingMitigation[r.id]} onClick={() => createMitigationTask(r)}>{creatingMitigation[r.id] ? "جارٍ الإنشاء…" : "＋ مهمة تخفيف"}</Btn>}
               {can("risk.write", projectsById[r.project_id]) && (D.RISK_NEXT[r.status] || []).length > 0 && <select style={{ ...S.sel, width: 110, padding: "3px 6px", fontSize: 11 }} value="" onChange={(e) => e.target.value && changeStatus(r, e.target.value)}><option value="">انقل إلى…</option>{D.RISK_NEXT[r.status].filter((s) => s !== "Materialized" || can("issue.write", projectsById[r.project_id])).map((s) => <option key={s} value={s}>{L.riskStatus[s]}</option>)}</select>}
-              <RowActions canW={can("risk.write", projectsById[r.project_id])} onEdit={() => setForm(r)} onDelete={() => act.del("risks", r.id, r.title)} />
+              <Btn small onClick={() => setDetail(r)}>عرض التفاصيل</Btn><RowActions canW={can("risk.write", projectsById[r.project_id])} onEdit={() => setForm(r)} onDelete={() => act.del("risks", r.id, r.title)} />
             </span>
           </div>))}</div>)}
+      {detail && <RecordDetailModal title={"تفاصيل الخطر: " + detail.title} onClose={() => setDetail(null)} fields={[
+        { label: "المشروع", value: projectsById[detail.project_id]?.name }, { label: "الحالة", value: L.riskStatus[detail.status] || detail.status },
+        { label: "درجة الخطر", value: D.riskScore(detail) }, { label: "الاحتمال", value: detail.probability + " / 5" },
+        { label: "التأثير", value: detail.impact + " / 5" }, { label: "المستوى", value: D.riskLevel(detail, settings) },
+        { label: "المسؤول", value: people.find((x) => x.id === detail.owner_id)?.name }, { label: "تاريخ المراجعة", value: detail.review_date },
+        { label: "خطة التخفيف", value: detail.mitigation }, { label: "الملاحظات", value: detail.notes },
+        { label: "المهام المرتبطة", value: [...new Set([...(detail.task_ids || []), ...(detail.mitigation_task_ids || [])])].map((id) => idx.byId[id]?.title).filter(Boolean).join("، ") },
+        { label: "المواصفة المصدرية", value: data.prds.find((x) => x.id === detail.prd_id)?.title },
+        { label: "المشكلة الناتجة", value: data.issues.find((x) => x.id === detail.converted_issue_id)?.title }
+      ]} />}
       {form && <FormModal title={form.id ? "تعديل الخطر" : "خطر جديد"} wide initial={{ probability: 3, impact: 3, status: "Open", ...form }} onClose={() => setForm(null)} onSubmit={submit} fields={[
         { key: "title", label: "عنوان الخطر", required: true, span: 2 }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) },
         { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people) },
@@ -156,7 +187,7 @@ export function RisksView({ projectId }) {
 // ═════ Issues ═════
 export function IssuesView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, openDiscovery, view, setView } = useP();
-  const [form, setForm] = useState(null); const [st, setSt] = useState(view.focusRecord?.kind === "issue" ? "all" : view.issueStatusFilter || "open"); const [sev, setSev] = useState(view.issueSeverityFilter || ""); const [resolving, setResolving] = useState(null); const [reopening, setReopening] = useState(null); const [repairing, setRepairing] = useState({});
+  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [st, setSt] = useState(view.focusRecord?.kind === "issue" ? "all" : view.issueStatusFilter || "open"); const [sev, setSev] = useState(view.issueSeverityFilter || ""); const [resolving, setResolving] = useState(null); const [reopening, setReopening] = useState(null); const [repairing, setRepairing] = useState({});
   const list = data.issues.filter((i) => (!projectId || i.project_id === projectId) && (st === "all" ? true : st === "open" ? D.isOpenIssue(i) : i.status === st) && (!sev || i.severity === sev)).sort((a, b) => ["Critical", "High", "Medium", "Low"].indexOf(a.severity) - ["Critical", "High", "Medium", "Low"].indexOf(b.severity));
   const canNew = projectId ? can("issue.write", projectsById[projectId]) : data.projects.some((p) => can("issue.write", p));
   useEffect(() => { if (view.focusRecord?.kind === "issue") { setSt("all"); setSev(""); setView((current) => ({ ...current, issueStatusFilter: "all", issueSeverityFilter: "" })); } }, [view.focusRecord?.kind, view.focusRecord?.id]);
@@ -189,8 +220,18 @@ export function IssuesView({ projectId }) {
             <div style={{ fontSize: 11, color: C.muted, display: "flex", gap: 10 }}>{!projectId && <ProjectName id={i.project_id} />}<Who id={i.owner_id} size={15} /><span>{fmtShort(i.discovered_at)}</span>{i.from_risk_id && <span>⚠️ من خطر</span>}{i.from_discovery_id && <span>💡 من اكتشاف</span>}</div>
             {repairTasks(i).length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}><span style={{ fontSize: 11, color: C.muted }}>مهام الإصلاح:</span>{repairTasks(i).map((t) => <Btn key={t.id} small onClick={() => openTask(t.id)}>🔧 {t.title}</Btn>)}</div>}
             {i.from_risk_id && <div style={{ fontSize: 11, marginTop: 4 }}>مصدرها خطر: <button type="button" onClick={() => openProject(i.project_id, "risks", { kind: "risk", id: i.from_risk_id })} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>{(data.risks.find((r) => r.id === i.from_risk_id) || {}).title || "فتح المخاطر"} ↗</button></div>}{i.from_discovery_id && <div style={{ fontSize: 11, marginTop: 4 }}>مصدرها اكتشاف: <button type="button" onClick={() => openDiscovery(i.from_discovery_id)} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>{(data.discovery.find((d) => d.id === i.from_discovery_id) || {}).title || "فتح الاكتشاف"} ↗</button></div>}</div>
-          <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>{can("issue.write", projectsById[i.project_id]) && can("task.write", projectsById[i.project_id]) && <Btn small disabled={!!repairing[i.id]} onClick={() => createRepairTask(i)}>{repairing[i.id] ? "جارٍ الإنشاء…" : "＋ مهمة إصلاح"}</Btn>}{can("issue.write", projectsById[i.project_id]) && (D.ISSUE_NEXT[i.status] || []).length > 0 && <select style={{ ...S.sel, width: 110, padding: "3px 6px", fontSize: 11 }} value="" onChange={(e) => e.target.value && change(i, e.target.value)}><option value="">انقل إلى…</option>{D.ISSUE_NEXT[i.status].map((s) => <option key={s} value={s}>{L.issueStatus[s]}</option>)}</select>}<RowActions canW={can("issue.write", projectsById[i.project_id])} onEdit={() => setForm(i)} onDelete={() => act.del("issues", i.id, i.title)} /></span>
+          <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>{can("issue.write", projectsById[i.project_id]) && can("task.write", projectsById[i.project_id]) && <Btn small disabled={!!repairing[i.id]} onClick={() => createRepairTask(i)}>{repairing[i.id] ? "جارٍ الإنشاء…" : "＋ مهمة إصلاح"}</Btn>}{can("issue.write", projectsById[i.project_id]) && (D.ISSUE_NEXT[i.status] || []).length > 0 && <select style={{ ...S.sel, width: 110, padding: "3px 6px", fontSize: 11 }} value="" onChange={(e) => e.target.value && change(i, e.target.value)}><option value="">انقل إلى…</option>{D.ISSUE_NEXT[i.status].map((s) => <option key={s} value={s}>{L.issueStatus[s]}</option>)}</select>}<Btn small onClick={() => setDetail(i)}>عرض التفاصيل</Btn><RowActions canW={can("issue.write", projectsById[i.project_id])} onEdit={() => setForm(i)} onDelete={() => act.del("issues", i.id, i.title)} /></span>
         </div>))}</div>}
+      {detail && <RecordDetailModal title={"تفاصيل المشكلة: " + detail.title} onClose={() => setDetail(null)} fields={[
+        { label: "المشروع", value: projectsById[detail.project_id]?.name }, { label: "الحالة", value: L.issueStatus[detail.status] || detail.status },
+        { label: "الشدة", value: L.severity[detail.severity] || detail.severity }, { label: "المسؤول", value: people.find((x) => x.id === detail.owner_id)?.name },
+        { label: "تاريخ الاكتشاف", value: detail.discovered_at }, { label: "الوصف", value: detail.description },
+        { label: "الحل", value: detail.resolution }, { label: "تاريخ الحل", value: detail.resolved_at },
+        { label: "مهام الإصلاح", value: repairTasks(detail).map((task) => task.title).join("، ") },
+        { label: "الخطر المصدر", value: data.risks.find((x) => x.id === detail.from_risk_id)?.title },
+        { label: "الاكتشاف المصدر", value: data.discovery.find((x) => x.id === detail.from_discovery_id)?.title },
+        { label: "القرارات المؤثرة", value: data.decisions.filter((x) => (x.affected_issue_ids || []).includes(detail.id)).map((x) => x.title).join("، ") }
+      ]} />}
       {form && <FormModal title={form.id ? "تعديل المشكلة" : "مشكلة جديدة"} wide initial={{ severity: "Medium", status: "Open", discovered_at: new Date().toISOString().slice(0, 10), ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { await act.put("issues", { ...v, id: v.id || uid() }, projectsById[v.project_id]); toast("✅ تم الحفظ"); setForm(null); }} fields={[
         { key: "title", label: "العنوان", required: true, span: 2 }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) },
         { key: "severity", label: "الشدة", type: "select", allowEmpty: false, options: opts(L.severity) }, { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people) }, { key: "discovered_at", label: "تاريخ الاكتشاف", type: "date" },
@@ -203,7 +244,7 @@ export function IssuesView({ projectId }) {
 // ═════ Decisions ═════
 export function DecisionsView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, openDiscovery, view } = useP();
-  const [form, setForm] = useState(null); const [creating, setCreating] = useState({});
+  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [creating, setCreating] = useState({});
   const list = data.decisions.filter((d) => !projectId || d.project_id === projectId).sort((a, b) => (b.decided_at || "").localeCompare(a.decided_at || ""));
   useRecordFocus(view, "decision", projectId, list.length);
   const canNew = projectId ? can("decision.write", projectsById[projectId]) : data.projects.some((p) => can("decision.write", p));
@@ -212,7 +253,7 @@ export function DecisionsView({ projectId }) {
       {canNew && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ قرار</Btn></div>}
       {!list.length ? <Empty icon="⚖️" title="لا قرارات مسجَّلة" sub="سجّل القرارات المهمة وأسبابها حتى لا تُنسى." /> : <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((d) => (
         <div key={d.id} id={recordDomId("decision", d.id)} style={{ ...recordFocusStyle(view, "decision", d.id), padding: "10px 0", borderBottom: `1px solid ${C.line}` }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}><span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>⚖️ {d.title} <Chip color={d.status === "Approved" ? C.ok : d.status === "Superseded" ? C.warn : C.muted}>{L.decisionStatus[d.status]}</Chip></span><RowActions canW={can("decision.write", projectsById[d.project_id])} onEdit={() => setForm(d)} onDelete={() => act.del("decisions", d.id, d.title)} /></div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}><span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>⚖️ {d.title} <Chip color={d.status === "Approved" ? C.ok : d.status === "Superseded" ? C.warn : C.muted}>{L.decisionStatus[d.status]}</Chip></span><Btn small onClick={() => setDetail(d)}>عرض التفاصيل</Btn><RowActions canW={can("decision.write", projectsById[d.project_id])} onEdit={() => setForm(d)} onDelete={() => act.del("decisions", d.id, d.title)} /></div>
           {d.rationale && <div style={{ fontSize: 12, color: C.dim }}><b>لماذا؟</b> {d.rationale}</div>}{d.rejected_alternatives && <div style={{ fontSize: 12, color: C.dim }}><b>بدائل مرفوضة:</b> {d.rejected_alternatives}</div>}
           {d.superseded_by_id && <div style={{ fontSize: 11.5, color: C.warn }}>حلّ محله: {(data.decisions.find((x) => x.id === d.superseded_by_id) || {}).title}</div>}
           <div style={{ fontSize: 11, color: C.muted, display: "flex", gap: 10 }}>{!projectId && <ProjectName id={d.project_id} />}<span>{fmt(d.decided_at)}</span>{d.decision_maker_id && <Who id={d.decision_maker_id} size={15} />}{d.status === "Approved" && can("decision.write", projectsById[d.project_id]) && can("task.write", projectsById[d.project_id]) && <Btn small disabled={!!creating[d.id]} onClick={async () => { setCreating((x) => ({ ...x, [d.id]: true })); try { const task = await act.createDecisionTask(d.id); openTask(task.id); } catch (error) { toast("⛔ " + (error?.message || "تعذر إنشاء مهمة التنفيذ")); } finally { setCreating((x) => { const next = { ...x }; delete next[d.id]; return next; }); } }}>{creating[d.id] ? "جارٍ الإنشاء…" : "＋ مهمة تنفيذ"}</Btn>}</div>
@@ -225,6 +266,17 @@ export function DecisionsView({ projectId }) {
             {discoveries.map((discovery) => <Btn key={discovery.id} small onClick={() => { openDiscovery(discovery.id); }}>↗ اكتشاف: {discovery.title}</Btn>)}
           </div>; })()}
         </div>))}</div>}
+      {detail && <RecordDetailModal title={"تفاصيل القرار: " + detail.title} onClose={() => setDetail(null)} fields={[
+        { label: "المشروع", value: projectsById[detail.project_id]?.name }, { label: "الحالة", value: L.decisionStatus[detail.status] || detail.status },
+        { label: "تاريخ القرار", value: detail.decided_at }, { label: "صاحب القرار", value: people.find((x) => x.id === detail.decision_maker_id)?.name },
+        { label: "المبرر", value: detail.rationale }, { label: "البدائل المرفوضة", value: detail.rejected_alternatives },
+        { label: "الأثر المتوقع", value: detail.expected_impact }, { label: "المواصفة", value: data.prds.find((x) => x.id === detail.prd_id)?.title },
+        { label: "القرار الذي حلّ محله", value: data.decisions.find((x) => x.id === detail.superseded_by_id)?.title },
+        { label: "المهام المتأثرة", value: (detail.related_task_ids || []).map((id) => idx.byId[id]?.title).filter(Boolean).join("، ") },
+        { label: "المشاكل المتأثرة", value: (detail.related_issue_ids || []).map((id) => data.issues.find((x) => x.id === id)?.title).filter(Boolean).join("، ") },
+        { label: "المخاطر المتأثرة", value: (detail.related_risk_ids || []).map((id) => data.risks.find((x) => x.id === id)?.title).filter(Boolean).join("، ") },
+        { label: "الاكتشافات المؤثرة", value: (detail.related_discovery_ids || []).map((id) => data.discovery.find((x) => x.id === id)?.title).filter(Boolean).join("، ") }
+      ]} />}
       {form && <FormModal title={form.id ? "تعديل القرار" : "قرار جديد"} wide initial={{ status: "Proposed", decided_at: new Date().toISOString().slice(0, 10), ...form }} onClose={() => setForm(null)}
         validate={(v) => D.validateDecisionStatus(v, v.status) ? { superseded_by_id: "إلزامي عند «حلّ محله قرار آخر»" } : null}
         onSubmit={async (v) => { if (v.prd_id && !data.prds.some((p) => p.id === v.prd_id && p.project_id === v.project_id)) throw new Error("المواصفة يجب أن تتبع المشروع نفسه."); for (const taskId of (v.related_task_ids || [])) if (!idx.byId[taskId] || idx.byId[taskId].project_id !== v.project_id) throw new Error("المهام المتأثرة يجب أن تتبع المشروع نفسه."); for (const issueId of (v.related_issue_ids || [])) if (!data.issues.some((i) => i.id === issueId && i.project_id === v.project_id)) throw new Error("المشاكل المتأثرة يجب أن تتبع المشروع نفسه."); for (const riskId of (v.related_risk_ids || [])) if (!data.risks.some((r) => r.id === riskId && r.project_id === v.project_id)) throw new Error("المخاطر المتأثرة يجب أن تتبع المشروع نفسه."); for (const discoveryId of (v.related_discovery_ids || [])) { const discovery = data.discovery.find((item) => item.id === discoveryId); if (!discovery) throw new Error("الاكتشاف المرتبط غير موجود أو تم حذفه."); if ((discovery.project_ids || []).length && !discovery.project_ids.includes(v.project_id)) throw new Error("الاكتشاف المرتبط يجب أن يكون مرتبطًا بالمشروع نفسه."); } if (v.superseded_by_id) { const successor = data.decisions.find((item) => item.id === v.superseded_by_id && item.project_id === v.project_id && item.id !== v.id); if (!successor) throw new Error("القرار البديل يجب أن يكون قرارًا آخر داخل المشروع نفسه."); const visited = new Set([v.id].filter(Boolean)); let nextId = v.superseded_by_id; while (nextId) { if (visited.has(nextId)) throw new Error("لا يمكن إنشاء حلقة بين القرارات المستبدلة."); visited.add(nextId); const next = data.decisions.find((item) => item.id === nextId && item.project_id === v.project_id); nextId = next?.superseded_by_id || null; } } await act.put("decisions", { ...v, id: v.id || uid() }, projectsById[v.project_id]); toast("✅ تم الحفظ"); setForm(null); }} fields={[
