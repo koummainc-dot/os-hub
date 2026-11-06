@@ -55,7 +55,7 @@ function Platform(){
   const [demo,setDemo]=useState(null);
   const [route,setRoute]=useState({view:"today",system:null});
   const [sectionBy,setSectionBy]=useState({});
-  const [navRestored,setNavRestored]=useState(false);
+  const [navRestoredFor,setNavRestoredFor]=useState(null);
   const [bridge,setBridge]=useState({});
   const [narrow,setNarrow]=useState(typeof window!=="undefined"&&window.innerWidth<860);
   const [navOpen,setNavOpen]=useState(false);
@@ -168,8 +168,9 @@ function Platform(){
   // ── persistent navigation state ──
   // Keep the active OS/section across reloads so an opened tab remains active.
   useEffect(()=>{
-    if(!wsId||boot.state!=="ready"||navRestored)return;
-    setNavRestored(true);
+    if(!wsId||boot.state!=="ready"){if(navRestoredFor!==null)setNavRestoredFor(null);return;}
+    if(navRestoredFor===wsId)return;
+    setNavRestoredFor(wsId);
     try{
       const raw=localStorage.getItem("os_nav_"+wsId);
       if(!raw)return;
@@ -185,14 +186,14 @@ function Platform(){
         setRoute({view:saved.route.view,system:null});
       }
     }catch{}
-  },[wsId,boot.state,navRestored,ws]);
+  },[wsId,boot.state,navRestoredFor,ws]);
   useEffect(()=>{
-    if(!wsId||boot.state!=="ready"||!navRestored)return;
+    if(!wsId||boot.state!=="ready"||navRestoredFor!==wsId)return;
     try{
       const section=route.view==="system"&&route.system?sectionBy[route.system]||"":null;
       localStorage.setItem("os_nav_"+wsId,JSON.stringify({route,section,updated_at:new Date().toISOString()}));
     }catch{}
-  },[wsId,boot.state,navRestored,route,sectionBy]);
+  },[wsId,boot.state,navRestoredFor,route,sectionBy]);
   const uid=auth.user&&auth.user.id;
   useEffect(()=>{if(auth.status==="in"&&auth.user&&!recovery){bootRef.current(auth.user);} else if(auth.status==="out"){setBoot({state:"idle",error:null,setup:false});setData({workspaces:[],profile:null,incoming:[]});setWsId(null);}},[uid,auth.status,recovery]);
   useEffect(()=>{if(wsId&&!isDemo){try{localStorage.setItem("os_current_ws",wsId);}catch(e){}}},[wsId,isDemo]);
