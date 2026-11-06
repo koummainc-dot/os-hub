@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
+const projectScreens = await readFile(new URL("../src/systems/projects/screens_b.jsx", import.meta.url), "utf8");
 const store = await readFile(new URL("../src/systems/projects/store.jsx", import.meta.url), "utf8");
 const entities = await readFile(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
 const screens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
@@ -54,5 +55,19 @@ assert.ok(entities.includes('openProject(decision.project_id, "decisions", { kin
 assert.ok(entities.includes('id={recordDomId("output", o.id)}') && entities.includes('id={recordDomId("risk", r.id)}') &&
   entities.includes('id={recordDomId("issue", i.id)}') && entities.includes('id={recordDomId("decision", d.id)}'),
   "linked record rows must expose stable DOM targets for navigation");
+
+
+assert.ok(projectScreens.includes('const tabGroups = [') &&
+  projectScreens.includes('{ id: "plan", label: "التخطيط"') &&
+  projectScreens.includes('{ id: "delivery", label: "التسليم"') &&
+  projectScreens.includes('{ id: "governance", label: "الحوكمة"') &&
+  projectScreens.includes('{ id: "collaboration", label: "التعاون"'),
+  "Project Detail must group its 12 destinations into practical navigation categories");
+for (const tabId of ["overview", "tasks", "outputs", "work", "prds", "risks", "issues", "decisions", "people", "okr", "related", "activity"]) {
+  assert.ok(projectScreens.includes(`id: "${tabId}"`), `legacy project tab id ${tabId} must remain stable for deep links`);
+}
+assert.ok(projectScreens.includes("activeGroup.tabs.length > 1") &&
+  projectScreens.includes("setTab(group.defaultTab)"),
+  "group navigation must reveal relevant subtabs and select a safe default destination");
 
 console.log("✓ Projects relationship navigation contracts passed");
