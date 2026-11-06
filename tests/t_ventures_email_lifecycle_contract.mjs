@@ -1,0 +1,10 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+const src=fs.readFileSync(new URL("../src/systems/ventures/realWorkspace.jsx",import.meta.url),"utf8");
+for (const collection of ["email_campaigns","email_lists","email_flows","email_checks"]) assert.equal(src.includes("rows(\""+collection+"\")"),true,collection);
+assert.equal(src.includes("const next={...data,email_campaigns:merged};"),true);
+assert.equal(src.includes("import_row_hash"),true);
+assert.equal(src.includes("saveVenturesMetrics(workspaceId,Object.entries"),true);
+assert.equal(src.includes('systemId:"finance",action:"create",recordId:id'),true);
+assert.equal(src.includes('systemId:"projects",action:"create",recordId:r.recordId'),true);
+console.log("t_ventures_email_lifecycle_contract: OK");
