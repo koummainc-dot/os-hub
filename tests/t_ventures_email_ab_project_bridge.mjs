@@ -17,3 +17,10 @@ assert.match(projects,/A\.put\("risks", risk, project\)/,"risk is persisted in P
 assert.match(projects,/source_record_id: payload\.source_record_id/,"source record link is retained");
 assert.match(projects,/ctx\.can\("risk\.write", project\)/,"Projects permission check is enforced");
 console.log("t_ventures_email_ab_project_bridge: OK");
+
+const finance = readFileSync(new URL("../src/systems/finance/index.jsx", import.meta.url), "utf8");
+assert.match(finance,/\.from\("finance_transactions"\)\.upsert\(/,"Ventures revenue uses idempotent upsert");
+assert.match(finance,/onConflict: "workspace_id,client_generated_id"/,"stable campaign write key");
+assert.match(finance,/source_system: "ventures"/,"finance source metadata");
+assert.match(finance,/source_type: "email_campaign"/,"email campaign source type");
+assert.doesNotMatch(finance,/idempotency_key: "ventures-finance-/,"do not send nonexistent idempotency_key column");
