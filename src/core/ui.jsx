@@ -1,5 +1,5 @@
 import React,{useState,useEffect,useRef,useContext,useMemo,useCallback} from "react";
-import { PLATFORM } from "./core.js";
+import { PLATFORM } from "./platformConstants.js";
 
 const A="#EF9F27";
 const ToastCtx=React.createContext(()=>{});
