@@ -180,7 +180,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       const d = event?.detail;
       if (!d || d.systemId !== "finance" || d.workspaceId !== ws.id || d.source !== "ventures") return;
       if (!canEdit || !d.action || !["create", "update"].includes(d.action)) {
-        window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws.id, systemId: "finance", action: d.action || "update", recordId: d.recordId || null, ok: false, error: "صلاحية الكتابة غير متاحة." } }));
+        window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws.id, systemId: "finance", action: d.action || "update", recordId: d.recordId || null, ok: false, source: "ventures", error: "صلاحية الكتابة غير متاحة." } }));
         return;
       }
       setSaving(true); setError("");
@@ -234,11 +234,11 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
           }).eq("workspace_id", ws.id).eq("client_generated_id", clientGeneratedId);
           if (txError) throw txError;
         }
-        window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws.id, systemId: "finance", action: d.action, recordId: d.recordId || null, ok: true } }));
+        window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws.id, systemId: "finance", action: d.action, recordId: d.recordId || null, ok: true, source: "ventures" } }));
         setNotice(d.action === "create" ? "تم تسجيل حركة Ventures داخل Finance OS." : "تم تحديث حركة Ventures داخل Finance OS.");
         await load();
       } catch (e) {
-        window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws.id, systemId: "finance", action: d.action, recordId: d.recordId || null, ok: false, error: e?.message || String(e) } }));
+        window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws.id, systemId: "finance", action: d.action, recordId: d.recordId || null, ok: false, source: "ventures", error: e?.message || String(e) } }));
       } finally { setSaving(false); }
     };
     window.addEventListener("os:source-write", handler);
