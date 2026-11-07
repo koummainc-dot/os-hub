@@ -40,6 +40,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
     const opened=await click(openLabel,null,150);
     const dialog=doc.querySelector('[role="dialog"]');
     ok(opened&&!!dialog&&dialog.textContent.includes(expected),title+' opens a read-only detail modal');
+    if(!(opened&&!!dialog&&dialog.textContent.includes(expected))) console.log('  DEBUG detail',title,{opened,dialog:dialog?.textContent?.slice(0,500),buttons:all('button').map(b=>b.textContent.trim()).filter(x=>x.includes('عرض')||x.includes('تفاصيل')).slice(0,12),section:txt().slice(-900)});
     await closeDetail();
     ok(!doc.querySelector('[role="dialog"]'),title+' detail modal closes cleanly');
   };
@@ -50,6 +51,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await goSection('المشاريع');
   const projectRow=all('tr').find(el=>el.textContent.includes('تطبيق إدارة الوقت'));
   ok(!!projectRow,'project list exposes the seeded project row');
+  if(!projectRow) console.log('  DEBUG projects',{rows:all('tr').map(r=>r.textContent.trim()).slice(0,12),main:all('main').map(m=>m.textContent.slice(-1600)),buttons:all('main button').map(x=>x.textContent.trim()).slice(0,35)});
   if(projectRow){projectRow.click();await sleep(350);}
   ok(txt().includes('الحوكمة')&&txt().includes('تطبيق إدارة الوقت'),'opening the project row enters Project Detail');
   const goalsGroup=all('main button').find(b=>b.textContent.trim().startsWith('الأهداف'));
@@ -151,6 +153,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   if(rowCheck) rowCheck.click();
   await sleep(50);
   ok(!!btn('تم تحديد 1'),'bulk selection toolbar appears after selecting a task');
+  if(!btn('تم تحديد 1')) console.log('  DEBUG bulk',{row: freshTaskRow?.textContent,checkboxes:all('input[type=checkbox]').length,selected:all('main').map(m=>m.textContent.slice(0,800))});
   ok(!!btn('✔ إكمال'),'bulk completion action is available');
   if(btn('✔ إكمال')){w.confirm=()=>true;await click('✔ إكمال',null,180);}
   const quickTaskAfter=all('tr').find(r=>r.textContent.includes('مهمة إضافة سريعة — معدلة'));
@@ -181,6 +184,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await goSection('الرئيسية'); ok(txt().includes('حرج'),'overdue/past-deadline project is Red (حرج)'); ok(txt().includes('مشاكل حرجة'),'critical issues card');
 
   console.log('— create project from template');
+  
   await goSection('المشاريع'); ok(await click('من قالب'),'template picker opens');
   let picker=doc.querySelector('[role=dialog]');
   const card=all('[role="dialog"] > div > div > div').find(d=>d.style.cursor==='pointer'&&d.textContent.includes('تطبيق'));
