@@ -6,7 +6,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   let fails=0; const ok=(c,m)=>{if(!c)fails++;console.log(c?'  ✓':'  ✗',m);};
   const btn=(label,sc)=>all('button',sc).find(b=>b.textContent.includes(label));
   const click=async(label,sc,ms)=>{const b=btn(label,sc);if(!b)return false;b.click();await sleep(ms||150);return true;};
-  const setVal=async(el,v)=>{const proto=el.tagName==='SELECT'?w.HTMLSelectElement.prototype:el.tagName==='TEXTAREA'?w.HTMLTextAreaElement.prototype:w.HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,v);el.dispatchEvent(new w.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));await sleep(60);};
+  const setVal=async(el,v)=>{if(!el)throw new Error('Acceptance harness could not find the expected form control');const proto=el.tagName==='SELECT'?w.HTMLSelectElement.prototype:el.tagName==='TEXTAREA'?w.HTMLTextAreaElement.prototype:w.HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,v);el.dispatchEvent(new w.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));await sleep(60);};
   const nav=()=>all('aside button');
   const goSection=async(label)=>{const b=nav().find(x=>x.textContent.includes(label));if(!b)return false;b.click();await sleep(450);return true;};
   const toToday=async()=>{const c=all('aside button').find(x=>x.textContent.includes('▾'));c&&c.click();await sleep(60);const t=all('aside button').find(x=>x.textContent.includes('اليوم (كل الأنظمة)'));t&&t.click();await sleep(80);};
@@ -50,7 +50,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await goSection('المشاريع');
   const projectRow=all('tr').find(el=>el.textContent.includes('تطبيق إدارة الوقت'));
   ok(!!projectRow,'project list exposes the seeded project row');
-  if(projectRow){projectRow.querySelector('td')?.click();await sleep(250);}
+  if(projectRow){projectRow.click();await sleep(350);}
   ok(txt().includes('الحوكمة')&&txt().includes('تطبيق إدارة الوقت'),'opening the project row enters Project Detail');
   const goalsGroup=all('main button').find(b=>b.textContent.trim().startsWith('الأهداف'));
   ok(!!goalsGroup,'Project Detail exposes its Goals group tab');
@@ -62,7 +62,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   ok(!!doc.getElementById('projects-okr-objective-ob_q'),'Objective navigation focuses the exact Objective record');
   await goSection('المشاريع');
   const projectRowForKr=all('tr').find(el=>el.textContent.includes('تطبيق إدارة الوقت'));
-  if(projectRowForKr){projectRowForKr.querySelector('td')?.click();await sleep(250);}
+  if(projectRowForKr){projectRowForKr.click();await sleep(350);}
   const goalsGroupForKr=all('main button').find(b=>b.textContent.trim().startsWith('الأهداف'));
   if(goalsGroupForKr){goalsGroupForKr.click();await sleep(100);}
   const krLink=all('main button').find(b=>b.textContent.includes('إكمال مشروعَي الإطلاق'));
@@ -72,7 +72,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   ok(!!doc.getElementById('projects-okr-kr-kr_proj'),'Key Result navigation focuses the exact KR record');
   await goSection('المشاريع');
   const projectRowForGovernance=all('tr').find(el=>el.textContent.includes('تطبيق إدارة الوقت'));
-  if(projectRowForGovernance){projectRowForGovernance.querySelector('td')?.click();await sleep(250);}
+  if(projectRowForGovernance){projectRowForGovernance.click();await sleep(350);}
   ok(await click('الحوكمة',null,100),'Project Detail exposes the Governance group');
   const decisionTab=all('button').find(b=>b.textContent.trim().startsWith('القرارات'));
   ok(!!decisionTab,'Governance exposes the exact Decisions subtab');
@@ -146,7 +146,8 @@ const {makeEnv,sleep,appJs}=require('./harness');
       const closeSheet=sheet.querySelector('button[aria-label="إغلاق"]'); closeSheet&&closeSheet.click(); await sleep(80);
     }
   }
-  const rowCheck=taskRow?.querySelector('input[type="checkbox"]');
+  const freshTaskRow=all('tr').find(r=>r.textContent.includes('مهمة إضافة سريعة — معدلة'));
+  const rowCheck=freshTaskRow?.querySelector('input[type="checkbox"]');
   if(rowCheck) rowCheck.click();
   await sleep(50);
   ok(!!btn('تم تحديد 1'),'bulk selection toolbar appears after selecting a task');
@@ -181,9 +182,17 @@ const {makeEnv,sleep,appJs}=require('./harness');
 
   console.log('— create project from template');
   await goSection('المشاريع'); ok(await click('من قالب'),'template picker opens');
-  const card=all('div').find(d=>d.textContent.startsWith('🧩 تطبيق')&&d.style.cursor==='pointer'); card&&card.click(); await sleep(150);
-  await click('متابعة الإعداد',doc.querySelector('[role=dialog]'),150);
-  const nameIn=all('input[type=text],input:not([type])').find(i=>i.closest('[role=dialog]')); await setVal(nameIn,'مشروع اختبار القالب');
+  let picker=doc.querySelector('[role=dialog]');
+  const card=all('[role="dialog"] > div > div > div').find(d=>d.style.cursor==='pointer'&&d.textContent.includes('تطبيق'));
+  ok(!!card,'template picker exposes a selectable project template');
+  if(card)card.click(); await sleep(180);
+  picker=doc.querySelector('[role=dialog]');
+  ok(!!picker&&picker.textContent.includes('معاينة القالب'),'selecting a template opens its preview');
+  await click('متابعة الإعداد',picker,180);
+  const setupDlg=doc.querySelector('[role=dialog]');
+  const nameIn=all('input',setupDlg).find(i=>i.type==='text'||!i.type);
+  ok(!!nameIn,'template setup exposes the project name input');
+  if(nameIn) await setVal(nameIn,'مشروع اختبار القالب');
   await click('حفظ',doc.querySelector('[role=dialog]'),400);
   ok(txt().includes('مشروع اختبار القالب'),'project created and opened'); 
   await click('التخطيط'); await sleep(100); await click('المهام'); await sleep(200); ok(txt().includes('الاكتشاف')&&txt().includes('كتابة المواصفة'),'template task tree copied (parents + children)');
