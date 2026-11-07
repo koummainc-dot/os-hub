@@ -8,6 +8,7 @@ on:
       - "supabase/tests/projects_atomic_discovery_batch_smoke.sql"
       - "supabase/tests/projects_okr_v4_legacy_seed.sql"
       - "supabase/tests/projects_okr_v4_relationship_reconciliation_smoke.sql"
+      - "supabase/tests/projects_two_identity_privacy_smoke.sql"
       - "tests/projects_sql_bootstrap.sql"
       - ".github/workflows/projects-sql-smoke.yml"
   push:
@@ -47,6 +48,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Bootstrap disposable Projects schema
         run: psql -v ON_ERROR_STOP=1 -f tests/projects_sql_bootstrap.sql
+      - name: Apply production record-level visibility policies
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261025155657_records_visibility_realtime.sql
       - name: Apply Projects atomic discovery RPC correction
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261106230000_projects_atomic_discovery_batch_fix.sql
       - name: Verify atomic discovery writes, permissions and rollback
@@ -71,3 +74,5 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031130000_projects_prd_verified_evidence_guard.sql
       - name: Verify project, task, PRD and output boundaries
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_prd_requirement_traceability_smoke.sql
+      - name: Verify two-account privacy for Projects records and relationships
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_two_identity_privacy_smoke.sql
