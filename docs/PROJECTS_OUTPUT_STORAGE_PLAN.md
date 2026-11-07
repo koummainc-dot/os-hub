@@ -1,6 +1,6 @@
 # Projects Outputs — Direct Upload Safety Plan
 
-Status: **upload contract prepared; Storage bucket/RLS implementation intentionally deferred until access contracts are verified.**
+Status: **Storage contract verified against the real workspace access model; private bucket/RLS migration and Direct Upload are now implemented on PR #173, but Production migration and live authenticated acceptance remain deferred.**
 
 ## Free-path decision
 
@@ -55,11 +55,11 @@ Minimum operations:
 
 The policy must enforce both workspace membership and project/output scope encoded in the object path. `TO authenticated` alone is insufficient.
 
-## Migration gate
+## Migration / release gate
 
-**Do not create the bucket or Storage policies yet.**
+The repository migration is now prepared and the CI smoke test is wired. **It has not been applied to Production.**
 
-Before migration:
+Before Production migration:
 1. inspect the actual Projects workspace membership and permission helper/RLS contracts;
 2. confirm how Projects Output rows are persisted in the current backend;
 3. keep the upload contract tests passing;
@@ -78,10 +78,11 @@ Projects Outputs already supports `files[]` metadata and displays attached-file 
 - [x] Responsive baseline contract added for Projects.
 - [x] Upload contract test exists and now covers size/type/path/metadata safety.
 - [x] No Production Storage migration applied.
-- [ ] Verify the latest contract-only commits in CI.
-- [ ] Inspect exact workspace membership/RLS helpers.
-- [ ] Add disposable Storage/RLS smoke tests.
-- [ ] Implement actual Direct Upload only after those gates pass.
+- [ ] Verify the latest CI head including the Storage migration/smoke.
+- [x] Inspect the actual workspace membership/RLS helpers (`workspace_members`, `ws_access_level`).
+- [x] Add disposable Storage/RLS smoke coverage and wire it into Projects SQL CI.
+- [x] Implement actual Direct Upload using the private bucket and signed download URLs.
+- [ ] Apply the Storage migration to Production after explicit release review.
 - [ ] Preview acceptance.
 - [ ] Real authenticated workspace acceptance.
 - [ ] Production verification.
