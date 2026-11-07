@@ -255,3 +255,73 @@ export function Tasks() {
     </div>
   );
 }
+
+
+// ═════ Portfolio ═════
+// Cross-project portfolio view; derived only from existing workspace records.
+export function Portfolio() {
+  const { data, metrics, idx, today, settings, openProject, setPage } = useP();
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("active");
+  const projects = data.projects.filter((p) => !p.is_system && !p.deleted_at);
+  const openProjects = projects.filter((p) => !p.archived_at && !["Completed", "Cancelled"].includes(p.status));
+  const completed = projects.filter((p) => p.status === "Completed" && !p.archived_at);
+  const delayed = openProjects.filter((p) => metrics[p.id]?.daysRemaining < 0);
+  const criticalIssues = data.issues.filter((i) => D.isOpenIssue(i) && i.severity === "Critical");
+  const highRisks = data.risks.filter((r) => D.isOpenRisk(r) && D.riskScore(r) >= settings.riskHigh);
+  const visible = projects
+    .filter((p) => status === "all" || (status === "active" ? openProjects.includes(p) : status === "completed" ? completed.includes(p) : !!p.archived_at))
+    .filter((p) => !query || [p.name, p.description, p.final_goal].some((v) => String(v || "").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
+    .sort((a, b) => {
+      const rank = { Red: 0, Orange: 1, Yellow: 2, Green: 3, OnHold: 4, NotEvaluated: 5 };
+      return (rank[metrics[a.id]?.health] ?? 9) - (rank[metrics[b.id]?.health] ?? 9) || String(a.target_date || "9999").localeCompare(String(b.target_date || "9999"));
+    });
+  const taskCount = idx.list.filter((t) => idx.isLeaf(t.id) && openProjects.some((p) => p.id === t.project_id) && ["todo", "active"].includes(D.cat(t.status))).length;
+  return (
+    <div>
+      <Head title="محفظة المشاريع" sub="نظرة موحّدة على حالة المشاريع والأهداف والمخاطر عبر مساحة العمل." />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 10, marginBottom: 14 }}>
+        <Stat label="مشاريع نشطة" value={openProjects.length} color={C.info} onClick={() => setStatus("active")} />
+        <Stat label="مشاريع مكتملة" value={completed.length} color={C.ok} onClick={() => setStatus("completed")} />
+        <Stat label="مشاريع متأخرة" value={delayed.length} color={delayed.length ? C.bad : C.ok} onClick={() => setStatus("active")} />
+        <Stat label="مهام مفتوحة" value={taskCount} color={C.violet} onClick={() => setPage("tasks")} />
+        <Stat label="مشاكل حرجة" value={criticalIssues.length} color={criticalIssues.length ? C.bad : C.ok} onClick={() => { setView((v) => ({ ...v, issueSeverityFilter: "Critical", issueStatusFilter: "open" })); setPage("issues"); }} />
+        <Stat label="مخاطر عالية" value={highRisks.length} color={highRisks.length ? C.orange : C.ok} onClick={() => setPage("risks")} />
+      </div>
+      <div style={{ ...S.card, marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input aria-label="بحث في المشاريع" style={{ ...S.inp, flex: "1 1 220px" }} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث باسم المشروع أو وصفه أو هدفه…" />
+          <select aria-label="تصفية المشاريع" style={{ ...S.sel, minWidth: 150 }} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="active">النشطة</option><option value="completed">المكتملة</option><option value="archived">المؤرشفة</option><option value="all">كل المشاريع</option>
+          </select>
+          <span style={{ color: C.muted, fontSize: 11 }}>{visible.length} مشروع</span>
+        </div>
+      </div>
+      {!visible.length ? <Empty icon="🗂️" title="لا توجد مشاريع مطابقة" sub="غيّر الفلتر أو عبارة البحث لعرض مشاريع أخرى." /> :
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 10 }}>
+          {visible.map((p) => {
+            const m = metrics[p.id] || {};
+            const tasks = idx.list.filter((t) => idx.isLeaf(t.id) && t.project_id === p.id);
+            const open = tasks.filter((t) => ["todo", "active"].includes(D.cat(t.status))).length;
+            const overdue = tasks.filter((t) => D.isOverdueLeaf(t, idx, today)).length;
+            const issueCount = data.issues.filter((i) => i.project_id === p.id && D.isOpenIssue(i)).length;
+            const riskCount = data.risks.filter((r) => r.project_id === p.id && D.isOpenRisk(r)).length;
+            return <div key={p.id} role="button" tabIndex={0} onClick={() => openProject(p.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProject(p.id); } }} style={{ ...S.card, padding: 13, cursor: "pointer", minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 14, overflowWrap: "anywhere" }}>{p.name}</div><div style={{ color: C.muted, fontSize: 11, marginTop: 3 }}>{L.projectStatus[p.status] || p.status || "—"}{p.target_date ? " · الموعد " + fmtShort(p.target_date) : ""}</div></div>
+                <HealthBadge m={m} compact />
+              </div>
+              {p.description && <div style={{ color: C.dim, fontSize: 11.5, marginTop: 8, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.description}</div>}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}><Progress value={m.progress || 0} /><b style={{ fontSize: 11, minWidth: 36, textAlign: "end" }}>{Math.round(m.progress || 0)}%</b></div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginTop: 11, paddingTop: 9, borderTop: "1px solid " + C.line }}>
+                <div><div style={{ fontSize: 15, fontWeight: 700 }}>{open}</div><div style={{ color: C.muted, fontSize: 10 }}>مهام مفتوحة</div></div>
+                <div><div style={{ fontSize: 15, fontWeight: 700, color: overdue ? C.bad : C.text }}>{overdue}</div><div style={{ color: C.muted, fontSize: 10 }}>متأخرة</div></div>
+                <div><div style={{ fontSize: 15, fontWeight: 700 }}>{issueCount + riskCount}</div><div style={{ color: C.muted, fontSize: 10 }}>مشاكل ومخاطر</div></div>
+              </div>
+            </div>;
+          })}
+        </div>}
+      <div style={{ marginTop: 12, color: C.muted, fontSize: 10.5 }}>المؤشرات محسوبة من سجلات المشاريع والمهام والمخاطر والمشاكل الحالية؛ لا تُنشأ بيانات أو علاقات جديدة في هذه الشاشة.</div>
+    </div>
+  );
+}
