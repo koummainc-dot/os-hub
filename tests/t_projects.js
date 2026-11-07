@@ -7,7 +7,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   const btn=(label,sc)=>all('button',sc).find(b=>b.textContent.includes(label));
   const click=async(label,sc,ms)=>{const b=btn(label,sc);if(!b)return false;b.click();await sleep(ms||150);return true;};
   const setVal=async(el,v)=>{const proto=el.tagName==='SELECT'?w.HTMLSelectElement.prototype:el.tagName==='TEXTAREA'?w.HTMLTextAreaElement.prototype:w.HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,v);el.dispatchEvent(new w.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));await sleep(60);};
-  const nav=()=>all('aside button').filter(b=>b.offsetParent!==null);
+  const nav=()=>all('aside button');
   const goSection=async(label)=>{const b=nav().find(x=>x.textContent.trim()===label || x.textContent.trim().startsWith(label+' '));if(!b)return false;b.click();await sleep(350);return txt().length>0;};
   const toToday=async()=>{const c=all('aside button').find(x=>x.textContent.includes('▾'));c&&c.click();await sleep(60);const t=all('aside button').find(x=>x.textContent.includes('اليوم (كل الأنظمة)'));t&&t.click();await sleep(80);};
   const openProjects=async()=>{await toToday();const t=all('main button').find(b=>b.textContent.trim()==='Projects OS' || b.textContent.includes('Projects OS'));if(!t)return false;t.click();await sleep(500);return nav().some(b=>b.textContent.trim()==='المشاريع');};
