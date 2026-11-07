@@ -134,7 +134,7 @@ function ProjectDetail() {
   );
 }
 function Overview({ p, m }) {
-  const { data, idx, today, settings, A: act, can, nameOf, projectProgress } = useP(); const cov = D.coverageOf(p, idx);
+  const { data, idx, today, settings, A: act, can, nameOf, projectProgress, view, setView, openTask } = useP(); const cov = D.coverageOf(p, idx);
   const lateTasks = idx.list.filter((t) => t.project_id === p.id && D.isOverdueLeaf(t, idx, today));
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 12 }}>
