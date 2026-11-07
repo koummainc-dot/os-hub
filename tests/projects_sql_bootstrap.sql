@@ -52,7 +52,7 @@ create table if not exists storage.buckets (
   allowed_mime_types text[]
 );
 create table if not exists storage.objects (
-  id uuid primary key default gen_random_uuid(),
+  id uuid primary key,
   bucket_id text not null,
   name text not null,
   owner_id uuid,
