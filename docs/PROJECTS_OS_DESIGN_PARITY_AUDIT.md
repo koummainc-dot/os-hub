@@ -69,7 +69,7 @@ Real authenticated workspace acceptance remains a separate user-side gate; test 
 ## 5. Explicit release blockers
 
 - [ ] Complete pixel/structure parity review for all 12 reference screens.
-- [ ] Define the shared Platform notification contract before implementing the Inbox (Knowledge inbox, Platform invitations and durable OS integration events currently have separate ownership and read-state behavior).
+- [x] Define the shared Platform notification contract before implementing the Inbox — `docs/PLATFORM_INBOX_NOTIFICATION_CONTRACT.md` now specifies ownership, recipient-scoped delivery/read state, idempotency, deep links, API, RLS requirements, rollout and free acceptance tests. The migration/UI remain intentionally unimplemented until membership/access helpers are inspected.
 - [ ] Resolve the My Work screen ownership/equivalence decision; Portfolio now has a dedicated route but still needs acceptance.
 - [ ] Implement or explicitly defer direct output file upload (the mockup labels it as proposed).
 - [ ] Audit all controls and state transitions; expand browser acceptance beyond the current selected paths.
@@ -79,7 +79,7 @@ Real authenticated workspace acceptance remains a separate user-side gate; test 
 - [ ] Real workspace lifecycle, meeting conversion persistence, two-account role matrix and populated OKR chain.
 - [ ] Preview acceptance and Production release review.
 
-## 6. Source files inspected
+## 6. Platform Inbox architecture decision\n\nThe shared Inbox contract is documented in `docs/PLATFORM_INBOX_NOTIFICATION_CONTRACT.md`. Key finding: `src/platform/integrations.js` already exposes a `notifications` adapter, but it stores workspace-scoped reminder records keyed by `sourceKey`; it is not a recipient-specific inbox and has no per-user read/dismiss state. It must not be repurposed without a migration plan. The new contract uses recipient-scoped delivery rows so read/dismiss state is private by construction, and requires server-derived `auth.uid()`, validated fan-out, source authorization, RLS, idempotency and structured deep links.\n\n**Next implementation gate:** inspect the actual workspace membership/role tables and helper functions, then write a disposable-PostgreSQL migration + RLS tests. No schema migration, UI, or Production change was made in this architecture step.\n\n## 7. Source files inspected
 
 - `src/systems/projects/index.jsx` — route registry, access wrapper, Project/Knowledge/Ventures integration bridges.
 - `src/systems/projects/screens_a.jsx` — Dashboard, Today, This Week and Tasks.
