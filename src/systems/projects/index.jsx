@@ -5,7 +5,7 @@ import { Tabs, Skeleton, ErrorState, Chip } from "../../core/kit.jsx";
 import { todayStr } from "../../core/dates.js";
 import { ProjectsProvider, useP, Ctx } from "./store.jsx";
 import { TaskSheet, TimerBar } from "./parts.jsx";
-import { Dashboard, Today, Week, Tasks, Portfolio } from "./screens_a.jsx";
+import { Dashboard, Today, Week, Tasks, MyWork, Portfolio } from "./screens_a.jsx";
 import { Projects } from "./screens_b.jsx";
 import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView, DiscoveryView } from "./entities.jsx";
 import { Okrs, Updates, Wins, Reviews, Contacts, Team, Templates, Meetings, Settings } from "./screens_c.jsx";
@@ -19,7 +19,7 @@ function RisksPage() {
     <Tabs value={tab} onChange={setTab} tabs={[{ id: "risks", label: "⚠️ المخاطر", count: data.risks.length }, { id: "decisions", label: "⚖️ القرارات", count: data.decisions.length }]} />
     {tab === "risks" && <RisksView />}{tab === "decisions" && <DecisionsView />}</div>;
 }
-const SCREENS = { dashboard: Dashboard, today: Today, week: Week, portfolio: Portfolio, projects: Projects, tasks: Tasks, issues: IssuesView, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: RisksPage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings, masterplanImport: MasterplanWizard };
+const SCREENS = { dashboard: Dashboard, today: Today, week: Week, myWork: MyWork, portfolio: Portfolio, projects: Projects, tasks: Tasks, issues: IssuesView, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: RisksPage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings, masterplanImport: MasterplanWizard };
 
 function ProjectsDurableEventBridge({ ws, isDemo, children }) {
   const ctx = useP();
