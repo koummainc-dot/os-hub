@@ -50,6 +50,30 @@ function Router() {
   const ctx = useP(); const { page, ready, error, store, access, role, shell, ws, A, data } = ctx; const lvl = osSectionLevel(access, page);
   // sections hidden for Viewers (plan §13.2) are removed from the shell menu
   useEffect(() => { if (shell && shell.publish) shell.publish("projects", { visible: Object.keys(SCREENS).filter((k) => k !== "masterplanImport" && !(role === "Viewer" && ["reviews", "contacts"].includes(k))) }); }, [role]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const publishResult = (detail) => window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws?.id || null, systemId: "projects", source: "ventures", ...detail } }));
+    const handleSourceWrite = async (event) => {
+      const d = event?.detail || {};
+      if (d.source !== "ventures" || d.systemId !== "projects" || d.action !== "create_risk") return;
+      if (d.workspaceId && String(d.workspaceId) !== String(ws?.id)) return;
+      const payload = d.payload || {};
+      const project = ctx.projectsById?.[payload.project_id];
+      if (!project) { publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: "المشروع المرتبط بفحص البريد غير موجود أو غير متاح." }); return; }
+      if (!ctx.can("risk.write", project)) { publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: "لا تملك صلاحية إنشاء مخاطر في هذا المشروع." }); return; }
+      const existing = (ctx.data.risks || []).find((item) => item.source === "ventures_email" && String(item.source_record_id) === String(payload.source_record_id));
+      const risk = { ...payload, id: existing?.id || d.recordId || payload.id, project_id: project.id, source_record_id: payload.source_record_id };
+      try {
+        const saved = await A.saveRisk(risk);
+        publishResult({ action: d.action, recordId: saved.id, ok: true });
+      } catch (error) {
+        publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: error?.message || "تعذر حفظ الخطر في Projects." });
+      }
+    };
+    window.addEventListener("os:source-write", handleSourceWrite);
+    return () => window.removeEventListener("os:source-write", handleSourceWrite);
+  }, [A, ctx.can, ctx.data.risks, ctx.projectsById, ws?.id]);
+
   if (error) return <ErrorState error={error} onRetry={() => store.api.reload()} />;
   if (!ready) return <Skeleton />;
   if (lvl === "none") return <AccessDenied />;
