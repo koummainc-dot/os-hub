@@ -15,6 +15,12 @@ begin
   if nullif(legacy->>'okr_v4_reconciled_at','') is null then
     raise exception 'reconciliation timestamp missing';
   end if;
+  select data into legacy from public.workspace_records
+   where workspace_id='11111111-1111-4111-8111-111111111111'
+     and system_id='projects' and collection='objectives' and id='legacy-objective-trash';
+  if legacy is null or legacy ? 'project_ids' or legacy->'legacy_project_ids' <> '["legacy-project"]'::jsonb then
+    raise exception 'trashed Objective legacy links were not reconciled and preserved';
+  end if;
 end
 $block$;
 
