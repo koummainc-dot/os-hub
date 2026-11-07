@@ -55,6 +55,21 @@ begin
   if kr_data->'project_ids' <> '["v4-project"]'::jsonb then
     raise exception 'KR.project_ids canonical relation was not retained';
   end if;
+  if not exists (
+    select 1
+      from public.workspace_records o
+      join public.workspace_records k
+        on k.workspace_id=o.workspace_id and k.system_id='projects' and k.collection='krs'
+       and k.data->>'objective_id'=o.id
+      join public.workspace_records t
+        on t.workspace_id=o.workspace_id and t.system_id='projects' and t.collection='tasks'
+       and t.data->>'project_id' in (select jsonb_array_elements_text(k.data->'project_ids'))
+     where o.workspace_id='11111111-1111-4111-8111-111111111111'
+       and o.system_id='projects' and o.collection='objectives' and o.id='v4-objective'
+       and k.id='v4-kr' and t.id='v4-task'
+  ) then
+    raise exception 'Objective → KR → Project → Task persisted chain is incomplete';
+  end if;
 end
 $block$;
 
