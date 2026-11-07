@@ -16,6 +16,7 @@ import { createPlatformIntegrationServices } from "./integrations.js";
 const SYSTEM_LOADERS=import.meta.glob("../systems/*/index.jsx");
 function OSSystemHost({sys,ws,acc,me,members,isDemo,demoStore,section,setSection,shell}){
   const [st,setSt]=useState({mod:null,err:null,tick:0});
+  const setPage=useCallback((value)=>setSection(sys.id,value),[setSection,sys.id]);
   useEffect(()=>{
     let c=false; setSt(s=>({...s,mod:null,err:null}));
     const ld=SYSTEM_LOADERS["../systems/"+sys.id+"/index.jsx"];
@@ -40,7 +41,7 @@ function OSSystemHost({sys,ws,acc,me,members,isDemo,demoStore,section,setSection
   if(!mod) return <div style={{textAlign:"center",padding:60,color:"#6E7781",fontSize:13}}><div style={{width:30,height:30,border:`3px solid ${A}30`,borderTopColor:A,borderRadius:"50%",margin:"0 auto 12px",animation:"spin 0.8s linear infinite"}}/>جاري تحميل {sys.title}...</div>;
   if(mod.scaffold) return <OSScaffold sys={sys} section={section} acc={acc} isDemo={isDemo}/>;
   const Comp=mod.default;
-  return <Comp api={wiredApi} access={acc} authUser={me} ws={ws} members={members} isDemo={isDemo} demoStore={demoStore} page={section} setPage={setSection} shell={shell}/>;
+  return <Comp api={wiredApi} access={acc} authUser={me} ws={ws} members={members} isDemo={isDemo} demoStore={demoStore} page={section} setPage={setPage} shell={shell}/>;
 }
 
 // ════════════════ PLATFORM ROOT + SHELL ════════════════
@@ -418,7 +419,7 @@ function Platform(){
   else if(route.view==="invites") content=<OSInvitesPage incoming={incoming} onAccept={actions.accept} onDecline={actions.decline} toast={toast} isDemo={isDemo}/>;
   else if(route.view==="account") content=<OSAccountPage me={me} profile={data.profile} isDemo={isDemo} workspaces={workspaces} onUpdateName={actions.updateName} onLeave={actions.leave} onSignOut={actions.signOut} onSignOutOthers={actions.signOutOthers} toast={toast}/>;
   else if(route.view==="system") content=(sys&&acc.level!=="none")
-    ?<OSSystemHost key={ws.id+":"+sys.id+":"+(isDemo?demo.viewAs:"")} sys={sys} ws={ws} acc={acc} me={hostMe} members={admin.members} isDemo={isDemo} demoStore={demoStore} section={currentSection} setSection={(v)=>setSection(sys.id,v)} shell={shellApi}/>
+    ?<OSSystemHost key={ws.id+":"+sys.id+":"+(isDemo?demo.viewAs:"")} sys={sys} ws={ws} acc={acc} me={hostMe} members={admin.members} isDemo={isDemo} demoStore={demoStore} section={currentSection} setSection={setSection} shell={shellApi}/>
     :<AccessDenied/>;
 
   return(
