@@ -181,6 +181,5 @@ update public.workspace_records
        updated_at = clock_timestamp()
  where system_id = 'projects'
    and collection = 'objectives'
-   and deleted = false
    and data ? 'project_ids';
 
