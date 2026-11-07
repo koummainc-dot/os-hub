@@ -23,6 +23,10 @@ BEGIN
     RAISE EXCEPTION 'Projects Outputs Storage policies are incomplete';
   END IF;
 
+  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname='projects_output_workspace_id') THEN
+    RAISE EXCEPTION 'Projects Outputs Storage path parser is missing';
+  END IF;
+
   IF EXISTS (
     SELECT 1 FROM pg_policies
     WHERE schemaname = 'storage'
@@ -61,3 +65,11 @@ END $$;
 
 -- The actual two-account/session acceptance remains a separate gate because
 -- CI cannot safely impersonate the user's production authenticated identities.
+
+
+DO $$
+BEGIN
+  IF public.projects_output_workspace_id('workspace/not-a-uuid/project/p1/output/o1/file.pdf') IS NOT NULL THEN
+    RAISE EXCEPTION 'Malformed Output Storage path must fail closed';
+  END IF;
+END $$;
