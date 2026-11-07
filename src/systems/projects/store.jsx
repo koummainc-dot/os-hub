@@ -731,7 +731,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
   const parseProjectHash = useCallback(() => {
     if (typeof window === "undefined") return null;
     const raw = window.location.hash || "";
-    const m = raw.match(/^#\\/p\\/([^/?#]+)(?:\\/([^?#]+))?(?:\\?([^#]*))?$/);
+    const m = raw.match(/^#\/p\/([^/?#]+)(?:\/([^?#]+))?(?:\?([^#]*))?$/);
     if (!m) return null;
     const params = new URLSearchParams(m[3] || "");
     const focus = params.get("focus");
