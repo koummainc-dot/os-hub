@@ -75,16 +75,53 @@ function Router({ sourceWriteRequest }) {
       publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: error?.message || "تعذر حفظ الخطر في Projects." });
     }
   }, [A, access, ctx.can, ctx.data.risks, ctx.projectsById, ws?.id]);
+  const processedKnowledgeMeetingWrites = useRef(new Set());
+  const handleKnowledgeMeetingTasks = useCallback(async (d) => {
+    if (!(d?.source === "knowledge" && d.systemId === "projects" && d.action === "create_meeting_tasks")) return;
+    const publishResult = (detail) => window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws?.id || null, systemId: "projects", source: "knowledge", ...detail } }));
+    if (d.workspaceId && String(d.workspaceId) !== String(ws?.id)) return;
+    const payload = d.payload || {};
+    const project = ctx.projectsById?.[payload.project_id];
+    if (!project || project.is_system || project.archived_at) { publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: "المشروع المرتبط بالاجتماع غير موجود أو غير نشط." }); return; }
+    if (osSectionLevel(access, "tasks") !== "edit" || !ctx.can("task.write", project)) { publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: "لا تملك صلاحية إنشاء مهام في هذا المشروع." }); return; }
+    const requestKey = String(d.recordId || payload.meeting_id || "");
+    if (requestKey && processedKnowledgeMeetingWrites.current.has(requestKey)) {
+      publishResult({ action: d.action, recordId: d.recordId || requestKey, ok: true, duplicateRequest: true });
+      return;
+    }
+    if (requestKey) processedKnowledgeMeetingWrites.current.add(requestKey);
+    const rows = Array.isArray(payload.tasks) ? payload.tasks : [];
+    const createdTaskIds = [], errors = [];
+    for (const item of rows) {
+      const sourceRecordId = String(item?.source_record_id || "");
+      const title = String(item?.title || "").trim();
+      if (!sourceRecordId || !title) { errors.push("توجد متابعة بلا معرّف أو عنوان صالح."); continue; }
+      const existing = (ctx.data.tasks || []).find((task) => task.source === "knowledge_meeting" && String(task.source_record_id) === sourceRecordId);
+      try {
+        const task = { ...item, ...(existing?.id ? { id: existing.id } : { id: undefined }), title, project_id: project.id, source: "knowledge_meeting", source_record_id: sourceRecordId, source_meeting_id: String(payload.meeting_id || "") };
+        const saved = await A.saveTask(task, !existing);
+        if (!saved?.id) throw new Error("لم يؤكد مخزن Projects حفظ المهمة.");
+        createdTaskIds.push(saved.id);
+      } catch (error) { errors.push(title + ": " + (error?.message || "تعذر الحفظ.")); }
+    }
+    const ok = rows.length > 0 && errors.length === 0;
+    if (!ok && requestKey) processedKnowledgeMeetingWrites.current.delete(requestKey);
+    publishResult({ action: d.action, recordId: d.recordId || null, ok, createdTaskIds, error: errors.join(" | ") || (rows.length ? null : "لا توجد متابعات لتحويلها.") });
+  }, [A, access, ctx.can, ctx.data.tasks, ctx.projectsById, ws?.id]);
+  const handleSourceWrite = useCallback((d) => {
+    if (d?.source === "ventures") return handleVenturesRisk(d);
+    if (d?.source === "knowledge") return handleKnowledgeMeetingTasks(d);
+  }, [handleVenturesRisk, handleKnowledgeMeetingTasks]);
   useEffect(() => {
     if (!sourceWriteRequest || !ready) return;
-    void handleVenturesRisk(sourceWriteRequest);
-  }, [sourceWriteRequest, ready, handleVenturesRisk]);
+    void handleSourceWrite(sourceWriteRequest);
+  }, [sourceWriteRequest, ready, handleSourceWrite]);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const handleSourceWrite = (event) => { void handleVenturesRisk(event?.detail || {}); };
-    window.addEventListener("os:source-write", handleSourceWrite);
-    return () => window.removeEventListener("os:source-write", handleSourceWrite);
-  }, [handleVenturesRisk]);
+    const listener = (event) => { void handleSourceWrite(event?.detail || {}); };
+    window.addEventListener("os:source-write", listener);
+    return () => window.removeEventListener("os:source-write", listener);
+  }, [handleSourceWrite]);
 
   if (error) return <ErrorState error={error} onRetry={() => store.api.reload()} />;
   if (!ready) return <Skeleton />;
