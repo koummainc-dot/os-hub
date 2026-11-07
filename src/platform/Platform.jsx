@@ -101,7 +101,7 @@ function Platform(){
   useEffect(()=>{
     const handler=async(e)=>{
       const d=e?.detail;
-      if(!d||d.workspaceId==null||String(d.workspaceId)!==String(wsId)||!["ventures","knowledge"].includes(d.source)||!d.systemId) return;
+      if(!d||d.workspaceId==null||String(d.workspaceId)!==String(wsId)||!(d.source==="ventures"||(d.source==="knowledge"&&d.systemId==="projects"))||!d.systemId) return;
       if(d.systemId==="projects"){
         const allowed=d.source==="ventures"?["create_risk"]:d.source==="knowledge"?["create_meeting_tasks"]:[];
         if(!allowed.includes(d.action)){
