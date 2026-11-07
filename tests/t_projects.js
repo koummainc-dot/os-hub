@@ -41,6 +41,10 @@ const {makeEnv,sleep,appJs}=require('./harness');
   ok(!!projectRow,'project list exposes the seeded project row');
   if(projectRow){projectRow.querySelector('td')?.click();await sleep(250);}
   ok(txt().includes('الحوكمة')&&txt().includes('تطبيق إدارة الوقت'),'opening the project row enters Project Detail');
+  ok(txt().includes('المشاريع › تطبيق إدارة الوقت › نظرة عامة'),'Project Detail shows a contextual breadcrumb');
+  ok(!txt().includes('نشاط حديث من أنظمة أخرى'),'Project Detail does not render the external cross-system activity strip');
+  const healthReasonLink=all('main button').find(b=>b.textContent.includes('↗') && b.closest('div')?.textContent.includes('مهام متأخرة'));
+  ok(!!healthReasonLink,'health reasons expose direct links to affected records');
   const goalsGroup=all('main button').find(b=>b.textContent.trim().startsWith('الأهداف'));
   ok(!!goalsGroup,'Project Detail exposes its Goals group tab');
   if(goalsGroup){goalsGroup.click();await sleep(100);}
