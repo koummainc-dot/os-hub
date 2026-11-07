@@ -88,6 +88,37 @@ export function Today() {
   const { ws, me, data, idx, today, settings, A: act, can, alerts, people, nameOf, openTask, openProject, runningTimer, projectsById, toast, setPage } = useP();
   const feed = D.todayFeed(me, { idx, issues: data.issues, projects: data.projects, contacts: data.contacts, today, settings });
   const [homeCompletions, setHomeCompletions] = useState([]);
+  const [todayMeetings, setTodayMeetings] = useState([]);
+  const [meetingsState, setMeetingsState] = useState("loading");
+  useEffect(() => {
+    let alive = true;
+    if (!ws?.id) {
+      setTodayMeetings([]);
+      setMeetingsState("empty");
+      return () => { alive = false; };
+    }
+    setMeetingsState("loading");
+    listKnowledgeMeetings(ws.id).then(result => {
+      if (!alive) return;
+      if (!result?.ok) {
+        setTodayMeetings([]);
+        setMeetingsState("error");
+        return;
+      }
+      const rows = (result.meetings || [])
+        .filter(meeting => !meeting.archived && !meeting.deleted_at && meeting.status !== "archived")
+        .filter(meeting => String(meeting.date || "").slice(0, 10) === String(today).slice(0, 10))
+        .sort((a, b) => String(a.startTime || a.start_time || a.time || "").localeCompare(String(b.startTime || b.start_time || b.time || "")));
+      setTodayMeetings(rows);
+      setMeetingsState(rows.length ? "ready" : "empty");
+    }).catch(() => {
+      if (alive) {
+        setTodayMeetings([]);
+        setMeetingsState("error");
+      }
+    });
+    return () => { alive = false; };
+  }, [ws?.id, today]);
   useEffect(() => {
     if (!ws?.id) { setHomeCompletions([]); return; }
     const options = { workspaceId: ws.id, source: "home", types: ["home.task.completed"], limit: 30 };
