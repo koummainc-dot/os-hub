@@ -168,7 +168,7 @@ This improves exact-record discovery, but does not yet provide a dedicated read-
 - [x] Browser acceptance for Project Detail → OKR derived Objective/KR links (PR #172).
 - [x] Core exact-record focus navigation for Issue, Risk, Decision, PRD, Output, and Discovery links (PR #161; row scroll + highlight).\n- [x] Read-only detail modals for the six Project entity types covered by PR #167/170; remaining global links and richer side-panel UX remain open.
 - [x] Knowledge Meeting → Project Action Item → Task browser acceptance and repeat-send idempotency now pass on the remediation branch; [ ] real workspace persistence after reload remains open.
-- [ ] Collection lifecycle matrix: create → reload → edit relationship → reload → archive/delete → restore → reload.
+- [x] Disposable PostgreSQL lifecycle smoke covers Create → Reload → Edit → Reload → Archive → Restore → Reload through the atomic Projects batch RPC; [ ] authenticated browser lifecycle against a real workspace remains open.
 - [x] Disposable PostgreSQL two-identity RLS smoke proves Account B cannot read/update Account A private Project, Task, Risk, or Decision records; [ ] real authenticated app accounts and role matrix remain open.
 - [x] OKR v4 domain contract and PostgreSQL relation smoke cover Objective ← KR.project_ids → Project → Task; [ ] live authenticated workspace data with multiple KRs/Projects is still absent and must be verified.
 - [x] Forward migration and SQL smoke for the Objective/KR v4 guard reconciliation are implemented and pass in isolated PostgreSQL; [ ] production migration review/application remains pending.
@@ -188,6 +188,7 @@ This improves exact-record discovery, but does not yet provide a dedicated read-
 - **CI 1952:** full browser harness passed after adding the Knowledge Meeting → Projects task bridge and the Ventures Email Check → Projects Risk bridge. Both use the authoritative Projects repository; the meeting task is assigned to the current user and uses stable source identity to avoid duplicates.
 - **CI 1955 — Projects PostgreSQL smoke:** the forward OKR v4 migration passed against a disposable PostgreSQL database. The smoke seeds legacy Objective.project_ids, verifies those values are preserved in legacy_project_ids (including trashed Objectives), verifies new KR.project_ids links, and rejects new direct Objective.project_ids writes.
 - **CI 1955 — two-identity privacy smoke:** production record-visibility policies were applied in the disposable database. Account A can read its private Project, Task, Risk, and Decision; Account B cannot read or update those records, while a workspace-visible Project remains visible.
+- **CI 1957 — database lifecycle smoke:** the Projects atomic batch RPC passed Create → Reload → Edit → Reload → Archive → Restore → Reload for a Project, Task, Risk, and Decision set; stale writes were rejected. This is DB-level acceptance, not yet the authenticated browser lifecycle.
 - **Objective/KR/Project/Task:** domain-level derived execution and SQL relationship checks now cover the v4 path. No live KRs were found in the inspected workspace, so the authenticated live chain remains unproven.
 
 ### Remaining release gates
