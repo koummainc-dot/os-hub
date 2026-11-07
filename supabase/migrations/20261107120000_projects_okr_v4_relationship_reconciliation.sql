@@ -2,8 +2,6 @@
 -- Canonical chain: Objective <- KR.project_ids -> Project -> Task.
 -- Preserve historical Objective.project_ids for audit/manual remapping, but remove
 -- the deprecated direct relationship from active Objective records.
-begin;
-
 create or replace function public.projects_guard_entity_relationships()
 returns trigger
 language plpgsql
@@ -186,4 +184,3 @@ update public.workspace_records
    and deleted = false
    and data ? 'project_ids';
 
-commit;
