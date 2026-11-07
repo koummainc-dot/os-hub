@@ -239,6 +239,19 @@ const {makeEnv,sleep,appJs}=require('./harness');
   ok(errors.length===0,'no errors in project/task flows ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
   const x=doc.querySelector('[role=dialog] button[aria-label="إغلاق"]'); x&&x.click(); await sleep(100);
 
+  console.log('— Ventures Email Check → Projects Risk bridge');
+  await goSection('المشاريع'); await click('← المشاريع',null,100);
+  const bridgeProjectRow=all('tr').find(r=>r.textContent.includes('تطبيق إدارة الوقت'));
+  ok(!!bridgeProjectRow,'bridge test project is available');
+  if(bridgeProjectRow) bridgeProjectRow.click();
+  await sleep(220); await click('الحوكمة',null,100); await click('المخاطر',null,120);
+  const bridgePayload={id:'email-check-acceptance-1',title:'Email Check bridge acceptance',status:'Open',kind:'Risk',source:'ventures_email',source_record_id:'email-check-acceptance-1',project_id:'p_app',risk:'High',probability:4,impact:4,description:'Risk created from Ventures Email Check acceptance',module:'Email'};
+  const bridgeEvent={workspaceId:'demo_ws',systemId:'projects',action:'create_risk',recordId:bridgePayload.id,payload:bridgePayload,source:'ventures'};
+  w.dispatchEvent(new w.CustomEvent('os:source-write',{detail:bridgeEvent})); await sleep(350);
+  ok(txt().includes(bridgePayload.title),'Ventures Email Check event creates a permission-checked Projects risk');
+  w.dispatchEvent(new w.CustomEvent('os:source-write',{detail:bridgeEvent})); await sleep(250);
+  ok(txt().split(bridgePayload.title).length-1===1,'repeated Ventures Email Check does not create a duplicate risk');
+
   console.log('— permissions (view as Layla = Viewer)');
   await viewAs('demo_layla'); await toToday(); await openProjects();
   const lnav=nav().map(b=>b.textContent).join('|'); ok(!lnav.includes('جهات الاتصال')&&!lnav.includes('المراجعات الأسبوعية'),'Viewer: contacts + reviews hidden from menu');
