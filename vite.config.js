@@ -6,7 +6,8 @@ import { defineConfig } from "vite";
 // temporal-dead-zone failure ("Cannot access 'W' before initialization").
 export default defineConfig({
   esbuild: {
-    jsxInject: 'import React from "react"',
+    jsx: "automatic",
+    jsxImportSource: "react",
   },
   build: {
     target: "es2019",
