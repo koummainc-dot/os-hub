@@ -86,7 +86,7 @@ const countNodes = (nodes) => nodes.reduce((a, n) => a + 1 + countNodes(n.childr
 
 // ═════ Project detail ═════
 function ProjectDetail() {
-  const { view, setView, projectsById, metrics, data, can, A: act, idx, today, people, nameOf, toast, sessionsDummy } = useP();
+  const { view, setView, projectsById, metrics, data, can, A: act, idx, today, people, nameOf, toast, sessionsDummy, openTask } = useP();
   const p = projectsById[view.projectId]; const [edit, setEdit] = useState(false); const [wf, setWf] = useState(false); const [tm, setTm] = useState(false);
   if (!p) return <div><Btn onClick={() => setView({ projectId: null, tab: "overview" })}>← المشاريع</Btn><Empty icon="🔎" title="المشروع غير موجود أو محجوب" /></div>;
   const m = metrics[p.id]; const tab = view.tab; const setTab = (t) => setView({ ...view, tab: t });
@@ -105,7 +105,12 @@ function ProjectDetail() {
   const canE = can("project.edit", p);
   return (
     <div>
-      <div style={{ marginBottom: 8 }}><Btn small onClick={() => setView({ projectId: null, tab: "overview", taskId: null })}>← المشاريع</Btn></div>
+      <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11.5 }}>
+        <Btn small onClick={() => setView({ projectId: null, tab: "overview", taskId: null })}>← المشاريع</Btn>
+        <span style={{ color: C.muted }}>المشاريع</span><span style={{ color: C.muted }}>›</span>
+        <button type="button" onClick={() => setView({ ...view, tab: "overview", taskId: null })} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", font: "inherit" }}>{p.name}</button>
+        <span style={{ color: C.muted }}>›</span><span style={{ color: C.dim }}>{tab === "overview" ? "نظرة عامة" : (tabGroups.find((g) => g.tabs.some((x) => x.id === tab))?.tabs.find((x) => x.id === tab)?.label || tab)}</span>
+      </div>
       <Head title={<>{p.name}{p.visibility === "private" && " 🔒"} {p.is_system && <Chip>مشروع النظام</Chip>}</>} sub={`${p.type || ""} · القائد: ${nameOf(p.lead_id)}${p.start_date ? " · " + fmtShort(p.start_date) : ""}${p.target_date ? " → " + fmtShort(p.target_date) : ""}`} right={!p.is_system && <>
         <StatusChip s={p.status} />
         {canE && <select style={{ ...S.sel, width: 150 }} value="" onChange={(e) => e.target.value && act.setProjectStatus(p, e.target.value)}><option value="">تغيير الحالة…</option>{Object.keys(L.projectStatus).filter((s) => s !== p.status && s !== "Archived").map((s) => <option key={s} value={s}>{L.projectStatus[s]}</option>)}</select>}
@@ -135,7 +140,15 @@ function Overview({ p, m }) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 12 }}>
       <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>الصحة والتقدم</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}><HealthBadge m={m} /><span style={{ fontSize: 12, color: C.dim }}>{m.leafCompleted}/{m.leafTotal} مهمة</span></div><Progress value={m.progress} height={9} />
-        {(m.healthReasons || []).length > 0 && <div style={{ marginTop: 10 }}>{m.healthReasons.map((r) => <div key={r.code} style={{ fontSize: 12, padding: "3px 0", color: D.HEALTH_META[r.level].color }}>● {D.REASON_LABEL[r.code]}{r.ids.length ? ` (${r.ids.length})` : ""}</div>)}</div>}
+        {(m.healthReasons || []).length > 0 && <div style={{ marginTop: 10 }}>{m.healthReasons.map((r) => <div key={r.code} style={{ fontSize: 12, padding: "3px 0", color: D.HEALTH_META[r.level].color }}>
+          <span>● {D.REASON_LABEL[r.code]}</span>
+          {r.ids.length ? <span style={{ marginInlineStart: 5, display: "inline-flex", gap: 4, flexWrap: "wrap" }}>{r.ids.slice(0, 8).map((id) => {
+            if (r.kind === "task" && idx.byId[id]) return <button key={id} type="button" onClick={() => openTask(id)} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>↗ {idx.byId[id].title}</button>;
+            if (r.kind === "issue" && data.issues.find((x) => x.id === id)) return <button key={id} type="button" onClick={() => setView({ ...view, tab: "issues", focusRecord: { kind: "issue", id }, issueStatusFilter: "all" })} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>↗ مشكلة</button>;
+            if (r.kind === "risk" && data.risks.find((x) => x.id === id)) return <button key={id} type="button" onClick={() => setView({ ...view, tab: "risks", focusRecord: { kind: "risk", id } })} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>↗ خطر</button>;
+            return null;
+          })}</span> : null}
+        </div>)}</div>
         <div style={{ fontSize: 12, color: C.dim, marginTop: 10, lineHeight: 1.9 }}>الموعد: {p.target_date ? `${fmt(p.target_date)} (${m.daysRemaining < 0 ? "تجاوز " + -m.daysRemaining + " يوم" : "باقٍ " + m.daysRemaining + " يوم"})` : "غير محدد"}<br />متأخرة: {m.overdueLeafCount} · مخاطر مفتوحة: {m.openRisks} (عالية {m.highOpenRisks}) · مشاكل: {m.openIssues} (حرجة {m.criticalOpenIssues})</div>
       </div>
       <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>الوقت والتكلفة</div>
