@@ -55,7 +55,7 @@ function Router() {
     const publishResult = (detail) => window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws?.id || null, systemId: "projects", source: "ventures", ...detail } }));
     const handleSourceWrite = async (event) => {
       const d = event?.detail || {};
-      if (d.source !== "ventures" || d.systemId !== "projects" || d.action !== "create_risk") return;
+      if (!(d.source === "ventures" && d.systemId === "projects" && d.action === "create_risk")) return;
       if (d.workspaceId && String(d.workspaceId) !== String(ws?.id)) return;
       const payload = d.payload || {};
       const project = ctx.projectsById?.[payload.project_id];
