@@ -117,6 +117,23 @@ const {makeEnv,sleep,appJs}=require('./harness');
     ok(!!editInput,'task title supports inline editing');
     if(editInput){await setVal(editInput,'مهمة إضافة سريعة — معدلة');editInput.dispatchEvent(new w.Event('blur',{bubbles:true}));await sleep(180);}
   }
+  if(taskRow){
+    const taskTitle=taskRow.querySelector('span');
+    if(taskTitle){taskTitle.click();await sleep(120);}
+    const sheet=doc.querySelector('[role="dialog"]');
+    if(sheet){
+      ok(!!btn('✎ تعديل',sheet),'task sheet exposes edit action');
+      await click('✎ تعديل',sheet,120);
+      const editDlg=doc.querySelector('[role="dialog"]');
+      if(editDlg){
+        await click('⚙ تفاصيل إضافية',editDlg,80);
+        const customInput=all('input',editDlg).find(i=>i.placeholder?.includes('حقل') || i.parentElement?.textContent?.includes('حقل مخصص'));
+        ok(!!customInput,'advanced task editor exposes custom fields');
+        if(customInput){await setVal(customInput,'QA-CUSTOM');await click('حفظ',editDlg,180);}
+      }
+      const closeSheet=sheet.querySelector('button[aria-label="إغلاق"]'); closeSheet&&closeSheet.click(); await sleep(80);
+    }
+  }
   const rowCheck=taskRow?.querySelector('input[type="checkbox"]');
   if(rowCheck) rowCheck.click();
   await sleep(50);
