@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { emailWinnerPatch, emailCheckProjectIssue, validateEmailABTest } from "../src/systems/ventures/domain.js";
 const projects = readFileSync(new URL("../src/systems/projects/index.jsx", import.meta.url), "utf8");
+const platform = readFileSync(new URL("../src/platform/Platform.jsx", import.meta.url), "utf8");
 const ventures = readFileSync(new URL("../src/systems/ventures/realWorkspace.jsx", import.meta.url), "utf8");
 
 assert.deepEqual(validateEmailABTest({ab_test:true,variant_a:"A",variant_b:"B",winner_variant:"A",winner_reason:"CTR أعلى"}),[]);
@@ -15,6 +16,9 @@ assert.match(ventures,/action:"create_risk",recordId:r\.recordId,payload:r\.payl
 assert.match(projects,/d\.action === "create_risk"/,"Projects must handle risk creation rather than treating it as a project");
 assert.match(projects,/source_record_id: payload\.source_record_id/,"source record link is retained");
 assert.match(projects,/ctx\.can\("risk\.write", project\)/,"Projects permission check is enforced");
+assert.match(platform,/d\.systemId==="projects"/,"Platform routes Ventures project writes to the Projects OS even when it is not mounted");
+assert.match(platform,/setPendingProjectSourceWrite\(d\)/,"Platform retains the source write until Projects is mounted");
+assert.match(platform,/sourceWriteRequest=\{sys\.id==="projects"\?pendingProjectSourceWrite:null\}/,"pending Ventures writes are handed to the Projects host");
 console.log("t_ventures_email_ab_project_bridge: OK");
 
 const finance = readFileSync(new URL("../src/systems/finance/index.jsx", import.meta.url), "utf8");

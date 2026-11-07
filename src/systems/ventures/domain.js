@@ -259,8 +259,10 @@ export function emailCheckProjectIssue(check={}) {
   const id=String(check.id||"");
   if(!id) return {ok:false,error:"check id is required"};
   const risk=String(check.risk||"").trim();
+  const severity=risk.toLowerCase();
+  const score=severity.includes("critical")?5:severity.includes("high")?4:severity.includes("low")?2:3;
   const title=[check.type||"Email check",risk&&`Risk: ${risk}`].filter(Boolean).join(" · ");
-  return {ok:true,recordId:`email-check-${id}`,payload:{id:`email-check-${id}`,title,status:"Open",kind:"Risk",source:"ventures_email",source_record_id:id,project_id:check.project_id||null,risk:risk||"Medium",description:check.note||"",module:"Email",created_at:new Date().toISOString()}};
+  return {ok:true,recordId:`email-check-${id}`,payload:{id:`email-check-${id}`,title,status:"Open",kind:"Risk",source:"ventures_email",source_record_id:id,project_id:check.project_id||null,risk:risk||"Medium",probability:score,impact:score,description:check.note||"",module:"Email",created_at:new Date().toISOString()}};
 }
 export function emailAlerts(campaigns=[],lists=[],checks=[],thresholds={}){
   const out=[]; const spamMax=thresholds.spam_rate==null?null:Number(thresholds.spam_rate); const bounceMax=thresholds.hard_bounce_rate==null?null:Number(thresholds.hard_bounce_rate);

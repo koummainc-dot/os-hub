@@ -1,6 +1,6 @@
 # Projects OS — Six-Stage Review & Remediation Plan
 
-**Review date:** 2026-11-06  
+**Review date:** 2026-11-07  
 **Authority:** `plans/Projects_OS_v4_Unified_Master_Plan.md` is the product source of truth. This review does not authorize a schema rewrite or production data migration by itself.  
 **Scope:** Projects OS only, including its cross-system contracts with Knowledge OS and the shared platform.  
 **Acceptance rule:** Projects OS is not complete because screens exist. Each required flow must validate, persist, survive reload, expose both relationship directions, navigate to the exact record, enforce permissions, and pass lifecycle tests.
@@ -79,8 +79,8 @@ Every flow must explicitly cover:
 ### Confirmed navigation gaps
 
 - **Resolved by PR #161:** Issue → originating Risk, Issue → originating Discovery, Issue → related Decision, Risk → converted Issue, Decision → related Issue/Risk/Discovery, PRD → related Decision/Risk/Output, Discovery → converted records, and Task backlinks now navigate to exact rows and highlight them.
-- Project Detail → Objective/KR names are not yet exact-record navigation targets; retain as a remaining relationship-navigation gap until tested.
-- **PR #166 merged:** Project Detail → Collaboration → References reads Knowledge OS meetings filtered to the exact project; verify on a deployed build and confirm action-item task persistence after reload.
+- **Resolved by PR #171/#172:** Project Detail → Objective/KR names are exact navigation targets; the global OKR screen reveals filtered/archived targets, scrolls to the exact record, and highlights it, with browser harness coverage.
+- **PR #166 merged:** Project Detail → Collaboration → References reads Knowledge OS meetings filtered to the exact project; browser persistence acceptance remains outstanding.
 
 ### Wireframe requirements
 
@@ -103,10 +103,10 @@ Before visual polish:
 
 ### Confirmed model mismatches / migration gates
 
-1. Current code stores KR-to-Project links in `kr.project_ids`; v4 describes a logical `kr_projects` relation. Decide and document the canonical persistence shape before normalizing or migrating.
+1. This release keeps the existing JSONB `kr.project_ids` array as the canonical v4 supporting-Project relation. A normalized `kr_projects` join table is not introduced by this remediation; any later normalization requires its own no-loss migration and rollout plan.
 2. Legacy `task.objective_id` and `kr.task_ids` compatibility paths remain in code. Preserve them until all readers/writers and persisted values are reconciled.
 3. `objective.project_ids` is not a canonical v4 relationship. Project Detail no longer reads it after PR #158; do not reintroduce it.
-4. Migration `20261031120000_projects_entity_relationship_integrity.sql` contains Objective/KR checks that conflict with the v4 derived relationship. **Do not apply this migration unchanged.** Rewrite its Objective/KR branch and tests only after the no-loss reconciliation proposal is reviewed.
+4. Migration `20261031120000_projects_entity_relationship_integrity.sql` contained the obsolete direct Objective→Project guard. A forward-only reconciliation migration is now present on PR #173; it moves historical IDs to `legacy_project_ids`, removes the active direct field (including trashed records), and rejects future direct writes. Its isolated PostgreSQL smoke test passes; Production application remains a separate release gate.
 5. Other Projects guard migrations are not all present in the inspected Production migration history. Review their ordering and dependencies as one release set; do not infer that a migration in Git is already active in Production.
 
 ### Read-only Production inventory already recorded
@@ -131,7 +131,7 @@ In the inspected workspace: 6 active Projects, 1 active Objective, 0 KRs, 29 act
 - **PR #158 — merged:** Project Detail derives Objectives through linked KRs instead of the obsolete `objective.project_ids` field; added domain and UI contract tests.
 - **PR #159 — merged:** fixed undefined requirement-count identifiers that broke PRD requirement rendering; added direct task creation from a requirement with Project, PRD, and requirement prefilled; added regression assertions.
 
-- **PR #163 — merged, production deployment pending:** grouped Project Detail navigation into seven functional destinations while preserving all 12 existing child tab IDs and deep links. CI, Verify App, and Finance Family Center checks passed. Merge commit: `1ee7ed9c110f7c4ab1f289d4b5bc198fb0bd9988`. Vercel's Hobby daily deployment-creation quota returned HTTP 402 (retry after 24 hours), so this commit is not yet confirmed on Production.
+- **PR #163 — merged:** grouped Project Detail navigation into seven functional destinations while preserving all 12 existing child tab IDs and deep links. CI, Verify App, and Finance Family Center checks passed. Merge commit: `1ee7ed9c110f7c4ab1f289d4b5bc198fb0bd9988`.
 - **PR #164 — merged:** fixes a render-time temporal-dead-zone bug in `DecisionsView`: the exact-record focus hook read `list.length` before `list` was initialized. The list is now derived before the hook runs, and a regression assertion protects the declaration order. CI, Verify App, Finance Family Center Checks, and the Spiritual PostgreSQL smoke test passed. Merge commit: `060d1db46d9d0bf90f978c35b2c0456e35b886d3`. Vercel's preview build status reported the Hobby build-rate limit; Production remains pending due the separate daily deployment-creation quota.
 
 - **PR #166 — merged:** adds Knowledge OS meetings to Project Detail → Collaboration → References using the existing `listKnowledgeMeetings` read contract. Meeting records remain owned by Knowledge OS; follow-up tasks are created only on explicit action, with meeting ID/index provenance and duplicate detection. CI, Verify App, Finance Family Center, and PostgreSQL smoke checks passed. No schema or migration changes. Browser verification and post-deploy persistence checks remain outstanding.
@@ -141,7 +141,11 @@ In the inspected workspace: 6 active Projects, 1 active Objective, 0 KRs, 29 act
 - **PR #170 — merged:** extends the Projects browser harness to open and close the read-only detail modal for Outputs, Risks, Decisions, PRDs, Discovery, and Issues, checking the correct record type appears and that no console errors occur. CI, Verify App, Finance Family Center, and PostgreSQL smoke checks passed.
 - **PR #171 — merged:** makes Objective and Key Result names in Project Detail → Goals exact navigation links. The global OKR screen reveals filtered/archived targets, scrolls to the exact record, and highlights it. CI, Verify App, Finance Family Center, and PostgreSQL smoke checks passed; contract tests protect both directions.
 - **Production DB verification (2026-11-07):** Projects migrations through atomic record batch, completion batch, trash batch, and purge batch are present. `workspace_records` has RLS enabled. `projects_apply_records_batch` and `projects_purge_records_batch` exist as SECURITY INVOKER functions; authenticated can execute, anon/public cannot. No migration was applied during this verification.
-- **PR #172 — in progress:** extends the browser harness to click Objective and KR links from Project Detail, assert navigation to the global OKR screen, and verify the exact target DOM element is present.
+- **PR #172 — merged:** extends the browser harness to click Objective and KR links from Project Detail, assert navigation to the global OKR screen, and verify the exact target DOM element is present. Merge commit: `3ca9f68f4211c564f49bf64ade9cd3df641da02d`.
+- **Phase A quick wins — this branch:** Project Detail now has a contextual breadcrumb; Health Reasons expose direct links to affected Tasks/Issues/Risks; the external cross-system activity strip was removed from the Projects shell. No schema or data changes.
+- **Phase A task UX — this branch:** the global Tasks screen now has an explicit Project Picker in Quick Add, a dedicated Table view with inline title/status/priority/due-date editing, multi-select bulk status actions backed by the existing atomic repository writer, and task custom fields persisted inside the existing `custom_fields` payload. No schema or migration changes.
+- **Phase A deep links — this branch:** project, tab, exact task, and focus-record context are addressable through `#/p/<project>/<tab>?task=<task>&focus=<kind>:<id>`; Browser Back / PopState restores the same context. Existing exact-record relationship navigation remains intact.
+- **Phase A acceptance harness — this branch:** the seeded browser harness now covers Quick Add + explicit project choice, inline task editing, bulk status update, custom-field editing, and exact task deep-link hash generation. It remains a seeded/offline acceptance harness, not a substitute for two-account production privacy tests.
 - **PR #161 — merged and deployed:** introduced typed focus targets for related records. Following links from Issues, Risks, Decisions, PRDs, Discovery, and Task backlinks now opens the owning Projects tab, reveals filtered-out closed Issues / Risks when necessary, scrolls the exact target row into view, and highlights it. Added regression assertions. Production deployment `dpl_7ukDQFTWHZCZVyu7KPQZvhN7GW8f` reached `READY` on commit `30987042d7117df0be316aed2a69c221a66323b6`; production alias `os-hub-seven.vercel.app`.
 
 This improves exact-record discovery, but does not yet provide a dedicated read-only record detail drawer/page for every entity. That remains part of the wireframe/navigation follow-up. It also does not close the broader data-model and live acceptance gaps listed above.
@@ -160,15 +164,39 @@ This improves exact-record discovery, but does not yet provide a dedicated read-
 
 ### Still required before Projects OS approval
 
-- [ ] Browser acceptance on the deployed commit for PRD requirement rendering and create-task prefill.
-- [ ] Browser acceptance for Project Detail → OKR derived Objective links.
-- [x] Core exact-record focus navigation for Issue, Risk, Decision, PRD, Output, and Discovery links (PR #161; row scroll + highlight).\n- [ ] Dedicated read-only detail surface for every related entity, plus remaining global links not yet covered.
-- [ ] Knowledge Meeting → Project linking and Action Item → Task persistence after reload.
-- [ ] Collection lifecycle matrix: create → reload → edit relationship → reload → archive/delete → restore → reload.
-- [ ] Real two-account privacy and role-permission tests.
-- [ ] Live test data for at least one Objective, multiple KRs, multiple Projects, and linked Tasks; no live KRs exist in the inspected workspace yet.
-- [ ] Rewrite and review the conflicting Objective/KR SQL guard migration before applying any related guard set.
+- [ ] Browser acceptance on the deployed commit for PRD requirement rendering and create-task prefill.\n- [x] Phase A task UX harness: Quick Add project choice, inline editing, bulk status actions, custom fields, and exact task deep-link hash coverage added; final deployed-commit run remains pending.
+- [x] Browser acceptance for Project Detail → OKR derived Objective/KR links (PR #172).
+- [x] Core exact-record focus navigation for Issue, Risk, Decision, PRD, Output, and Discovery links (PR #161; row scroll + highlight).\n- [x] Read-only detail modals for the six Project entity types covered by PR #167/170; remaining global links and richer side-panel UX remain open.
+- [x] Knowledge Meeting → Project Action Item → Task browser acceptance and repeat-send idempotency now pass on the remediation branch; [ ] real workspace persistence after reload remains open.
+- [x] Disposable PostgreSQL lifecycle smoke covers Create → Reload → Edit → Reload → Archive → Restore → Reload through the atomic Projects batch RPC; [ ] authenticated browser lifecycle against a real workspace remains open.
+- [x] Disposable PostgreSQL two-identity RLS smoke proves Account B cannot read/update Account A private Project, Task, Risk, or Decision records; [ ] real authenticated app accounts and role matrix remain open.
+- [x] OKR v4 domain contract and PostgreSQL relation smoke cover Objective ← KR.project_ids → Project → Task; [ ] live authenticated workspace data with multiple KRs/Projects is still absent and must be verified.
+- [x] Forward migration and SQL smoke for the Objective/KR v4 guard reconciliation are implemented and pass in isolated PostgreSQL; [ ] production migration review/application remains pending.
 - [ ] Apply the PR #155 forward migration only after reviewing migration ordering and confirming the intended Production target.
 - [ ] Verify the tested commit is deployed; do not mark the unit complete from CI-only evidence.
 
-**Approval status:** Not approved / not complete. This is a staged remediation record, not a claim that Projects OS has passed final acceptance.
+**Approval status:** Not approved / not complete. Phase A navigation quick wins are implemented on the remediation branch; final Projects OS approval still depends on live persistence, two-account permissions/privacy, remaining task/relationship UX, and deployment/browser acceptance.
+
+
+## 7. Remediation branch update — 2026-11-07
+
+**Branch:** `feat/projects-phase-a-navigation-quick-wins`  
+**PR:** #173 — open, not merged. Production has not been changed by this branch.
+
+### New acceptance evidence
+
+- **CI 1952:** full browser harness passed after adding the Knowledge Meeting → Projects task bridge and the Ventures Email Check → Projects Risk bridge. Both use the authoritative Projects repository; the meeting task is assigned to the current user and uses stable source identity to avoid duplicates.
+- **CI 1955 — Projects PostgreSQL smoke:** the forward OKR v4 migration passed against a disposable PostgreSQL database. The smoke seeds legacy Objective.project_ids, verifies those values are preserved in legacy_project_ids (including trashed Objectives), verifies new KR.project_ids links, and rejects new direct Objective.project_ids writes.
+- **CI 1955 — two-identity privacy smoke:** production record-visibility policies were applied in the disposable database. Account A can read its private Project, Task, Risk, and Decision; Account B cannot read or update those records, while a workspace-visible Project remains visible.
+- **CI 1957 — database lifecycle smoke:** the Projects atomic batch RPC passed Create → Reload → Edit → Reload → Archive → Restore → Reload for a Project, Task, Risk, and Decision set; stale writes were rejected. This is DB-level acceptance, not yet the authenticated browser lifecycle.
+- **Objective/KR/Project/Task:** domain-level derived execution and SQL relationship checks now cover the v4 path. No live KRs were found in the inspected workspace, so the authenticated live chain remains unproven.
+
+### Remaining release gates
+
+- [ ] Real Projects collection lifecycle through the authenticated app: Create → Reload → Edit → Reload → Archive → Restore → Reload.
+- [ ] Repeat the meeting/action-item flow against a real workspace and verify task provenance after reload.
+- [ ] Execute two real authenticated accounts through the app, including Owner/Admin/Lead/Contributor/Viewer role checks and private relationship navigation.
+- [ ] Confirm the exact Production migration target and apply the new OKR v4 reconciliation migration only after review; the migration has not been applied to Production.
+- [ ] Complete full CI for the latest head, preview acceptance, then Production verification.
+
+**Current decision:** do not merge or deploy yet. Browser and disposable-PostgreSQL evidence has improved substantially, but live persistence and real-account acceptance remain release blockers.
