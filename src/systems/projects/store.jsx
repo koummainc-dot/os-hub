@@ -727,12 +727,52 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
   const alerts = useMemo(() => (ready ? D.computeAlerts(me, { idx, issues: data.issues, projects: data.projects, contacts: data.contacts, discovery: data.discovery, krs: data.krs, checkins: data.checkins, timers: data.timers, wins: data.wins, today, settings, metrics }) : []), [ready, me, idx, data, today, settings, metrics]);
   const timer = (recs.timers || {})["timer_" + me]; const runningTimer = timer && timer.task_id && !timer.ended_at ? timer : null;
 
+  // Phase A deep-link bridge: project/task context is addressable and browser Back can restore it.
+  const parseProjectHash = useCallback(() => {
+    if (typeof window === "undefined") return null;
+    const raw = window.location.hash || "";
+    const m = raw.match(/^#\\/p\\/([^/?#]+)(?:\\/([^?#]+))?(?:\\?([^#]*))?$/);
+    if (!m) return null;
+    const params = new URLSearchParams(m[3] || "");
+    const focus = params.get("focus");
+    return {
+      projectId: decodeURIComponent(m[1]),
+      tab: decodeURIComponent(m[2] || "overview"),
+      taskId: params.get("task") || null,
+      focusRecord: focus && focus.includes(":") ? { kind: focus.split(":")[0], id: focus.slice(focus.indexOf(":") + 1) } : null,
+    };
+  }, []);
+  const writeProjectHash = useCallback((next, replace = false) => {
+    if (typeof window === "undefined" || !next?.projectId) return;
+    const qs = new URLSearchParams();
+    if (next.taskId) qs.set("task", next.taskId);
+    if (next.focusRecord?.kind && next.focusRecord?.id) qs.set("focus", next.focusRecord.kind + ":" + next.focusRecord.id);
+    const hash = "#/p/" + encodeURIComponent(next.projectId) + "/" + encodeURIComponent(next.tab || "overview") + (qs.toString() ? "?" + qs.toString() : "");
+    const url = window.location.pathname + window.location.search + hash;
+    if (window.location.hash === hash) return;
+    if (replace) window.history.replaceState(null, "", url); else window.history.pushState(null, "", url);
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const apply = () => {
+      const next = parseProjectHash();
+      if (!next) return;
+      setView((v) => ({ ...v, projectId: next.projectId, tab: next.tab, taskId: next.taskId, focusRecord: next.focusRecord, ...(next.focusRecord?.kind === "issue" ? { issueStatusFilter: "all" } : {}) }));
+      setPage("projects");
+    };
+    apply();
+    window.addEventListener("hashchange", apply);
+    window.addEventListener("popstate", apply);
+    return () => { window.removeEventListener("hashchange", apply); window.removeEventListener("popstate", apply); };
+  }, [parseProjectHash, setPage]);
+
   // shell bridge: badges + notification bell
   useEffect(() => { if (shell && shell.publish) shell.publish("projects", { notifCount: alerts.length, openNotifs: () => setPage("today") }); }, [alerts.length]);
 
   const value = { shell, ws, isDemo, me, role, access, people, nameOf, settings, lookups, today, weekStartStr, recs, data, trash, projectsById, prdsById, idx, metrics, projectProgress, can, projectRole, visFor, A, R, confirm, toast, alerts, runningTimer, view, setView, page, setPage, pending, online, ready, error, store,
-    openProject: (id, tab, focusRecord = null) => { setView((v) => ({ ...v, projectId: id, tab: tab || "overview", taskId: null, focusRecord, ...(focusRecord?.kind === "issue" ? { issueStatusFilter: "all" } : {}) })); setPage("projects"); },
+    openProject: (id, tab, focusRecord = null) => { const next = { projectId: id, tab: tab || "overview", taskId: null, focusRecord }; setView((v) => ({ ...v, ...next, ...(focusRecord?.kind === "issue" ? { issueStatusFilter: "all" } : {}) })); setPage("projects"); writeProjectHash(next); },
     openDiscovery: (id) => { setView((v) => ({ ...v, focusRecord: id ? { kind: "discovery", id } : null })); setPage("discovery"); },
-    openTask: (id) => setView((v) => ({ ...v, taskId: id })), closeTask: () => setView((v) => ({ ...v, taskId: null })), templates: [...BUILTIN_TEMPLATES, ...data.templates], PRD_TEMPLATE };
+    openTask: (id) => setView((v) => { const next = { ...v, taskId: id }; writeProjectHash({ projectId: v.projectId, tab: v.tab || "overview", taskId: id, focusRecord: v.focusRecord }); return next; }),
+    closeTask: () => setView((v) => { const next = { ...v, taskId: null }; writeProjectHash(next, true); return next; }), templates: [...BUILTIN_TEMPLATES, ...data.templates], PRD_TEMPLATE };
   return <Ctx.Provider value={value}>{children}{confirmNode}</Ctx.Provider>;
 }
