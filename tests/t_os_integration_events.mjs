@@ -39,6 +39,7 @@ assert.match(platform,/create_meeting_tasks/,"Platform routes Knowledge meeting 
 assert.match(projects,/handleKnowledgeMeetingTasks/,"Projects handles Knowledge meeting follow-up requests");
 assert.match(projects,/A\.saveTask\(task, !existing\)/,"meeting actions are persisted through the authoritative Projects task repository");
 assert.match(projects,/source_record_id: sourceRecordId/,"meeting follow-up task writes carry a stable source identity");
+assert.match(projects,/knowledge_meeting_task_.*encodeURIComponent\(sourceRecordId\)/,"meeting tasks use deterministic IDs to avoid cross-tab duplicates");
 assert.match(projects,/ctx\.data\.tasks \|\| \[\]/,"repeated meeting requests reconcile against existing source-linked tasks");
 assert.match(knowledge,/createMeetingFollowupTasks/,"Knowledge exposes meeting follow-up conversion");
 assert.match(knowledge,/action: "create_meeting_tasks"/,"Knowledge sends an explicit Projects task-creation action");
