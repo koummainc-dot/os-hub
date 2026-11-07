@@ -9,6 +9,7 @@ on:
       - "supabase/tests/projects_okr_v4_legacy_seed.sql"
       - "supabase/tests/projects_okr_v4_relationship_reconciliation_smoke.sql"
       - "supabase/tests/projects_two_identity_privacy_smoke.sql"
+      - "supabase/tests/projects_persistence_lifecycle_smoke.sql"
       - "tests/projects_sql_bootstrap.sql"
       - ".github/workflows/projects-sql-smoke.yml"
   push:
@@ -76,3 +77,5 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_prd_requirement_traceability_smoke.sql
       - name: Verify two-account privacy for Projects records and relationships
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_two_identity_privacy_smoke.sql
+      - name: Verify Projects create, reload, edit, archive and restore persistence
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_persistence_lifecycle_smoke.sql
