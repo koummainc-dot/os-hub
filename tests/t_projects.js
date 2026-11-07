@@ -183,9 +183,9 @@ const {makeEnv,sleep,appJs}=require('./harness');
   if(taskLink){taskLink.click();await sleep(120);}
   ok(typeof w.location.hash==='string'&&w.location.hash.includes('/p/')&&w.location.hash.includes('task='),'opening an exact task writes a deep-link hash');
   ok(w.location.hash.includes('task='),'task deep link preserves exact task focus');
-  await click('← المشاريع',null,120);
   const hashBefore=w.location.hash;
   if(hashBefore){w.location.hash=hashBefore.replace('task=','task=missing-');w.dispatchEvent(new w.PopStateEvent('popstate'));await sleep(60);}
+  await click('← المشاريع',null,120);
   ok(errors.length===0,'no console errors in Phase A task UX flow ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
 
   console.log('— task search recovery');
