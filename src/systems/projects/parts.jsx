@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { A, S } from "../../core/ui.jsx";
-import { C, Btn, Chip, Dot, Avatar, Progress, Modal, FormModal, Tabs, Empty, Field } from "../../core/kit.jsx";
+import { C, Btn, Chip, Dot, Avatar, Progress, SideSheet, FormModal, Tabs, Empty, Field } from "../../core/kit.jsx";
 import { fmt, fmtShort, fmtMinutes, diffDays, dateOf } from "../../core/dates.js";
 import { uid } from "../../core/records.jsx";
 import { useP } from "./store.jsx";
@@ -77,6 +77,10 @@ export function TaskTree({ projectId, tasks, readOnly, filter }) {
   const [open, setOpen] = useState({}); const [form, setForm] = useState(null); const [menu, setMenu] = useState(null); const [dragId, setDragId] = useState(null);
   const canWrite = !readOnly && can("task.write", project);
   const roots = idx.roots.filter((t) => t.project_id === projectId);
+  const [mode, setMode] = useState("list");
+  const [month, setMonth] = useState(today.slice(0, 7));
+  const projectTasks = idx.list.filter((t) => t.project_id === projectId && idx.isLeaf(t.id));
+  const statusGroups = ["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"];
   const matches = (t) => !filter || filter(t);
   const visible = (t) => matches(t) || (idx.children[t.id] || []).some((k) => visible(idx.byId[k]));
   const isOpen = (id, depth) => (open[id] === undefined ? depth < 2 : open[id]);
@@ -116,12 +120,24 @@ export function TaskTree({ projectId, tasks, readOnly, filter }) {
   };
   return (
     <div>
-      {canWrite && <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}><Btn kind="primary" small onClick={() => setForm({})}>➕ مهمة جديدة</Btn><span style={{ fontSize: 11, color: C.muted }}>يمكنك استخدام «＋ فرعية» أو خيارات المهمة لنقلها؛ السحب اختياري.</span></div>}
-      {roots.length === 0 && <Empty icon="✅" title="لا توجد مهام بعد" sub="أضف أول مهمة أو أنشئ المشروع من قالب جاهز." />}
-      <div style={{ ...S.card, padding: 0, overflow: "hidden", display: roots.length ? "block" : "none" }}
-        onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => { const id = e.dataTransfer.getData("text/plain"); if (id && e.target === e.currentTarget) await act.reparent(id, null); }}>
-        {roots.map((t) => <Row key={t.id} t={t} depth={0} />)}
+      <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "inline-flex", border: "1px solid " + C.line, borderRadius: 8, overflow: "hidden" }}>
+          {[["list","قائمة"],["board","لوحة"],["table","جدول"],["calendar","تقويم"],["timeline","خط زمني"]].map(([v,l], i) => <button key={v} type="button" onClick={() => setMode(v)} style={{ border: 0, borderInlineStart: i ? "1px solid " + C.line : 0, background: mode === v ? "rgba(59,130,246,0.10)" : "#fff", color: mode === v ? C.info : C.dim, padding: "6px 10px", cursor: "pointer", font: "inherit", fontSize: 11.5 }}>{l}</button>)}
+        </div>
+        {canWrite && <Btn kind="primary" small onClick={() => setForm({})}>➕ مهمة جديدة</Btn>}
       </div>
+      {canWrite && mode === "list" && <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>يمكنك استخدام «＋ فرعية» أو خيارات المهمة لنقلها؛ السحب الاختياري يحافظ على ترتيب الشجرة.</div>
+      {mode === "list" && <>
+        {roots.length === 0 && <Empty icon="✅" title="لا توجد مهام بعد" sub="أضف أول مهمة أو أنشئ المشروع من قالب جاهز." />}
+        <div style={{ ...S.card, padding: 0, overflow: "hidden", display: roots.length ? "block" : "none" }}
+          onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => { const id = e.dataTransfer.getData("text/plain"); if (id && e.target === e.currentTarget) await act.reparent(id, null); }}>
+          {roots.map((t) => <Row key={t.id} t={t} depth={0} />)}
+        </div>
+      </>}
+      {mode === "board" && <Board columns={statusGroups.map((status) => ({ id: status, label: L.taskStatus[status] || status, color: STATUS_COLOR[status], items: projectTasks.filter((t) => t.status === status) }))} onMove={async (id, to) => { const t = idx.byId[id]; if (t && canWrite) await act.setTaskStatus(t, to); }} renderCard={(t) => <div onClick={() => openTask(t.id)} style={{ ...S.card, padding: "9px 10px", cursor: "pointer" }}><div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 5 }}>{t.title}</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}><PriorityChip p={t.priority} /><DueChip date={t.due_date} status={t.status} today={today} />{t.assignee_id && <Who id={t.assignee_id} size={17} />}</div></div>} />}
+      {mode === "table" && <div style={{ ...S.card, padding: 0, overflowX: "auto" }}><table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ background: "rgba(0,0,0,0.03)" }}>{["المهمة","الحالة","المسؤول","الموعد","الأولوية","التقدير"].map((h) => <th key={h} style={{ padding: "8px 10px", textAlign: "right", color: C.muted, fontSize: 10.5 }}>{h}</th>)}</tr></thead><tbody>{projectTasks.map((t) => <tr key={t.id} style={{ borderTop: "1px solid " + C.line }}><td style={{ padding: "8px 10px", fontWeight: 600, cursor: "pointer" }} onClick={() => openTask(t.id)}>{t.title}</td><td style={{ padding: "8px 10px" }}><StatusChipSm s={t.status} /></td><td style={{ padding: "8px 10px" }}>{t.assignee_id ? <Who id={t.assignee_id} size={17} /> : "—"}</td><td style={{ padding: "8px 10px" }}><DueChip date={t.due_date} status={t.status} today={today} /></td><td style={{ padding: "8px 10px" }}><PriorityChip p={t.priority} /></td><td style={{ padding: "8px 10px", color: C.dim }}>{fmtMinutes(t.estimated_minutes || 0)}</td></tr>)}</tbody></table></div>}
+      {mode === "calendar" && (() => { const [y, m] = month.split("-").map(Number); const lead = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(); const days = new Date(Date.UTC(y, m, 0)).getUTCDate(); return <div style={S.card}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><Btn small onClick={() => { const d = new Date(Date.UTC(y, m - 2, 1)); setMonth(d.toISOString().slice(0,7)); }}>→</Btn><b>{MONTH_NAMES[m - 1]} {y}</b><Btn small onClick={() => { const d = new Date(Date.UTC(y, m, 1)); setMonth(d.toISOString().slice(0,7)); }}>←</Btn></div><div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4 }}>{["أحد","اثنين","ثلاثاء","أربعاء","خميس","جمعة","سبت"].map((d) => <div key={d} style={{ fontSize: 10.5, color: C.muted, textAlign: "center" }}>{d}</div>)}{Array.from({length: lead}).map((_,i)=><div key={"e"+i}/>) }{Array.from({length: days}).map((_,i)=>{const ds=month + "-" + String(i+1).padStart(2,"0");const ts=projectTasks.filter(t=>t.due_date===ds);return <div key={ds} style={{minHeight:76,border:"1px solid " + (ds===today?A:C.line),borderRadius:6,padding:4,background:ds===today?"rgba(239,159,39,0.07)":"transparent"}}><div style={{fontSize:10.5,color:C.muted}}>{i+1}</div>{ts.slice(0,3).map(t=><div key={t.id} onClick={()=>openTask(t.id)} style={{fontSize:10,background:"rgba(59,130,246,0.12)",borderRadius:4,padding:"2px 4px",marginTop:2,cursor:"pointer",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.title}</div>)}{ts.length>3&&<div style={{fontSize:9.5,color:C.muted}}>+{ts.length-3}</div>}</div>})}</div></div>; })()}
+      {mode === "timeline" && <div style={{ ...S.card, overflowX: "auto" }}><div style={{ minWidth: 720 }}>{projectTasks.filter((t) => t.due_date).sort((a,b) => a.due_date.localeCompare(b.due_date)).map((t) => <div key={t.id} style={{ display: "grid", gridTemplateColumns: "220px 1fr 90px", gap: 8, alignItems: "center", marginBottom: 8 }}><div onClick={() => openTask(t.id)} style={{ fontSize: 12, fontWeight: 600, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div><div style={{ position: "relative", height: 22, background: "rgba(0,0,0,0.04)", borderRadius: 5 }}><div style={{ position: "absolute", insetInlineStart: "4%", width: "68%", height: "100%", background: "rgba(59,130,246,0.18)", border: "1px solid rgba(59,130,246,0.5)", borderRadius: 5 }} /></div><DueChip date={t.due_date} status={t.status} today={today} /></div>)}{!projectTasks.some((t) => t.due_date) && <Empty icon="📅" title="لا توجد مهام بمواعيد" sub="أضف موعداً للمهمة لتظهر في الخط الزمني." />}</div></div>}
       {form && <TaskForm projectId={projectId} parentId={form.parentId} initial={form.initial} onClose={() => setForm(null)} />}
     </div>
   );
@@ -157,7 +173,7 @@ export function TaskSheet() {
     setOutputForm(null);
   }
   return (
-    <Modal title={t.title} wide onClose={closeTask} footer={<>
+    <SideSheet title={t.title} onClose={closeTask} footer={<>
       {canW && <Btn onClick={() => setEdit(true)}>✎ تعديل</Btn>}
       {canW && leaf && (runningTimer && runningTimer.task_id === t.id ? <Btn onClick={() => act.stopTimer()}>⏹ أوقف المؤقّت</Btn> : <Btn onClick={() => act.startTimer(t.id)}>▶ ابدأ المؤقّت</Btn>)}
       {canW && leaf && D.cat(status) !== "done" && <Btn kind="primary" onClick={() => act.setTaskStatus(t, "Completed")}>✔ إكمال</Btn>}
@@ -201,7 +217,7 @@ export function TaskSheet() {
         { key: "prd_requirement_id", label: "المتطلب الذي يحققه", type: "select", emptyLabel: "— بلا متطلب —", options: (v) => { const prd = data.prds.find((x) => x.id === v.prd_id); return (prd?.requirements || []).filter((r) => r.status !== "Deprecated").map((r) => ({ v: r.id, l: r.title })); } }, { key: "approval", label: "حالة الاعتماد", type: "select", allowEmpty: false, options: opts(L.approval) }, { key: "url", label: "الرابط", type: "url" }, { key: "notes", label: "ملاحظات", type: "textarea", rows: 2 }]} />}
       {edit && <TaskForm initial={t} onClose={() => setEdit(false)} />}
       {cancelReason !== null && <FormModal title="إلغاء المهمة" fields={[{ key: "r", label: "سبب الإلغاء", required: true, type: "textarea" }]} initial={{ r: "" }} onClose={() => setCancelReason(null)} onSubmit={async (v) => { await act.setTaskStatus(t, "Cancelled", v.r); setCancelReason(null); }} />}
-    </Modal>
+    </SideSheet>
   );
 }
 export function SessionForm({ taskId, onClose }) {
