@@ -34,7 +34,7 @@ assert.match(hobbies,/hobbies:practice_session:/);
 assert.match(projects,/loadDurableOSEvents/);
 assert.match(projects,/subscribeDurableOSEvents/);
 assert.match(projects,/idempotencyKey \|\| event\.id/);
-assert.match(platform,/\["ventures","knowledge"\]\.includes\(d\.source\)/,"Platform accepts only the approved cross-system sources");
+assert.match(platform,/d\.source==="ventures"\|\|\(d\.source==="knowledge"&&d\.systemId==="projects"\)/,"Platform scopes Knowledge source writes to Projects only");
 assert.match(platform,/create_meeting_tasks/,"Platform routes Knowledge meeting task requests through the Projects host");
 assert.match(projects,/handleKnowledgeMeetingTasks/,"Projects handles Knowledge meeting follow-up requests");
 assert.match(projects,/A\.saveTask\(task, !existing\)/,"meeting actions are persisted through the authoritative Projects task repository");
