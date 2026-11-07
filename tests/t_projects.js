@@ -116,7 +116,8 @@ const {makeEnv,sleep,appJs}=require('./harness');
     await click('حفظ',qdlg,300);
     ok(txt().includes('مهمة إضافة سريعة'),'quick add persists a task with the selected project');
   }
-  const timelineMode=all('main button').find(b=>b.textContent.trim()==='خط زمني'); ok(!!timelineMode,'task timeline view is available'); if(timelineMode){timelineMode.click();await sleep(100);ok(txt().includes('الخط الزمني للمهام'),'task timeline renders');}\n  const tableMode=all('main button').find(b=>b.textContent.trim()==='جدول');
+  const timelineMode=all('main button').find(b=>b.textContent.trim()==='خط زمني'); ok(!!timelineMode,'task timeline view is available'); if(timelineMode){timelineMode.click();await sleep(100);ok(txt().includes('الخط الزمني للمهام'),'task timeline renders');}
+  const tableMode=all('main button').find(b=>b.textContent.trim()==='جدول');
   ok(!!tableMode,'task table view is available');
   if(tableMode){tableMode.click();await sleep(120);}
   const taskRow=all('tr').find(r=>r.textContent.includes('مهمة إضافة سريعة'));
