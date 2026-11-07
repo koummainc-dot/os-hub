@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { A, S } from "../../core/ui.jsx";
 import { C, Btn, Chip, Head, Stat, Empty, Progress, Seg, Board, SearchBar, Tabs, FormModal, Modal, Field } from "../../core/kit.jsx";
 import { fmt, fmtShort, fmtMinutes, addDays, diffDays, monthDays, MONTH_NAMES, dow, dateOf } from "../../core/dates.js";
@@ -223,6 +223,7 @@ function RelatedTab({ p, canE }) {
   const [loadingMeetings, setLoadingMeetings] = useState(true);
   const [meetingError, setMeetingError] = useState("");
   const [creatingFollowup, setCreatingFollowup] = useState("");
+  const creatingFollowupsRef = useRef(new Set());
 
   const refreshMeetings = async () => {
     if (!ws?.id) { setMeetings([]); setLoadingMeetings(false); return; }
@@ -246,7 +247,7 @@ function RelatedTab({ p, canE }) {
 
   async function createFollowupTask(meeting, followup, index) {
     const key = String(meeting.id) + ":" + index;
-    if (creatingFollowup === key) return;
+    if (creatingFollowupsRef.current.has(key)) return;
     if (p.archived_at || p.status === "Archived") {
       toast("استعد المشروع قبل إنشاء مهام متابعة جديدة.");
       return;
@@ -264,6 +265,7 @@ function RelatedTab({ p, canE }) {
     }
     const title = String(followup || "").trim();
     if (!title || typeof act.saveTask !== "function") return;
+    creatingFollowupsRef.current.add(key);
     setCreatingFollowup(key);
     try {
       const saved = await act.saveTask({
@@ -281,6 +283,7 @@ function RelatedTab({ p, canE }) {
     } catch (error) {
       toast("⛔ تعذّر إنشاء المهمة: " + (error?.message || "فشل الحفظ"));
     } finally {
+      creatingFollowupsRef.current.delete(key);
       setCreatingFollowup("");
     }
   }
