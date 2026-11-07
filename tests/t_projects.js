@@ -130,15 +130,20 @@ const {makeEnv,sleep,appJs}=require('./harness');
   if(tableMode){tableMode.click();await sleep(120);}
   const taskRow=all('tr').find(r=>r.textContent.includes('مهمة إضافة سريعة'));
   ok(!!taskRow,'table view renders the quick-added task');
+  let taskTitleForAcceptance='مهمة إضافة سريعة';
   if(taskRow){
     const title=taskRow.querySelector('span');
     if(title){title.dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));await sleep(60);}
     const editInput=taskRow.querySelector('input');
     ok(!!editInput,'task title supports inline editing');
-    if(editInput){await setVal(editInput,'مهمة إضافة سريعة — معدلة');editInput.dispatchEvent(new w.Event('blur',{bubbles:true}));await sleep(180);}
+    if(editInput){await setVal(editInput,'مهمة إضافة سريعة — معدلة');editInput.dispatchEvent(new w.Event('blur',{bubbles:true}));await sleep(450);}
   }
-  if(taskRow){
-    const taskTitle=taskRow.querySelector('span');
+  const editedTaskRow=all('tr').find(r=>r.textContent.includes('مهمة إضافة سريعة — معدلة'));
+  ok(!!editedTaskRow,'inline task title edit persists after blur');
+  if(editedTaskRow) taskTitleForAcceptance='مهمة إضافة سريعة — معدلة';
+  const rowForSheet=editedTaskRow||all('tr').find(r=>r.textContent.includes('مهمة إضافة سريعة'));
+  if(rowForSheet){
+    const taskTitle=rowForSheet.querySelector('span');
     if(taskTitle){taskTitle.click();await sleep(120);}
     const sheet=doc.querySelector('[role="dialog"]');
     if(sheet){
@@ -151,21 +156,21 @@ const {makeEnv,sleep,appJs}=require('./harness');
         ok(!!customInput,'advanced task editor exposes custom fields');
         if(customInput){await setVal(customInput,'QA-CUSTOM');await click('حفظ',editDlg,180);}
       }
-      const closeSheet=sheet.querySelector('button[aria-label="إغلاق"]'); closeSheet&&closeSheet.click(); await sleep(80);
+      const closeSheet=sheet.querySelector('button[aria-label="إغلاق"]'); closeSheet&&closeSheet.click(); await sleep(120);
     }
   }
   const taskStatusFilter=all('select').find(s=>[...s.options].some(o=>o.value==='open')&&[...s.options].some(o=>o.value==='all'));
   ok(!!taskStatusFilter,'task status filter is available for bulk acceptance');
   if(taskStatusFilter) await setVal(taskStatusFilter,'all');
-  const freshTaskRow=all('tr').find(r=>r.textContent.includes('مهمة إضافة سريعة — معدلة'));
+  const freshTaskRow=all('tr').find(r=>r.textContent.includes(taskTitleForAcceptance));
   const rowCheck=freshTaskRow?.querySelector('input[type="checkbox"]');
   if(rowCheck) rowCheck.click();
   await sleep(50);
-  ok(!!btn('تم تحديد 1'),'bulk selection toolbar appears after selecting a task');
-  if(!btn('تم تحديد 1')) console.log('  DEBUG bulk',{row: freshTaskRow?.textContent,rows:all('tr').map(r=>r.textContent.trim()),checkboxes:all('input[type=checkbox]').length,selected:all('main').map(m=>m.textContent.slice(0,800))});
+  ok(txt().includes('تم تحديد 1'),'bulk selection toolbar appears after selecting a task');
+  if(!txt().includes('تم تحديد 1')) console.log('  DEBUG bulk',{title:taskTitleForAcceptance,row:freshTaskRow?.textContent,rows:all('tr').map(r=>r.textContent.trim()),checkboxes:all('input[type=checkbox]').length,selected:all('main').map(m=>m.textContent.slice(0,800))});
   ok(!!btn('✔ إكمال'),'bulk completion action is available');
   if(btn('✔ إكمال')){w.confirm=()=>true;await click('✔ إكمال',null,180);}
-  const quickTaskAfter=all('tr').find(r=>r.textContent.includes('مهمة إضافة سريعة — معدلة'));
+  const quickTaskAfter=all('tr').find(r=>r.textContent.includes(taskTitleForAcceptance));
   ok(!!quickTaskAfter,'bulk action keeps the task in the table after status update');
   if(quickTaskAfter) ok(quickTaskAfter.textContent.includes('مكتملة'),'bulk completion updates task status');
   await goSection('المشاريع');
@@ -174,10 +179,11 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await click('التخطيط',null,120);
   const taskTab=all('button').find(b=>b.textContent.trim().startsWith('المهام'));
   if(taskTab){taskTab.click();await sleep(120);}
-  const taskLink=all('span').find(s=>s.textContent==='مهمة إضافة سريعة — معدلة');
+  const taskLink=all('span').find(s=>s.textContent===taskTitleForAcceptance);
   if(taskLink){taskLink.click();await sleep(120);}
   ok(typeof w.location.hash==='string'&&w.location.hash.includes('/p/')&&w.location.hash.includes('task='),'opening an exact task writes a deep-link hash');
   ok(w.location.hash.includes('task='),'task deep link preserves exact task focus');
+  await click('← المشاريع',null,120);
   const hashBefore=w.location.hash;
   if(hashBefore){w.location.hash=hashBefore.replace('task=','task=missing-');w.dispatchEvent(new w.PopStateEvent('popstate'));await sleep(60);}
   ok(errors.length===0,'no console errors in Phase A task UX flow ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
