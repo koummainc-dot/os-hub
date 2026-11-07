@@ -4,7 +4,8 @@ import { defineConfig } from "vite";
 import { fileURLToPath } from "url";
 export default defineConfig({
   esbuild: {
-    jsxInject: 'import React from "react"',
+    jsx: "automatic",
+    jsxImportSource: "react",
   },
   define: {
     "import.meta.env.VITE_SUPABASE_URL": JSON.stringify("https://test.local"),
