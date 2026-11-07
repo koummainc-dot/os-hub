@@ -8,13 +8,14 @@ const {makeEnv,sleep,appJs}=require('./harness');
   const click=async(label,sc,ms)=>{const b=btn(label,sc);if(!b)return false;b.click();await sleep(ms||150);return true;};
   const setVal=async(el,v)=>{if(!el)throw new Error('Acceptance harness could not find the expected form control');const proto=el.tagName==='SELECT'?w.HTMLSelectElement.prototype:el.tagName==='TEXTAREA'?w.HTMLTextAreaElement.prototype:w.HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,v);el.dispatchEvent(new w.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));await sleep(60);};
   const nav=()=>all('aside button');
-  const goSection=async(label)=>{const b=nav().find(x=>x.textContent.includes(label));if(!b)return false;b.click();await sleep(450);return true;};
+  const isSectionButton=(button,label)=>{const t=button.textContent.trim();return t.endsWith(label)&&t.length<=label.length+3;};
+  const goSection=async(label)=>{const b=nav().find(x=>isSectionButton(x,label));if(!b)return false;b.click();await sleep(450);return true;};
   const toToday=async()=>{const c=all('aside button').find(x=>x.textContent.includes('▾'));c&&c.click();await sleep(60);const t=all('aside button').find(x=>x.textContent.includes('اليوم (كل الأنظمة)'));t&&t.click();await sleep(80);};
   const openProjects=async()=>{
     await toToday();
     let t=all('main button').find(b=>b.textContent.trim()==='Projects OS' || b.textContent.includes('Projects OS'));
     if(t){t.click();await sleep(500);}
-    if(!nav().some(b=>b.textContent.includes('المشاريع'))){
+    if(!nav().some(b=>isSectionButton(b,'المشاريع'))){
       const switcher=all('aside button').find(b=>b.textContent.includes('OS Hub') || b.textContent.includes('المشاريع'));
       if(switcher){switcher.click();await sleep(80);}
       const p=all('button').find(b=>b.textContent.includes('Projects OS'));
@@ -51,7 +52,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await goSection('المشاريع');
   const projectRow=all('tr').find(el=>el.textContent.includes('تطبيق إدارة الوقت'));
   ok(!!projectRow,'project list exposes the seeded project row');
-  if(!projectRow) console.log('  DEBUG projects',{rows:all('tr').map(r=>r.textContent.trim()).slice(0,12),main:all('main').map(m=>m.textContent.slice(-1600)),buttons:all('main button').map(x=>x.textContent.trim()).slice(0,35)});
+  if(!projectRow) console.log('  DEBUG projects',{nav:nav().map(b=>b.textContent.trim()),rows:all('tr').map(r=>r.textContent.trim()).slice(0,12),main:all('main').map(m=>m.textContent.slice(-1600)),buttons:all('main button').map(x=>x.textContent.trim()).slice(0,35)});
   if(projectRow){projectRow.click();await sleep(350);}
   ok(txt().includes('الحوكمة')&&txt().includes('تطبيق إدارة الوقت'),'opening the project row enters Project Detail');
   const goalsGroup=all('main button').find(b=>b.textContent.trim().startsWith('الأهداف'));
