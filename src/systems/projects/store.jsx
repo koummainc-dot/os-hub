@@ -770,7 +770,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
   useEffect(() => { if (shell && shell.publish) shell.publish("projects", { notifCount: alerts.length, openNotifs: () => setPage("today") }); }, [alerts.length]);
 
   const value = { shell, ws, isDemo, me, role, access, people, nameOf, settings, lookups, today, weekStartStr, recs, data, trash, projectsById, prdsById, idx, metrics, projectProgress, can, projectRole, visFor, A, R, confirm, toast, alerts, runningTimer, view, setView, page, setPage, pending, online, ready, error, store,
-    openProject: (id, tab, focusRecord = null) => { const next = { projectId: id, tab: tab || "overview", taskId: null, focusRecord }; setView((v) => ({ ...v, ...next, ...(focusRecord?.kind === "issue" ? { issueStatusFilter: "all" } : {}) })); setPage("projects"); writeProjectHash(next); },
+    openProject: (id, tab, focusRecord = null) => { setView((v) => ({ ...v, projectId: id, tab: tab || "overview", taskId: null, focusRecord, ...(focusRecord?.kind === "issue" ? { issueStatusFilter: "all" } : {}) })); setPage("projects"); writeProjectHash({ projectId: id, tab: tab || "overview", taskId: null, focusRecord }); },
     openDiscovery: (id) => { setView((v) => ({ ...v, focusRecord: id ? { kind: "discovery", id } : null })); setPage("discovery"); },
     openTask: (id) => setView((v) => { const next = { ...v, taskId: id }; writeProjectHash({ projectId: v.projectId, tab: v.tab || "overview", taskId: id, focusRecord: v.focusRecord }); return next; }),
     closeTask: () => setView((v) => { const next = { ...v, taskId: null }; writeProjectHash(next, true); return next; }), templates: [...BUILTIN_TEMPLATES, ...data.templates], PRD_TEMPLATE };
