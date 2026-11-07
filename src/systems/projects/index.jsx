@@ -66,10 +66,11 @@ function Router({ sourceWriteRequest }) {
     }
     if (requestKey) processedVenturesRiskWrites.current.add(requestKey);
     const existing = (ctx.data.risks || []).find((item) => item.source === "ventures_email" && String(item.source_record_id) === String(payload.source_record_id));
-    const risk = { ...payload, id: existing?.id || d.recordId || payload.id, project_id: project.id, source_record_id: payload.source_record_id };
+    const riskId = existing?.id || ("ventures-email-check-" + encodeURIComponent(String(payload.source_record_id || d.recordId || payload.id)));
+    const risk = { ...payload, id: riskId, project_id: project.id, source_record_id: payload.source_record_id };
     try {
       const saved = await A.saveRisk(risk);
-      publishResult({ action: d.action, recordId: saved.id, ok: true });
+      publishResult({ action: d.action, recordId: saved.id, requestRecordId: d.recordId || null, ok: true });
     } catch (error) {
       if (requestKey) processedVenturesRiskWrites.current.delete(requestKey);
       publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: error?.message || "تعذر حفظ الخطر في Projects." });
