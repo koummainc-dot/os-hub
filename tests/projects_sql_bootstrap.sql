@@ -27,3 +27,14 @@ create table public.workspace_records (
   updated_by uuid,
   primary key (workspace_id, system_id, collection, id)
 );
+
+-- Mirror the production record-visibility environment for isolated two-identity smoke tests.
+alter table public.workspace_records enable row level security;
+do $$ begin
+  if not exists (select 1 from pg_publication where pubname='supabase_realtime') then
+    create publication supabase_realtime;
+  end if;
+end $$;
+grant usage on schema auth to authenticated;
+grant execute on function auth.uid() to authenticated;
+grant select, insert, update, delete on public.workspace_records to authenticated;
