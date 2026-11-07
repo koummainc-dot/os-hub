@@ -11,6 +11,7 @@ import {
 const entities = fs.readFileSync(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
 const outputs = entities.slice(entities.indexOf("export function OutputsView"));
 const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+const projectsIndex = fs.readFileSync(new URL("../src/systems/projects/index.jsx", import.meta.url), "utf8");
 const migration = fs.readFileSync(new URL("../supabase/migrations/20261107150000_projects_output_storage.sql", import.meta.url), "utf8");
 
 assert.ok(outputs.includes("files || []"), "Outputs already has a canonical file-metadata collection");
@@ -57,5 +58,8 @@ assert.ok(styles.includes("html, body, #root { min-width: 0 !important; overflow
 assert.ok(styles.includes("table { min-width: 640px; }"), "Dense Projects tables retain a bounded horizontal-scroll fallback");
 assert.ok(styles.includes("[role=\"dialog\"] { width: calc(100vw - 16px) !important; margin-inline: 8px; }"), "Projects dialogs have a mobile-width constraint");
 assert.ok(styles.includes(".os-mobile-scroll { overflow-x: auto; max-width: 100%; }"), "Responsive surfaces have an explicit horizontal-scroll utility");
+assert.ok(projectsIndex.includes("className=\"projects-system\""), "Projects screens have a scoped responsive root");
+assert.ok(styles.includes(".projects-system [style*=\"grid-template-columns: 1fr 1fr\"]"), "Projects two-column forms collapse on narrow screens");
+assert.ok(styles.includes(".projects-system [style*=\"grid-template-columns: repeat(7,1fr)\"]"), "Projects weekly/calendar grids retain a bounded mobile scroll surface");
 
 console.log("t_projects_output_upload_contract: OK");
