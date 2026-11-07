@@ -260,7 +260,7 @@ export function Tasks() {
 // ═════ Portfolio ═════
 // Cross-project portfolio view; derived only from existing workspace records.
 export function Portfolio() {
-  const { data, metrics, idx, today, settings, openProject, setPage, setView } = useP();
+  const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, setView } = useP();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("active");
   const projects = data.projects.filter((p) => !p.is_system && !p.deleted_at);
@@ -269,6 +269,7 @@ export function Portfolio() {
   const delayed = openProjects.filter((p) => metrics[p.id]?.daysRemaining < 0);
   const criticalIssues = data.issues.filter((i) => D.isOpenIssue(i) && i.severity === "Critical");
   const highRisks = data.risks.filter((r) => D.isOpenRisk(r) && D.riskScore(r) >= settings.riskHigh);
+  const objectives = data.objectives.filter((o) => o.status === "Active");
   const visible = projects
     .filter((p) => status === "all" || (status === "active" ? openProjects.includes(p) : status === "completed" ? completed.includes(p) : !!p.archived_at))
     .filter((p) => !query || [p.name, p.description, p.final_goal].some((v) => String(v || "").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
@@ -288,6 +289,12 @@ export function Portfolio() {
         <Stat label="مشاكل حرجة" value={criticalIssues.length} color={criticalIssues.length ? C.bad : C.ok} onClick={() => { setView((v) => ({ ...v, issueSeverityFilter: "Critical", issueStatusFilter: "open" })); setPage("issues"); }} />
         <Stat label="مخاطر عالية" value={highRisks.length} color={highRisks.length ? C.orange : C.ok} onClick={() => setPage("risks")} />
       </div>
+      {objectives.length > 0 && <div style={{ ...S.card, marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 9 }}><b style={{ fontSize: 13 }}>الأهداف النشطة (OKR)</b><span style={{ flex: 1 }} /><Btn small onClick={() => setPage("okrs")}>إدارة الأهداف</Btn></div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
+          {objectives.map((o) => { const progress = D.objectiveProgress(o, data.krs, projectProgress); const pace = D.PACE_META[D.pace(progress, o.period_start, o.period_end, o.status, today, settings)]; return <div key={o.id} style={{ minWidth: 0 }}><div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12 }}><span style={{ flex: 1, fontWeight: 600, overflowWrap: "anywhere" }}>{o.name}</span><Chip color={pace?.color}>{pace?.label || "—"}</Chip></div><div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 5 }}><Progress value={progress} /><span style={{ fontSize: 10.5, color: C.muted }}>{Math.round(progress)}%</span></div></div>; })}
+        </div>
+      </div>}
       <div style={{ ...S.card, marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <input aria-label="بحث في المشاريع" style={{ ...S.inp, flex: "1 1 220px" }} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث باسم المشروع أو وصفه أو هدفه…" />
