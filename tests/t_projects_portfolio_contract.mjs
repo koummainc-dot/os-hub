@@ -6,6 +6,14 @@ const router = fs.readFileSync(new URL("../src/systems/projects/index.jsx", impo
 const portfolio = screens.slice(screens.indexOf("export function Portfolio()"));
 
 assert.ok(router.includes("portfolio: Portfolio"), "Portfolio is registered as a Projects route");
+assert.ok(router.includes("myWork: MyWork"), "My Work is registered as a dedicated Projects route");
+assert.ok(screens.includes("export function MyWork()"), "My Work has a dedicated hub component");
+const myWork = screens.slice(screens.indexOf("export function MyWork()"));
+assert.ok(myWork.includes('{ id: "today", label: "اليوم" }'), "My Work exposes a Today tab");
+assert.ok(myWork.includes('{ id: "week", label: "هذا الأسبوع" }'), "My Work exposes a This Week tab");
+assert.ok(myWork.includes('{ id: "tasks", label: "كل المهام" }'), "My Work exposes an all-tasks tab");
+assert.ok(myWork.includes("<Today />") && myWork.includes("<Week />") && myWork.includes("<Tasks />"), "My Work reuses the canonical existing views instead of duplicating task logic");
+
 assert.ok(portfolio.includes("const [query, setQuery] = useState(\"\")"), "Portfolio search is controlled by React state");
 assert.ok(portfolio.includes("const [status, setStatus] = useState(\"active\")"), "Portfolio starts with the active-project filter");
 assert.ok(portfolio.includes("projectProgress"), "Portfolio receives derived project progress for OKR calculations");
