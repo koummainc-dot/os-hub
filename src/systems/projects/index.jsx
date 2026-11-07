@@ -98,7 +98,7 @@ function Router({ sourceWriteRequest }) {
       if (!sourceRecordId || !title) { errors.push("توجد متابعة بلا معرّف أو عنوان صالح."); continue; }
       const existing = (ctx.data.tasks || []).find((task) => task.source === "knowledge_meeting" && String(task.source_record_id) === sourceRecordId);
       try {
-        const task = { ...item, ...(existing?.id ? { id: existing.id } : { id: undefined }), title, project_id: project.id, source: "knowledge_meeting", source_record_id: sourceRecordId, source_meeting_id: String(payload.meeting_id || "") };
+        const task = { ...item, id: existing?.id || ("knowledge_meeting_task_" + encodeURIComponent(sourceRecordId)), title, project_id: project.id, source: "knowledge_meeting", source_record_id: sourceRecordId, source_meeting_id: String(payload.meeting_id || "") };
         const saved = await A.saveTask(task, !existing);
         if (!saved?.id) throw new Error("لم يؤكد مخزن Projects حفظ المهمة.");
         createdTaskIds.push(saved.id);
