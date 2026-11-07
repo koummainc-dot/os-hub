@@ -140,15 +140,24 @@ function Overview({ p, m }) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 12 }}>
       <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>الصحة والتقدم</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}><HealthBadge m={m} /><span style={{ fontSize: 12, color: C.dim }}>{m.leafCompleted}/{m.leafTotal} مهمة</span></div><Progress value={m.progress} height={9} />
-        {(m.healthReasons || []).length > 0 && <div style={{ marginTop: 10 }}>{m.healthReasons.map((r) => <div key={r.code} style={{ fontSize: 12, padding: "3px 0", color: D.HEALTH_META[r.level].color }}>
-          <span>● {D.REASON_LABEL[r.code]}</span>
-          {r.ids.length ? <span style={{ marginInlineStart: 5, display: "inline-flex", gap: 4, flexWrap: "wrap" }}>{r.ids.slice(0, 8).map((id) => {
-            if (r.kind === "task" && idx.byId[id]) return <button key={id} type="button" onClick={() => openTask(id)} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>↗ {idx.byId[id].title}</button>;
-            if (r.kind === "issue" && data.issues.find((x) => x.id === id)) return <button key={id} type="button" onClick={() => setView({ ...view, tab: "issues", focusRecord: { kind: "issue", id }, issueStatusFilter: "all" })} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>↗ مشكلة</button>;
-            if (r.kind === "risk" && data.risks.find((x) => x.id === id)) return <button key={id} type="button" onClick={() => setView({ ...view, tab: "risks", focusRecord: { kind: "risk", id } })} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>↗ خطر</button>;
-            return null;
-          })}</span> : null}
-        </div>)}</div>
+        {(m.healthReasons || []).length > 0 && <div style={{ marginTop: 10 }}>
+          {m.healthReasons.map((r) => (
+            <div key={r.code} style={{ fontSize: 12, padding: "3px 0", color: D.HEALTH_META[r.level].color }}>
+              <span>● {D.REASON_LABEL[r.code]}</span>
+              {r.ids.length > 0 && <span style={{ marginInlineStart: 5, display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+                {r.ids.slice(0, 8).map((id) =>
+                  r.kind === "task" && idx.byId[id]
+                    ? <button key={id} type="button" onClick={() => openTask(id)} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>↗ {idx.byId[id].title}</button>
+                    : r.kind === "issue" && data.issues.find((x) => x.id === id)
+                      ? <button key={id} type="button" onClick={() => setView({ ...view, tab: "issues", focusRecord: { kind: "issue", id }, issueStatusFilter: "all" })} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>↗ مشكلة</button>
+                      : r.kind === "risk" && data.risks.find((x) => x.id === id)
+                        ? <button key={id} type="button" onClick={() => setView({ ...view, tab: "risks", focusRecord: { kind: "risk", id } })} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>↗ خطر</button>
+                        : null
+                )}
+              </span>}
+            </div>
+          ))}
+        </div>}
         <div style={{ fontSize: 12, color: C.dim, marginTop: 10, lineHeight: 1.9 }}>الموعد: {p.target_date ? `${fmt(p.target_date)} (${m.daysRemaining < 0 ? "تجاوز " + -m.daysRemaining + " يوم" : "باقٍ " + m.daysRemaining + " يوم"})` : "غير محدد"}<br />متأخرة: {m.overdueLeafCount} · مخاطر مفتوحة: {m.openRisks} (عالية {m.highOpenRisks}) · مشاكل: {m.openIssues} (حرجة {m.criticalOpenIssues})</div>
       </div>
       <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>الوقت والتكلفة</div>
