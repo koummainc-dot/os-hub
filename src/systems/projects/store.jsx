@@ -766,6 +766,14 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     return () => { window.removeEventListener("hashchange", apply); window.removeEventListener("popstate", apply); };
   }, [parseProjectHash, setPage]);
 
+  // Leave the project deep-link namespace when the user navigates to another Projects OS page.
+  useEffect(() => {
+    if (typeof window === "undefined" || page === "projects") return;
+    if ((window.location.hash || "").startsWith("#/p/")) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, [page]);
+
   // shell bridge: badges + notification bell
   useEffect(() => { if (shell && shell.publish) shell.publish("projects", { notifCount: alerts.length, openNotifs: () => setPage("today") }); }, [alerts.length]);
 
