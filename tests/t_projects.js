@@ -247,10 +247,15 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await sleep(220); await click('الحوكمة',null,100); await click('المخاطر',null,120);
   const bridgePayload={id:'email-check-acceptance-1',title:'Email Check bridge acceptance',status:'Open',kind:'Risk',source:'ventures_email',source_record_id:'email-check-acceptance-1',project_id:'p_app',risk:'High',probability:4,impact:4,description:'Risk created from Ventures Email Check acceptance',module:'Email'};
   const bridgeEvent={workspaceId:'demo_ws',systemId:'projects',action:'create_risk',recordId:bridgePayload.id,payload:bridgePayload,source:'ventures'};
-  w.dispatchEvent(new w.CustomEvent('os:source-write',{detail:bridgeEvent})); await sleep(350);
+  let bridgeResult=null; const captureBridgeResult=e=>{if(e.detail?.systemId==='projects'&&e.detail?.source==='ventures')bridgeResult=e.detail;};
+  w.addEventListener('os:source-write-result',captureBridgeResult);
+  w.dispatchEvent(new w.CustomEvent('os:source-write',{detail:bridgeEvent})); await sleep(450);
+  ok(bridgeResult?.ok===true,'Ventures Email Check receives a successful Projects write acknowledgement'+(bridgeResult?.error?': '+bridgeResult.error:''));
   ok(txt().includes(bridgePayload.title),'Ventures Email Check event creates a permission-checked Projects risk');
+  if(!bridgeResult?.ok||!txt().includes(bridgePayload.title)) console.log('  DEBUG Ventures bridge',{bridgeResult,workspace:'demo_ws',text:txt().slice(-1800),errors:errors.slice(-8),nav:nav().map(b=>b.textContent.trim())});
   w.dispatchEvent(new w.CustomEvent('os:source-write',{detail:bridgeEvent})); await sleep(250);
   ok(txt().split(bridgePayload.title).length-1===1,'repeated Ventures Email Check does not create a duplicate risk');
+  w.removeEventListener('os:source-write-result',captureBridgeResult);
 
   console.log('— permissions (view as Layla = Viewer)');
   await viewAs('demo_layla'); await toToday(); await openProjects();
