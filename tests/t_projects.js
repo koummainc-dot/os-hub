@@ -149,12 +149,15 @@ const {makeEnv,sleep,appJs}=require('./harness');
       const closeSheet=sheet.querySelector('button[aria-label="إغلاق"]'); closeSheet&&closeSheet.click(); await sleep(80);
     }
   }
+  const taskStatusFilter=all('select').find(s=>[...s.options].some(o=>o.value==='open')&&[...s.options].some(o=>o.value==='all'));
+  ok(!!taskStatusFilter,'task status filter is available for bulk acceptance');
+  if(taskStatusFilter) await setVal(taskStatusFilter,'all');
   const freshTaskRow=all('tr').find(r=>r.textContent.includes('مهمة إضافة سريعة — معدلة'));
   const rowCheck=freshTaskRow?.querySelector('input[type="checkbox"]');
   if(rowCheck) rowCheck.click();
   await sleep(50);
   ok(!!btn('تم تحديد 1'),'bulk selection toolbar appears after selecting a task');
-  if(!btn('تم تحديد 1')) console.log('  DEBUG bulk',{row: freshTaskRow?.textContent,checkboxes:all('input[type=checkbox]').length,selected:all('main').map(m=>m.textContent.slice(0,800))});
+  if(!btn('تم تحديد 1')) console.log('  DEBUG bulk',{row: freshTaskRow?.textContent,rows:all('tr').map(r=>r.textContent.trim()),checkboxes:all('input[type=checkbox]').length,selected:all('main').map(m=>m.textContent.slice(0,800))});
   ok(!!btn('✔ إكمال'),'bulk completion action is available');
   if(btn('✔ إكمال')){w.confirm=()=>true;await click('✔ إكمال',null,180);}
   const quickTaskAfter=all('tr').find(r=>r.textContent.includes('مهمة إضافة سريعة — معدلة'));
@@ -163,6 +166,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   await goSection('المشاريع');
   const pRow=all('tr').find(r=>r.textContent.includes('تطبيق إدارة الوقت'));
   if(pRow){pRow.querySelector('td')?.click();await sleep(180);}
+  await click('التخطيط',null,120);
   const taskTab=all('button').find(b=>b.textContent.trim().startsWith('المهام'));
   if(taskTab){taskTab.click();await sleep(120);}
   const taskLink=all('span').find(s=>s.textContent==='مهمة إضافة سريعة — معدلة');
