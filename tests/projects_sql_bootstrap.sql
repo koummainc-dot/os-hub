@@ -38,3 +38,27 @@ end $$;
 grant usage on schema auth to authenticated;
 grant execute on function auth.uid() to authenticated;
 grant select, insert, update, delete on public.workspace_records to authenticated;
+
+
+-- Minimal disposable Storage surface for Projects Outputs RLS smoke.
+-- This mirrors only the storage tables/columns the migration and policies touch;
+-- no real Supabase Storage service is used in CI.
+create schema if not exists storage;
+create table if not exists storage.buckets (
+  id text primary key,
+  name text not null,
+  public boolean not null default false,
+  file_size_limit bigint,
+  allowed_mime_types text[]
+);
+create table if not exists storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text not null,
+  name text not null,
+  owner_id uuid,
+  created_at timestamptz not null default clock_timestamp()
+);
+alter table storage.objects enable row level security;
+grant usage on schema storage to authenticated;
+grant select on storage.buckets to authenticated;
+grant select, insert, delete on storage.objects to authenticated;
