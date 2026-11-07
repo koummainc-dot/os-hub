@@ -5,6 +5,9 @@ import { defineConfig } from "vite";
 // Explicit vendor/supabase manual chunks previously introduced a production-only
 // temporal-dead-zone failure ("Cannot access 'W' before initialization").
 export default defineConfig({
+  esbuild: {
+    jsxInject: 'import React from "react"',
+  },
   build: {
     target: "es2019",
     sourcemap: false,
