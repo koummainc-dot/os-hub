@@ -79,8 +79,8 @@ Every flow must explicitly cover:
 ### Confirmed navigation gaps
 
 - **Resolved by PR #161:** Issue → originating Risk, Issue → originating Discovery, Issue → related Decision, Risk → converted Issue, Decision → related Issue/Risk/Discovery, PRD → related Decision/Risk/Output, Discovery → converted records, and Task backlinks now navigate to exact rows and highlight them.
-- Project Detail → Objective/KR names are not yet exact-record navigation targets; retain as a remaining relationship-navigation gap until tested.
-- **PR #166 merged:** Project Detail → Collaboration → References reads Knowledge OS meetings filtered to the exact project; verify on a deployed build and confirm action-item task persistence after reload.
+- **Resolved by PR #171/#172:** Project Detail → Objective/KR names are exact navigation targets; the global OKR screen reveals filtered/archived targets, scrolls to the exact record, and highlights it, with browser harness coverage.
+- **PR #166 merged:** Project Detail → Collaboration → References reads Knowledge OS meetings filtered to the exact project; browser persistence acceptance remains outstanding.
 
 ### Wireframe requirements
 
@@ -131,7 +131,7 @@ In the inspected workspace: 6 active Projects, 1 active Objective, 0 KRs, 29 act
 - **PR #158 — merged:** Project Detail derives Objectives through linked KRs instead of the obsolete `objective.project_ids` field; added domain and UI contract tests.
 - **PR #159 — merged:** fixed undefined requirement-count identifiers that broke PRD requirement rendering; added direct task creation from a requirement with Project, PRD, and requirement prefilled; added regression assertions.
 
-- **PR #163 — merged, production deployment pending:** grouped Project Detail navigation into seven functional destinations while preserving all 12 existing child tab IDs and deep links. CI, Verify App, and Finance Family Center checks passed. Merge commit: `1ee7ed9c110f7c4ab1f289d4b5bc198fb0bd9988`. Vercel's Hobby daily deployment-creation quota returned HTTP 402 (retry after 24 hours), so this commit is not yet confirmed on Production.
+- **PR #163 — merged:** grouped Project Detail navigation into seven functional destinations while preserving all 12 existing child tab IDs and deep links. CI, Verify App, and Finance Family Center checks passed. Merge commit: `1ee7ed9c110f7c4ab1f289d4b5bc198fb0bd9988`.
 - **PR #164 — merged:** fixes a render-time temporal-dead-zone bug in `DecisionsView`: the exact-record focus hook read `list.length` before `list` was initialized. The list is now derived before the hook runs, and a regression assertion protects the declaration order. CI, Verify App, Finance Family Center Checks, and the Spiritual PostgreSQL smoke test passed. Merge commit: `060d1db46d9d0bf90f978c35b2c0456e35b886d3`. Vercel's preview build status reported the Hobby build-rate limit; Production remains pending due the separate daily deployment-creation quota.
 
 - **PR #166 — merged:** adds Knowledge OS meetings to Project Detail → Collaboration → References using the existing `listKnowledgeMeetings` read contract. Meeting records remain owned by Knowledge OS; follow-up tasks are created only on explicit action, with meeting ID/index provenance and duplicate detection. CI, Verify App, Finance Family Center, and PostgreSQL smoke checks passed. No schema or migration changes. Browser verification and post-deploy persistence checks remain outstanding.
@@ -141,7 +141,8 @@ In the inspected workspace: 6 active Projects, 1 active Objective, 0 KRs, 29 act
 - **PR #170 — merged:** extends the Projects browser harness to open and close the read-only detail modal for Outputs, Risks, Decisions, PRDs, Discovery, and Issues, checking the correct record type appears and that no console errors occur. CI, Verify App, Finance Family Center, and PostgreSQL smoke checks passed.
 - **PR #171 — merged:** makes Objective and Key Result names in Project Detail → Goals exact navigation links. The global OKR screen reveals filtered/archived targets, scrolls to the exact record, and highlights it. CI, Verify App, Finance Family Center, and PostgreSQL smoke checks passed; contract tests protect both directions.
 - **Production DB verification (2026-11-07):** Projects migrations through atomic record batch, completion batch, trash batch, and purge batch are present. `workspace_records` has RLS enabled. `projects_apply_records_batch` and `projects_purge_records_batch` exist as SECURITY INVOKER functions; authenticated can execute, anon/public cannot. No migration was applied during this verification.
-- **PR #172 — in progress:** extends the browser harness to click Objective and KR links from Project Detail, assert navigation to the global OKR screen, and verify the exact target DOM element is present.
+- **PR #172 — merged:** extends the browser harness to click Objective and KR links from Project Detail, assert navigation to the global OKR screen, and verify the exact target DOM element is present. Merge commit: `3ca9f68f4211c564f49bf64ade9cd3df641da02d`.
+- **Phase A quick wins — this branch:** Project Detail now has a contextual breadcrumb; Health Reasons expose direct links to affected Tasks/Issues/Risks; the external cross-system activity strip was removed from the Projects shell. No schema or data changes.
 - **PR #161 — merged and deployed:** introduced typed focus targets for related records. Following links from Issues, Risks, Decisions, PRDs, Discovery, and Task backlinks now opens the owning Projects tab, reveals filtered-out closed Issues / Risks when necessary, scrolls the exact target row into view, and highlights it. Added regression assertions. Production deployment `dpl_7ukDQFTWHZCZVyu7KPQZvhN7GW8f` reached `READY` on commit `30987042d7117df0be316aed2a69c221a66323b6`; production alias `os-hub-seven.vercel.app`.
 
 This improves exact-record discovery, but does not yet provide a dedicated read-only record detail drawer/page for every entity. That remains part of the wireframe/navigation follow-up. It also does not close the broader data-model and live acceptance gaps listed above.
@@ -161,8 +162,8 @@ This improves exact-record discovery, but does not yet provide a dedicated read-
 ### Still required before Projects OS approval
 
 - [ ] Browser acceptance on the deployed commit for PRD requirement rendering and create-task prefill.
-- [ ] Browser acceptance for Project Detail → OKR derived Objective links.
-- [x] Core exact-record focus navigation for Issue, Risk, Decision, PRD, Output, and Discovery links (PR #161; row scroll + highlight).\n- [ ] Dedicated read-only detail surface for every related entity, plus remaining global links not yet covered.
+- [x] Browser acceptance for Project Detail → OKR derived Objective/KR links (PR #172).
+- [x] Core exact-record focus navigation for Issue, Risk, Decision, PRD, Output, and Discovery links (PR #161; row scroll + highlight).\n- [x] Read-only detail modals for the six Project entity types covered by PR #167/170; remaining global links and richer side-panel UX remain open.
 - [ ] Knowledge Meeting → Project linking and Action Item → Task persistence after reload.
 - [ ] Collection lifecycle matrix: create → reload → edit relationship → reload → archive/delete → restore → reload.
 - [ ] Real two-account privacy and role-permission tests.
@@ -171,4 +172,4 @@ This improves exact-record discovery, but does not yet provide a dedicated read-
 - [ ] Apply the PR #155 forward migration only after reviewing migration ordering and confirming the intended Production target.
 - [ ] Verify the tested commit is deployed; do not mark the unit complete from CI-only evidence.
 
-**Approval status:** Not approved / not complete. This is a staged remediation record, not a claim that Projects OS has passed final acceptance.
+**Approval status:** Not approved / not complete. Phase A navigation quick wins are implemented on the remediation branch; final Projects OS approval still depends on live persistence, two-account permissions/privacy, remaining task/relationship UX, and deployment/browser acceptance.
