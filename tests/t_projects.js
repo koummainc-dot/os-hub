@@ -101,7 +101,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
     ok(selects.some(s=>[...s.options].some(o=>o.textContent.includes('تطبيق إدارة الوقت'))),'quick add project picker contains seeded project');
     const qtitle=all('input',qdlg).find(i=>i.type==='text'||!i.type);
     if(qtitle) await setVal(qtitle,'مهمة إضافة سريعة');
-    if(selects[0]) await setVal(selects[0],'proj_time');
+    if(selects[0]) await setVal(selects[0],'p_app');
     await click('حفظ',qdlg,300);
     ok(txt().includes('مهمة إضافة سريعة'),'quick add persists a task with the selected project');
   }
