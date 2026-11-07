@@ -91,6 +91,54 @@ const {makeEnv,sleep,appJs}=require('./harness');
   ok(tdlg.textContent.includes('لا يمكن تخطي مستوى كامل'),'invalid task-tree indentation is rejected with a useful message');
   await click('إلغاء',tdlg,100);
 
+  console.log('— Phase A task UX: quick add, inline edit, bulk actions, custom fields');
+  await goSection('مهامي');
+  ok(!!btn('⚡ إضافة سريعة'),'quick add action is visible');
+  if(await click('⚡ إضافة سريعة',null,120)){
+    const qdlg=doc.querySelector('[role=dialog]');
+    ok(!!qdlg&&qdlg.textContent.includes('المشروع'),'quick add opens with an explicit project picker');
+    const selects=all('select',qdlg);
+    ok(selects.some(s=>[...s.options].some(o=>o.textContent.includes('تطبيق إدارة الوقت'))),'quick add project picker contains seeded project');
+    const qtitle=all('input',qdlg).find(i=>i.type==='text'||!i.type);
+    if(qtitle) await setVal(qtitle,'مهمة إضافة سريعة');
+    if(selects[0]) await setVal(selects[0],'proj_time');
+    await click('حفظ',qdlg,300);
+    ok(txt().includes('مهمة إضافة سريعة'),'quick add persists a task with the selected project');
+  }
+  const tableMode=all('button').find(b=>b.textContent.trim()==='جدول');
+  ok(!!tableMode,'task table view is available');
+  if(tableMode){tableMode.click();await sleep(120);}
+  const taskRow=all('tr').find(r=>r.textContent.includes('مهمة إضافة سريعة'));
+  ok(!!taskRow,'table view renders the quick-added task');
+  if(taskRow){
+    const title=taskRow.querySelector('span');
+    if(title){title.dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));await sleep(60);}
+    const editInput=taskRow.querySelector('input');
+    ok(!!editInput,'task title supports inline editing');
+    if(editInput){await setVal(editInput,'مهمة إضافة سريعة — معدلة');editInput.dispatchEvent(new w.Event('blur',{bubbles:true}));await sleep(180);}
+  }
+  const rowCheck=taskRow?.querySelector('input[type="checkbox"]');
+  if(rowCheck) rowCheck.click();
+  await sleep(50);
+  ok(!!btn('تم تحديد 1'),'bulk selection toolbar appears after selecting a task');
+  ok(!!btn('✔ إكمال'),'bulk completion action is available');
+  if(btn('✔ إكمال')){w.confirm=()=>true;await click('✔ إكمال',null,180);}
+  const quickTaskAfter=all('tr').find(r=>r.textContent.includes('مهمة إضافة سريعة — معدلة'));
+  ok(!!quickTaskAfter,'bulk action keeps the task in the table after status update');
+  if(quickTaskAfter) ok(quickTaskAfter.textContent.includes('مكتملة'),'bulk completion updates task status');
+  await goSection('المشاريع');
+  const pRow=all('tr').find(r=>r.textContent.includes('تطبيق إدارة الوقت'));
+  if(pRow){pRow.querySelector('td')?.click();await sleep(180);}
+  const taskTab=all('button').find(b=>b.textContent.trim().startsWith('المهام'));
+  if(taskTab){taskTab.click();await sleep(120);}
+  const taskLink=all('span').find(s=>s.textContent==='مهمة إضافة سريعة — معدلة');
+  if(taskLink){taskLink.click();await sleep(120);}
+  ok(typeof w.location.hash==='string'&&w.location.hash.includes('/p/')&&w.location.hash.includes('task='),'opening an exact task writes a deep-link hash');
+  ok(w.location.hash.includes('task='),'task deep link preserves exact task focus');
+  const hashBefore=w.location.hash;
+  if(hashBefore){w.location.hash=hashBefore.replace('task=','task=missing-');w.dispatchEvent(new w.PopStateEvent('popstate'));await sleep(60);}
+  ok(errors.length===0,'no console errors in Phase A task UX flow ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
+
   console.log('— task search recovery');
   await goSection('مهامي');
   const taskSearch=all('input').find(i=>i.placeholder==='بحث في المهام…');
