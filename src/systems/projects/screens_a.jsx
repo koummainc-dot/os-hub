@@ -261,7 +261,7 @@ export function Tasks() {
 // Cross-project portfolio view; derived only from existing workspace records.
 export function Portfolio() {
   const { data, metrics, idx, today, settings, openProject, setPage, setView } = useP();
-  const [query, setQuery = useState("");
+  const [query, setQuery] = useState("");
   const [status, setStatus] = useState("active");
   const projects = data.projects.filter((p) => !p.is_system && !p.deleted_at);
   const openProjects = projects.filter((p) => !p.archived_at && !["Completed", "Cancelled"].includes(p.status));
