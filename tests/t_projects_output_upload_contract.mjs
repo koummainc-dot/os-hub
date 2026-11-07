@@ -11,11 +11,17 @@ import {
 const entities = fs.readFileSync(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
 const outputs = entities.slice(entities.indexOf("export function OutputsView"));
 const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+const migration = fs.readFileSync(new URL("../supabase/migrations/20261107150000_projects_output_storage.sql", import.meta.url), "utf8");
 
 assert.ok(outputs.includes("files || []"), "Outputs already has a canonical file-metadata collection");
 assert.ok(outputs.includes("label: \"الملفات\""), "Output details expose attached-file metadata");
 assert.ok(!outputs.includes("data:URL") && !outputs.includes("base64"), "Direct upload must not be faked by embedding base64/data URLs in records");
 assert.ok(!outputs.includes("localStorage"), "Outputs upload contract must not introduce a second local-only persistence path");
+assert.ok(outputs.includes("supabase.storage.from(OUTPUT_STORAGE_BUCKET).upload"), "Outputs use the Supabase Storage upload boundary");
+assert.ok(outputs.includes("createSignedUrl"), "Private Output files use signed URLs rather than public bucket URLs");
+assert.ok(migration.includes("projects_outputs_select") && migration.includes("projects_outputs_insert") && migration.includes("projects_outputs_delete"), "Storage migration defines the three required private-object policies");
+assert.ok(!migration.includes("create policy projects_outputs_update"), "Storage migration deliberately forbids object UPDATE/upsert");
+assert.ok(migration.includes("collection = 'outputs'"), "Storage policies authorize against the persisted Output record");
 
 assert.equal(OUTPUT_STORAGE_BUCKET, "projects-outputs", "Outputs use a dedicated private bucket name");
 assert.equal(OUTPUT_MAX_BYTES, 10 * 1024 * 1024, "Application upload limit is conservative and below the Supabase Free global maximum");
