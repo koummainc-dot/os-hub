@@ -103,7 +103,7 @@ Before visual polish:
 
 ### Confirmed model mismatches / migration gates
 
-1. Current code stores KR-to-Project links in `kr.project_ids`; v4 describes a logical `kr_projects` relation. Decide and document the canonical persistence shape before normalizing or migrating.
+1. This release keeps the existing JSONB `kr.project_ids` array as the canonical v4 supporting-Project relation. A normalized `kr_projects` join table is not introduced by this remediation; any later normalization requires its own no-loss migration and rollout plan.
 2. Legacy `task.objective_id` and `kr.task_ids` compatibility paths remain in code. Preserve them until all readers/writers and persisted values are reconciled.
 3. `objective.project_ids` is not a canonical v4 relationship. Project Detail no longer reads it after PR #158; do not reintroduce it.
 4. Migration `20261031120000_projects_entity_relationship_integrity.sql` contained the obsolete direct Objective→Project guard. A forward-only reconciliation migration is now present on PR #173; it moves historical IDs to `legacy_project_ids`, removes the active direct field (including trashed records), and rejects future direct writes. Its isolated PostgreSQL smoke test passes; Production application remains a separate release gate.
