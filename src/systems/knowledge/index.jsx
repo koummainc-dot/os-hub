@@ -94,7 +94,7 @@ function Btn({children,onClick,secondary=false,disabled=false,type="button",tone
 function Field({label,children}) { return <label style={{display:"grid",gap:6,fontSize:12,fontWeight:750,color:"#475569"}}>{label}{children}</label>; }
 function Tag({children}) { return <span style={{fontSize:11,padding:"4px 8px",borderRadius:999,background:C.soft,color:"#075985",whiteSpace:"nowrap"}}>{children}</span>; }
 
-export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,ws}) {
+export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub",setPage,ws}) {
   const [data,setData]=useState(emptyData);
   const [updatedAt,setUpdatedAt]=useState(null);
   const [storageMode,setStorageMode]=useState("legacy");
@@ -311,6 +311,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
       status: "Not Started",
       priority: item.priority === "urgent" ? "High" : item.priority === "high" ? "High" : "Medium",
       planning_bucket: "Inbox",
+      assignee_id: authUser?.id || null,
       description: item.summary || "",
       source_record_id: String(item.id) + ":" + String(index),
     }));
