@@ -300,6 +300,31 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
     const next={...data,[key]:data[key].map(x=>x.id===item.id?{...x,...patch,updatedAt:isoNow()}:x)};
     await persist(next);
   };
+  const createMeetingFollowupTasks = (item) => {
+    if (isDemo || !api?.workspaceId) { setError("تحويل متابعات الاجتماع إلى مهام يتطلب مساحة عمل متصلة."); return; }
+    if (item.kind !== "meeting" || item.relatedSystem !== "projects" || !item.relatedId) { setError("اربط الاجتماع بمشروع Projects أولاً."); return; }
+    const followups = (item.followups || []).map((title) => String(title || "").trim()).filter(Boolean);
+    if (!followups.length) { setError("أضف متابعات للاجتماع أولاً."); return; }
+    const tasks = followups.map((title, index) => ({
+      title,
+      project_id: item.relatedId,
+      status: "Not Started",
+      priority: item.priority === "urgent" ? "High" : item.priority === "high" ? "High" : "Medium",
+      planning_bucket: "Inbox",
+      description: item.summary || "",
+      source_record_id: String(item.id) + ":" + String(index),
+    }));
+    const requestId = "knowledge-meeting:" + String(item.id) + ":" + followups.join("|");
+    window.dispatchEvent(new CustomEvent("os:source-write", { detail: {
+      workspaceId: api.workspaceId,
+      systemId: "projects",
+      source: "knowledge",
+      action: "create_meeting_tasks",
+      recordId: requestId,
+      payload: { meeting_id: item.id, project_id: item.relatedId, tasks },
+    }}));
+    setError("تم إرسال " + tasks.length + " متابعة إلى Projects. ستظهر رسالة بنتيجة الحفظ بعد اكتمال الربط.");
+  };
   const recordReview=async(item,rating)=>{
     if(!canEdit)return;
     const previous=Math.max(0,Number(item.reviewIntervalDays)||0);
@@ -377,7 +402,7 @@ export default function KnowledgeOS({api,access,isDemo=false,page="hub",setPage,
           </div>
           <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>{item.categoryId&&<Tag>{categoryName(item.categoryId)}</Tag>}{item.date&&<Tag>📅 {item.date}{item.startTime?` · ${item.startTime}`:""}{item.endTime?`–${item.endTime}`:""}</Tag>}{item.priority&&<Tag>الأولوية: {PRIORITIES[item.priority]||item.priority}</Tag>}{item.reviewAt&&<Tag>مراجعة: {item.reviewAt}</Tag>}{item.author&&<Tag>✍ {item.author}</Tag>}{item.rating&&<Tag>★ {item.rating}/5</Tag>}{(item.tags||[]).map(t=><Tag key={t}>#{t}</Tag>)}</div>
           {(item.body||item.notes||item.nextAction||item.relatedSystem||(item.relatedItemIds||[]).length>0)&&<div style={{background:C.bg,borderRadius:10,padding:12,fontSize:12,lineHeight:1.8}}>{item.body&&<div><b>نص الملاحظة:</b> {item.body}</div>}{item.notes&&<div><b>ملاحظات مستخرجة:</b> {item.notes}</div>}{item.nextAction&&<div><b>الخطوة التالية:</b> {item.nextAction}</div>}{item.relatedSystem&&<div><b>ارتباط خارجي:</b> {item.relatedSystem}{item.relatedId?(" · "+item.relatedId):""} (مرجع نصي؛ لا ينشئ علاقة قاعدة بيانات تلقائيًا)</div>}{(item.relatedItemIds||[]).length>0&&<div><b>عناصر مرتبطة:</b> {(item.relatedItemIds||[]).map(id=>allItems.find(x=>x.id===id)?.title||id).join("، ")}</div>}</div>}
-          {(item.kind==="meeting"&&(item.decisions||item.followups?.length||item.attendees?.length))&&<div style={{background:C.bg,borderRadius:10,padding:12,fontSize:12,lineHeight:1.8}}>{item.attendees?.length>0&&<div><b>الحضور:</b> {item.attendees.join("، ")}</div>}{item.decisions&&<div><b>القرارات:</b> {item.decisions}</div>}{item.followups?.length>0&&<div><b>المتابعات:</b> {item.followups.join("، ")}</div>}</div>}
+          {(item.kind==="meeting"&&(item.decisions||item.followups?.length||item.attendees?.length))&&<div style={{background:C.bg,borderRadius:10,padding:12,fontSize:12,lineHeight:1.8}}>{item.attendees?.length>0&&<div><b>الحضور:</b> {item.attendees.join("، ")}</div>}{item.decisions&&<div><b>القرارات:</b> {item.decisions}</div>}{item.followups?.length>0&&<div><b>المتابعات:</b> {item.followups.join("، ")}</div>}{item.followups?.length>0&&<div style={{marginTop:10}}><Btn secondary disabled={isDemo||item.relatedSystem!=="projects"||!item.relatedId} onClick={()=>createMeetingFollowupTasks(item)}>تحويل المتابعات إلى مهام في Projects</Btn>{item.relatedSystem!=="projects"&&<span style={{marginInlineStart:8,color:C.muted}}>اربط الاجتماع بمشروع أولاً</span>}</div>}</div>}
         </article>)}
       </section>}
     </>}
