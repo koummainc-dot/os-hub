@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AccessDenied } from "../../core/ui.jsx";
 import { osSectionLevel } from "../../core/core.js";
 import { Tabs, Skeleton, ErrorState, Chip } from "../../core/kit.jsx";
@@ -46,33 +46,45 @@ function ProjectsDurableEventBridge({ ws, isDemo, children }) {
   return <Ctx.Provider value={{ ...ctx, durableOSEvents: events }}>{children}</Ctx.Provider>;
 }
 
-function Router() {
+function Router({ sourceWriteRequest }) {
   const ctx = useP(); const { page, ready, error, store, access, role, shell, ws, A, data } = ctx; const lvl = osSectionLevel(access, page);
   // sections hidden for Viewers (plan §13.2) are removed from the shell menu
   useEffect(() => { if (shell && shell.publish) shell.publish("projects", { visible: Object.keys(SCREENS).filter((k) => k !== "masterplanImport" && !(role === "Viewer" && ["reviews", "contacts"].includes(k))) }); }, [role]);
+  const processedVenturesRiskWrites = useRef(new Set());
+  const handleVenturesRisk = useCallback(async (d) => {
+    if (!(d?.source === "ventures" && d.systemId === "projects" && d.action === "create_risk")) return;
+    const publishResult = (detail) => window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws?.id || null, systemId: "projects", source: "ventures", ...detail } }));
+    if (d.workspaceId && String(d.workspaceId) !== String(ws?.id)) return;
+    const payload = d.payload || {};
+    const project = ctx.projectsById?.[payload.project_id];
+    if (!project) { publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: "المشروع المرتبط بفحص البريد غير موجود أو غير متاح." }); return; }
+    if (!ctx.can("risk.write", project)) { publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: "لا تملك صلاحية إنشاء مخاطر في هذا المشروع." }); return; }
+    const requestKey = String(d.recordId || payload.source_record_id || payload.id || "");
+    if (requestKey && processedVenturesRiskWrites.current.has(requestKey)) {
+      publishResult({ action: d.action, recordId: d.recordId || requestKey, ok: true });
+      return;
+    }
+    if (requestKey) processedVenturesRiskWrites.current.add(requestKey);
+    const existing = (ctx.data.risks || []).find((item) => item.source === "ventures_email" && String(item.source_record_id) === String(payload.source_record_id));
+    const risk = { ...payload, id: existing?.id || d.recordId || payload.id, project_id: project.id, source_record_id: payload.source_record_id };
+    try {
+      const saved = await A.saveRisk(risk);
+      publishResult({ action: d.action, recordId: saved.id, ok: true });
+    } catch (error) {
+      if (requestKey) processedVenturesRiskWrites.current.delete(requestKey);
+      publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: error?.message || "تعذر حفظ الخطر في Projects." });
+    }
+  }, [A, ctx.can, ctx.data.risks, ctx.projectsById, ws?.id]);
+  useEffect(() => {
+    if (!sourceWriteRequest || !ready) return;
+    void handleVenturesRisk(sourceWriteRequest);
+  }, [sourceWriteRequest, ready, handleVenturesRisk]);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const publishResult = (detail) => window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws?.id || null, systemId: "projects", source: "ventures", ...detail } }));
-    const handleSourceWrite = async (event) => {
-      const d = event?.detail || {};
-      if (!(d.source === "ventures" && d.systemId === "projects" && d.action === "create_risk")) return;
-      if (d.workspaceId && String(d.workspaceId) !== String(ws?.id)) return;
-      const payload = d.payload || {};
-      const project = ctx.projectsById?.[payload.project_id];
-      if (!project) { publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: "المشروع المرتبط بفحص البريد غير موجود أو غير متاح." }); return; }
-      if (!ctx.can("risk.write", project)) { publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: "لا تملك صلاحية إنشاء مخاطر في هذا المشروع." }); return; }
-      const existing = (ctx.data.risks || []).find((item) => item.source === "ventures_email" && String(item.source_record_id) === String(payload.source_record_id));
-      const risk = { ...payload, id: existing?.id || d.recordId || payload.id, project_id: project.id, source_record_id: payload.source_record_id };
-      try {
-        const saved = await A.saveRisk(risk);
-        publishResult({ action: d.action, recordId: saved.id, ok: true });
-      } catch (error) {
-        publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: error?.message || "تعذر حفظ الخطر في Projects." });
-      }
-    };
+    const handleSourceWrite = (event) => { void handleVenturesRisk(event?.detail || {}); };
     window.addEventListener("os:source-write", handleSourceWrite);
     return () => window.removeEventListener("os:source-write", handleSourceWrite);
-  }, [A, ctx.can, ctx.data.risks, ctx.projectsById, ws?.id]);
+  }, [handleVenturesRisk]);
 
   if (error) return <ErrorState error={error} onRetry={() => store.api.reload()} />;
   if (!ready) return <Skeleton />;
@@ -86,5 +98,5 @@ function Router() {
 export default function ProjectsSystem(props) {
   const { authUser, ws, members, isDemo } = props;
   const seed = useMemo(() => () => buildSeed({ me: authUser.id, ownerId: ws.ownerId, members: (members || []).map((m) => m.userId), today: todayStr("Africa/Cairo") }), [authUser.id, ws.ownerId, members]);
-  return <ProjectsProvider {...props} seed={seed}><ProjectsDurableEventBridge ws={ws} isDemo={isDemo}><Router /></ProjectsDurableEventBridge></ProjectsProvider>;
+  return <ProjectsProvider {...props} seed={seed}><ProjectsDurableEventBridge ws={ws} isDemo={isDemo}><Router sourceWriteRequest={props.sourceWriteRequest} /></ProjectsDurableEventBridge></ProjectsProvider>;
 }
