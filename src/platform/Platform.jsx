@@ -66,6 +66,17 @@ function Platform(){
   const demoStore=useRef({});
   const bootRef=useRef(null);
   const isDemo=!!demo;
+  const setSection=useCallback((sysId,v)=>{
+    const sysDef=osSystemById(sysId);
+    const sections=osSections(sysDef);
+    const allowed=sections.map(x=>x.id);
+    const current=sectionByRef.current[sysId]||(sections[0]?.id||"");
+    const next=typeof v==="function"?v(current):v;
+    if(allowed.length&&!allowed.includes(next))return;
+    setSectionBy(p=>({...p,[sysId]:next}));
+    setRoute(r=>r.view==="system"&&r.system===sysId?r:{view:"system",system:sysId});
+  },[]);
+
 
   const toast=useMemo(()=>(msg)=>{const id=Date.now()+Math.random();setToasts(t=>[...t,{id,msg}]);setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),5500);},[]);
   const removeToast=(id)=>setToasts(t=>t.filter(x=>x.id!==id));
@@ -317,16 +328,6 @@ function Platform(){
   const br=sys?(bridge[sys.id]||{}):{};
   const defSection=(s)=>{const l=osSections(s);return l[0]?l[0].id:"";};
   const currentSection=sys?(sectionBy[sys.id]||defSection(sys)):"";
-  const setSection=useCallback((sysId,v)=>{
-    const sysDef=osSystemById(sysId);
-    const sections=osSections(sysDef);
-    const allowed=sections.map(x=>x.id);
-    const current=sectionByRef.current[sysId]||(sections[0]?.id||"");
-    const next=typeof v==="function"?v(current):v;
-    if(allowed.length&&!allowed.includes(next))return;
-    setSectionBy(p=>({...p,[sysId]:next}));
-    setRoute(r=>r.view==="system"&&r.system===sysId?r:{view:"system",system:sysId});
-  },[]);
   const navSections=sys&&acc.level!=="none"?osSections(sys).filter(s=>osSectionLevel(acc,s.id)!=="none"&&(!br.visible||br.visible.indexOf(s.id)>-1)):[];
   const viewMember=isDemo&&demo.viewAs!=="owner"?demo.members.find(x=>x.userId===demo.viewAs):null;
   const hostMe=viewMember?{id:viewMember.userId,email:viewMember.email,name:viewMember.name}:me;
