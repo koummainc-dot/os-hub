@@ -96,7 +96,10 @@ function Router({ sourceWriteRequest }) {
       const sourceRecordId = String(item?.source_record_id || "");
       const title = String(item?.title || "").trim();
       if (!sourceRecordId || !title) { errors.push("توجد متابعة بلا معرّف أو عنوان صالح."); continue; }
+      const trashed = (ctx.trash || []).find((entry) => entry.coll === "tasks" && entry.rec?.source === "knowledge_meeting" && String(entry.rec?.source_record_id) === sourceRecordId);
+      if (trashed) { errors.push(title + ": المهمة السابقة في سلة المحذوفات؛ استعدها صراحةً قبل إعادة التحويل."); continue; }
       const existing = (ctx.data.tasks || []).find((task) => task.source === "knowledge_meeting" && String(task.source_record_id) === sourceRecordId);
+      if (existing?.archived_at) { errors.push(title + ": المهمة السابقة مؤرشفة؛ أزل الأرشفة صراحةً قبل إعادة التحويل."); continue; }
       try {
         const task = { ...item, id: existing?.id || ("knowledge_meeting_task_" + encodeURIComponent(sourceRecordId)), title, project_id: project.id, source: "knowledge_meeting", source_record_id: sourceRecordId, source_meeting_id: String(payload.meeting_id || "") };
         const saved = await A.saveTask(task, !existing);
@@ -107,7 +110,7 @@ function Router({ sourceWriteRequest }) {
     const ok = rows.length > 0 && errors.length === 0;
     if (!ok && requestKey) processedKnowledgeMeetingWrites.current.delete(requestKey);
     publishResult({ action: d.action, recordId: d.recordId || null, ok, createdTaskIds, error: errors.join(" | ") || (rows.length ? null : "لا توجد متابعات لتحويلها.") });
-  }, [A, access, ctx.can, ctx.data.tasks, ctx.projectsById, ws?.id]);
+  }, [A, access, ctx.can, ctx.data.tasks, ctx.projectsById, ctx.trash, ws?.id]);
   const handleSourceWrite = useCallback((d) => {
     if (d?.source === "ventures") return handleVenturesRisk(d);
     if (d?.source === "knowledge") return handleKnowledgeMeetingTasks(d);
