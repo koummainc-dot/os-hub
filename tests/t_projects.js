@@ -265,7 +265,9 @@ const {makeEnv,sleep,appJs}=require('./harness');
   w.dispatchEvent(new w.CustomEvent('os:source-write',{detail:meetingTaskEvent})); await sleep(350);
   ok(meetingTaskResult?.ok===true,'Knowledge meeting action receives a successful Projects task acknowledgement'+(meetingTaskResult?.error?': '+meetingTaskResult.error:''));
   await goSection('مهامي'); await sleep(260);
-  if(!txt().includes('متابعة اجتماع: مراجعة خطة الإطلاق')) console.log('  DEBUG Knowledge task visibility',{text:txt().slice(-2600),nav:nav().map(b=>b.textContent.trim()),errors:errors.slice(-8)});
+  const assigneeFilter=all('select').find(s=>[...s.options].some(o=>o.value==='none')&&[...s.options].some(o=>o.value==='all'));
+  if(assigneeFilter) { await setVal(assigneeFilter,'all'); await sleep(120); }
+  if(!txt().includes('متابعة اجتماع: مراجعة خطة الإطلاق')) console.log('  DEBUG Knowledge task visibility',{meetingTaskResult,text:txt().slice(-2600),nav:nav().map(b=>b.textContent.trim()),errors:errors.slice(-8)});
   ok(txt().includes('متابعة اجتماع: مراجعة خطة الإطلاق'),'meeting follow-up is visible as a Projects task');
   w.dispatchEvent(new w.CustomEvent('os:source-write',{detail:meetingTaskEvent})); await sleep(220);
   ok(txt().split('متابعة اجتماع: مراجعة خطة الإطلاق').length-1===1,'repeated meeting action does not create a duplicate task');
