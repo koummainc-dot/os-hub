@@ -3,6 +3,8 @@ import { A, S } from "../../core/ui.jsx";
 import { C, Btn, Chip, Head, Empty, Progress, Seg, Board, SearchBar, Tabs, FormModal, Modal, Field } from "../../core/kit.jsx";
 import { fmt, fmtShort, diffDays } from "../../core/dates.js";
 import { uid, nowIso } from "../../core/records.jsx";
+import { supabase } from "../../core/supabase.js";
+import { OUTPUT_STORAGE_BUCKET, outputFileMetadata, outputObjectPath, validateOutputUpload } from "./outputStorage.js";
 import { useP } from "./store.jsx";
 import * as D from "./domain.js";
 import { L, opts, PRIORITY_COLOR, STATUS_COLOR, SEV_COLOR } from "./lookups.js";
@@ -39,13 +41,47 @@ function RecordDetailModal({ title, fields, onClose }) {
 
 // ═════ Outputs ═════
 export function OutputsView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, me, confirm, lookups, idx, openTask, openProject, setPage, view } = useP();
+  const { data, A: act, can, projectsById, people, toast, confirm, lookups, idx, openTask, openProject, setPage, view, ws } = useP();
   const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [type, setType] = useState(""); const [ap, setAp] = useState(""); const [q, setQ] = useState("");
   const list = data.outputs.filter((o) => (!projectId || o.project_id === projectId) && (!type || o.type === type) && (!ap || o.approval === ap) && (!q || o.name.toLowerCase().includes(q.toLowerCase())));
   useRecordFocus(view, "output", projectId, list.length);
   const canNew = projectId ? can("output.write", projectsById[projectId]) : data.projects.some((p) => can("output.write", p));
+
+  const uploadOutputFiles = async (output, files) => {
+    const selected = Array.from(files || []).filter(Boolean);
+    if (!selected.length) return output;
+    if (!ws?.id) throw new Error("المساحة الحالية غير متاحة للرفع.");
+    const uploaded = [];
+    try {
+      for (const file of selected) {
+        const validation = validateOutputUpload(file);
+        if (!validation.ok) throw new Error(validation.error);
+        const fileId = uid();
+        const objectPath = outputObjectPath({
+          workspaceId: ws.id,
+          projectId: output.project_id,
+          outputId: output.id,
+          fileId,
+          filename: file.name
+        });
+        const { error } = await supabase.storage.from(OUTPUT_STORAGE_BUCKET).upload(objectPath, file, { upsert: false, contentType: file.type });
+        if (error) throw error;
+        uploaded.push(outputFileMetadata({ file, objectPath }));
+      }
+      return { ...output, files: [...(output.files || []), ...uploaded] };
+    } catch (error) {
+      if (uploaded.length) {
+        await supabase.storage.from(OUTPUT_STORAGE_BUCKET).remove(uploaded.map((x) => x.object_path)).catch(() => null);
+      }
+      throw error;
+    }
+  };
+
   const submit = async (v) => {
-    const project = projectsById[v.project_id]; const prev = v.id ? data.outputs.find((o) => o.id === v.id) : null; const rec = { ...v, id: v.id || uid() };
+    const project = projectsById[v.project_id]; const prev = v.id ? data.outputs.find((o) => o.id === v.id) : null;
+    let rec = { ...v, id: v.id || uid(), files: Array.isArray(v.files) ? v.files : (prev?.files || []) };
+    const pendingFiles = Array.from(v.__pendingFiles || []);
+    delete rec.__pendingFiles;
     if (!project || project.is_system) throw new Error("اختر مشروعًا صالحًا قبل حفظ المخرج.");
     if (rec.task_id) {
       const task = idx.byId[rec.task_id];
@@ -59,11 +95,32 @@ export function OutputsView({ projectId }) {
     if (prev?.approval === "Final") throw new Error("المخرج النهائي مقفل؛ أنشئ مخرجاً جديداً للنسخة المعدلة.");
     if (rec.approval === "Final" && (!prev || prev.approval !== "Final")) {
       if (!can("output.approve", project)) throw new Error("اعتماد المخرج النهائي للقائد أو المراجع فقط");
-      if (!rec.url && !(rec.files || []).length && !(await confirm("المخرج النهائي بلا ملف أو رابط. المتابعة؟"))) return false;
+      if (!rec.url && !rec.files.length && !pendingFiles.length && !(await confirm("المخرج النهائي بلا ملف أو رابط. المتابعة؟"))) return false;
       rec.approved_by = me; rec.approved_at = nowIso();
     } else if (rec.approval !== "Final") { rec.approved_by = null; rec.approved_at = null; }
-    await act.put("outputs", rec, project); toast("✅ تم الحفظ"); setForm(null);
+
+    // Create the Output record first so Storage RLS can authorize against the real output/project.
+    await act.put("outputs", rec, project);
+    try {
+      if (pendingFiles.length) rec = await uploadOutputFiles(rec, pendingFiles);
+      if (pendingFiles.length) await act.put("outputs", rec, project);
+      toast(pendingFiles.length ? "✅ تم حفظ المخرج ورفع الملفات بأمان" : "✅ تم الحفظ");
+      setForm(null);
+    } catch (error) {
+      if (!prev) await act.del("outputs", rec.id, rec.name);
+      throw new Error("تم حفظ المخرج لكن تعذر إكمال رفع الملفات: " + (error?.message || "فشل الرفع"));
+    }
   };
+
+  const downloadFile = async (file) => {
+    try {
+      const { data: signed, error } = await supabase.storage.from(OUTPUT_STORAGE_BUCKET).createSignedUrl(file.object_path, 60);
+      if (error) throw error;
+      if (!signed?.signedUrl) throw new Error("تعذر إنشاء رابط تنزيل مؤقت.");
+      window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) { toast("⛔ تعذر تنزيل الملف: " + (error?.message || "فشل التنزيل")); }
+  };
+
   return (
     <div>
       {!projectId && <Head title="المخرجات" sub={`${list.length} مخرج`} right={canNew && <Btn kind="primary" onClick={() => setForm({})}>➕ مخرج</Btn>} />}
@@ -77,6 +134,7 @@ export function OutputsView({ projectId }) {
               <div style={{ fontSize: 11.5, color: C.dim, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><Chip>{o.type}</Chip>{!projectId && <ProjectName id={o.project_id} />}{o.task_id && idx.byId[o.task_id] && <button onClick={() => openTask(o.task_id)} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", padding: 0 }}>🔗 {idx.byId[o.task_id].title}</button>}{o.prd_requirement_id && <button type="button" onClick={() => openProject(o.project_id, "prds", { kind: "prd", id: o.prd_id })} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>متطلب: {(data.prds.find((p) => p.id === o.prd_id)?.requirements || []).find((r) => r.id === o.prd_requirement_id)?.title || "فتح المواصفة"} ↗</button>}{data.wins.some((w) => (w.output_ids || []).includes(o.id)) && <button type="button" onClick={() => setPage("wins")} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>🏆 إنجاز مرتبط</button>}</div>
               {o.url && <a href={o.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.info, display: "block", margin: "4px 0", wordBreak: "break-all" }}>🔗 {o.url}</a>}
               {o.notes && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{o.notes}</div>}
+              {(o.files || []).length > 0 && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>{(o.files || []).map((file, i) => <button key={file.object_path || i} type="button" onClick={() => typeof file === "string" ? window.open(file, "_blank", "noopener,noreferrer") : downloadFile(file)} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", padding: 0, textAlign: "start", fontSize: 11.5 }}>📎 {typeof file === "string" ? file : `${file.name || "ملف"} · ${Math.ceil((file.size_bytes || 0) / 1024)} KB`}</button>)}</div>}
               {o.approved_by && <div style={{ fontSize: 10.5, color: C.muted }}>اعتمده {<Who id={o.approved_by} size={14} />} · {fmt((o.approved_at || "").slice(0, 10))}</div>}
               <div style={{ marginTop: 6, display: "flex", gap: 6, alignItems: "center" }}><Btn small onClick={() => setDetail(o)}>عرض التفاصيل</Btn>{o.approval === "Final" ? <Chip color={C.ok}>🔒 مخرج نهائي — لا يُعدَّل</Chip> : <RowActions canW={can("output.write", projectsById[o.project_id])} onEdit={() => setForm(o)} onDelete={() => act.del("outputs", o.id, o.name)} />}</div>
             </div>))}
@@ -95,13 +153,25 @@ export function OutputsView({ projectId }) {
         { key: "type", label: "النوع", type: "select", allowEmpty: false, options: lookups.output_type.map((x) => ({ v: x, l: x })) },
         { key: "task_id", label: "المهمة المرتبطة", type: "select", emptyLabel: "— بلا —", options: (v) => idx.list.filter((t) => t.project_id === v.project_id).map((t) => ({ v: t.id, l: t.title })) },
         { key: "prd_id", label: "المواصفة التي يحقّقها", type: "select", emptyLabel: "— بلا —", options: (v) => data.prds.filter((p) => p.project_id === v.project_id).map((p) => ({ v: p.id, l: p.title })) },
-         { key: "prd_requirement_id", label: "المتطلب الذي يحقّقه", type: "select", emptyLabel: "— بلا متطلب —", options: (v) => { const prd = data.prds.find((p) => p.id === v.prd_id); return (prd?.requirements || []).filter((r) => r.status !== "Deprecated").map((r) => ({ v: r.id, l: r.title })); } },
+        { key: "prd_requirement_id", label: "المتطلب الذي يحقّقه", type: "select", emptyLabel: "— بلا متطلب —", options: (v) => { const prd = data.prds.find((p) => p.id === v.prd_id); return (prd?.requirements || []).filter((r) => r.status !== "Deprecated").map((r) => ({ v: r.id, l: r.title })); } },
         { key: "approval", label: "الاعتماد", type: "select", allowEmpty: false, options: opts(L.approval) },
-        { key: "url", label: "الرابط", type: "url" }, { key: "notes", label: "ملاحظات", type: "textarea", rows: 2 }]} />}
+        { key: "url", label: "الرابط", type: "url" }, { key: "notes", label: "ملاحظات", type: "textarea", rows: 2 }
+      ]} children={(values, set) => (
+        <div style={{ gridColumn: "1 / -1", marginTop: 8, border: `1px solid ${C.line}`, borderRadius: 8, padding: 10 }}>
+          <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, marginBottom: 6 }}>📎 ملفات المخرج</div>
+          {(values.files || []).length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>{(values.files || []).map((file, i) => <div key={file.object_path || i} style={{ fontSize: 11.5, color: C.dim }}>✓ {typeof file === "string" ? file : `${file.name || "ملف"} · ${Math.ceil((file.size_bytes || 0) / 1024)} KB`}</div>)}</div>}
+          <input type="file" multiple onChange={(e) => {
+            const files = Array.from(e.target.files || []);
+            const errors = files.map(validateOutputUpload).filter((x) => !x.ok).map((x) => x.error);
+            if (errors.length) { toast("⛔ " + errors[0]); e.target.value = ""; return; }
+            set("__pendingFiles", files);
+          }} accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.txt,.csv,.json,.zip,.docx,.xlsx,.pptx" />
+          {(values.__pendingFiles || []).length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>سيتم رفع {values.__pendingFiles.length} ملف بعد حفظ المخرج.</div>}
+        </div>
+      )} />}
     </div>
   );
 }
-
 // ═════ Risks (+ 5×5 matrix) ═════
 export function RisksView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, settings, confirm, openProject, idx, openTask, view } = useP();
