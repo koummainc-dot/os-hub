@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { A, S } from "../../core/ui.jsx";
 import { C, Btn, Chip, Head, Stat, Empty, Progress, Seg, SearchBar, Tabs, FormModal, Modal, Field, Avatar } from "../../core/kit.jsx";
 import { fmt, fmtShort, fmtMinutes, addDays, diffDays, dateOf } from "../../core/dates.js";
@@ -348,6 +348,7 @@ export function Meetings() {
   const [loadError, setLoadError] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
   const [creatingFollowup, setCreatingFollowup] = useState("");
+  const creatingFollowupsRef = useRef(new Set());
 
   const refresh = async () => {
     if (!ws?.id) { setMeetings([]); setLoading(false); return; }
@@ -375,6 +376,7 @@ export function Meetings() {
 
   async function createFollowupTask(meeting, followup, index) {
     const key = String(meeting.id) + ":" + index;
+    if (creatingFollowupsRef.current.has(key)) return;
     const project = meeting.relatedSystem === "projects" ? projectsById[meeting.relatedId] : null;
     if (!project || project.archived_at || project.status === "Archived") {
       toast("اربط الاجتماع بمشروع نشط قبل إنشاء مهام المتابعة.");
@@ -397,6 +399,7 @@ export function Meetings() {
     }
     const title = String(followup || "").trim();
     if (!title) return;
+    creatingFollowupsRef.current.add(key);
     setCreatingFollowup(key);
     try {
       const saved = await act.saveTask({
@@ -414,6 +417,7 @@ export function Meetings() {
     } catch (error) {
       toast("⛔ تعذّر إنشاء المهمة: " + (error?.message || "فشل الحفظ"));
     } finally {
+      creatingFollowupsRef.current.delete(key);
       setCreatingFollowup("");
     }
   }
