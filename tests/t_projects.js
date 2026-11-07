@@ -134,7 +134,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   if(taskRow){
     const title=taskRow.querySelector('span');
     if(title){title.dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));await sleep(60);}
-    const editInput=taskRow.querySelector('input');
+    const editInput=[...taskRow.querySelectorAll('input')].find(input=>input.type==='text');
     ok(!!editInput,'task title supports inline editing');
     if(editInput){await setVal(editInput,'مهمة إضافة سريعة — معدلة');editInput.dispatchEvent(new w.Event('blur',{bubbles:true}));await sleep(450);}
   }
