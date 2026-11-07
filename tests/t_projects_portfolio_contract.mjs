@@ -13,6 +13,12 @@ assert.ok(myWork.includes('{ id: "today", label: "اليوم" }'), "My Work expo
 assert.ok(myWork.includes('{ id: "week", label: "هذا الأسبوع" }'), "My Work exposes a This Week tab");
 assert.ok(myWork.includes('{ id: "tasks", label: "كل المهام" }'), "My Work exposes an all-tasks tab");
 assert.ok(myWork.includes("<Today />") && myWork.includes("<Week />") && myWork.includes("<Tasks />"), "My Work reuses the canonical existing views instead of duplicating task logic");
+assert.ok(screens.includes('import { listKnowledgeMeetings } from "../knowledge/repository.js";'), "My Work reads meetings through the canonical Knowledge repository");
+const todayView = screens.slice(screens.indexOf("export function Today()"), screens.indexOf("// ═════ This Week ═════"));
+assert.ok(todayView.includes("listKnowledgeMeetings(ws.id)"), "Today loads the authoritative Knowledge meeting records");
+assert.ok(todayView.includes('String(meeting.date || "").slice(0, 10) === String(today).slice(0, 10)'), "Today filters meetings to the workspace-local date already used by Projects");
+assert.ok(todayView.includes('meeting.status !== "archived"'), "Today excludes archived meetings");
+assert.ok(todayView.includes('setPage("meetings")'), "Meeting agenda links to the existing Knowledge-owned meeting workflow");
 
 assert.ok(portfolio.includes("const [query, setQuery] = useState(\"\")"), "Portfolio search is controlled by React state");
 assert.ok(portfolio.includes("const [status, setStatus] = useState(\"active\")"), "Portfolio starts with the active-project filter");
