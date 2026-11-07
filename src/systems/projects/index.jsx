@@ -58,7 +58,7 @@ function Router({ sourceWriteRequest }) {
     const payload = d.payload || {};
     const project = ctx.projectsById?.[payload.project_id];
     if (!project) { publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: "المشروع المرتبط بفحص البريد غير موجود أو غير متاح." }); return; }
-    if (!ctx.can("risk.write", project)) { publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: "لا تملك صلاحية إنشاء مخاطر في هذا المشروع." }); return; }
+    if (osSectionLevel(access, "risks") !== "edit" || !ctx.can("risk.write", project)) { publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: "لا تملك صلاحية إنشاء مخاطر في هذا المشروع." }); return; }
     const requestKey = String(d.recordId || payload.source_record_id || payload.id || "");
     if (requestKey && processedVenturesRiskWrites.current.has(requestKey)) {
       publishResult({ action: d.action, recordId: d.recordId || requestKey, ok: true });
@@ -74,7 +74,7 @@ function Router({ sourceWriteRequest }) {
       if (requestKey) processedVenturesRiskWrites.current.delete(requestKey);
       publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: error?.message || "تعذر حفظ الخطر في Projects." });
     }
-  }, [A, ctx.can, ctx.data.risks, ctx.projectsById, ws?.id]);
+  }, [A, access, ctx.can, ctx.data.risks, ctx.projectsById, ws?.id]);
   useEffect(() => {
     if (!sourceWriteRequest || !ready) return;
     void handleVenturesRisk(sourceWriteRequest);
