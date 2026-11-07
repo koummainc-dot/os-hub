@@ -75,6 +75,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031130000_projects_prd_verified_evidence_guard.sql
       - name: Verify project, task, PRD and output boundaries
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_prd_requirement_traceability_smoke.sql
+      - name: Apply Projects Outputs private Storage migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261107150000_projects_output_storage.sql
+      - name: Verify Projects Outputs Storage bucket and RLS contract
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_output_storage_rls_smoke.sql
       - name: Verify two-account privacy for Projects records and relationships
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_two_identity_privacy_smoke.sql
       - name: Verify Projects create, reload, edit, archive and restore persistence
