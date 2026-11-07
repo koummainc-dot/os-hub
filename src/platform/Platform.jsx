@@ -101,14 +101,15 @@ function Platform(){
   useEffect(()=>{
     const handler=async(e)=>{
       const d=e?.detail;
-      if(!d||d.workspaceId==null||String(d.workspaceId)!==String(wsId)||d.source!=="ventures"||!d.systemId) return;
+      if(!d||d.workspaceId==null||String(d.workspaceId)!==String(wsId)||!["ventures","knowledge"].includes(d.source)||!d.systemId) return;
       if(d.systemId==="projects"){
-        if(d.action!=="create_risk"){
-          window.dispatchEvent(new CustomEvent("os:source-write-result",{detail:{workspaceId:wsId,systemId:"projects",action:d.action||"update",recordId:d.recordId||null,source:"ventures",ok:false,error:"unsupported-projects-source-write-action"}}));
+        const allowed=d.source==="ventures"?["create_risk"]:d.source==="knowledge"?["create_meeting_tasks"]:[];
+        if(!allowed.includes(d.action)){
+          window.dispatchEvent(new CustomEvent("os:source-write-result",{detail:{workspaceId:wsId,systemId:"projects",action:d.action||"update",recordId:d.recordId||null,source:d.source,ok:false,error:"unsupported-projects-source-write-action"}}));
           return;
         }
         setPendingProjectSourceWrite(d);
-        setSectionBy(p=>({...p,projects:"risks"}));
+        setSectionBy(p=>({...p,projects:d.action==="create_risk"?"risks":"tasks"}));
         setRoute({view:"system",system:"projects"});
         setNavOpen(false);
         return;
@@ -165,10 +166,13 @@ function Platform(){
     const handler=(event)=>{
       const d=event?.detail||{};
       if(d.workspaceId&&String(d.workspaceId)!==String(wsId))return;
-      if(d.systemId!=="projects"||d.source!=="ventures")return;
+      if(d.systemId!=="projects"||!["ventures","knowledge"].includes(d.source))return;
       const requestRecordId=d.requestRecordId||d.recordId;
       setPendingProjectSourceWrite(current=>current&&String(current.recordId||"")===String(requestRecordId||"")?null:current);
-      toast(d.ok?"تم إنشاء الخطر وربطه بمشروع Projects.":"تعذر إنشاء خطر Email Check في Projects: "+(d.error||"خطأ غير معروف"));
+      const message=d.source==="knowledge"
+        ?(d.ok?"تم تحويل متابعات الاجتماع إلى مهام في Projects.":"تعذر تحويل متابعات الاجتماع إلى مهام: "+(d.error||"خطأ غير معروف"))
+        :(d.ok?"تم إنشاء الخطر وربطه بمشروع Projects.":"تعذر إنشاء خطر Email Check في Projects: "+(d.error||"خطأ غير معروف"));
+      toast(message);
     };
     window.addEventListener("os:source-write-result",handler);
     return()=>window.removeEventListener("os:source-write-result",handler);
