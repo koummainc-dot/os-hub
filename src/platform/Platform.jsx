@@ -55,6 +55,8 @@ function Platform(){
   const [demo,setDemo]=useState(null);
   const [route,setRoute]=useState({view:"today",system:null});
   const [sectionBy,setSectionBy]=useState({});
+  const sectionByRef=useRef(sectionBy);
+  useEffect(()=>{sectionByRef.current=sectionBy;},[sectionBy]);
   const [navRestoredFor,setNavRestoredFor]=useState(null);
   const [bridge,setBridge]=useState({});
   const [narrow,setNarrow]=useState(typeof window!=="undefined"&&window.innerWidth<860);
@@ -315,14 +317,16 @@ function Platform(){
   const br=sys?(bridge[sys.id]||{}):{};
   const defSection=(s)=>{const l=osSections(s);return l[0]?l[0].id:"";};
   const currentSection=sys?(sectionBy[sys.id]||defSection(sys)):"";
-  const setSection=(sysId,v)=>{
+  const setSection=useCallback((sysId,v)=>{
     const sysDef=osSystemById(sysId);
-    const allowed=osSections(sysDef).map(x=>x.id);
-    const next=typeof v==="function"?v(sectionBy[sysId]||defSection(sysDef)):v;
+    const sections=osSections(sysDef);
+    const allowed=sections.map(x=>x.id);
+    const current=sectionByRef.current[sysId]||(sections[0]?.id||"");
+    const next=typeof v==="function"?v(current):v;
     if(allowed.length&&!allowed.includes(next))return;
     setSectionBy(p=>({...p,[sysId]:next}));
     setRoute(r=>r.view==="system"&&r.system===sysId?r:{view:"system",system:sysId});
-  };
+  },[]);
   const navSections=sys&&acc.level!=="none"?osSections(sys).filter(s=>osSectionLevel(acc,s.id)!=="none"&&(!br.visible||br.visible.indexOf(s.id)>-1)):[];
   const viewMember=isDemo&&demo.viewAs!=="owner"?demo.members.find(x=>x.userId===demo.viewAs):null;
   const hostMe=viewMember?{id:viewMember.userId,email:viewMember.email,name:viewMember.name}:me;
