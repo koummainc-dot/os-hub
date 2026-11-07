@@ -257,6 +257,19 @@ const {makeEnv,sleep,appJs}=require('./harness');
   ok(txt().split(bridgePayload.title).length-1===1,'repeated Ventures Email Check does not create a duplicate risk');
   w.removeEventListener('os:source-write-result',captureBridgeResult);
 
+  console.log('— Knowledge meeting follow-ups → Projects tasks');
+  const meetingTaskPayload={meeting_id:'knowledge-meeting-acceptance',project_id:'p_app',tasks:[{title:'متابعة اجتماع: مراجعة خطة الإطلاق',project_id:'p_app',status:'Not Started',priority:'Medium',planning_bucket:'Inbox',source_record_id:'knowledge-meeting-acceptance:0'}]};
+  const meetingTaskEvent={workspaceId:'demo_ws',systemId:'projects',action:'create_meeting_tasks',recordId:'knowledge-meeting:acceptance:followups',payload:meetingTaskPayload,source:'knowledge'};
+  let meetingTaskResult=null; const captureMeetingTaskResult=e=>{if(e.detail?.systemId==='projects'&&e.detail?.source==='knowledge')meetingTaskResult=e.detail;};
+  w.addEventListener('os:source-write-result',captureMeetingTaskResult);
+  w.dispatchEvent(new w.CustomEvent('os:source-write',{detail:meetingTaskEvent})); await sleep(350);
+  ok(meetingTaskResult?.ok===true,'Knowledge meeting action receives a successful Projects task acknowledgement'+(meetingTaskResult?.error?': '+meetingTaskResult.error:''));
+  await goSection('مهامي'); await sleep(160);
+  ok(txt().includes('متابعة اجتماع: مراجعة خطة الإطلاق'),'meeting follow-up is visible as a Projects task');
+  w.dispatchEvent(new w.CustomEvent('os:source-write',{detail:meetingTaskEvent})); await sleep(220);
+  ok(txt().split('متابعة اجتماع: مراجعة خطة الإطلاق').length-1===1,'repeated meeting action does not create a duplicate task');
+  w.removeEventListener('os:source-write-result',captureMeetingTaskResult);
+
   console.log('— permissions (view as Layla = Viewer)');
   await viewAs('demo_layla'); await toToday(); await openProjects();
   const lnav=nav().map(b=>b.textContent).join('|'); ok(!lnav.includes('جهات الاتصال')&&!lnav.includes('المراجعات الأسبوعية'),'Viewer: contacts + reviews hidden from menu');
