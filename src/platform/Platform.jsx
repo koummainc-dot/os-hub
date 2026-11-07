@@ -166,7 +166,8 @@ function Platform(){
       const d=event?.detail||{};
       if(d.workspaceId&&String(d.workspaceId)!==String(wsId))return;
       if(d.systemId!=="projects"||d.source!=="ventures")return;
-      setPendingProjectSourceWrite(current=>current&&String(current.recordId||"")===String(d.recordId||"")?null:current);
+      const requestRecordId=d.requestRecordId||d.recordId;
+      setPendingProjectSourceWrite(current=>current&&String(current.recordId||"")===String(requestRecordId||"")?null:current);
       toast(d.ok?"تم إنشاء الخطر وربطه بمشروع Projects.":"تعذر إنشاء خطر Email Check في Projects: "+(d.error||"خطأ غير معروف"));
     };
     window.addEventListener("os:source-write-result",handler);
