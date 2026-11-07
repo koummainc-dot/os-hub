@@ -127,7 +127,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter }) {
         {canWrite && <Btn kind="primary" small onClick={() => setForm({})}>➕ مهمة جديدة</Btn>}
       </div>
       {canWrite && mode === "list" && <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>يمكنك استخدام «＋ فرعية» أو خيارات المهمة لنقلها؛ السحب الاختياري يحافظ على ترتيب الشجرة.</div>
-      {mode === "list" && <div>
+      {mode === "list" ? <div>
         {roots.length === 0 && <Empty icon="✅" title="لا توجد مهام بعد" sub="أضف أول مهمة أو أنشئ المشروع من قالب جاهز." />}
         <div style={{ ...S.card, padding: 0, overflow: "hidden", display: roots.length ? "block" : "none" }}
           onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => { const id = e.dataTransfer.getData("text/plain"); if (id && e.target === e.currentTarget) await act.reparent(id, null); }}>
