@@ -6,6 +6,8 @@ on:
       - "supabase/migrations/**"
       - "supabase/tests/projects_prd_requirement_traceability_smoke.sql"
       - "supabase/tests/projects_atomic_discovery_batch_smoke.sql"
+      - "supabase/tests/projects_okr_v4_legacy_seed.sql"
+      - "supabase/tests/projects_okr_v4_relationship_reconciliation_smoke.sql"
       - "tests/projects_sql_bootstrap.sql"
       - ".github/workflows/projects-sql-smoke.yml"
   push:
@@ -59,6 +61,12 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031110000_projects_prd_requirement_traceability.sql
       - name: Apply entity relationship integrity migration
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031120000_projects_entity_relationship_integrity.sql
+      - name: Seed legacy Objective project links for OKR v4 reconciliation
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_okr_v4_legacy_seed.sql
+      - name: Apply OKR v4 relationship reconciliation migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261107120000_projects_okr_v4_relationship_reconciliation.sql
+      - name: Verify OKR v4 Objective and KR relationship reconciliation
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_okr_v4_relationship_reconciliation_smoke.sql
       - name: Apply PRD verified evidence guard migration
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031130000_projects_prd_verified_evidence_guard.sql
       - name: Verify project, task, PRD and output boundaries
