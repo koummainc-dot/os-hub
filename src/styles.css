@@ -318,3 +318,29 @@ hr{
   [role="dialog"] table { display: block; overflow-x: auto; }
   .os-mobile-scroll { overflow-x: auto; max-width: 100%; }
 }
+
+
+/* Projects OS mobile hardening — override dense inline grids only below tablet width. */
+@media (max-width: 700px) {
+  .projects-system { min-width: 0 !important; width: 100% !important; }
+  .projects-system [style*="grid-template-columns: minmax(140px,1.4fr) 90px minmax(100px,1fr) 80px 90px"],
+  .projects-system [style*="grid-template-columns: minmax(220px,32%) minmax(420px,1fr)"] { grid-template-columns: 1fr !important; }
+  .projects-system [style*="grid-template-columns: 1fr 90px 90px"],
+  .projects-system [style*="grid-template-columns: 130px 1fr 110px"],
+  .projects-system [style*="grid-template-columns: 110px 1fr 60px"],
+  .projects-system [style*="grid-template-columns: 140px 1fr 150px"],
+  .projects-system [style*="grid-template-columns: 150px 1fr"],
+  .projects-system [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+  .projects-system [style*="grid-template-columns: 44px 1fr auto"] { grid-template-columns: minmax(0,1fr) auto !important; }
+  .projects-system [style*="grid-template-columns: 40px repeat(5,1fr)"] { overflow-x: auto !important; min-width: 560px !important; }
+  .projects-system [style*="grid-template-columns: repeat(7,1fr)"] { min-width: 560px !important; }
+  .projects-system [style*="grid-template-columns: repeat(3,1fr)"] { grid-template-columns: 1fr !important; }
+  .projects-system table { display: block !important; width: 100% !important; max-width: 100% !important; overflow-x: auto !important; }
+  .projects-system [role="dialog"] { width: calc(100vw - 16px) !important; max-width: calc(100vw - 16px) !important; }
+  .projects-system [role="dialog"] > div { min-width: 0 !important; max-width: 100% !important; }
+  .projects-system input, .projects-system select, .projects-system textarea { min-width: 0 !important; }
+}
+@media (max-width: 430px) {
+  .projects-system [style*="grid-template-columns: repeat(7,1fr)"],
+  .projects-system [style*="grid-template-columns: 40px repeat(5,1fr)"] { min-width: 500px !important; }
+}
