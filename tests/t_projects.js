@@ -10,10 +10,21 @@ const {makeEnv,sleep,appJs}=require('./harness');
   const nav=()=>all('button');
   const goSection=async(label)=>{const b=nav().find(x=>x.textContent.includes(label));if(!b)return false;b.click();await sleep(300);return true;};
   const toToday=async()=>{const c=all('aside button').find(x=>x.textContent.includes('▾'));c&&c.click();await sleep(60);const t=all('aside button').find(x=>x.textContent.includes('اليوم (كل الأنظمة)'));t&&t.click();await sleep(80);};
-  const openProjects=async()=>{await toToday();const t=all('main button').find(b=>b.textContent.trim()==='Projects OS' || b.textContent.includes('Projects OS'));if(!t)return false;t.click();await sleep(500);return nav().some(b=>b.textContent.trim()==='المشاريع');};
+  const openProjects=async()=>{
+    await toToday();
+    let t=all('main button').find(b=>b.textContent.trim()==='Projects OS' || b.textContent.includes('Projects OS'));
+    if(t){t.click();await sleep(500);}
+    if(!nav().some(b=>b.textContent.includes('المشاريع'))){
+      const switcher=all('aside button').find(b=>b.textContent.includes('OS Hub') || b.textContent.includes('المشاريع'));
+      if(switcher){switcher.click();await sleep(80);}
+      const p=all('button').find(b=>b.textContent.includes('Projects OS'));
+      if(p){p.click();await sleep(500);}
+    }
+    return nav().some(b=>b.textContent.includes('المشاريع'));
+  };
   const viewAs=async(v)=>{const sel=all('select').find(s=>[...s.options].some(o=>o.value==='owner'));await setVal(sel,v);await sleep(300);};
 
-  await click('جرّب الوضع التجريبي'); await sleep(200); await openProjects();
+  await click('جرّب الوضع التجريبي'); await sleep(200); ok(await openProjects(),'Projects OS opens before section acceptance');
   console.log('— sections render real content');
   const markers={ 'الرئيسية':'صحة المشاريع','اليوم':'مستحقة اليوم','هذا الأسبوع':'اكتشافات قيد العمل','المشاريع':'تطبيق إدارة الوقت','مهامي':'مهمة ورقية','الاكتشاف':'ظهور التطبيق في نتائج المتجر','المواصفات':'مواصفة تطبيق إدارة الوقت','الأهداف (OKR)':'إطلاق منتج ناجح','المخرجات':'Wireframes','المخاطر والمشاكل والقرارات':'تعقيد المزامنة','الاجتماعات':'Knowledge OS','التحديثات':'تحديث الإدارة','الإنجازات':'اعتماد المواصفة','المراجعات الأسبوعية':'المراجعات الأسبوعية','جهات الاتصال':'ليلى المنصور','الفريق':'حِمل الأسبوع','القوالب':'قوالب المشاريع','الإعدادات':'المنطقة الزمنية' };
   for(const [label,marker] of Object.entries(markers)){
