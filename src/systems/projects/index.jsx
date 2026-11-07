@@ -10,6 +10,7 @@ import { Projects } from "./screens_b.jsx";
 import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView, DiscoveryView } from "./entities.jsx";
 import { Okrs, Updates, Wins, Reviews, Contacts, Team, Templates, Meetings, Settings } from "./screens_c.jsx";
 import { buildSeed } from "./demo.js";
+import { loadDurableOSEvents, subscribeDurableOSEvents } from "../integrationEvents.js";
 import MasterplanWizard from "./masterplanWizard.jsx";
 
 function RisksPage() {
@@ -19,6 +20,31 @@ function RisksPage() {
     {tab === "risks" && <RisksView />}{tab === "decisions" && <DecisionsView />}</div>;
 }
 const SCREENS = { dashboard: Dashboard, today: Today, week: Week, projects: Projects, tasks: Tasks, issues: IssuesView, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: RisksPage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings, masterplanImport: MasterplanWizard };
+
+function ProjectsDurableEventBridge({ ws, isDemo, children }) {
+  const ctx = useP();
+  const [events, setEvents] = useState([]);
+  useEffect(() => {
+    if (isDemo || !ws?.id) { setEvents([]); return; }
+    let active = true;
+    const mergeEvent = (event) => {
+      const key = event?.idempotencyKey || event?.id;
+      if (!key) return;
+      setEvents((current) => [event, ...current.filter((item) => (item.idempotencyKey || item.id) !== key)].slice(0, 100));
+    };
+    const unsubscribe = subscribeDurableOSEvents(ws.id, "hobbies", mergeEvent);
+    loadDurableOSEvents(ws.id, "hobbies", 100).then((result) => {
+      if (!active || !result?.ok) return;
+      setEvents((current) => {
+        const byKey = new Map((result.events || []).map((event) => [event.idempotencyKey || event.id, event]));
+        current.forEach((event) => byKey.set(event.idempotencyKey || event.id, event));
+        return [...byKey.values()].slice(-100);
+      });
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [ws?.id, isDemo]);
+  return <Ctx.Provider value={{ ...ctx, durableOSEvents: events }}>{children}</Ctx.Provider>;
+}
 
 function Router() {
   const ctx = useP(); const { page, ready, error, store, access, role, shell, ws, A, data } = ctx; const lvl = osSectionLevel(access, page);
@@ -36,5 +62,5 @@ function Router() {
 export default function ProjectsSystem(props) {
   const { authUser, ws, members, isDemo } = props;
   const seed = useMemo(() => () => buildSeed({ me: authUser.id, ownerId: ws.ownerId, members: (members || []).map((m) => m.userId), today: todayStr("Africa/Cairo") }), [authUser.id, ws.ownerId, members]);
-  return <ProjectsProvider {...props} seed={seed}><Router /></ProjectsProvider>;
+  return <ProjectsProvider {...props} seed={seed}><ProjectsDurableEventBridge ws={ws} isDemo={isDemo}><Router /></ProjectsDurableEventBridge></ProjectsProvider>;
 }
