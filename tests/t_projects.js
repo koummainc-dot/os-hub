@@ -8,7 +8,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   const click=async(label,sc,ms)=>{const b=btn(label,sc);if(!b)return false;b.click();await sleep(ms||150);return true;};
   const setVal=async(el,v)=>{if(!el)throw new Error('Acceptance harness could not find the expected form control');const proto=el.tagName==='SELECT'?w.HTMLSelectElement.prototype:el.tagName==='TEXTAREA'?w.HTMLTextAreaElement.prototype:w.HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,v);el.dispatchEvent(new w.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));await sleep(60);};
   const nav=()=>all('aside button');
-  const isSectionButton=(button,label)=>{const t=button.textContent.trim();return t.endsWith(label)&&t.length<=label.length+3;};
+  const isSectionButton=(button,label)=>{const spans=button.querySelectorAll('span');return spans.length>=2&&spans[spans.length-1].textContent.trim()===label;};
   const goSection=async(label)=>{const b=nav().find(x=>isSectionButton(x,label));if(!b)return false;b.click();await sleep(450);return true;};
   const toToday=async()=>{const c=all('aside button').find(x=>x.textContent.includes('▾'));c&&c.click();await sleep(60);const t=all('aside button').find(x=>x.textContent.includes('اليوم (كل الأنظمة)'));t&&t.click();await sleep(80);};
   const openProjects=async()=>{
@@ -99,11 +99,16 @@ const {makeEnv,sleep,appJs}=require('./harness');
   console.log('— template editor validation');
   await goSection('القوالب'); ok(await click('＋ إنشاء قالب مخصص'),'custom template editor opens');
   let tdlg=doc.querySelector('[role=dialog]');
-  await setVal(all('input',tdlg)[0],'قالب اختبار غير صالح');
+  ok(!!tdlg,'custom template editor dialog is rendered');
+  const templateNameInput=all('input',tdlg).find(x=>x.type==='text'||!x.type);
+  ok(!!templateNameInput,'custom template editor exposes its name input');
+  if(tdlg&&templateNameInput) await setVal(templateNameInput,'قالب اختبار غير صالح');
   const treeInput=all('textarea',tdlg).find(x=>x.parentElement?.textContent.includes('شجرة المهام')) || all('textarea',tdlg)[0]; ok(!!treeInput,'template editor exposes task tree input'); if(treeInput) await setVal(treeInput,'مهمة رئيسية\n    مستوى متخطى');
-  await click('حفظ',tdlg,200);
-  ok(tdlg.textContent.includes('لا يمكن تخطي مستوى كامل'),'invalid task-tree indentation is rejected with a useful message');
-  await click('إلغاء',tdlg,100);
+  if(tdlg){
+    await click('حفظ',tdlg,200);
+    ok(tdlg.textContent.includes('لا يمكن تخطي مستوى كامل'),'invalid task-tree indentation is rejected with a useful message');
+    await click('إلغاء',tdlg,100);
+  }
 
   console.log('— Phase A task UX: quick add, inline edit, bulk actions, custom fields');
   await goSection('مهامي');
