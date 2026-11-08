@@ -119,7 +119,7 @@ function ProjectDetail() {
       {tab === "overview" && <Overview p={p} m={m} />}
       {tab === "tasks" && <TaskTree projectId={p.id} />}
       {tab === "timeline" && <ProjectTimeline p={p} />}
-      {tab === "outputs" && <OutputsView projectId={p.id} />
+      {tab === "outputs" && <OutputsView projectId={p.id} />}
       {tab === "work" && <WorkTab p={p} />}
       {tab === "prds" && <PrdsView projectId={p.id} />}
       {tab === "risks" && <RisksView projectId={p.id} />}
