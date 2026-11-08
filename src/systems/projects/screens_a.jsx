@@ -6,6 +6,7 @@ import { uid } from "../../core/records.jsx";
 import { useP, GENERAL_ID } from "./store.jsx";
 import * as D from "./domain.js";
 import { readOSEvents, subscribeOSEvents, subscribeToStoredOSEvents } from "../integrationEvents.js";
+import { listKnowledgeMeetings } from "../knowledge/repository.js";
 import { L, opts } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, DueChip, ProjectName, TaskForm, mOpts, projOpts } from "./parts.jsx";
 
@@ -87,6 +88,37 @@ export function Today() {
   const { ws, me, data, idx, today, settings, A: act, can, alerts, people, nameOf, openTask, openProject, runningTimer, projectsById, toast, setPage } = useP();
   const feed = D.todayFeed(me, { idx, issues: data.issues, projects: data.projects, contacts: data.contacts, today, settings });
   const [homeCompletions, setHomeCompletions] = useState([]);
+  const [todayMeetings, setTodayMeetings] = useState([]);
+  const [meetingsState, setMeetingsState] = useState("loading");
+  useEffect(() => {
+    let alive = true;
+    if (!ws?.id) {
+      setTodayMeetings([]);
+      setMeetingsState("empty");
+      return () => { alive = false; };
+    }
+    setMeetingsState("loading");
+    listKnowledgeMeetings(ws.id).then(result => {
+      if (!alive) return;
+      if (!result?.ok) {
+        setTodayMeetings([]);
+        setMeetingsState("error");
+        return;
+      }
+      const rows = (result.meetings || [])
+        .filter(meeting => !meeting.archived && !meeting.deleted_at && meeting.status !== "archived")
+        .filter(meeting => String(meeting.date || "").slice(0, 10) === String(today).slice(0, 10))
+        .sort((a, b) => String(a.startTime || a.start_time || a.time || "").localeCompare(String(b.startTime || b.start_time || b.time || "")));
+      setTodayMeetings(rows);
+      setMeetingsState(rows.length ? "ready" : "empty");
+    }).catch(() => {
+      if (alive) {
+        setTodayMeetings([]);
+        setMeetingsState("error");
+      }
+    });
+    return () => { alive = false; };
+  }, [ws?.id, today]);
   useEffect(() => {
     if (!ws?.id) { setHomeCompletions([]); return; }
     const options = { workspaceId: ws.id, source: "home", types: ["home.task.completed"], limit: 30 };
@@ -110,7 +142,7 @@ export function Today() {
       <Head title="اليوم" sub={`${dateLabel} · ${total ? total + " مهمة تنتظرك" : "لا مهام معلّقة — يوم هادئ 🌿"}`} right={can("task.write", projectsById[GENERAL_ID]) && <Btn kind="primary" onClick={() => setForm(true)}>➕ مهمة</Btn>} />
       {can("task.write", projectsById[GENERAL_ID]) && <div style={{ display: "flex", gap: 8, marginBottom: 12 }}><input style={S.inp} placeholder="أضف مهمة سريعة لهذا الأسبوع… (Enter)" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && quickAdd()} /><Btn kind="primary" onClick={quickAdd}>إضافة</Btn></div>}
       {alerts.length > 0 && <Section title="تنبيهات" count={alerts.length} color={C.warn}>{alerts.map((a) => <div key={a.key} style={{ display: "flex", gap: 8, alignItems: "center", padding: "5px 0", fontSize: 12.5, color: lvl[a.level] || C.dim }}><span>●</span><span style={{ flex: 1 }}>{a.text}</span>{a.project && <Btn small onClick={() => openProject(a.project)}>فتح</Btn>}</div>)}</Section>}
-      {homeCompletions.length > 0 && <Section title="إنجازات المنزل" count={homeCompletions.length} color={C.ok}>{homeCompletions.slice(0, 8).map(event => <div key={event.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "5px 0", fontSize: 12.5 }}><span>🏠 {event.payload?.taskTitle || "مهمة منزلية"}</span><span style={{ color: C.muted, whiteSpace: "nowrap" }}>{fmt(event.occurredAt?.slice(0, 10) || today)}</span></div>)}</Section>}
+      <Section title="اجتماعات اليوم" count={todayMeetings.length} color={C.violet} action={<Btn small onClick={() => setPage("meetings")}>كل الاجتماعات</Btn>}>{meetingsState === "loading" ? <span style={{ fontSize: 12, color: C.muted }}>جارٍ تحميل الاجتماعات…</span> : meetingsState === "error" ? <span style={{ fontSize: 12, color: C.muted }}>تعذر تحميل اجتماعات المعرفة الآن. يمكنك إعادة المحاولة بفتح قسم الاجتماعات.</span> : !todayMeetings.length ? <span style={{ fontSize: 12, color: C.muted }}>لا توجد اجتماعات مسجلة لهذا اليوم.</span> : todayMeetings.map(meeting => <div key={meeting.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${C.line}` }}><span>🗓️</span><span style={{ flex: 1, fontSize: 12.5, minWidth: 0 }}>{meeting.title}</span><span style={{ color: C.muted, fontSize: 11, whiteSpace: "nowrap" }}>{meeting.startTime || meeting.start_time || meeting.time || "طوال اليوم"}</span><Btn small onClick={() => setPage("meetings")}>فتح</Btn></div>)}</Section>}\n      {homeCompletions.length > 0 && <Section title="إنجازات المنزل" count={homeCompletions.length} color={C.ok}>{homeCompletions.slice(0, 8).map(event => <div key={event.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "5px 0", fontSize: 12.5 }}><span>🏠 {event.payload?.taskTitle || "مهمة منزلية"}</span><span style={{ color: C.muted, whiteSpace: "nowrap" }}>{fmt(event.occurredAt?.slice(0, 10) || today)}</span></div>)}</Section>}
       {feed.overdue.length > 0 && <Section title="متأخرة" count={feed.overdue.length} color={C.bad}>{feed.overdue.map((t) => <TaskLine key={t.id} t={t} />)}</Section>}
       <Section title="مستحقة اليوم" count={feed.dueToday.length} color={C.warn}>{!feed.dueToday.length ? <span style={{ fontSize: 12, color: C.muted }}>لا شيء مستحق اليوم</span> : feed.dueToday.map((t) => <TaskLine key={t.id} t={t} />)}</Section>
       <Section title="هذا الأسبوع" count={feed.thisWeek.length} color={C.info}>{!feed.thisWeek.length ? <span style={{ fontSize: 12, color: C.muted }}>لا مهام مخطَّطة. حرّك مهام من الوارد في «هذا الأسبوع».</span> : feed.thisWeek.map((t) => <TaskLine key={t.id} t={t} />)}</Section>
@@ -155,16 +187,20 @@ export function Week() {
 
 // ═════ My Tasks ═════
 export function Tasks() {
-  const { me, data, idx, people, projectsById, today, A: act, can, openTask, setPage } = useP();
-  const [mode, setMode] = useState("list"); const [who, setWho] = useState(me); const [q, setQ] = useState(""); const [proj, setProj] = useState(""); const [st, setSt] = useState("open"); const [blocked, setBlocked] = useState(false); const [form, setForm] = useState(false); const [month, setMonth] = useState(today.slice(0, 7));
+  const { me, data, idx, people, projectsById, today, A: act, R, can, openTask, setPage } = useP();
+  const [mode, setMode] = useState("list"); const [who, setWho] = useState(me); const [q, setQ] = useState(""); const [proj, setProj] = useState(""); const [st, setSt] = useState("open"); const [blocked, setBlocked] = useState(false); const [form, setForm] = useState(false); const [quickAdd, setQuickAdd] = useState(false); const [month, setMonth] = useState(today.slice(0, 7)); const [selected, setSelected] = useState(() => new Set()); const [inlineId, setInlineId] = useState(null);
   const list = idx.list.filter((t) => idx.isLeaf(t.id) && !projectsById[t.project_id]?.archived_at).filter((t) => (who === "all" ? true : who === "none" ? !t.assignee_id : t.assignee_id === who)).filter((t) => !proj || t.project_id === proj).filter((t) => (st === "all" ? true : st === "open" ? ["todo", "active"].includes(D.cat(t.status)) : D.cat(t.status) === st)).filter((t) => !blocked || t.blocked).filter((t) => !q || t.title.toLowerCase().includes(q.toLowerCase()));
   const sorted = [...list].sort((a, b) => (a.due_date || "9999").localeCompare(b.due_date || "9999"));
+  const selectedVisible = sorted.filter((t) => selected.has(t.id));
+  const toggleSelected = (id) => setSelected((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  const clearSelection = () => setSelected(new Set());
+  const bulkStatus = async (status) => { const items = selectedVisible.filter((t) => can("task.write", projectsById[t.project_id])); if (!items.length) return; if (!window.confirm(`تحديث ${items.length} مهمة إلى «${L.taskStatus[status] || status}»؟`)) return; try { await R.putAtomic(items.map((t) => ({ coll: "tasks", rec: { ...t, status, completed_at: status === "Completed" ? new Date().toISOString() : null, completed_by: status === "Completed" ? me : null } }))); clearSelection(); } catch (e) { alert(e?.message || "تعذّر تنفيذ العملية الجماعية"); } };
   const cols = ["Inbox", "Soon", "This Week", "Icebox"].map((b) => ({ id: b, label: L.bucket[b], items: list.filter((t) => (t.planning_bucket || "Inbox") === b) }));
   const card = (t) => <div onClick={() => openTask(t.id)} style={{ ...S.card, padding: "8px 10px", cursor: "pointer" }}><div style={{ fontSize: 12.5, fontWeight: 600 }}>{t.title}</div><div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}><ProjectName id={t.project_id} /><DueChip date={t.due_date} status={t.status} today={today} /></div></div>;
   const [y, m] = month.split("-").map(Number); const first = `${month}-01`; const lead = dow(first); const days = monthDays(y, m);
   return (
     <div>
-      <Head title="المهام" sub={`${list.length} مهمة ورقية`} right={<><Seg value={mode} onChange={setMode} options={[{ v: "list", l: "قائمة" }, { v: "board", l: "لوحة" }, { v: "calendar", l: "تقويم" }]} />{data.projects.some((p) => can("task.write", p)) && <Btn kind="primary" onClick={() => setForm(true)}>➕ مهمة</Btn>}</>} />
+      <Head title="المهام" sub={`${list.length} مهمة ورقية`} right={<><Seg value={mode} onChange={setMode} options={[{ v: "list", l: "قائمة" }, { v: "board", l: "لوحة" }, { v: "table", l: "جدول" }, { v: "calendar", l: "تقويم" }, { v: "timeline", l: "خط زمني" }]} />{data.projects.some((p) => can("task.write", p)) && <><Btn onClick={() => setQuickAdd(true)}>⚡ إضافة سريعة</Btn><Btn kind="primary" onClick={() => setForm(true)}>➕ مهمة</Btn></>}</>} />
       <SearchBar value={q} onChange={setQ} placeholder="بحث في المهام…">
         <select style={{ ...S.sel, width: 150 }} value={who} onChange={(e) => setWho(e.target.value)}><option value="all">الكل</option><option value="none">غير مسندة</option>{people.map((p) => <option key={p.id} value={p.id}>{p.id === me ? "مهامي" : p.name}</option>)}</select>
         <select style={{ ...S.sel, width: 150 }} value={proj} onChange={(e) => setProj(e.target.value)}><option value="">كل المشاريع</option>{projOpts(data.projects).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select>
@@ -172,8 +208,63 @@ export function Tasks() {
         <label style={{ fontSize: 12, display: "flex", gap: 5, alignItems: "center" }}><input type="checkbox" checked={blocked} onChange={(e) => setBlocked(e.target.checked)} />المتعطّلة فقط</label>
         {(q || who !== me || proj || st !== "open" || blocked) && <Btn small onClick={() => { setQ(""); setWho(me); setProj(""); setSt("open"); setBlocked(false); }}>مسح الفلاتر</Btn>}
       </SearchBar>
-      {mode === "list" && (!sorted.length ? <Empty icon="🔎" title="لا توجد مهام مطابقة" sub="جرّب تغيير البحث أو الفلاتر؛ يمكنك مسحها لإظهار القائمة كاملة." /> : <div style={{ ...S.card, padding: "6px 14px" }}>{sorted.map((t) => <TaskLine key={t.id} t={t} />)}</div>)}
+      {selectedVisible.length > 0 && <div style={{ ...S.card, padding: "8px 10px", marginBottom: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", position: "sticky", top: 4, zIndex: 5 }}>
+        <b style={{ fontSize: 12 }}>تم تحديد {selectedVisible.length}</b>
+        <Btn small onClick={() => bulkStatus("Completed")}>✔ إكمال</Btn>
+        <Btn small onClick={() => bulkStatus("In Progress")}>▶ بدء</Btn>
+        <Btn small onClick={() => bulkStatus("On Hold")}>⏸ تعليق</Btn>
+        <Btn small onClick={clearSelection}>إلغاء التحديد</Btn>
+      </div>}
+      {mode === "list" && (!sorted.length ? <Empty icon="🔎" title="لا توجد مهام مطابقة" sub="جرّب تغيير البحث أو الفلاتر؛ يمكنك مسحها لإظهار القائمة كاملة." /> : <div style={{ ...S.card, padding: "6px 14px" }}>{sorted.map((t) => <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" aria-label={"تحديد " + t.title} checked={selected.has(t.id)} onChange={() => toggleSelected(t.id)} /><div style={{ flex: 1 }}><TaskLine t={t} /></div></div>)}</div>)}
+      {mode === "table" && (!sorted.length ? <Empty icon="🔎" title="لا توجد مهام مطابقة" /> : <div style={{ ...S.card, padding: 0, overflowX: "auto" }}>
+        <table style={{ width: "100%", minWidth: 900, borderCollapse: "collapse", fontSize: 12 }}>
+          <thead><tr style={{ background: "rgba(0,0,0,0.03)" }}>
+            <th style={{ padding: 8, width: 36 }}><input type="checkbox" aria-label="تحديد الكل" checked={sorted.length > 0 && selectedVisible.length === sorted.length} onChange={() => setSelected(selectedVisible.length === sorted.length ? new Set() : new Set(sorted.map((t) => t.id)))} /></th>
+            {["المهمة","المشروع","الحالة","الأولوية","الموعد","المسؤول","التخصيص"].map((h) => <th key={h} style={{ padding: "8px 10px", textAlign: "right", color: C.muted, fontSize: 10.5 }}>{h}</th>)}
+            <th style={{ padding: 8 }} />
+          </tr></thead>
+          <tbody>{sorted.map((t) => {
+            const editing = inlineId === t.id; const project = projectsById[t.project_id];
+            return <tr key={t.id} style={{ borderTop: "1px solid " + C.line }}>
+              <td style={{ padding: 8 }}><input type="checkbox" aria-label={"تحديد " + t.title} checked={selected.has(t.id)} onChange={() => toggleSelected(t.id)} /></td>
+              <td style={{ padding: "7px 10px", minWidth: 240 }}>{editing ? <input autoFocus style={S.inp} defaultValue={t.title} onBlur={async (e) => { const v=e.target.value.trim(); if(v && v!==t.title) await act.put("tasks",{...t,title:v}); setInlineId(null); }} onKeyDown={(e)=>{ if(e.key==="Enter") e.currentTarget.blur(); if(e.key==="Escape") setInlineId(null); }} /> : <span onDoubleClick={() => can("task.write", project) && setInlineId(t.id)} onClick={() => openTask(t.id)} style={{ cursor: "pointer", fontWeight: 600 }}>{t.title}</span>}</td>
+              <td style={{ padding: "7px 10px" }}><ProjectName id={t.project_id} /></td>
+              <td style={{ padding: "7px 10px" }}>{can("task.write", project) ? <select style={{ ...S.sel, width: 125 }} value={t.status} onChange={(e)=>act.setTaskStatus(t,e.target.value)}><option value="Not Started">لم تبدأ</option><option value="In Progress">قيد التنفيذ</option><option value="On Hold">متوقفة</option><option value="Completed">مكتملة</option><option value="Cancelled">ملغاة</option></select> : <StatusChip s={t.status} map={L.taskStatus} />}</td>
+              <td style={{ padding: "7px 10px" }}>{can("task.write", project) ? <select style={{ ...S.sel, width: 100 }} value={t.priority || "Medium"} onChange={(e)=>act.put("tasks",{...t,priority:e.target.value})}><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select> : <PriorityChip p={t.priority} />}</td>
+              <td style={{ padding: "7px 10px" }}>{can("task.write", project) ? <input type="date" style={{ ...S.inp, width: 135 }} value={t.due_date || ""} onChange={(e)=>act.put("tasks",{...t,due_date:e.target.value||null})} /> : <DueChip date={t.due_date} status={t.status} today={today} />}</td>
+              <td style={{ padding: "7px 10px" }}>{t.assignee_id ? <Who id={t.assignee_id} size={17} /> : "—"}</td>
+              <td style={{ padding: "7px 10px", color: C.dim, fontSize: 11 }}>{t.custom_fields?.label || "—"}</td>
+              <td style={{ padding: 8 }}><Btn small onClick={() => setInlineId(editing ? null : t.id)}>{editing ? "تم" : "✎"}</Btn></td>
+            </tr>;
+          })}</tbody>
+        </table>
+      </div>)}
       {mode === "board" && <Board columns={cols} onMove={(id, to) => { const t = idx.byId[id]; if (t && can("task.write", projectsById[t.project_id])) act.moveBucket(t, to); }} renderCard={card} />}
+      {mode === "timeline" && (
+        <div style={S.card}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div><b style={{fontSize:13}}>الخط الزمني للمهام</b><div style={{fontSize:10.5,color:C.muted}}>ترتيب زمني حسب تاريخ البدء/الاستحقاق، مع إبراز حالة كل مهمة.</div></div>
+            <span style={{fontSize:10.5,color:C.muted}}>{sorted.filter(t=>t.due_date||t.start_date).length} مهمة مؤرخة</span>
+          </div>
+          {!sorted.some(t=>t.due_date||t.start_date) ? <Empty icon="🗓️" title="لا توجد مهام مؤرخة" sub="أضف موعدًا أو تاريخ بدء من جدول المهام لظهورها هنا." /> :
+          <div style={{overflowX:"auto"}}>
+            {sorted.filter(t=>t.due_date||t.start_date).map((t)=>{
+              const start=t.start_date||t.due_date, end=t.due_date||t.start_date;
+              const duration=Math.max(1,Math.round((new Date(end+"T00:00:00")-new Date(start+"T00:00:00"))/86400000)+1);
+              return <div key={t.id} style={{display:"grid",gridTemplateColumns:"minmax(220px,32%) minmax(420px,1fr)",gap:12,alignItems:"center",padding:"8px 0",borderTop:"1px solid "+C.line}}>
+                <div onClick={()=>openTask(t.id)} style={{cursor:"pointer",minWidth:0}}>
+                  <div style={{fontSize:12.5,fontWeight:650,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.title}</div>
+                  <div style={{display:"flex",gap:6,alignItems:"center",marginTop:3}}><ProjectName id={t.project_id}/><DueChip date={t.due_date} status={t.status} today={today}/></div>
+                </div>
+                <div style={{position:"relative",height:34,minWidth:420,background:"linear-gradient(to right, transparent 0, transparent 49.8%, rgba(0,0,0,.04) 50%, transparent 50.2%)",borderRadius:8}}>
+                  <div title={start+" → "+end} style={{position:"absolute",insetInlineStart:Math.min(86,Math.max(0,(duration-1)*7))+"%",top:7,width:Math.min(70,Math.max(14,duration*7))+"%",height:20,borderRadius:6,background:t.status==="Completed"?"rgba(34,197,94,.22)":t.status==="On Hold"?"rgba(245,158,11,.22)":"rgba(59,130,246,.20)",border:"1px solid rgba(59,130,246,.28)",cursor:"pointer"}} onClick={()=>openTask(t.id)}/>
+                  <div style={{position:"absolute",top:25,fontSize:9.5,color:C.muted,whiteSpace:"nowrap"}}>{start}{end!==start?" → "+end:""}</div>
+                </div>
+              </div>;
+            })}
+          </div>}
+        </div>
+      )}
       {mode === "calendar" && (
         <div style={S.card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><Btn small onClick={() => { const d = new Date(Date.UTC(y, m - 2, 1)); setMonth(d.toISOString().slice(0, 7)); }}>→</Btn><b>{MONTH_NAMES[m - 1]} {y}</b><Btn small onClick={() => { const d = new Date(Date.UTC(y, m, 1)); setMonth(d.toISOString().slice(0, 7)); }}>←</Btn></div>
@@ -184,7 +275,112 @@ export function Tasks() {
           </div>
         </div>
       )}
+      {quickAdd && <FormModal title="⚡ إضافة مهمة سريعة" initial={{ project_id: "", title: "", priority: "Medium", status: "Not Started", planning_bucket: "Inbox", assignee_id: who !== "all" && who !== "none" ? who : me }} onClose={() => setQuickAdd(false)} fields={[
+        { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(data.projects) },
+        { key: "title", label: "عنوان المهمة", required: true, span: 2 },
+        { key: "priority", label: "الأولوية", type: "select", options: opts(L.priority), allowEmpty: false },
+        { key: "due_date", label: "الموعد", type: "date" },
+        { key: "assignee_id", label: "المسؤول", type: "select", options: mOpts(people), emptyLabel: "— غير مسند —" },
+        { key: "planning_bucket", label: "التخطيط", type: "select", options: opts(L.bucket), allowEmpty: false }
+      ]} onSubmit={async (v) => { if (!v.project_id) throw new Error("اختر المشروع أولاً"); const saved = await act.saveTask(v, true); if (!saved) return false; setQuickAdd(false); }} />}
       {form && <TaskForm initial={{ assignee_id: who !== "all" && who !== "none" ? who : me, project_id: proj || "" }} projectId={proj || undefined} onClose={() => setForm(false)} />}
+    </div>
+  );
+}
+
+
+// ═════ Portfolio ═════
+// Cross-project portfolio view; derived only from existing workspace records.
+export function Portfolio() {
+  const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, setView } = useP();
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("active");
+  const projects = data.projects.filter((p) => !p.is_system && !p.deleted_at);
+  const openProjects = projects.filter((p) => !p.archived_at && !["Completed", "Cancelled"].includes(p.status));
+  const completed = projects.filter((p) => p.status === "Completed" && !p.archived_at);
+  const delayed = openProjects.filter((p) => metrics[p.id]?.daysRemaining < 0);
+  const criticalIssues = data.issues.filter((i) => D.isOpenIssue(i) && i.severity === "Critical");
+  const highRisks = data.risks.filter((r) => D.isOpenRisk(r) && D.riskScore(r) >= settings.riskHigh);
+  const objectives = data.objectives.filter((o) => o.status === "Active");
+  const visible = projects
+    .filter((p) => status === "all" || (status === "active" ? openProjects.includes(p) : status === "completed" ? completed.includes(p) : !!p.archived_at))
+    .filter((p) => !query || [p.name, p.description, p.final_goal].some((v) => String(v || "").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
+    .sort((a, b) => {
+      const rank = { Red: 0, Orange: 1, Yellow: 2, Green: 3, OnHold: 4, NotEvaluated: 5 };
+      return (rank[metrics[a.id]?.health] ?? 9) - (rank[metrics[b.id]?.health] ?? 9) || String(a.target_date || "9999").localeCompare(String(b.target_date || "9999"));
+    });
+  const taskCount = idx.list.filter((t) => idx.isLeaf(t.id) && openProjects.some((p) => p.id === t.project_id) && ["todo", "active"].includes(D.cat(t.status))).length;
+  return (
+    <div>
+      <Head title="محفظة المشاريع" sub="نظرة موحّدة على حالة المشاريع والأهداف والمخاطر عبر مساحة العمل." />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 10, marginBottom: 14 }}>
+        <Stat label="مشاريع نشطة" value={openProjects.length} color={C.info} onClick={() => setStatus("active")} />
+        <Stat label="مشاريع مكتملة" value={completed.length} color={C.ok} onClick={() => setStatus("completed")} />
+        <Stat label="مشاريع متأخرة" value={delayed.length} color={delayed.length ? C.bad : C.ok} onClick={() => setStatus("active")} />
+        <Stat label="مهام مفتوحة" value={taskCount} color={C.violet} onClick={() => setPage("tasks")} />
+        <Stat label="مشاكل حرجة" value={criticalIssues.length} color={criticalIssues.length ? C.bad : C.ok} onClick={() => { setView((v) => ({ ...v, issueSeverityFilter: "Critical", issueStatusFilter: "open" })); setPage("issues"); }} />
+        <Stat label="مخاطر عالية" value={highRisks.length} color={highRisks.length ? C.orange : C.ok} onClick={() => setPage("risks")} />
+      </div>
+      {objectives.length > 0 && <div style={{ ...S.card, marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 9 }}><b style={{ fontSize: 13 }}>الأهداف النشطة (OKR)</b><span style={{ flex: 1 }} /><Btn small onClick={() => setPage("okrs")}>إدارة الأهداف</Btn></div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
+          {objectives.map((o) => { const progress = D.objectiveProgress(o, data.krs, projectProgress); const pace = D.PACE_META[D.pace(progress, o.period_start, o.period_end, o.status, today, settings)]; return <div key={o.id} style={{ minWidth: 0 }}><div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12 }}><span style={{ flex: 1, fontWeight: 600, overflowWrap: "anywhere" }}>{o.name}</span><Chip color={pace?.color}>{pace?.label || "—"}</Chip></div><div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 5 }}><Progress value={progress} /><span style={{ fontSize: 10.5, color: C.muted }}>{Math.round(progress)}%</span></div></div>; })}
+        </div>
+      </div>}
+      <div style={{ ...S.card, marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input aria-label="بحث في المشاريع" style={{ ...S.inp, flex: "1 1 220px" }} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث باسم المشروع أو وصفه أو هدفه…" />
+          <select aria-label="تصفية المشاريع" style={{ ...S.sel, minWidth: 150 }} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="active">النشطة</option><option value="completed">المكتملة</option><option value="archived">المؤرشفة</option><option value="all">كل المشاريع</option>
+          </select>
+          <span style={{ color: C.muted, fontSize: 11 }}>{visible.length} مشروع</span>
+        </div>
+      </div>
+      {!visible.length ? <Empty icon="🗂️" title="لا توجد مشاريع مطابقة" sub="غيّر الفلتر أو عبارة البحث لعرض مشاريع أخرى." /> :
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 10 }}>
+          {visible.map((p) => {
+            const m = metrics[p.id] || {};
+            const tasks = idx.list.filter((t) => idx.isLeaf(t.id) && t.project_id === p.id);
+            const open = tasks.filter((t) => ["todo", "active"].includes(D.cat(t.status))).length;
+            const overdue = tasks.filter((t) => D.isOverdueLeaf(t, idx, today)).length;
+            const issueCount = data.issues.filter((i) => i.project_id === p.id && D.isOpenIssue(i)).length;
+            const riskCount = data.risks.filter((r) => r.project_id === p.id && D.isOpenRisk(r)).length;
+            return <div key={p.id} role="button" tabIndex={0} onClick={() => openProject(p.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProject(p.id); } }} style={{ ...S.card, padding: 13, cursor: "pointer", minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 14, overflowWrap: "anywhere" }}>{p.name}</div><div style={{ color: C.muted, fontSize: 11, marginTop: 3 }}>{L.projectStatus[p.status] || p.status || "—"}{p.target_date ? " · الموعد " + fmtShort(p.target_date) : ""}</div></div>
+                <HealthBadge m={m} compact />
+              </div>
+              {p.description && <div style={{ color: C.dim, fontSize: 11.5, marginTop: 8, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.description}</div>}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}><Progress value={m.progress || 0} /><b style={{ fontSize: 11, minWidth: 36, textAlign: "end" }}>{Math.round(m.progress || 0)}%</b></div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginTop: 11, paddingTop: 9, borderTop: "1px solid " + C.line }}>
+                <div><div style={{ fontSize: 15, fontWeight: 700 }}>{open}</div><div style={{ color: C.muted, fontSize: 10 }}>مهام مفتوحة</div></div>
+                <div><div style={{ fontSize: 15, fontWeight: 700, color: overdue ? C.bad : C.text }}>{overdue}</div><div style={{ color: C.muted, fontSize: 10 }}>متأخرة</div></div>
+                <div><div style={{ fontSize: 15, fontWeight: 700 }}>{issueCount + riskCount}</div><div style={{ color: C.muted, fontSize: 10 }}>مشاكل ومخاطر</div></div>
+              </div>
+            </div>;
+          })}
+        </div>}
+      <div style={{ marginTop: 12, color: C.muted, fontSize: 10.5 }}>المؤشرات محسوبة من سجلات المشاريع والمهام والمخاطر والمشاكل الحالية؛ لا تُنشأ بيانات أو علاقات جديدة في هذه الشاشة.</div>
+    </div>
+  );
+}
+
+ 
+// ═════ My Work ═════
+// A dedicated personal work hub reusing the existing Today, Week and Tasks views.
+export function MyWork() {
+  const [tab, setTab] = useState("today");
+  return (
+    <div>
+      <Head title="عملي" sub="مساحة واحدة لمتابعة ما عليك اليوم وخلال الأسبوع وكل مهامك." />
+      <Tabs value={tab} onChange={setTab} tabs={[
+        { id: "today", label: "اليوم" },
+        { id: "week", label: "هذا الأسبوع" },
+        { id: "tasks", label: "كل المهام" }
+      ]} />
+      {tab === "today" && <Today />}
+      {tab === "week" && <Week />}
+      {tab === "tasks" && <Tasks />}
     </div>
   );
 }

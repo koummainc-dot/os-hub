@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const [repository, component, migration, worker, preview] = await Promise.all([
+const [repository, component, migration, worker, preview, projects, projectDetail] = await Promise.all([
   readFile(new URL("../src/systems/knowledge/repository.js", import.meta.url), "utf8"),
   readFile(new URL("../src/systems/knowledge/index.jsx", import.meta.url), "utf8"),
   readFile(new URL("../supabase/migrations/20261030150615_knowledge_resource_os.sql", import.meta.url), "utf8"),
   readFile(new URL("../supabase/functions/knowledge-reminders/index.ts", import.meta.url), "utf8"),
   readFile(new URL("../docs/sql/knowledge_migration_preview.sql", import.meta.url), "utf8"),
+  readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8"),
+  readFile(new URL("../src/systems/projects/screens_b.jsx", import.meta.url), "utf8"),
 ]);
 
 assert.ok(repository.includes("uploadKnowledgeAttachment"));
@@ -31,5 +33,10 @@ assert.ok(worker.includes('status: "sent"'));
 assert.ok(preview.includes("workspace_data"));
 assert.ok(preview.includes("pg_column_size(data)"));
 assert.ok(!/\b(insert\s+into\s+public\.workspace_data|\bdelete\s+from\s+public\.workspace_data|\bupdate\s+public\.workspace_data)/i.test(preview));
+assert.ok(projects.includes("source_meeting_id === meeting.id && Number(task.source_followup_index) === index"), "meeting follow-up conversion must find an existing task by meeting and action index");
+assert.ok(projects.includes("creatingFollowupsRef.current.has(key)"), "same-session duplicate submissions must be blocked while a write is in flight");
+assert.ok(projects.includes("creatingFollowupsRef.current.add(key)") && projects.includes("creatingFollowupsRef.current.delete(key)"), "in-flight duplicate guard must be released after success or failure");
+assert.ok(projects.includes("source_meeting_id: meeting.id") && projects.includes("source_followup_index: index"), "created task must retain its source meeting and follow-up identity");
+assert.ok(projectDetail.includes("creatingFollowupsRef.current.has(key)") && projectDetail.includes("creatingFollowupsRef.current.add(key)") && projectDetail.includes("creatingFollowupsRef.current.delete(key)"), "Project Detail meeting follow-up conversion must also block duplicate in-flight submissions");
 
 console.log("Knowledge delivery, attachment, cross-system and preview contracts: PASS");
