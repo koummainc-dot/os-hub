@@ -118,7 +118,8 @@ function ProjectDetail() {
       {activeGroup.tabs.length > 1 && <Tabs tabs={activeGroup.tabs} value={tab} onChange={setTab} small />}
       {tab === "overview" && <Overview p={p} m={m} />}
       {tab === "tasks" && <TaskTree projectId={p.id} />}
-      {tab === "outputs" && <OutputsView projectId={p.id} />}
+      {tab === "timeline" && <ProjectTimeline p={p} />}
+      {tab === "outputs" && <OutputsView projectId={p.id} />
       {tab === "work" && <WorkTab p={p} />}
       {tab === "prds" && <PrdsView projectId={p.id} />}
       {tab === "risks" && <RisksView projectId={p.id} />}
@@ -167,6 +168,34 @@ function Overview({ p, m }) {
       {lateTasks.length > 0 && <div style={{ ...S.card, gridColumn: "1 / -1" }}><div style={{ fontSize: 13, fontWeight: 700, color: C.bad, marginBottom: 6 }}>مهام متأخرة ({lateTasks.length})</div>{lateTasks.slice(0, 8).map((t) => <div key={t.id} style={{ fontSize: 12.5, padding: "3px 0" }}>⏰ {t.title} — {fmtShort(t.due_date)} <Who id={t.assignee_id} size={15} /></div>)}</div>}
     </div>
   );
+}
+function ProjectTimeline({ p }) {
+  const { idx, today, openTask } = useP();
+  const tasks = idx.list.filter((t) => t.project_id === p.id && idx.isLeaf(t.id) && (t.start_date || t.due_date))
+    .sort((a, b) => String(a.start_date || a.due_date).localeCompare(String(b.start_date || b.due_date)));
+  if (!tasks.length) return <Empty icon="🗓️" title="لا توجد مهام مؤرخة" sub="أضف تاريخ بداية أو موعداً للمهمة لتظهر في الخط الزمني." />;
+  const starts = tasks.map(t => t.start_date || t.due_date).sort();
+  const ends = tasks.map(t => t.due_date || t.start_date).sort();
+  const min = starts[0], max = ends[ends.length - 1];
+  const span = Math.max(1, diffDays(max, min) + 1);
+  const pos = d => Math.max(0, Math.min(100, diffDays(d, min) / span * 100));
+  return <div style={{ ...S.card, overflowX: "auto" }}>
+    <div style={{ minWidth: 720 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", color: C.muted, fontSize: 10.5, marginBottom: 8 }}>
+        <span>{fmtShort(min)}</span><span>{fmtShort(max)}</span>
+      </div>
+      {tasks.map(t => {
+        const a=t.start_date||t.due_date, b=t.due_date||t.start_date, left=pos(a), width=Math.max(1.5,pos(b)-left), done=D.cat(t.status)==="done";
+        return <div key={t.id} style={{ display:"grid", gridTemplateColumns:"180px 1fr", gap:10, alignItems:"center", marginBottom:8 }}>
+          <button type="button" onClick={()=>openTask(t.id)} style={{ border:0, background:"transparent", padding:0, textAlign:"start", font: "inherit", fontSize:12, fontWeight:600, color:done?C.muted:C.text, cursor:"pointer", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.title}</button>
+          <div style={{ position:"relative", height:24, background:"rgba(0,0,0,.04)", borderRadius:6 }}>
+            <div onClick={()=>openTask(t.id)} title={fmt(a)+" → "+fmt(b)} style={{ position:"absolute", insetInlineStart:left+"%", width:width+"%", top:2, height:20, borderRadius:6, cursor:"pointer", background:done?"rgba(16,185,129,.22)":"rgba(99,102,241,.18)", border:"1px solid "+(done?C.ok:C.info) }} />
+            {today>=min && today<=max && <div style={{position:"absolute",insetInlineStart:pos(today)+"%",top:-2,bottom:-2,width:2,background:A}} />}
+          </div>
+        </div>;
+      })}
+    </div>
+  </div>;
 }
 function WorkTab({ p }) {
   const { data, idx, nameOf, can } = useP();
