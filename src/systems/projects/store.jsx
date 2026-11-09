@@ -265,7 +265,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async createFromTemplate(tpl, opts) {
       const r = D.instantiateProjectTemplate(tpl, opts, uid); r.project.created_by = me; if (!r.project.members.length) r.project.members = [{ member_id: me, role: "Lead" }], r.project.lead_id = me;
       await persistTemplateBundle({
-        project: r.project, tasks: r.tasks, risks: r.risks, stamp, actorId: me,
+        project: r.project, tasks: r.tasks, prds: r.prds, outputs: r.outputs, risks: r.risks, stamp, actorId: me,
         atomic: !isDemo,
         putAtomic: R.putAtomic,
         put: (collection, record) => R.put(collection, record),
