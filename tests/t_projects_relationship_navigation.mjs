@@ -114,6 +114,19 @@ assert.ok(decisionsView.indexOf("const list = data.decisions") < decisionsView.i
   "DecisionsView must derive its record list before passing its length to the focus hook");
 
 
+assert.ok(projectScreens.includes("function ProjectOkr") &&
+  projectScreens.includes("＋ ربط نتيجة رئيسية") &&
+  projectScreens.includes("linkKrToProject") &&
+  projectScreens.includes("objective_id") &&
+  projectScreens.includes("kr_id") &&
+  projectScreens.includes("project_ids: [...new Set") &&
+  projectScreens.includes("المشروع لا يرتبط مباشرة بالهدف"),
+  "Project OKR workspace must let the user link the project to an existing KR from the project screen; Objective remains derived through KR");
+
+assert.ok(parts.includes("لا توجد مواصفة لهذا المشروع بعد") &&
+  parts.includes("تبويب «المواصفات» داخل المشروع"),
+  "Task PRD picker must explain the project-scoped PRD constraint when no PRD exists");
+
 assert.ok(projectScreens.includes("function ProjectSubprojects") &&
   projectScreens.includes('parent_project_id: p.id') &&
   projectScreens.includes("المشاريع الفرعية"),
