@@ -121,4 +121,10 @@ assert.ok(parts.includes("const newOutputDraft = (extra = {})") &&
   parts.includes("setOutputForm(newOutputDraft({ url: /^https?:/.test(t.result_note)"),
   "New outputs from Task Sheet and quick-result flow must inherit only valid task specification relationships");
 
+assert.ok(screens.includes("إنشاء قالب من مشروع") &&
+  screens.includes("D.projectToTemplateSeed(project, data)") &&
+  screens.includes("!project.is_system && !project.archived_at && !project.deleted_at") &&
+  screens.includes('can("project.read", project)'),
+  "Project-to-template conversion must be available to editors, scoped to readable active projects, and routed through the pure identity-stripping converter");
+
 console.log("✓ Projects relationship navigation contracts passed");
