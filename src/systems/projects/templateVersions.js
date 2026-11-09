@@ -5,6 +5,7 @@ const CONTENT_FIELDS = [
   "project_type",
   "duration_days",
   "task_tree",
+  "objective_templates",
   "risks",
   "prd_templates",
   "output_templates",
@@ -21,7 +22,7 @@ export function snapshotTemplateVersion(template) {
     version: Math.max(1, Number(template.version) || 1),
     updated_at: template.updated_at || template.created_at || null,
   };
-  for (const field of CONTENT_FIELDS) snapshot[field] = clone(template[field] ?? (["task_tree", "risks", "prd_templates", "output_templates", "decision_prompts", "team_roles", "checklist"].includes(field) ? [] : ""));
+  for (const field of CONTENT_FIELDS) snapshot[field] = clone(template[field] ?? (["task_tree", "objective_templates", "risks", "prd_templates", "output_templates", "decision_prompts", "team_roles", "checklist"].includes(field) ? [] : ""));
   return snapshot;
 }
 
