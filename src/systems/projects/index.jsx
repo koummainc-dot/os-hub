@@ -55,10 +55,12 @@ function Router({ sourceWriteRequest }) {
     const groups = [
       { id: "work", label: "العمل", items: [
         { id: "dashboard", label: "الرئيسية", icon: "⌂" },
+        { id: "today", label: "اليوم", icon: "☀" },
         { id: "myWork", label: "مهامي", icon: "✓" },
         { id: "projects", label: "المشاريع", icon: "📁" },
         { id: "tasks", label: "المهام", icon: "☑" },
         { id: "week", label: "هذا الأسبوع", icon: "🗓️" },
+        { id: "portfolio", label: "المحفظة", icon: "▦" },
       ]},
       { id: "planning", label: "التخطيط", items: [
         { id: "discovery", label: "الوارد والاكتشاف", icon: "↘" },
@@ -72,7 +74,9 @@ function Router({ sourceWriteRequest }) {
         { id: "wins", label: "الإنجازات", icon: "🏆" },
       ]},
       { id: "governance", label: "الحوكمة", items: [
-        { id: "risks", label: "المخاطر والمشاكل والقرارات", icon: "⚠" },
+        { id: "risks", label: "المخاطر", icon: "⚠" },
+        { id: "issues", label: "المشاكل", icon: "●" },
+        { id: "decisions", label: "القرارات", icon: "⚖" },
       ]},
       { id: "collaboration", label: "التعاون", items: [
         { id: "contacts", label: "جهات الاتصال", icon: "👤" },
