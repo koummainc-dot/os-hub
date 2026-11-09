@@ -3,6 +3,8 @@ import { A, S } from "../../core/ui.jsx";
 import { C, Btn, Chip, Dot, Avatar, Progress, SideSheet, FormModal, Tabs, Empty, Field } from "../../core/kit.jsx";
 import { fmt, fmtShort, fmtMinutes, diffDays, dateOf } from "../../core/dates.js";
 import { uid } from "../../core/records.jsx";
+import { supabase } from "../../core/supabase.js";
+import { OUTPUT_STORAGE_BUCKET, outputFileMetadata, outputObjectPath, validateOutputUpload } from "./outputStorage.js";
 import { useP } from "./store.jsx";
 import * as D from "./domain.js";
 import { L, opts, PRIORITY_COLOR, STATUS_COLOR, SEV_COLOR, activityEventText } from "./lookups.js";
@@ -324,7 +326,7 @@ function MoveTreeButton({ t, onDone }) {
 
 // ── Task detail sheet ───────────────────────────────────────────────
 export function TaskSheet({ inline = false }) {
-  const { view, closeTask, idx, data, A: act, can, projectsById, today, runningTimer, nameOf, toast, openProject, openDiscovery, setPage, settings, me } = useP();
+  const { view, closeTask, idx, data, A: act, can, projectsById, today, runningTimer, nameOf, toast, openProject, openDiscovery, setPage, settings, me, ws } = useP();
   const t = view.taskId ? (idx.byId[view.taskId] || null) : null; const [tab, setTab] = useState("details"); const [edit, setEdit] = useState(false); const [sessForm, setSessForm] = useState(false); const [cancelReason, setCancelReason] = useState(null); const [outputForm, setOutputForm] = useState(null);
   useEffect(() => { setTab("details"); }, [view.taskId]);
   if (!view.taskId) return null; if (!t) return null;
