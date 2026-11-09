@@ -175,7 +175,7 @@ const taskTree = [
     { name: "No dates", task_tree: taskTree, objective_templates: parsed },
     { name: "No dates project", start_date: "2026-11-01" },
     makeId()
-  ), /موعد مستهدف/);
+  ), /فترة الهدف/);
   assert.deepEqual(parseObjectiveTemplates("", "", taskTree), [], "templates without OKRs remain valid");
 }
 
