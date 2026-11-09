@@ -47,11 +47,14 @@ function ProjectsDurableEventBridge({ ws, isDemo, children }) {
 }
 
 function Router({ sourceWriteRequest }) {
-  const ctx = useP(); const { page, ready, error, store, access, role, shell, ws, A, data } = ctx; const lvl = osSectionLevel(access, page);
+  const ctx = useP(); const { page, ready, error, store, access, role, shell, ws, A, data } = ctx;
+  // My Work is a workflow view of the legacy Tasks section; keep its existing access key.
+  const sectionKey = (id) => id === "myWork" ? "tasks" : id;
+  const lvl = osSectionLevel(access, sectionKey(page));
   // sections hidden for Viewers (plan §13.2) are removed from the shell menu
   useEffect(() => {
     if (!shell || !shell.publish) return;
-    const visible = Object.keys(SCREENS).filter((k) => k !== "masterplanImport" && !(role === "Viewer" && ["reviews", "contacts"].includes(k)));
+    const visible = Object.keys(SCREENS).filter((k) => k !== "masterplanImport" && !(role === "Viewer" && ["reviews", "contacts"].includes(k)) && osSectionLevel(access, sectionKey(k)) !== "none");
     const groups = [
       { id: "work", label: "العمل", items: [
         { id: "dashboard", label: "الرئيسية", icon: "⌂" },
@@ -89,7 +92,7 @@ function Router({ sourceWriteRequest }) {
       ]},
     ].map(group => ({ ...group, items: group.items.filter(item => visible.includes(item.id)) })).filter(group => group.items.length);
     shell.publish("projects", { visible, navGroups: groups });
-  }, [role]);
+  }, [role, access]);
   const processedVenturesRiskWrites = useRef(new Set());
   const handleVenturesRisk = useCallback(async (d) => {
     if (!(d?.source === "ventures" && d.systemId === "projects" && d.action === "create_risk")) return;
