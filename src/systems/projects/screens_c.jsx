@@ -431,9 +431,9 @@ const flattenRisks = (risks) => (risks || []).map((r) => `${r.title || ""}${r.mi
 function parseRiskText(value) { return String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [title, ...rest] = line.split(/\s[—-]\s/); return { title: title.trim(), probability: 3, impact: 3, status: "Open", mitigation: rest.join(" — ").trim() }; }); }
 export function Templates() {
   const { templates, data, A: act, can, toast, role } = useP(); const [use, setUse] = useState(null); const [tab, setTab] = useState("projects"); const [templateForm, setTemplateForm] = useState(null); const [previewTpl, setPreviewTpl] = useState(null); const [historyTpl, setHistoryTpl] = useState(null); const [showArchived, setShowArchived] = useState(false); const [sourceProjectForm, setSourceProjectForm] = useState(false); const canManage = can("project.create") && role !== "Viewer";
-  const beginTemplateForm = (tpl = {}) => setTemplateForm({ id: tpl.id, name: tpl.name || "", description: tpl.description || "", final_goal: tpl.final_goal || "", project_type: tpl.project_type || "", duration_days: tpl.duration_days || "", task_tree_text: flattenTaskTree(tpl.task_tree || []).join("\n"), risks_text: flattenRisks(tpl.risks || []), prds_text: flattenPrdTemplates(tpl.prd_templates || []), requirements_text: flattenRequirements(tpl.prd_templates || []), outputs_text: flattenOutputs(tpl.output_templates || []), decision_prompts_text: (tpl.decision_prompts || []).join("\n"), team_roles_text: (tpl.team_roles || []).join("\n"), checklist_text: (tpl.checklist || []).join("\n") });
+  const beginTemplateForm = (tpl = {}) => setTemplateForm({ id: tpl.id, name: tpl.name || "", description: tpl.description || "", final_goal: tpl.final_goal || "", project_type: tpl.project_type || "", duration_days: tpl.duration_days || "", task_tree_text: flattenTaskTree(tpl.task_tree || []).join("\n"), task_dependencies_text: flattenTaskDependencies(tpl.task_tree || []), risks_text: flattenRisks(tpl.risks || []), prds_text: flattenPrdTemplates(tpl.prd_templates || []), requirements_text: flattenRequirements(tpl.prd_templates || []), outputs_text: flattenOutputs(tpl.output_templates || []), decision_prompts_text: (tpl.decision_prompts || []).join("\n"), team_roles_text: (tpl.team_roles || []).join("\n"), checklist_text: (tpl.checklist || []).join("\n") });
   const countN = (n) => n.reduce((a, x) => a + 1 + countN(x.children || []), 0);
-  const show = (nodes, depth = 0) => nodes.map((n, i) => <div key={depth + "-" + i + n.title} style={{ paddingInlineStart: depth * 16, fontSize: 12, color: C.dim, lineHeight: 1.8 }}>{n.milestone ? "◆ " : depth ? "└ " : "• "}{n.title}{n.estimate_minutes ? ` (${fmtMinutes(n.estimate_minutes)})` : ""}{n.offset_days != null ? ` · يوم +${n.offset_days}` : ""}{n.children && show(n.children, depth + 1)}</div>);
+  const show = (nodes, depth = 0) => nodes.map((n, i) => <div key={depth + "-" + i + n.title} style={{ paddingInlineStart: depth * 16, fontSize: 12, color: C.dim, lineHeight: 1.8 }}>{n.milestone ? "◆ " : depth ? "└ " : "• "}{n.title}{n.estimate_minutes ? ` (${fmtMinutes(n.estimate_minutes)})` : ""}{n.offset_days != null ? ` · يوم +${n.offset_days}` : ""}{n.dependency_titles?.length ? <span style={{ color: C.violet }}> · يعتمد على: {n.dependency_titles.join("، ")}</span> : null}{n.children && show(n.children, depth + 1)}</div>);
   return (
     <div>
       <Head title="القوالب" sub="حزم مشاريع تجمع المراحل والمهام والمواصفات والمتطلبات والمخرجات والمخاطر والأدوار وأسئلة القرارات وقائمة الجاهزية." />
@@ -490,14 +490,15 @@ export function Templates() {
           const seed = D.projectToTemplateSeed(project, data);
           beginTemplateForm(seed);
           setSourceProjectForm(false);
-          toast("تم نسخ بنية «" + project.name + "» إلى محرر قالب جديد. راجع الشجرة والعلاقات قبل الحفظ؛ بيانات التشغيل والأشخاص لم تُنسخ.");
+          toast(seed.conversion_warnings?.length ? "تم نسخ بنية «" + project.name + "». توجد " + seed.conversion_warnings.length + " روابط اعتماد لم تُنقل آليًا وتحتاج مراجعة: " + seed.conversion_warnings[0] : "تم نسخ بنية «" + project.name + "» إلى محرر قالب جديد. راجع الشجرة والعلاقات قبل الحفظ؛ بيانات التشغيل والأشخاص لم تُنسخ.");
         }}
         fields={[{ key: "project_id", label: "المشروع المصدر", type: "select", required: true, allowEmpty: false, options: data.projects.filter((project) => !project.is_system && !project.archived_at && !project.deleted_at && can("project.read", project)).map((project) => ({ v: project.id, l: project.name })) }]}
       />}
       {previewTpl && <Modal title={`معاينة القالب: ${previewTpl.name}`} wide onClose={() => setPreviewTpl(null)} footer={<><Btn onClick={() => setPreviewTpl(null)}>رجوع</Btn><Btn kind="primary" onClick={() => { setUse(previewTpl); setPreviewTpl(null); }}>استخدام هذا القالب</Btn></>}><div style={{ lineHeight: 1.9 }}><p>{previewTpl.description || "لا يوجد وصف."}</p><b>{countN(previewTpl.task_tree || [])} مهمة · {(previewTpl.prd_templates || []).length} مواصفة · {(previewTpl.output_templates || []).length} مخرج · {(previewTpl.risks || []).length} مخاطر · المدة التقديرية {previewTpl.duration_days || "—"} يوماً</b><div style={{ marginTop: 8 }}>{show(previewTpl.task_tree || [])}</div><div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>المعاينة لا تنشئ أي سجلات. تواريخ التنفيذ وحالات المهام الفعلية لا تُنسخ من القالب.</div></div></Modal>}
       {templateForm && <FormModal title={templateForm.id ? "تعديل قالب مخصص" : "إنشاء قالب مخصص"} wide initial={templateForm} onClose={() => setTemplateForm(null)} onSubmit={async (v) => {
         const treeError = validateTaskTreeText(v.task_tree_text); if (treeError) throw new Error(treeError);
-        const tree = parseTaskTreeText(v.task_tree_text);
+        let tree = parseTaskTreeText(v.task_tree_text);
+        tree = parseTaskDependenciesText(v.task_dependencies_text, tree);
         const risks = parseRiskText(v.risks_text);
         const prdTemplates = parsePrdDefinitions(v.prds_text, v.requirements_text);
         const outputTemplates = parseOutputDefinitions(v.outputs_text);
@@ -517,6 +518,12 @@ export function Templates() {
             if (output.requirement_title && !prd.requirements.some((req) => req.title === output.requirement_title)) throw new Error("المتطلب المصدر للمخرج «" + output.name + "» غير موجود في المواصفة «" + output.prd_title + "».");
           } else if (output.requirement_title) throw new Error("حدد اسم المواصفة قبل ربط متطلب بالمخرج «" + output.name + "».");
         }
+        let validationId = 0;
+        D.instantiateProjectTemplate(
+          { task_tree: tree, prd_templates: prdTemplates, output_templates: outputTemplates, risks },
+          { name: "قالب قيد التحقق" },
+          () => "template_validation_" + (++validationId)
+        );
         const rec = {
           id: v.id || uid(), name: String(v.name || "").trim(), description: v.description || "",
           final_goal: v.final_goal || "", project_type: v.project_type || "أخرى",
@@ -534,6 +541,7 @@ export function Templates() {
         { key: "project_type", label: "نوع المشروع" }, { key: "duration_days", label: "المدة الإرشادية (أيام)", type: "number", min: 1 },
         { key: "final_goal", label: "صياغة الهدف النهائي للمشروع", type: "textarea", rows: 2, span: 2 },
         { key: "task_tree_text", label: "1) مراحل المشروع وشجرة المهام", type: "textarea", rows: 10, span: 2, hint: "كل سطر مهمة. مسافتان لكل مستوى فرعي. الصيغة: المهمة | التقدير بالدقائق | اليوم من البداية | milestone (اختياري). مثال:\nالاكتشاف\n  مقابلات المستخدمين | 240 | 7\nالتصميم\n  اعتماد التصميم | 0 | 25 | milestone" },
+        { key: "task_dependencies_text", label: "علاقات الاعتماد بين المهام", type: "textarea", rows: 4, span: 2, hint: "سطر لكل علاقة: المهمة التالية <- المهمة السابقة. يجب أن يطابق كل عنوان مهمة واحدة فقط. مثال:\nبناء الواجهة <- اعتماد التصميم\nاختبار الإطلاق <- بناء الواجهة. سيتم رفض الروابط المفقودة أو الدائرية." },
         { key: "prds_text", label: "2) المواصفات المطلوبة", type: "textarea", rows: 4, span: 2, hint: "سطر لكل مواصفة: اسم المواصفة | ملخصها. اترك الملخص اختياريًا." },
         { key: "requirements_text", label: "متطلبات المواصفات ومعايير القبول وربطها بالمهام", type: "textarea", rows: 6, span: 2, hint: "سطر لكل متطلب: اسم المواصفة :: اسم المتطلب | معيار القبول | عنوان المهمة. يجب أن يطابق عنوان المهمة سطرًا واحدًا فقط في شجرة المهام." },
         { key: "outputs_text", label: "3) المخرجات المتوقعة وروابط المصدر", type: "textarea", rows: 5, span: 2, hint: "سطر لكل مخرج: اسم المخرج | النوع (Design/Code/Document/Sample/Video/Other) | عنوان المهمة | اسم المواصفة | اسم المتطلب. الحقول الأخيرة اختيارية لكن يجب أن تكون الروابط صحيحة." },
