@@ -422,8 +422,24 @@ export function DecisionsView({ projectId }) {
 // ═════ PRDs ═════
 export function PrdsView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, me, PRD_TEMPLATE, idx, confirm, nameOf, view } = useP();
-  const [sel, setSel] = useState(null); const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [editorId, setEditorId] = useState(null); const [taskForm, setTaskForm] = useState(null);
+  const [sel, setSel] = useState(null); const [form, setForm] = useState(null); const [linkForm, setLinkForm] = useState(null); const [detail, setDetail] = useState(null); const [editorId, setEditorId] = useState(null); const [taskForm, setTaskForm] = useState(null);
   const list = data.prds.filter((p) => !projectId || p.project_id === projectId);
+  const linkExistingPrd = async (v) => {
+    const targetProject = projectsById[projectId];
+    const prd = data.prds.find((item) => item.id === v.prd_id && !item.deleted_at && !item.archived_at);
+    if (!targetProject || !prd || prd.project_id === projectId) throw new Error("اختر مواصفة موجودة من مشروع آخر.");
+    if (!can("prd.write", targetProject)) throw new Error("لا تملك صلاحية ربط مواصفة بهذا المشروع.");
+    const activeTasks = data.tasks.filter((task) => task.prd_id === prd.id && D.isActiveRec(task));
+    const activeOutputs = data.outputs.filter((output) => output.prd_id === prd.id && D.isActiveRec(output));
+    const activeRisks = data.risks.filter((risk) => risk.prd_id === prd.id && D.isActiveRec(risk));
+    const activeDecisions = data.decisions.filter((decision) => D.isActiveRec(decision) && (decision.prd_id === prd.id || (decision.affected_prd_ids || []).includes(prd.id)));
+    if (activeTasks.length || activeOutputs.length || activeRisks.length || activeDecisions.length) {
+      throw new Error("لا يمكن نقل هذه المواصفة تلقائيًا لأنها مرتبطة بسجلات تنفيذية. افتح المشروع الأصلي أو أنشئ نسخة مواصفة داخل المشروع الحالي.");
+    }
+    await act.put("prds", { ...prd, project_id: projectId }, targetProject);
+    toast("✅ تم ربط المواصفة بالمشروع.");
+    setLinkForm(null);
+  };
   useEffect(() => { if (view.focusRecord?.kind === "prd") { const target = data.prds.find((p) => p.id === view.focusRecord.id); if (target && (!projectId || target.project_id === projectId)) setSel(target.id); } }, [view.focusRecord, data.prds, projectId]);
   const canNew = projectId ? can("prd.write", projectsById[projectId]) : data.projects.some((p) => can("prd.write", p) && !p.is_system);
   const selectedPrd = list.find((p) => p.id === sel) || list[0] || null;
@@ -432,7 +448,10 @@ export function PrdsView({ projectId }) {
   return (
     <div>
       {!projectId && <Head title="المواصفات (PRDs)" sub={`${list.length} مواصفة`} right={canNew && <Btn kind="primary" onClick={() => setForm({})}>➕ مواصفة</Btn>} />}
-      {projectId && canNew && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ مواصفة</Btn></div>}
+      {projectId && canNew && <div style={{ marginBottom: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ مواصفة</Btn>
+        <Btn small onClick={() => setLinkForm({})}>🔗 ربط مواصفة موجودة</Btn>
+      </div>
       {!list.length ? <Empty icon="📝" title="لا مواصفات" sub="اكتب المواصفة قبل التنفيذ: المشكلة، الحل، مقاييس النجاح." /> : (
         <div style={{ display: "grid", gridTemplateColumns: "minmax(230px,.72fr) minmax(0,1.65fr)", gap: 12, alignItems: "start" }}>
           <div style={{ ...S.card, padding: 7 }}>
@@ -510,6 +529,10 @@ export function PrdsView({ projectId }) {
         { label: "القرارات المرتبطة", value: data.decisions.filter((decision) => decision.prd_id === detail.id || (decision.affected_prd_ids || []).includes(detail.id)).map((decision) => decision.title).join("، ") },
         { label: "المراجعون", value: (detail.reviewer_ids || []).map((id) => people.find((person) => person.id === id)?.name).filter(Boolean).join("، ") },
         { label: "الموافقات", value: (detail.approvals || []).map((approval) => (people.find((person) => person.id === approval.reviewer_id)?.name || "مراجع") + ": " + (approval.decision === "approve" ? "موافقة" : "رفض") + (approval.comment ? " — " + approval.comment : "")).join("\\n") }
+      ]} />}
+      {linkForm && <FormModal title="ربط مواصفة موجودة بالمشروع" initial={{ prd_id: "" }} onClose={() => setLinkForm(null)} onSubmit={linkExistingPrd} fields={[
+        { key: "prd_id", label: "المواصفة", type: "select", required: true, allowEmpty: false,
+          options: data.prds.filter((prd) => !prd.deleted_at && !prd.archived_at && prd.project_id !== projectId).map((prd) => ({ v: prd.id, l: (projectsById[prd.project_id]?.name || "مشروع غير متاح") + " — " + prd.title })) }
       ]} />}
       {form && <FormModal title="مواصفة جديدة" initial={{ status: "Not Started", ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { const project = projectsById[v.project_id]; if (!project || project.is_system || project.archived_at || project.deleted_at) throw new Error("اختر مشروعًا نشطًا وصالحًا لإنشاء المواصفة."); const rec = { ...v, id: uid(), version: 1, sections: PRD_TEMPLATE.map((s) => ({ key: s.key, title: s.title, group: s.group, content: "" })), approvals: [], reviewer_ids: [], lead_id: v.lead_id || me }; const saved = await act.put("prds", rec, project); setForm(null); if (saved) setSel(saved.id); }} fields={[
         { key: "title", label: "عنوان المواصفة", required: true }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, show: () => !projectId, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) }, { key: "lead_id", label: "المسؤول", type: "select", options: mOpts(people) }]} />}
