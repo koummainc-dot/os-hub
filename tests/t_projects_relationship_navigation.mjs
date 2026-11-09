@@ -123,6 +123,12 @@ assert.ok(projectScreens.includes("function ProjectOkr") &&
   projectScreens.includes("المشروع لا يرتبط مباشرة بالهدف"),
   "Project OKR workspace must let the user link the project to an existing KR from the project screen; Objective remains derived through KR");
 
+assert.ok(entities.includes("ربط مواصفة موجودة") &&
+  entities.includes("linkExistingPrd") &&
+  entities.includes("لا يمكن نقل هذه المواصفة تلقائيًا") &&
+  entities.includes('prd_id: ""'),
+  "Project PRD workspace must provide a real existing-PRD link flow and block unsafe moves when execution records already depend on the PRD");
+
 assert.ok(parts.includes("لا توجد مواصفة لهذا المشروع بعد") &&
   parts.includes("تبويب «المواصفات» داخل المشروع"),
   "Task PRD picker must explain the project-scoped PRD constraint when no PRD exists");
