@@ -320,7 +320,66 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
         const unscheduled = projectTasks.filter((task) => !task.start_date && !task.due_date);
         const timelineTasks = [...dated].sort((a, b) => String(a.start_date || a.due_date).localeCompare(String(b.start_date || b.due_date)));
         const schedule = D.analyzeTaskSchedule(projectTasks);
-        const rowIndex = Object.fromEntries(timelineTasks.map((task, index) => [task.id, index]));
+        const linkedObjectives = D.objectivesForProject(projectId, data.objectives, data.krs);
+        const legacyObjectives = (data.objectives || []).filter((objective) =>
+          !objective.deleted_at && !objective.archived_at &&
+          idx.list.some((task) => task.project_id === projectId && task.objective_id === objective.id)
+        );
+        const timelineObjectives = [...linkedObjectives];
+        legacyObjectives.forEach((objective) => {
+          if (!timelineObjectives.some((candidate) => candidate.id === objective.id)) timelineObjectives.push(objective);
+        });
+        const taskObjectiveRefs = new Map();
+        const objectiveGroups = timelineObjectives.map((objective) => {
+          const execution = D.objectiveTaskExecution(objective, data.krs, idx);
+          const eligibleIds = new Set(execution.tasks.filter((task) => task.project_id === projectId).map((task) => task.id));
+          const relatedTasks = timelineTasks.filter((task) => eligibleIds.has(task.id));
+          relatedTasks.forEach((task) => {
+            const list = taskObjectiveRefs.get(task.id) || [];
+            list.push(objective.name);
+            taskObjectiveRefs.set(task.id, list);
+          });
+          return { objective, tasks: relatedTasks };
+        }).filter((group) => group.tasks.length);
+        const assignedTimelineTaskIds = new Set(objectiveGroups.flatMap((group) => group.tasks.map((task) => task.id)));
+        const ungroupedTimelineTasks = timelineTasks.filter((task) => !assignedTimelineTaskIds.has(task.id));
+        const timelineRows = [];
+        const addObjectiveRows = (group, groupKey) => {
+          const tasksInGroup = [...group.tasks].sort((a, b) => String(a.start_date || a.due_date).localeCompare(String(b.start_date || b.due_date)));
+          const completedCount = tasksInGroup.filter((task) => D.cat(task.status) === "done").length;
+          timelineRows.push({ kind: "objective", id: groupKey, title: group.title, total: tasksInGroup.length, completed: completedCount });
+          const phaseGroups = new Map();
+          const standalone = [];
+          tasksInGroup.forEach((task) => {
+            const ancestors = idx.ancestors(task.id);
+            const rootId = ancestors.length ? ancestors[ancestors.length - 1] : null;
+            if (rootId && rootId !== task.id && idx.byId[rootId]) {
+              const phase = phaseGroups.get(rootId) || [];
+              phase.push(task);
+              phaseGroups.set(rootId, phase);
+            } else standalone.push(task);
+          });
+          const orderedPhases = [...phaseGroups.entries()].map(([id, tasks]) => ({
+            id,
+            title: idx.byId[id].title,
+            tasks,
+            start: tasks.map((task) => task.start_date || task.due_date).sort()[0] || "9999",
+          })).sort((a, b) => a.start.localeCompare(b.start));
+          orderedPhases.forEach((phase) => {
+            const phaseDone = phase.tasks.filter((task) => D.cat(task.status) === "done").length;
+            timelineRows.push({ kind: "phase", id: phase.id, title: phase.title, total: phase.tasks.length, completed: phaseDone });
+            [...phase.tasks].sort((a, b) => String(a.start_date || a.due_date).localeCompare(String(b.start_date || b.due_date))).forEach((task) => {
+              timelineRows.push({ kind: "task", task, otherObjectives: (taskObjectiveRefs.get(task.id) || []).filter((name) => name !== group.title) });
+            });
+          });
+          standalone.forEach((task) => timelineRows.push({
+            kind: "task", task,
+            otherObjectives: (taskObjectiveRefs.get(task.id) || []).filter((name) => name !== group.title),
+          }));
+        };
+        objectiveGroups.forEach((group) => addObjectiveRows(group, "objective:" + group.objective.id));
+        if (ungroupedTimelineTasks.length) addObjectiveRows({ title: "مهام بلا هدف / نتيجة رئيسية مرتبطة", tasks: ungroupedTimelineTasks }, "objective:unlinked");
+        const rowIndex = Object.fromEntries(timelineRows.filter((row) => row.kind === "task").map((row, index) => [row.task.id, timelineRows.indexOf(row)]));
         const dependencyPaths = timelineTasks.flatMap((task) => (task.dependency_task_ids || []).flatMap((dependencyId) => {
           const predecessor = idx.byId[dependencyId];
           const predecessorIndex = rowIndex[dependencyId];
