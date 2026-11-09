@@ -417,7 +417,17 @@ function Platform(){
         )}
       </div>
       <div style={{padding:"8px 0",flex:1}}>
-        {sys?navSections.map(n=>(
+        {sys&&br.navGroups ? br.navGroups.map(group=>(
+          <div key={group.id}>
+            <div style={{fontSize:10,color:"#94A3B8",fontWeight:800,padding:"9px 16px 4px"}}>{group.label}</div>
+            {group.items.map(n=>(
+              <button key={n.id} onClick={()=>{setSection(sys.id,n.id);setNavOpen(false);}} style={itemStyle(currentSection===n.id)}>
+                <span style={{fontSize:13,minWidth:18,textAlign:"center"}}>{n.icon}</span><span style={{flex:1}}>{sys?.id === "projects" && n.id === "myWork" ? "مهامي" : n.label}</span>
+                {br.badges&&br.badges[n.id]>0&&badge(br.badges[n.id])}
+              </button>
+            ))}
+          </div>
+        )):sys?navSections.map(n=>(
           <button key={n.id} onClick={()=>{setSection(sys.id,n.id);setNavOpen(false);}} style={itemStyle(currentSection===n.id)}>
             <span style={{fontSize:13,minWidth:18,textAlign:"center"}}>{n.icon}</span><span style={{flex:1}}>{n.label}</span>
             {br.badges&&br.badges[n.id]>0&&badge(br.badges[n.id])}

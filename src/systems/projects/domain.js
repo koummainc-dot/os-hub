@@ -288,10 +288,29 @@ export function objectivesForProject(projectId, objectives, krs) {
 // Legacy direct task links remain visible as a read-only compatibility fallback until reconciled.
 function expandLegacyTaskRoots(rootIds, idx) {
   const ids = new Set();
+  const fallbackDescendants = (rootId) => {
+    const children = new Map();
+    (idx?.list || []).forEach((task) => {
+      if (task.parent_task_id) {
+        const bucket = children.get(task.parent_task_id) || [];
+        bucket.push(task.id);
+        children.set(task.parent_task_id, bucket);
+      }
+    });
+    const out = [];
+    const queue = [...(children.get(rootId) || [])];
+    while (queue.length) {
+      const childId = queue.shift();
+      out.push(childId);
+      queue.push(...(children.get(childId) || []));
+    }
+    return out;
+  };
   (rootIds || []).forEach((id) => {
     if (idx?.byId?.[id]) {
       ids.add(id);
-      (idx.descendants(id) || []).forEach((childId) => ids.add(childId));
+      const descendants = typeof idx.descendants === "function" ? idx.descendants(id) : fallbackDescendants(id);
+      descendants.forEach((childId) => ids.add(childId));
     }
   });
   return [...ids].map((id) => idx.byId[id]).filter(Boolean);
@@ -306,30 +325,46 @@ function taskExecutionSummary(tasks, idx, extra = {}) {
 export function krTaskExecution(kr, idx) {
   if (!idx) return { roots: [], tasks: [], leafTotal: 0, leafDone: 0, progress: null, projectIds: [] };
   const projectIds = [...new Set(Array.isArray(kr?.project_ids) ? kr.project_ids.filter(Boolean) : [])];
+  // New KRs use an explicit task group. Older records without task_ids retain
+  // their legacy project-wide execution behavior for backward compatibility.
+  const hasExplicitTaskLinks = Array.isArray(kr?.task_ids);
+  const linkedRoots = hasExplicitTaskLinks ? [...new Set(kr.task_ids.filter(Boolean))] : [];
+  const explicitTasks = expandLegacyTaskRoots(linkedRoots, idx);
   const projectSet = new Set(projectIds);
-  const projectTasks = projectIds.length ? (idx.list || []).filter((task) => projectSet.has(task.project_id)) : [];
-  const legacyRoots = projectIds.length ? [] : [...new Set(Array.isArray(kr?.task_ids) ? kr.task_ids.filter(Boolean) : [])];
-  const legacyTasks = expandLegacyTaskRoots(legacyRoots, idx);
-  const result = taskExecutionSummary([...projectTasks, ...legacyTasks], idx, { roots: legacyRoots.filter((id) => !!idx.byId[id]), projectIds, legacy: legacyTasks.length > 0 });
+  const legacyProjectTasks = !hasExplicitTaskLinks && projectIds.length
+    ? (idx.list || []).filter((task) => projectSet.has(task.project_id))
+    : [];
+  const result = taskExecutionSummary([...explicitTasks, ...legacyProjectTasks], idx, {
+    roots: linkedRoots.filter((id) => !!idx.byId[id]),
+    projectIds,
+    legacy: !hasExplicitTaskLinks && legacyProjectTasks.length > 0,
+  });
   return result;
 }
 export function objectiveTaskExecution(obj, krs, idx) {
   if (!idx) return { tasks: [], leafTotal: 0, leafDone: 0, progress: null, projectIds: [], legacyTaskCount: 0 };
   const linkedKrs = (krs || []).filter((kr) => kr.objective_id === obj?.id && isActiveRec(kr));
   const projectIds = [...new Set(linkedKrs.flatMap((kr) => Array.isArray(kr.project_ids) ? kr.project_ids.filter(Boolean) : []))];
-  const projectSet = new Set(projectIds);
-  const projectTasks = projectIds.length ? (idx.list || []).filter((task) => projectSet.has(task.project_id)) : [];
   const directLegacyRoots = (idx.list || []).filter((task) => task.objective_id === obj?.id).map((task) => task.id);
-  const legacyTasks = [
-    ...expandLegacyTaskRoots(directLegacyRoots, idx),
-    ...linkedKrs.flatMap((kr) => {
-      const hasProjectLinks = Array.isArray(kr.project_ids) && kr.project_ids.length > 0;
-      return hasProjectLinks ? [] : expandLegacyTaskRoots(kr.task_ids || [], idx);
-    }),
-  ];
-  const result = taskExecutionSummary([...projectTasks, ...legacyTasks], idx, {
+  const directLegacyTasks = expandLegacyTaskRoots(directLegacyRoots, idx);
+  const krTaskGroups = linkedKrs.map((kr) => {
+    const explicit = Array.isArray(kr.task_ids);
+    const tasks = explicit
+      ? expandLegacyTaskRoots(kr.task_ids || [], idx)
+      : (Array.isArray(kr.project_ids) && kr.project_ids.length
+        ? (idx.list || []).filter((task) => kr.project_ids.includes(task.project_id))
+        : []);
+    return { kr, tasks, legacy: !explicit };
+  });
+  const linkedTasks = krTaskGroups.flatMap(({ tasks }) => tasks);
+  const legacyKrTasks = krTaskGroups.filter(({ legacy }) => legacy).flatMap(({ tasks }) => tasks);
+  const legacyTasks = [...directLegacyTasks, ...linkedTasks];
+  const linkedTaskIds = new Set(linkedTasks.map((task) => task.id));
+  const legacyDirectOnly = directLegacyTasks.filter((task) => !linkedTaskIds.has(task.id));
+  const legacyTaskCount = new Set([...legacyDirectOnly, ...legacyKrTasks].map((task) => task.id)).size;
+  const result = taskExecutionSummary(legacyTasks, idx, {
     projectIds,
-    legacyTaskCount: new Set(legacyTasks.map((task) => task.id)).size,
+    legacyTaskCount,
   });
   return result;
 }

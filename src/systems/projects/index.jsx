@@ -49,7 +49,47 @@ function ProjectsDurableEventBridge({ ws, isDemo, children }) {
 function Router({ sourceWriteRequest }) {
   const ctx = useP(); const { page, ready, error, store, access, role, shell, ws, A, data } = ctx; const lvl = osSectionLevel(access, page);
   // sections hidden for Viewers (plan §13.2) are removed from the shell menu
-  useEffect(() => { if (shell && shell.publish) shell.publish("projects", { visible: Object.keys(SCREENS).filter((k) => k !== "masterplanImport" && !(role === "Viewer" && ["reviews", "contacts"].includes(k))) }); }, [role]);
+  useEffect(() => {
+    if (!shell || !shell.publish) return;
+    const visible = Object.keys(SCREENS).filter((k) => k !== "masterplanImport" && !(role === "Viewer" && ["reviews", "contacts"].includes(k)));
+    const groups = [
+      { id: "work", label: "العمل", items: [
+        { id: "dashboard", label: "الرئيسية", icon: "⌂" },
+        { id: "today", label: "اليوم", icon: "☀" },
+        { id: "myWork", label: "مهامي", icon: "✓" },
+        { id: "projects", label: "المشاريع", icon: "📁" },
+        { id: "tasks", label: "المهام", icon: "☑" },
+        { id: "week", label: "هذا الأسبوع", icon: "🗓️" },
+        { id: "portfolio", label: "المحفظة", icon: "▦" },
+      ]},
+      { id: "planning", label: "التخطيط", items: [
+        { id: "discovery", label: "الاكتشاف", icon: "↘" },
+        { id: "prds", label: "المواصفات", icon: "▤" },
+        { id: "okrs", label: "الأهداف (OKR)", icon: "🎯" },
+        { id: "meetings", label: "الاجتماعات", icon: "👥" },
+      ]},
+      { id: "delivery", label: "التسليم", items: [
+        { id: "outputs", label: "المخرجات", icon: "📦" },
+        { id: "updates", label: "التحديثات", icon: "↗" },
+        { id: "wins", label: "الإنجازات", icon: "🏆" },
+      ]},
+      { id: "governance", label: "الحوكمة", items: [
+        { id: "risks", label: "المخاطر والمشاكل والقرارات", icon: "⚠" },
+        { id: "issues", label: "المشاكل", icon: "●" },
+        { id: "decisions", label: "القرارات", icon: "⚖" },
+      ]},
+      { id: "collaboration", label: "التعاون", items: [
+        { id: "contacts", label: "جهات الاتصال", icon: "👤" },
+        { id: "team", label: "الفريق", icon: "👥" },
+        { id: "reviews", label: "المراجعات الأسبوعية", icon: "↻" },
+      ]},
+      { id: "system", label: "النظام", items: [
+        { id: "templates", label: "القوالب", icon: "◇" },
+        { id: "settings", label: "الإعدادات", icon: "⚙" },
+      ]},
+    ].map(group => ({ ...group, items: group.items.filter(item => visible.includes(item.id)) })).filter(group => group.items.length);
+    shell.publish("projects", { visible, navGroups: groups });
+  }, [role]);
   const processedVenturesRiskWrites = useRef(new Set());
   const handleVenturesRisk = useCallback(async (d) => {
     if (!(d?.source === "ventures" && d.systemId === "projects" && d.action === "create_risk")) return;

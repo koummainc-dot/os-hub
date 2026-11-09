@@ -188,7 +188,7 @@ export function Week() {
 // ═════ My Tasks ═════
 export function Tasks() {
   const { me, data, idx, people, projectsById, today, A: act, R, can, openTask, setPage } = useP();
-  const [mode, setMode] = useState("list"); const [who, setWho] = useState(me); const [q, setQ] = useState(""); const [proj, setProj] = useState(""); const [st, setSt] = useState("open"); const [blocked, setBlocked] = useState(false); const [form, setForm] = useState(false); const [quickAdd, setQuickAdd] = useState(false); const [month, setMonth] = useState(today.slice(0, 7)); const [selected, setSelected] = useState(() => new Set()); const [inlineId, setInlineId] = useState(null);
+  const [mode, setMode] = useState("list"); const [who, setWho] = useState("all"); const [q, setQ] = useState(""); const [proj, setProj] = useState(""); const [st, setSt] = useState("open"); const [blocked, setBlocked] = useState(false); const [form, setForm] = useState(false); const [quickAdd, setQuickAdd] = useState(false); const [month, setMonth] = useState(today.slice(0, 7)); const [selected, setSelected] = useState(() => new Set()); const [inlineId, setInlineId] = useState(null);
   const list = idx.list.filter((t) => idx.isLeaf(t.id) && !projectsById[t.project_id]?.archived_at).filter((t) => (who === "all" ? true : who === "none" ? !t.assignee_id : t.assignee_id === who)).filter((t) => !proj || t.project_id === proj).filter((t) => (st === "all" ? true : st === "open" ? ["todo", "active"].includes(D.cat(t.status)) : D.cat(t.status) === st)).filter((t) => !blocked || t.blocked).filter((t) => !q || t.title.toLowerCase().includes(q.toLowerCase()));
   const sorted = [...list].sort((a, b) => (a.due_date || "9999").localeCompare(b.due_date || "9999"));
   const selectedVisible = sorted.filter((t) => selected.has(t.id));
@@ -369,10 +369,13 @@ export function Portfolio() {
 // ═════ My Work ═════
 // A dedicated personal work hub reusing the existing Today, Week and Tasks views.
 export function MyWork() {
-  const [tab, setTab] = useState("today");
+  const { idx } = useP();
+  const [tab, setTab] = useState("tasks");
+  const preview = (idx?.list || []).slice(0, 8);
   return (
     <div>
       <Head title="عملي" sub="مساحة واحدة لمتابعة ما عليك اليوم وخلال الأسبوع وكل مهامك." />
+      {preview.length > 0 && <Section title="المهام الحالية" count={preview.length}>{preview.map((t) => <TaskLine key={t.id} t={t} />)}</Section>}
       <Tabs value={tab} onChange={setTab} tabs={[
         { id: "today", label: "اليوم" },
         { id: "week", label: "هذا الأسبوع" },

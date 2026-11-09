@@ -104,28 +104,29 @@ const okrTasks = [
   task("p3-leaf", { project_id: "p3", parent_task_id: "p3-root" }),
 ];
 const okrIdx = D.buildTaskIndex(okrTasks);
-t("T-65a KR task execution derives from linked Projects, not legacy task_ids", () => {
+t("T-65a KR task execution uses the explicit task group when task_ids is present", () => {
   const r = D.krTaskExecution({ project_ids: ["p1", "p2"], task_ids: ["p3-root"] }, okrIdx);
   assert.deepEqual(r.projectIds, ["p1", "p2"]);
-  assert.equal(r.tasks.length, 5);
-  assert.equal(r.leafTotal, 3);
-  assert.equal(r.leafDone, 2);
-  assert.equal(r.progress, 2 / 3);
+  assert.deepEqual(r.roots, ["p3-root"]);
+  assert.equal(r.tasks.length, 2);
+  assert.equal(r.leafTotal, 1);
+  assert.equal(r.leafDone, 0);
+  assert.equal(r.progress, 0);
 });
-t("T-65b Objective task execution derives from KR Projects and deduplicates overlapping Projects", () => {
+t("T-65b Objective task execution follows each KR's explicit task group and keeps legacy KRs compatible", () => {
   const krs = [
     { id: "kr1", objective_id: "o1", type: "Project Based", project_ids: ["p1", "p2"], task_ids: ["p3-root"] },
-    { id: "kr2", objective_id: "o1", type: "Project Based", project_ids: ["p2"] },
+    { id: "kr2", objective_id: "o1", type: "Project Based", project_ids: ["p2"], task_ids: ["p2-root"] },
   ];
   const r = D.objectiveTaskExecution({ id: "o1" }, krs, okrIdx);
   assert.deepEqual(r.projectIds, ["p1", "p2"]);
-  assert.equal(r.tasks.length, 7);
-  assert.equal(r.leafTotal, 4);
-  assert.equal(r.leafDone, 2);
+  assert.equal(r.tasks.length, 4);
+  assert.equal(r.leafTotal, 2);
+  assert.equal(r.leafDone, 1);
   assert.equal(r.progress, 0.5);
-  assert.equal(r.legacyTaskCount, 2);
+  assert.equal(r.legacyTaskCount, 0);
 });
-t("T-65c legacy KR task groups remain visible only as compatibility fallback", () => {
+t("T-65c legacy KR task groups remain visible only when task_ids is absent", () => {
   const r = D.krTaskExecution({ task_ids: ["p3-root"] }, okrIdx);
   assert.deepEqual(r.roots, ["p3-root"]);
   assert.equal(r.tasks.length, 2);
