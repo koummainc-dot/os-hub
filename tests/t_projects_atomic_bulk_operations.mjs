@@ -16,10 +16,12 @@ for (const method of ["completeAll", "archiveTree", "deleteTree"]) {
 }
 assert.match(records, /if \(!\["tasks", "outputs", "projects", "risks", "issues", "decisions", "prds", "updates", "discovery"\]\.includes\(coll\) \|\| !rec\?\.id\)/);
 assert.ok(/collection_name not in \([^)]*\x27discovery\x27/.test(batchMigration), "server RPC migration must allow discovery in atomic record batches");
-const saveStart = store.indexOf("async saveTask(v, isNew)");
+const saveStart = store.indexOf("async saveTask(v, isNew");
 const saveEnd = store.indexOf("async setTaskStatus(t, to, reason)", saveStart);
 const saveBody = store.slice(saveStart, saveEnd);
 assert.ok(saveBody.includes("firstChildParentPatch"), "first-child conversion must retain the parent patch until child creation");
+assert.ok(saveBody.includes("async saveTask(v, isNew, linkedKrId)"), "task save accepts an optional KR relationship without dropping first-child behavior");
+assert.ok(saveBody.includes("if (linkedKrPatch)") && saveBody.includes("R.putAtomic(writes)"), "linked KR task writes remain atomic with first-child parent conversion");
 assert.ok(saveBody.includes('R.putAtomic([\n          { coll: "tasks", rec: { ...stamp(firstChildParentPatch)'), "parent state and first child must be saved in one atomic batch");
 assert.ok(!saveBody.includes("await R.put(\"tasks\", fc.patch)"), "parent state must not be written before the child task is persisted");
 const reparentStart = store.indexOf("async reparent(taskId, newParentId)");
