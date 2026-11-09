@@ -54,7 +54,8 @@ assert.ok(taskTree.includes("إضافة مهمة بتاريخ ") && taskTree.inc
 assert.ok(taskParts.includes('key: "start_date"') && taskParts.includes('key: "due_date"'), "task form stores both planning start and due dates for timeline/calendar");
 
 assert.ok(entities.includes("مصفوفة المخاطر 5×5") && entities.includes('setMode(projectId ? "matrix" : "list")'), "project risk view opens on an actionable 5x5 risk matrix");
-const issueView = entities.slice(entities.indexOf("export function IssuesView"), entities.indexOf("// ═════ Decisions ═════"));\nassert.ok(issueView.includes("لوحة حسب الحالة") && issueView.includes('setMode(projectId ? "matrix" : "list")'), "project issues open on a status matrix rather than relying only on the global list");
+const issueView = entities.slice(entities.indexOf("export function IssuesView"), entities.indexOf("// ═════ Decisions ═════"));
+assert.ok(issueView.includes("لوحة حسب الحالة") && issueView.includes('setMode(projectId ? "matrix" : "list")'), "project issues open on a status matrix rather than relying only on the global list");
 assert.ok(entities.includes("مصفوفة القرارات") && entities.includes('const [mode, setMode] = useState("matrix")'), "decisions use a status matrix by default");
 assert.ok(screens.includes('import { L, opts, SEV_COLOR } from "./lookups.js";'), "Portfolio imports severity metadata used in its governance view");
 assert.ok(projectScreens.includes("function ProjectActivityHub") && projectScreens.includes("label: \"التحديثات\"") && projectScreens.includes("label: \"الاجتماعات\""), "project activity hub brings activity, updates, wins and Knowledge meetings together");
