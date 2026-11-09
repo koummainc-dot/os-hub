@@ -57,4 +57,32 @@ const stamp = (record) => ({ ...record, stamped: true });
   assert.deepEqual(batches[0].map((op) => [op.coll, op.rec.id]), [["projects", "p1"], ["tasks", "t1"], ["tasks", "t2"], ["risks", "r1"]]);
   assert.deepEqual(fallbackWrites, [], "atomic online path must not issue sequential fallback writes");
 }
+{
+  const batches = [];
+  const result = await persistTemplateBundle({
+    project: { id: "p2" },
+    tasks: [{ id: "t3" }],
+    prds: [{ id: "prd1" }],
+    outputs: [{ id: "o1", task_id: "t3", prd_id: "prd1" }],
+    risks: [{ id: "r2" }],
+    stamp, atomic: true,
+    putAtomic: async (ops) => { batches.push(ops); return ops.map((op) => op.rec); },
+    put: async () => { throw new Error("fallback must not run"); },
+    softDelete: async () => ({ deleted: true }),
+  });
+  assert.equal(result.id, "p2");
+  assert.deepEqual(batches[0].map((op) => [op.coll, op.rec.id]), [
+    ["projects", "p2"], ["tasks", "t3"], ["prds", "prd1"], ["outputs", "o1"], ["risks", "r2"]
+  ], "complete template bundle must persist project, tasks, specs, planned outputs and risks in one transaction");
+}
+{
+  const deleted = [];
+  await assert.rejects(() => persistTemplateBundle({
+    project: { id: "p3" }, tasks: [{ id: "t4" }], prds: [{ id: "prd2" }],
+    outputs: [{ id: "o2" }], risks: [], stamp, actorId: "u1",
+    put: async (coll, rec) => coll === "outputs" ? null : rec,
+    softDelete: async (coll, id) => { deleted.push([coll, id]); return { deleted: true }; },
+  }), /لم يكتمل إنشاء المشروع/);
+  assert.deepEqual(deleted, [["prds", "prd2"], ["tasks", "t4"], ["projects", "p3"]], "offline compensation must roll back every created collection in reverse order");
+}
 console.log("PASS template bundle failure safety");
