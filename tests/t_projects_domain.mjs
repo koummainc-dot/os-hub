@@ -1,6 +1,7 @@
 // Domain acceptance tests for Projects OS (plan §18). Run: node tests/t_projects_domain.mjs
 import assert from "node:assert/strict";
 import * as D from "../src/systems/projects/domain.js";
+import { BUILTIN_TEMPLATES } from "../src/systems/projects/lookups.js";
 
 let pass = 0, fail = 0;
 const t = (name, fn) => { try { fn(); pass++; console.log("  ✓", name); } catch (e) { fail++; console.log("  ✗", name, "\n     ", e.message); } };
@@ -170,5 +171,39 @@ t("T-73 contact status thresholds incl. last meeting", () => { assert.equal(D.co
 t("week start (Saturday default)", () => { assert.equal(D.weekStart("2026-10-25", 6), "2026-10-24"); assert.equal(D.weekStart("2026-10-24", 6), "2026-10-24"); assert.equal(D.weekStart("2026-10-23", 6), "2026-10-17"); assert.equal(D.weekStart("2026-10-25", 0), "2026-10-25"); });
 t("T-76 today feed reflects overdue/due/this-week/assignment", () => { const tasks = [task("a", { assignee_id: "m", due_date: "2026-10-01" }), task("b", { assignee_id: "m", due_date: TODAY }), task("c", { assignee_id: "m", planning_bucket: "This Week" }), task("d", { assignee_id: "other", due_date: TODAY })]; const f = D.todayFeed("m", { ...ctx(tasks), projects: [], contacts: [] }); assert.deepEqual(f.overdue.map((x) => x.id), ["a"]); assert.deepEqual(f.dueToday.map((x) => x.id), ["b"]); assert.deepEqual(f.thisWeek.map((x) => x.id), ["c"]); });
 t("T-60 alerts: stale inbox once (dedupe key stable), overdue digest", () => { const c = { ...ctx([task("a", { assignee_id: "m", due_date: "2026-10-01" })]), projects: [], contacts: [], krs: [], checkins: [], timers: [], issues: [], discovery: [{ id: "d", status: "Inbox", logged_at: "2026-09-01" }], metrics: {} }; const a1 = D.computeAlerts("m", c), a2 = D.computeAlerts("m", c); assert.ok(a1.some((x) => x.kind === "inbox")); assert.ok(a1.some((x) => x.kind === "overdue")); assert.deepEqual(a1.map((x) => x.key), a2.map((x) => x.key)); });
+
+t("T-77 built-in template PRD/output task links resolve uniquely", () => {
+  let sequence = 0;
+  for (const template of BUILTIN_TEMPLATES) {
+    const titles = [];
+    const walk = (nodes) => (nodes || []).forEach((node) => { titles.push(node.title); walk(node.children || []); });
+    walk(template.task_tree || []);
+    const references = [
+      ...(template.prd_templates || []).flatMap((prd) => (prd.requirements || []).map((req) => req.task_title).filter(Boolean)),
+      ...(template.output_templates || []).map((output) => output.task_title).filter(Boolean),
+    ];
+    for (const title of references) {
+      assert.equal(titles.filter((candidate) => candidate === title).length, 1,
+        template.name + ": linked task title must resolve exactly once: " + title);
+    }
+    const instance = D.instantiateProjectTemplate(
+      template,
+      { name: "Template test — " + template.name, start_date: "2026-01-01", lead_id: "member_1" },
+      () => "template_test_" + (++sequence)
+    );
+    for (const prd of instance.prds) for (const req of prd.requirements || []) if (req.task_title) {
+      const linkedTask = instance.tasks.find((candidate) => candidate.title === req.task_title);
+      assert.ok(linkedTask, template.name + ": requirement task exists: " + req.task_title);
+      assert.equal(linkedTask.prd_id, prd.id, template.name + ": requirement task links to its PRD");
+      assert.equal(linkedTask.prd_requirement_id, req.id, template.name + ": requirement task links to the exact requirement");
+    }
+    for (const outputDefinition of template.output_templates || []) if (outputDefinition.task_title) {
+      const linkedTask = instance.tasks.find((candidate) => candidate.title === outputDefinition.task_title);
+      const output = instance.outputs.find((candidate) => candidate.name === outputDefinition.name);
+      assert.ok(output, template.name + ": output was instantiated: " + outputDefinition.name);
+      assert.equal(output.task_id, linkedTask.id, template.name + ": output links to its unique source task: " + outputDefinition.name);
+    }
+  }
+});
 
 console.log(`\nPASS ${pass} · FAIL ${fail}`); process.exit(fail ? 1 : 0);
