@@ -8,7 +8,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   const click=async(label,sc,ms)=>{const b=btn(label,sc);if(!b)return false;b.click();await sleep(ms||150);return true;};
   const setVal=async(el,v)=>{if(!el)throw new Error('Acceptance harness could not find the expected form control');const proto=el.tagName==='SELECT'?w.HTMLSelectElement.prototype:el.tagName==='TEXTAREA'?w.HTMLTextAreaElement.prototype:w.HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,v);el.dispatchEvent(new w.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));await sleep(60);};
   const nav=()=>all('aside button');
-  const isSectionButton=(button,label)=>{const spans=button.querySelectorAll('span');return spans.length>=2&&spans[spans.length-1].textContent.trim()===label;};
+  const isSectionButton=(button,label)=>[...button.querySelectorAll('span')].some(span=>span.textContent.trim()===label);
   const goSection=async(label)=>{const b=nav().find(x=>isSectionButton(x,label));if(!b)return false;b.click();await sleep(450);return true;};
   const toToday=async()=>{const c=all('aside button').find(x=>x.textContent.includes('▾'));c&&c.click();await sleep(60);const t=all('aside button').find(x=>x.textContent.includes('اليوم (كل الأنظمة)'));t&&t.click();await sleep(80);};
   const openProjects=async()=>{
