@@ -30,7 +30,8 @@ assert.ok(portfolio.includes("id: \"governance\"") && portfolio.includes("id: \"
 assert.ok(portfolio.includes("D.pace(progress, objective.period_start, objective.period_end, objective.status, today, settings)"), "Portfolio shows time-aware OKR pace");
 assert.ok(portfolio.includes("aria-label=\"بحث في المشاريع\""), "Portfolio search has an accessible Arabic label");
 assert.ok(portfolio.includes("aria-label=\"تصفية المشاريع\""), "Portfolio filter has an accessible Arabic label");
-assert.ok(portfolio.includes("openProject(p.id)"), "Portfolio cards navigate to the exact project");
+assert.ok(portfolio.includes("openProject(project.id)"), "Portfolio comparison rows navigate to the exact project");
+assert.ok(portfolio.includes("<table style={{ width: \"100%\", minWidth: 890"), "Portfolio overview uses a cross-project comparison table");
 assert.ok(portfolio.includes("D.isOverdueLeaf(t, idx, today)"), "Portfolio overdue counts use the canonical task date/status rule");
 assert.ok(portfolio.includes("D.isOpenIssue(i)"), "Portfolio issue counts exclude closed issues");
 assert.ok(portfolio.includes("D.isOpenRisk(r)"), "Portfolio risk counts exclude closed risks");
