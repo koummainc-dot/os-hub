@@ -46,8 +46,8 @@ export function ProjectForm({ initial, onClose }) {
 
 // ── Task form ───────────────────────────────────────────────────────
 export function TaskForm({ initial, projectId, parentId, allowedProjectIds, linkedKrId, onClose }) {
-  const { A: act, people, data, idx, projectsById, toast, can } = useP(); const isNew = !initial || !initial.id; const [showAdvanced, setShowAdvanced] = useState(!!(linkedKrId || initial?.prd_id || initial?.prd_requirement_id || (initial?.discovery_ids || []).length));
-  const base = { project_id: projectId || (initial && initial.project_id) || "", parent_task_id: parentId || null, priority: "Medium", planning_bucket: "Inbox", status: "Not Started", custom_label: initial?.custom_fields?.label || "", custom_url: initial?.custom_fields?.url || "", ...initial };
+  const { A: act, people, data, idx, projectsById, toast, can } = useP(); const isNew = !initial || !initial.id; const [showAdvanced, setShowAdvanced] = useState(!!(linkedKrId || initial?.prd_id || initial?.prd_requirement_id || (initial?.discovery_ids || []).length || (initial?.dependency_task_ids || []).length));
+  const base = { project_id: projectId || (initial && initial.project_id) || "", parent_task_id: parentId || null, dependency_task_ids: [], priority: "Medium", planning_bucket: "Inbox", status: "Not Started", custom_label: initial?.custom_fields?.label || "", custom_url: initial?.custom_fields?.url || "", ...initial };
   const isParent = !isNew && !idx.isLeaf(initial.id); const dv = isParent ? idx.derived[initial.id] : null;
   const initVals = isParent ? { ...base, status: dv.status, estimated_minutes: dv.estimated, due_date: dv.dueMax } : base;
   const descIds = isNew ? [] : [initial.id, ...idx.descendants(initial.id)];
@@ -59,6 +59,7 @@ export function TaskForm({ initial, projectId, parentId, allowedProjectIds, link
     { key: "due_date", label: isParent ? "الموعد (مشتق من الأبناء)" : "الموعد النهائي", type: "date", disabled: () => isParent },
     { key: "status", label: isParent ? "الحالة (مشتقة)" : "الحالة", type: "select", allowEmpty: false, options: opts(L.taskStatus), disabled: () => isParent, show: () => !showAdvanced },
     { key: "parent_task_id", label: "المهمة الأب", type: "select", emptyLabel: "— مستوى أعلى —", options: (v) => idx.list.filter((t) => t.project_id === v.project_id && !descIds.includes(t.id)).map((t) => ({ v: t.id, l: "  ".repeat(idx.derived[t.id] ? idx.derived[t.id].depth : 0) + t.title })), show: () => showAdvanced },
+    { key: "dependency_task_ids", label: "المهام السابقة المطلوبة", type: "multi", options: (v) => idx.list.filter((task) => task.project_id === v.project_id && task.id !== initial?.id && !descIds.includes(task.id) && idx.isLeaf(task.id)).map((task) => ({ v: task.id, l: task.title })), hint: "اختر المهام التي يجب أن تكتمل قبل بدء هذه المهمة. يجب أن تكون من المشروع نفسه؛ يمنع النظام العلاقات الدائرية.", show: () => showAdvanced },
     { key: "cancelled_reason", label: "سبب الإلغاء", required: true, show: (v) => v.status === "Cancelled" && !isParent },
     { key: "planning_bucket", label: "تخطيط الأسبوع", type: "select", options: opts(L.bucket), allowEmpty: false, show: () => showAdvanced && !isParent },
     { key: "assignee_id", label: "المسؤول", type: "select", options: mOpts(people), emptyLabel: "— غير مسند —", hint: "لا يُورَّث من الأب", show: () => showAdvanced },
