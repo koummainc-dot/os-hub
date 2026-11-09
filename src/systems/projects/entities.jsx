@@ -330,7 +330,8 @@ export function IssuesView({ projectId }) {
       {detail && <RecordDetailModal title={"تفاصيل المشكلة: " + detail.title} onClose={() => setDetail(null)} fields={[
         { label: "المشروع", value: projectsById[detail.project_id]?.name }, { label: "الحالة", value: L.issueStatus[detail.status] || detail.status },
         { label: "الشدة", value: L.severity[detail.severity] || detail.severity }, { label: "المسؤول", value: people.find((x) => x.id === detail.owner_id)?.name },
-        { label: "تاريخ الاكتشاف", value: detail.discovered_at }, { label: "الوصف", value: detail.description },
+        { label: "تاريخ الاكتشاف", value: detail.discovered_at }, { label: "الموعد المستهدف", value: detail.due_date }, { label: "الأثر على المشروع", value: detail.impact }, { label: "الوصف", value: detail.description },
+        { label: "السبب الجذري", value: detail.root_cause }, { label: "الإجراء التصحيحي", value: detail.corrective_action }, { label: "الإجراء الوقائي", value: detail.preventive_action },
         { label: "الحل", value: detail.resolution }, { label: "تاريخ الحل", value: detail.resolved_at },
         { label: "مهام الإصلاح", value: repairTasks(detail).map((task) => task.title).join("، ") },
         { label: "الخطر المصدر", value: data.risks.find((x) => x.id === detail.from_risk_id)?.title },
@@ -339,8 +340,10 @@ export function IssuesView({ projectId }) {
       ]} />}
       {form && <FormModal title={form.id ? "تعديل المشكلة" : "مشكلة جديدة"} wide initial={{ severity: "Medium", status: "Open", discovered_at: new Date().toISOString().slice(0, 10), ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { await act.put("issues", { ...v, id: v.id || uid() }, projectsById[v.project_id]); toast("✅ تم الحفظ"); setForm(null); }} fields={[
         { key: "title", label: "العنوان", required: true, span: 2 }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) },
-        { key: "severity", label: "الشدة", type: "select", allowEmpty: false, options: opts(L.severity) }, { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people) }, { key: "discovered_at", label: "تاريخ الاكتشاف", type: "date" },
-        { key: "task_ids", label: "مهام الإصلاح", type: "multi", options: (v) => idx.list.filter((t) => t.project_id === v.project_id).map((t) => ({ v: t.id, l: t.title })) }, { key: "description", label: "الوصف", type: "textarea" }]} />}
+        { key: "severity", label: "الشدة", type: "select", allowEmpty: false, options: opts(L.severity) }, { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people) }, { key: "discovered_at", label: "تاريخ الاكتشاف", type: "date" }, { key: "due_date", label: "الموعد المستهدف للحل", type: "date" },
+        { key: "impact", label: "الأثر على المشروع", type: "textarea", rows: 2 }, { key: "description", label: "وصف المشكلة", type: "textarea", rows: 3 },
+        { key: "root_cause", label: "السبب الجذري (بعد التحقيق)", type: "textarea", rows: 2 }, { key: "corrective_action", label: "الإجراء التصحيحي", type: "textarea", rows: 2 }, { key: "preventive_action", label: "الإجراء الوقائي لمنع التكرار", type: "textarea", rows: 2 },
+        { key: "task_ids", label: "مهام الإصلاح", type: "multi", options: (v) => idx.list.filter((t) => t.project_id === v.project_id).map((t) => ({ v: t.id, l: t.title })) }]} />}
       {resolving && <FormModal title="حل المشكلة" initial={{ resolution: resolving.resolution || "" }} fields={[{ key: "resolution", label: "الحل (إلزامي)", type: "textarea", required: true }]} onClose={() => setResolving(null)} onSubmit={async (v) => { await act.put("issues", { ...resolving, status: "Resolved", resolution: v.resolution, resolved_at: nowIso() }, projectsById[resolving.project_id]); setResolving(null); }} />}
     </div>
   );
