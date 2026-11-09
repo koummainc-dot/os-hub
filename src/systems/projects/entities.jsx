@@ -348,14 +348,29 @@ export function IssuesView({ projectId }) {
 // ═════ Decisions ═════
 export function DecisionsView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, openDiscovery, view } = useP();
-  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [creating, setCreating] = useState({});
+  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [creating, setCreating] = useState({}); const [mode, setMode] = useState("matrix");
   const list = data.decisions.filter((d) => !projectId || d.project_id === projectId).sort((a, b) => (b.decided_at || "").localeCompare(a.decided_at || ""));
   useRecordFocus(view, "decision", projectId, list.length);
   const canNew = projectId ? can("decision.write", projectsById[projectId]) : data.projects.some((p) => can("decision.write", p));
   return (
     <div>
-      {canNew && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ قرار</Btn></div>}
-      {!list.length ? <Empty icon="⚖️" title="لا قرارات مسجَّلة" sub="سجّل القرارات المهمة وأسبابها حتى لا تُنسى." /> : <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((d) => (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>{canNew && <Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>＋ قرار</Btn>}<Seg small value={mode} onChange={setMode} options={[{ v: "matrix", l: "مصفوفة القرارات" }, { v: "list", l: "سجل القرارات" }]} /></div>
+      {!list.length ? <Empty icon="⚖️" title="لا قرارات مسجَّلة" sub="سجّل القرارات المهمة وأسبابها حتى لا تُنسى." /> : mode === "matrix" ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 9, alignItems: "start" }}>
+        {["Proposed", "Approved", "Superseded", "Cancelled"].map((status) => {
+          const items = list.filter((decision) => decision.status === status);
+          return <section key={status} style={{ ...S.card, padding: 9, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "3px 2px 8px", borderBottom: "1px solid " + C.line, marginBottom: 6 }}><b style={{ flex: 1, fontSize: 12.5 }}>{L.decisionStatus[status]}</b><Chip>{items.length}</Chip></div>
+            {!items.length ? <div style={{ padding: "12px 4px", fontSize: 11, color: C.muted }}>لا توجد قرارات في هذه الحالة</div> : items.map((decision) => {
+              const relatedCount = (decision.related_task_ids || []).length + (decision.related_issue_ids || []).length + (decision.related_risk_ids || []).length + (decision.related_discovery_ids || []).length;
+              return <button key={decision.id} type="button" onClick={() => setDetail(decision)} style={{ display: "block", width: "100%", textAlign: "start", border: "1px solid " + C.line, borderRadius: 7, padding: 8, marginBottom: 6, background: "transparent", cursor: "pointer", font: "inherit" }}>
+                <div style={{ display: "flex", gap: 5, alignItems: "center" }}><b style={{ fontSize: 11.5, flex: 1 }}>{decision.title}</b><Chip color={status === "Approved" ? C.ok : status === "Superseded" ? C.warn : C.muted}>{L.decisionStatus[status]}</Chip></div>
+                {decision.rationale && <div style={{ fontSize: 10.5, color: C.dim, marginTop: 5, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{decision.rationale}</div>}
+                <div style={{ fontSize: 10, color: C.muted, marginTop: 5 }}>{!projectId ? (projectsById[decision.project_id]?.name || "مشروع") + " · " : ""}{fmt(decision.decided_at)} · {relatedCount} روابط</div>
+              </button>;
+            })}
+          </section>;
+        })}
+      </div> : <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((d) => (
         <div key={d.id} id={recordDomId("decision", d.id)} style={{ ...recordFocusStyle(view, "decision", d.id), padding: "10px 0", borderBottom: `1px solid ${C.line}` }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}><span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>⚖️ {d.title} <Chip color={d.status === "Approved" ? C.ok : d.status === "Superseded" ? C.warn : C.muted}>{L.decisionStatus[d.status]}</Chip></span><Btn small onClick={() => setDetail(d)}>عرض التفاصيل</Btn><RowActions canW={can("decision.write", projectsById[d.project_id])} onEdit={() => setForm(d)} onDelete={() => act.del("decisions", d.id, d.title)} /></div>
           {d.rationale && <div style={{ fontSize: 12, color: C.dim }}><b>لماذا؟</b> {d.rationale}</div>}{d.rejected_alternatives && <div style={{ fontSize: 12, color: C.dim }}><b>بدائل مرفوضة:</b> {d.rejected_alternatives}</div>}
