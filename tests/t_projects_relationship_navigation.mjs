@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { activityEventText } from "../src/systems/projects/lookups.js";
 
 const projectScreens = await readFile(new URL("../src/systems/projects/screens_b.jsx", import.meta.url), "utf8");
 const projectIndex = await readFile(new URL("../src/systems/projects/index.jsx", import.meta.url), "utf8");
@@ -109,5 +110,9 @@ assert.ok(okrScreens.includes('const target = view?.okrFocus') &&
 assert.ok(projectScreens.includes("activeGroup.tabs.length > 1") &&
   projectScreens.includes("setTab(group.defaultTab)"),
   "group navigation must reveal relevant subtabs and select a safe default destination");
+
+assert.equal(activityEventText({ entity: "tasks", action: "created", summary: "مهمة الاختبار" }), "أنشأ المهمة «مهمة الاختبار»");
+assert.ok(parts.includes("activityEventText(a)") && projectScreens.includes("activityEventText(event)"),
+  "Task Sheet and Project Activity Hub must share the localized human-readable event formatter");
 
 console.log("✓ Projects relationship navigation contracts passed");
