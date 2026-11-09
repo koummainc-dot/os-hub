@@ -606,6 +606,12 @@ export function projectToTemplateSeed(project, data = {}) {
     task.project_id === project.id && !task.deleted_at && !task.archived_at
   );
   const taskById = Object.fromEntries(tasks.map((task) => [task.id, task]));
+  const dependencyTitleCounts = new Map();
+  for (const task of tasks) {
+    const title = String(task.title || "").trim();
+    dependencyTitleCounts.set(title, (dependencyTitleCounts.get(title) || 0) + 1);
+  }
+  const conversionWarnings = [];
   const ordered = (items) => [...items].sort((a, b) =>
     (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) ||
     String(a.created_at || "").localeCompare(String(b.created_at || "")) ||
@@ -630,10 +636,29 @@ export function projectToTemplateSeed(project, data = {}) {
     treeIds.add(task.id);
     const nextAncestry = new Set(ancestry);
     nextAncestry.add(task.id);
+    const dependencyTitles = [];
+    for (const dependencyId of (task.dependency_task_ids || [])) {
+      const dependency = taskById[dependencyId];
+      if (!dependency) {
+        conversionWarnings.push("تعذر نقل اعتماد غير متاح من المهمة «" + task.title + "».");
+        continue;
+      }
+      const dependencyTitle = String(dependency.title || "").trim();
+      if (!dependencyTitle || dependencyTitleCounts.get(dependencyTitle) !== 1) {
+        conversionWarnings.push("لم يُنقل اعتماد «" + task.title + "» إلى «" + dependencyTitle + "» لأن عنوان المهمة السابقة مكرر أو فارغ.");
+        continue;
+      }
+      if (dependency.id === task.id) {
+        conversionWarnings.push("أُزيل اعتماد ذاتي من المهمة «" + task.title + "» أثناء تحويلها إلى قالب.");
+        continue;
+      }
+      dependencyTitles.push(dependencyTitle);
+    }
     const node = {
       title: String(task.title || "").trim(),
       ...(Number(task.estimated_minutes) > 0 ? { estimate_minutes: Number(task.estimated_minutes) } : {}),
       ...(!!(task.milestone || task.template_kind === "Milestone") ? { milestone: true } : {}),
+      ...(dependencyTitles.length ? { dependency_titles: [...new Set(dependencyTitles)] } : {}),
     };
     const date = task.start_date || task.due_date || null;
     if (date) node.__template_date = String(date).slice(0, 10);
@@ -730,6 +755,7 @@ export function projectToTemplateSeed(project, data = {}) {
     project_type: project.type || "أخرى",
     duration_days: Number.isFinite(durationDays) && durationDays >= 0 ? durationDays : "",
     task_tree: taskTree,
+    conversion_warnings: conversionWarnings,
     prd_templates: prdTemplates,
     output_templates: outputs,
     risks,
@@ -754,7 +780,7 @@ export function instantiateProjectTemplate(tpl, opts, newId) {
     template_checklist_state: {},
     template_seed: true,
   };
-  const tasks = []; let order = 0; const taskByTitle = new Map();
+  const tasks = []; let order = 0; const taskByTitle = new Map(); const dependencyDefinitions = [];
   const walk = (nodes, parentId) => (nodes || []).forEach((n) => {
     const id = newId(); order += 1;
     const task = {
@@ -767,9 +793,25 @@ export function instantiateProjectTemplate(tpl, opts, newId) {
     tasks.push(task);
     const sameTitle = taskByTitle.get(String(n.title || "")) || [];
     sameTitle.push(task); taskByTitle.set(String(n.title || ""), sameTitle);
+    if (Array.isArray(n.dependency_titles) && n.dependency_titles.length) dependencyDefinitions.push({ task, titles: n.dependency_titles });
     if (n.children && n.children.length) walk(n.children, id);
   });
   walk(tpl.task_tree || [], null);
+  for (const definition of dependencyDefinitions) {
+    const dependencies = [];
+    for (const title of definition.titles) {
+      const matches = taskByTitle.get(String(title || "").trim()) || [];
+      if (matches.length !== 1) throw new Error("المهمة السابقة «" + title + "» المرتبطة بالمهمة «" + definition.task.title + "» يجب أن تطابق مهمة واحدة بالضبط.");
+      if (matches[0].id === definition.task.id) throw new Error("المهمة «" + title + "» لا يمكن أن تعتمد على نفسها.");
+      dependencies.push(matches[0].id);
+    }
+    definition.task.dependency_task_ids = [...new Set(dependencies)];
+  }
+  const tasksById = Object.fromEntries(tasks.map((task) => [task.id, task]));
+  for (const task of tasks) {
+    const dependencyErrors = validateTaskDependencies(task, tasksById);
+    if (dependencyErrors.length) throw new Error(dependencyErrors[0]);
+  }
 
   const prds = [];
   const outputs = [];
