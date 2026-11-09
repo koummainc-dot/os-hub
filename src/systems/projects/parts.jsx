@@ -44,14 +44,14 @@ export function ProjectForm({ initial, onClose }) {
 
 // ── Task form ───────────────────────────────────────────────────────
 export function TaskForm({ initial, projectId, parentId, allowedProjectIds, linkedKrId, onClose }) {
-  const { A: act, people, data, idx, projectsById, toast, can } = useP(); const isNew = !initial || !initial.id; const [showAdvanced, setShowAdvanced] = useState(false);
+  const { A: act, people, data, idx, projectsById, toast, can } = useP(); const isNew = !initial || !initial.id; const [showAdvanced, setShowAdvanced] = useState(!!(linkedKrId || initial?.prd_id || initial?.prd_requirement_id || (initial?.discovery_ids || []).length));
   const base = { project_id: projectId || (initial && initial.project_id) || "", parent_task_id: parentId || null, priority: "Medium", planning_bucket: "Inbox", status: "Not Started", custom_label: initial?.custom_fields?.label || "", custom_url: initial?.custom_fields?.url || "", ...initial };
   const isParent = !isNew && !idx.isLeaf(initial.id); const dv = isParent ? idx.derived[initial.id] : null;
   const initVals = isParent ? { ...base, status: dv.status, estimated_minutes: dv.estimated, due_date: dv.dueMax } : base;
   const descIds = isNew ? [] : [initial.id, ...idx.descendants(initial.id)];
   const fields = [
     { key: "title", label: "عنوان المهمة", required: true, span: 2 },
-    { key: "project_id", label: "المشروع", type: "select", allowEmpty: false, options: projOpts(data.projects.filter((p) => !allowedProjectIds || allowedProjectIds.includes(p.id))), disabled: () => !isNew && !!initial.id, hint: "لنقل المهمة لمشروع آخر استخدم «نقل الشجرة»" },
+    { key: "project_id", label: "المشروع", type: "select", allowEmpty: false, options: projOpts(data.projects.filter((p) => !allowedProjectIds || allowedProjectIds.includes(p.id))), disabled: () => (!isNew && !!initial.id) || (Array.isArray(allowedProjectIds) && allowedProjectIds.length === 1), hint: allowedProjectIds?.length === 1 ? "المشروع مثبت حسب سياق الإنشاء؛ لا يمكن نقل المهمة من هذا النموذج." : "لنقل المهمة لمشروع آخر استخدم «نقل الشجرة»" },
     { key: "priority", label: "الأولوية", type: "select", options: opts(L.priority), allowEmpty: false },
     { key: "due_date", label: isParent ? "الموعد (مشتق من الأبناء)" : "الموعد النهائي", type: "date", disabled: () => isParent },
     { key: "status", label: isParent ? "الحالة (مشتقة)" : "الحالة", type: "select", allowEmpty: false, options: opts(L.taskStatus), disabled: () => isParent, show: () => !showAdvanced },
@@ -250,7 +250,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter }) {
           {unscheduled.length > 0 && <div style={{ marginTop: 14, borderTop: "1px solid " + C.line, paddingTop: 10 }}><b style={{ fontSize: 12.5 }}>غير مجدولة ({unscheduled.length})</b><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 6, marginTop: 6 }}>{unscheduled.map((task) => <button key={task.id} type="button" onClick={() => openTask(task.id)} style={{ textAlign: "start", border: "1px solid " + C.line, borderRadius: 6, padding: "7px 9px", background: "transparent", color: C.text, cursor: "pointer", font: "inherit", fontSize: 11.5 }}>{task.title}</button>)}</div></div>}
         </div>;
       })()}
-      {form && <TaskForm projectId={projectId} parentId={form.parentId} initial={form.initial} onClose={() => setForm(null)} />}
+      {form && <TaskForm projectId={projectId} parentId={form.parentId} initial={form.initial} allowedProjectIds={[projectId]} onClose={() => setForm(null)} />}
     </div>
   );
 }
