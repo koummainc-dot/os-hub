@@ -29,6 +29,9 @@ assert.ok(taskForm.includes("act.saveTask(out, isNew, linkedKrId)"),"Task creati
 assert.ok(store.includes("async saveTask(v, isNew, linkedKrId)"),"Store accepts the explicit KR link context");
 assert.ok(store.includes("R.putAtomic(writes)"),"Task and KR task-group link are persisted atomically");
 assert.ok(store.includes("delete rec.objective_id"),"New task writes cannot create a direct Objective relationship");
+assert.ok(store.includes("if (prev?.objective_id) rec.objective_id = prev.objective_id; else delete rec.objective_id;"),"Legacy direct Objective references survive edits until explicit KR reconciliation");
+assert.ok(store.includes("if (rec.start_date && rec.due_date && rec.start_date > rec.due_date)"),"Task date range is validated before persistence");
+assert.ok(taskForm.includes('key: "start_date"'),"Task form allows an explicit planning start date");
 assert.ok(taskForm.includes("النتائج الرئيسية المرتبطة") === false, "Task form remains free of direct Objective picker fields");
 assert.ok(taskSheet.includes("الأهداف المشتقة عبر النتائج الرئيسية"), "Task detail presents the Objective link derived through its KR");
 assert.ok(parts.includes("export function TaskSheet({ inline = false })"),"Task details support both contextual and floating side-panel modes");
@@ -44,6 +47,7 @@ assert.ok(taskTree.includes('export function TaskTree({ projectId, tasks, readOn
 assert.ok(taskTree.includes("useState(initialMode)"),"The shared task view honors its initial mode");
 assert.ok(projectScreens.includes('{tab === "timeline" && <TaskTree projectId={p.id} initialMode="timeline" />}'),"Project timeline tab reuses the canonical task dataset and timeline implementation");
 assert.ok(taskTree.includes("const unscheduled = projectTasks.filter((task) => !task.start_date && !task.due_date)"),"Timeline retains unscheduled tasks instead of hiding them");
+assert.ok(taskTree.includes("(task.due_date || task.start_date) === ds"),"Calendar includes tasks that have a start date but no due date");
 assert.ok(store.includes("task_ids: [...new Set(["),"Store appends the task to the KR execution group without duplicates");
 assert.ok(store.includes("اربط مشروعًا بنتيجة رئيسية أولًا؛ ربط المهمة بالهدف يُشتق من المشروع والنتيجة الرئيسية."),"Missing project-to-KR prerequisite is surfaced with the required actionable validation");
 assert.ok(okrs.includes('label: "المشاريع المرتبطة"'),"All KR types can link supporting Projects");
