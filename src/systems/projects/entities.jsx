@@ -175,7 +175,7 @@ export function OutputsView({ projectId }) {
 // ═════ Risks (+ 5×5 matrix) ═════
 export function RisksView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, settings, confirm, openProject, idx, openTask, view } = useP();
-  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState(view.focusRecord?.kind === "risk" ? "all" : "open"); const [closing, setClosing] = useState(null); const [reopening, setReopening] = useState(null); const [creatingMitigation, setCreatingMitigation] = useState({}); const convertingRiskIds = useRef(new Set());
+  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [mode, setMode] = useState(projectId ? "matrix" : "list"); const [st, setSt] = useState(view.focusRecord?.kind === "risk" ? "all" : "open"); const [closing, setClosing] = useState(null); const [reopening, setReopening] = useState(null); const [creatingMitigation, setCreatingMitigation] = useState({}); const convertingRiskIds = useRef(new Set());
   const base = data.risks.filter((r) => !projectId || r.project_id === projectId);
   const list = base.filter((r) => (st === "all" ? true : st === "open" ? D.isOpenRisk(r) : r.status === st)).sort((a, b) => D.riskScore(b) - D.riskScore(a));
   useEffect(() => { if (view.focusRecord?.kind === "risk") setSt("all"); }, [view.focusRecord?.kind, view.focusRecord?.id]);
@@ -216,10 +216,32 @@ export function RisksView({ projectId }) {
         <select style={{ ...S.sel, width: 130 }} value={st} onChange={(e) => setSt(e.target.value)}><option value="open">المفتوحة</option><option value="all">الكل</option>{opts(L.riskStatus).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select>
       </div>
       {mode === "matrix" ? (
-        <div style={S.card}><div style={{ display: "grid", gridTemplateColumns: "40px repeat(5,1fr)", gap: 4 }}>
-          {[5, 4, 3, 2, 1].map((p) => (<React.Fragment key={p}><div style={{ fontSize: 11, color: C.muted, alignSelf: "center", textAlign: "center" }}>احتمال {p}</div>{[1, 2, 3, 4, 5].map((i) => { const score = p * i; const cell = list.filter((r) => r.probability === p && r.impact === i); const bg = score >= settings.riskHigh ? "rgba(239,68,68,0.15)" : score >= settings.riskMedium ? "rgba(245,158,11,0.15)" : "rgba(16,185,129,0.1)"; return <div key={i} style={{ minHeight: 56, background: bg, borderRadius: 6, padding: 4, fontSize: 10.5 }}>{cell.map((r) => <div key={r.id} onClick={() => setForm(r)} style={{ background: "#fff", borderRadius: 4, padding: "1px 5px", marginBottom: 2, cursor: "pointer", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.title}</div>)}</div>; })}</React.Fragment>))}
-          <div /><>{[1, 2, 3, 4, 5].map((i) => <div key={i} style={{ fontSize: 11, color: C.muted, textAlign: "center" }}>تأثير {i}</div>)}</>
-        </div></div>
+        <div style={{ ...S.card, padding: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+            <div><b style={{ fontSize: 13 }}>مصفوفة المخاطر 5×5</b><div style={{ fontSize: 11, color: C.muted }}>الاحتمال × التأثير · اختر خلية لعرض المخاطر الموجودة بها</div></div>
+            <div style={{ display: "flex", gap: 8, fontSize: 10.5, color: C.muted, flexWrap: "wrap" }}><span>🟢 منخفض</span><span>🟠 متوسط</span><span>🔴 مرتفع</span></div>
+          </div>
+          <div style={{ overflowX: "auto" }}><div style={{ minWidth: 610 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "76px repeat(5,minmax(0,1fr))", gap: 5 }}>
+              {[5, 4, 3, 2, 1].map((p) => (<React.Fragment key={p}>
+                <div style={{ fontSize: 10.5, color: C.muted, alignSelf: "center", textAlign: "center" }}>احتمال {p}</div>
+                {[1, 2, 3, 4, 5].map((impact) => {
+                  const score = p * impact;
+                  const cell = list.filter((r) => Number(r.probability) === p && Number(r.impact) === impact);
+                  const bg = score >= settings.riskHigh ? "rgba(239,68,68,0.15)" : score >= settings.riskMedium ? "rgba(245,158,11,0.15)" : "rgba(16,185,129,0.1)";
+                  return <button key={impact} type="button" onClick={() => cell.length && setDetail(cell[0])} title={cell.length ? cell.map((r) => r.title).join("، ") : "لا توجد مخاطر في هذه الخلية"} style={{ minHeight: 74, display: "flex", flexDirection: "column", gap: 4, alignItems: "stretch", background: bg, border: "1px solid " + (cell.length ? "rgba(100,116,139,.35)" : "transparent"), borderRadius: 7, padding: 5, cursor: cell.length ? "pointer" : "default", textAlign: "start", font: "inherit" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, color: C.muted }}><span>{score}</span><b>{cell.length || "—"}</b></div>
+                    {cell.slice(0, 2).map((r) => <span key={r.id} style={{ background: "rgba(255,255,255,.88)", borderRadius: 4, padding: "3px 4px", color: C.text, fontSize: 10.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</span>)}
+                    {cell.length > 2 && <span style={{ fontSize: 9.5, color: C.muted }}>+{cell.length - 2} أخرى</span>}
+                  </button>;
+                })}
+              </React.Fragment>))}
+              <div style={{ fontSize: 10.5, color: C.muted, textAlign: "center" }}>التأثير</div>
+              {[1, 2, 3, 4, 5].map((impact) => <div key={impact} style={{ textAlign: "center", fontSize: 10.5, color: C.muted }}> {impact} </div>)}
+            </div>
+          </div></div>
+          {!list.length && <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>لا توجد مخاطر ضمن التصفية الحالية؛ غيّر الحالة إلى «الكل» أو أضف خطرًا لعرضه هنا.</div>}
+        </div>
       ) : !list.length ? <Empty icon="🛡" title="لا مخاطر" sub="سجّل المخاطر المحتملة قبل أن تتحول إلى مشاكل." /> : (
         <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((r) => (
           <div key={r.id} id={recordDomId("risk", r.id)} style={{ ...recordFocusStyle(view, "risk", r.id), display: "grid", gridTemplateColumns: "44px 1fr auto", gap: 10, padding: "9px 0", borderBottom: `1px solid ${C.line}`, alignItems: "center" }}>
