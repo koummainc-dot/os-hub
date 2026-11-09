@@ -460,7 +460,7 @@ export function computeAlerts(memberId, ctx) {
 export function projectToTemplateSeed(project, data = {}) {
   if (!project?.id) throw new Error("اختر مشروعًا صالحًا لتحويله إلى قالب.");
   const tasks = (data.tasks || []).filter((task) =>
-    task.project_id === project.id && !task.deleted_at
+    task.project_id === project.id && !task.deleted_at && !task.archived_at
   );
   const taskById = Object.fromEntries(tasks.map((task) => [task.id, task]));
   const ordered = (items) => [...items].sort((a, b) =>
