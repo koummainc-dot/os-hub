@@ -72,12 +72,12 @@ export function TaskForm({ initial, projectId, parentId, allowedProjectIds, link
 }
 
 // ── Task tree ───────────────────────────────────────────────────────
-export function TaskTree({ projectId, tasks, readOnly, filter }) {
+export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "list" }) {
   const { idx, A: act, can, today, people, openTask, projectsById, toast } = useP(); const project = projectsById[projectId];
   const [open, setOpen] = useState({}); const [form, setForm] = useState(null); const [menu, setMenu] = useState(null); const [dragId, setDragId] = useState(null);
   const canWrite = !readOnly && can("task.write", project);
   const roots = idx.roots.filter((t) => t.project_id === projectId);
-  const [mode, setMode] = useState("list");
+  const [mode, setMode] = useState(initialMode);
   const [month, setMonth] = useState(today.slice(0, 7));
   const projectTasks = idx.list.filter((t) => t.project_id === projectId && idx.isLeaf(t.id));
   const statusGroups = ["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"];
