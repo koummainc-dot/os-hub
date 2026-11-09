@@ -63,7 +63,7 @@ function Router({ sourceWriteRequest }) {
         { id: "portfolio", label: "المحفظة", icon: "▦" },
       ]},
       { id: "planning", label: "التخطيط", items: [
-        { id: "discovery", label: "الوارد والاكتشاف", icon: "↘" },
+        { id: "discovery", label: "الاكتشاف", icon: "↘" },
         { id: "prds", label: "المواصفات", icon: "▤" },
         { id: "okrs", label: "الأهداف (OKR)", icon: "🎯" },
         { id: "meetings", label: "الاجتماعات", icon: "👥" },
@@ -74,14 +74,14 @@ function Router({ sourceWriteRequest }) {
         { id: "wins", label: "الإنجازات", icon: "🏆" },
       ]},
       { id: "governance", label: "الحوكمة", items: [
-        { id: "risks", label: "المخاطر", icon: "⚠" },
+        { id: "risks", label: "المخاطر والمشاكل والقرارات", icon: "⚠" },
         { id: "issues", label: "المشاكل", icon: "●" },
         { id: "decisions", label: "القرارات", icon: "⚖" },
       ]},
       { id: "collaboration", label: "التعاون", items: [
         { id: "contacts", label: "جهات الاتصال", icon: "👤" },
         { id: "team", label: "الفريق", icon: "👥" },
-        { id: "reviews", label: "المراجعات", icon: "↻" },
+        { id: "reviews", label: "المراجعات الأسبوعية", icon: "↻" },
       ]},
       { id: "system", label: "النظام", items: [
         { id: "templates", label: "القوالب", icon: "◇" },
