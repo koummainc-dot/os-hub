@@ -115,4 +115,10 @@ assert.equal(activityEventText({ entity: "tasks", action: "created", summary: "Ù
 assert.ok(parts.includes("activityEventText(a)") && projectScreens.includes("activityEventText(event)"),
   "Task Sheet and Project Activity Hub must share the localized human-readable event formatter");
 
+assert.ok(parts.includes("const newOutputDraft = (extra = {})") &&
+  parts.includes("D.defaultOutputRelationsForTask(t, data.prds)") &&
+  parts.includes("setOutputForm(newOutputDraft())") &&
+  parts.includes("setOutputForm(newOutputDraft({ url: /^https?:/.test(t.result_note)"),
+  "New outputs from Task Sheet and quick-result flow must inherit only valid task specification relationships");
+
 console.log("âœ“ Projects relationship navigation contracts passed");
