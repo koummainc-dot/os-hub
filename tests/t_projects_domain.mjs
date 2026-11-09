@@ -41,6 +41,71 @@ t("T-25 property: progress = done leaves / active leaves for random trees", () =
 });
 t("T-24 5,000-node tree builds fast", () => { const tasks = []; for (let i = 0; i < 5000; i++) tasks.push(task("t" + i, { parent_task_id: i ? "t" + Math.floor((i - 1) / 4) : null, status: i % 3 ? "Not Started" : "Completed" })); const t0 = Date.now(); const idx = D.buildTaskIndex(tasks); D.projectMetrics(P(), ctx(tasks)); assert.ok(Date.now() - t0 < 1500, "took " + (Date.now() - t0) + "ms"); assert.ok(idx.derived.t0.leafTotal > 0); });
 
+t("T-80 project-to-template conversion preserves reusable structure and strips runtime state", () => {
+  const project = {
+    id: "source_project", name: "Koumma Source", type: "business", status: "In Progress",
+    description: "Project description", final_goal: "Final goal",
+    start_date: "2026-01-10", target_date: "2026-02-09",
+    lead_id: "real_person_1", members: [{ member_id: "real_person_1", role: "Lead" }],
+    template_roles: ["Product", "QA"], decision_prompts: ["حسم سياسة الإطلاق"],
+    template_checklist: ["اعتماد النطاق"], archived_at: null
+  };
+  const tasks = [
+    { id: "root", project_id: "source_project", title: "مرحلة البحث", sort_order: 1, status: "Completed", assignee_id: "real_person_1", completed_at: "2026-01-20", start_date: "2026-01-11", due_date: "2026-01-12", estimated_minutes: 90 },
+    { id: "child", project_id: "source_project", parent_task_id: "root", title: "مقابلات المستخدمين", sort_order: 2, status: "Cancelled", assignee_id: "real_person_2", start_date: "2026-01-15", due_date: "2026-01-17", estimated_minutes: 45, prd_id: "prd1", prd_requirement_id: "req1" },
+    { id: "orphan", project_id: "source_project", parent_task_id: "missing_parent", title: "مهمة يتيمة", sort_order: 3, status: "In Progress" },
+    { id: "duplicate_a", project_id: "source_project", title: "مهمة مكررة", sort_order: 4, prd_id: "prd1", prd_requirement_id: "req2" },
+    { id: "duplicate_b", project_id: "source_project", title: "مهمة مكررة", sort_order: 5 },
+    { id: "other_project", project_id: "another_project", title: "لا تنقلني", sort_order: 1 }
+  ];
+  const prds = [{
+    id: "prd1", project_id: "source_project", title: "Platform Architecture", tldr: "Architecture brief",
+    status: "Approved", version: 3, lead_id: "real_person_1", approvals: [{ id: "approval1" }],
+    requirements: [
+      { id: "req1", title: "ERD", status: "Active", acceptance_criteria: "ERD documented", priority: "High" },
+      { id: "req2", title: "Duplicate title task", status: "Active" },
+      { id: "req3", title: "Old requirement", status: "Deprecated" }
+    ]
+  }];
+  const outputs = [
+    { id: "output1", project_id: "source_project", name: "ERD", type: "Document", task_id: "child", prd_id: "prd1", prd_requirement_id: "req1", approval: "Final", approved_by: "real_person_1", approved_at: "2026-01-20", url: "https://example.com", files: [{ object_path: "secret/path" }] },
+    { id: "output2", project_id: "source_project", name: "Ambiguous output", type: "Document", task_id: "duplicate_a", prd_id: "prd1", prd_requirement_id: "req2", approval: "Draft" }
+  ];
+  const seed = D.projectToTemplateSeed(project, {
+    tasks, prds, outputs,
+    risks: [{ id: "risk1", project_id: "source_project", title: "Launch scope", probability: 4, impact: 5, status: "Closed", owner_id: "real_person_1", mitigation: "Phase the rollout", created_at: "2026-01-20" }],
+    sessions: [{ id: "session1", task_id: "child", minutes: 90, member_id: "real_person_1" }]
+  });
+  assert.equal(seed.name, "Koumma Source — قالب");
+  assert.equal(seed.project_type, "business");
+  assert.equal(seed.duration_days, 30);
+  assert.deepEqual(seed.team_roles, ["Product", "QA"]);
+  assert.deepEqual(seed.decision_prompts, ["حسم سياسة الإطلاق"]);
+  assert.deepEqual(seed.checklist, ["اعتماد النطاق"]);
+  assert.equal(seed.task_tree.length, 3, "roots and recovered orphan tasks are all retained");
+  assert.equal(seed.task_tree[0].title, "مرحلة البحث");
+  assert.equal(seed.task_tree[0].children[0].title, "مقابلات المستخدمين");
+  assert.equal(seed.task_tree[0].offset_days, 1);
+  assert.equal(seed.task_tree[0].children[0].offset_days, 5);
+  assert.equal(seed.task_tree[0].status, undefined);
+  assert.equal(seed.task_tree[0].assignee_id, undefined);
+  assert.equal(seed.task_tree[0].completed_at, undefined);
+  assert.equal(seed.prd_templates.length, 1);
+  assert.equal(seed.prd_templates[0].requirements.length, 2, "deprecated requirements are excluded");
+  assert.equal(seed.prd_templates[0].requirements[0].task_title, "مقابلات المستخدمين");
+  assert.equal(seed.prd_templates[0].requirements[1].task_title, null, "ambiguous duplicate task titles are not linked");
+  assert.equal(seed.output_templates.length, 2);
+  assert.deepEqual(seed.output_templates[0], {
+    name: "ERD", type: "Document", task_title: "مقابلات المستخدمين",
+    prd_title: "Platform Architecture", requirement_title: "ERD"
+  });
+  assert.equal(seed.output_templates[1].task_title, null, "ambiguous task links are not copied");
+  assert.deepEqual(seed.risks, [{ title: "Launch scope", probability: 4, impact: 5, mitigation: "Phase the rollout" }]);
+  assert.equal(seed.lead_id, undefined);
+  assert.equal(seed.members, undefined);
+  assert.equal(seed.sessions, undefined);
+  assert.equal(seed.id, undefined, "template gets a new id only when saved");
+});
 t("T-79 output defaults inherit only valid task PRD and requirement links", () => {
   const task = { id: "task_1", project_id: "project_1", prd_id: "prd_1", prd_requirement_id: "req_1" };
   const validPrds = [{ id: "prd_1", project_id: "project_1", requirements: [{ id: "req_1", status: "Active" }] }];
