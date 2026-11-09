@@ -50,7 +50,7 @@ assert.ok(portfolio.includes("const dated = visible.filter((project) => project.
   "Portfolio timeline must distinguish unscheduled projects and navigate to the exact project record");
 assert.ok(portfolio.includes("const hasToday = today >= start && today <= end") &&
   portfolio.includes('الموعد المستهدف: ') &&
-  portfolio.includes("const pct = Math.max(0, Math.min(100, Number(metric.progress) || 0))"),
+  portfolio.includes("const pct = metric.progress == null ? null : Math.max(0, Math.min(100, Number(metric.progress) || 0))"),
   "Portfolio timeline shows today, target-date markers and canonical progress");
 
 assert.ok(portfolio.includes('metric.progress == null ? null : Math.max(0, Math.min(100, Number(metric.progress) || 0))') &&
