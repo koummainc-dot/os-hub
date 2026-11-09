@@ -188,7 +188,7 @@ function ProjectDetail() {
       {tab === "prds" && <PrdsView projectId={p.id} />}
       {tab === "risks" && <RisksView projectId={p.id} />}
       {tab === "issues" && <IssuesView projectId={p.id} />}
-      {tab === "decisions" && <DecisionsView projectId={p.id} />}
+      {tab === "decisions" && <ProjectDecisions p={p} />}
       {tab === "people" && <PeopleTab p={p} canE={can("project.members", p)} />}
       {tab === "okr" && <ProjectOkr p={p} />}
       {tab === "related" && <RelatedTab p={p} canE={canE} />}
@@ -273,12 +273,13 @@ function WorkTab({ p }) {
     <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>أكثر المهام استهلاكاً للوقت</div>{topTasks.map(([id, mn]) => <div key={id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "3px 0" }}><span>{(idx.byId[id] || {}).title}</span><b>{fmtMinutes(mn)}</b></div>)}</div>
   </div>;
 }
-function PeopleTab({ p, canE }) {
+function ProjectDecisions({ p }) {\n  const prompts = Array.isArray(p.decision_prompts) ? p.decision_prompts : [];\n  return <div style={{ display: "grid", gap: 10 }}>\n    {prompts.length > 0 && <section style={{ ...S.card, padding: 12 }}><div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 7 }}><b style={{ fontSize: 13 }}>أسئلة قرارات يجب حسمها</b><Chip>{prompts.length}</Chip><span style={{ flex: 1 }} /><span style={{ fontSize: 10.5, color: C.muted }}>تحضيرية — ليست قرارات معتمدة</span></div>{prompts.map((prompt, index) => <div key={index} style={{ fontSize: 12, padding: "6px 0", borderTop: "1px solid " + C.line }}>◦ {prompt}</div>)}</section>}\n    <DecisionsView projectId={p.id} />\n  </div>;\n}\nfunction PeopleTab({ p, canE }) {
   const { people, nameOf, A: act, toast, confirm, idx, today } = useP(); const [add, setAdd] = useState(false);
   const members = p.members || [];
   const save = async (list, lead) => { await act.saveProject({ ...p, members: list, lead_id: lead || p.lead_id }, false); };
   return <div style={S.card}>
     {p.lead_id && <div style={{ padding: "7px 0 10px", borderBottom: "1px solid " + C.line, marginBottom: 5 }}><div style={{ fontSize: 10.5, color: C.muted, marginBottom: 4 }}>قائد المشروع</div><Who id={p.lead_id} /></div>}
+    {(p.template_roles || []).length > 0 && <section style={{ border: "1px dashed " + C.line, borderRadius: 8, padding: 10, marginBottom: 10 }}><div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}><b style={{ fontSize: 12.5 }}>الأدوار المطلوبة من القالب</b><Chip>{p.template_roles.length}</Chip><span style={{ flex: 1 }} /><span style={{ fontSize: 10.5, color: C.muted }}>غير مسندة</span></div><div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{p.template_roles.map((role, index) => <Chip key={index} color={C.muted}>{role} · غير معين</Chip>)}</div></section>}
     {!members.length ? <Empty icon="👥" title="لا يوجد أعضاء مضافون للمشروع" sub="أضف أعضاء من مساحة العمل وحدد دور كل عضو. لا تتم إضافة أشخاص غير مسجلين." /> : members.map((mm) => {
       const assigned = idx.list.filter((task) => task.project_id === p.id && task.assignee_id === mm.member_id && idx.isLeaf(task.id));
       const open = assigned.filter((task) => ["todo", "active"].includes(D.cat(task.status)));
