@@ -7,7 +7,7 @@ import { useP, GENERAL_ID } from "./store.jsx";
 import * as D from "./domain.js";
 import { readOSEvents, subscribeOSEvents, subscribeToStoredOSEvents } from "../integrationEvents.js";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
-import { L, opts } from "./lookups.js";
+import { L, opts, SEV_COLOR } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, DueChip, ProjectName, TaskForm, mOpts, projOpts } from "./parts.jsx";
 
 const Section = ({ title, count, color, children, action }) => (
