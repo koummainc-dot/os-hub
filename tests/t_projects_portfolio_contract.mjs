@@ -59,5 +59,9 @@ assert.ok(issueView.includes("لوحة حسب الحالة") && issueView.includ
 assert.ok(entities.includes("مصفوفة القرارات") && entities.includes('const [mode, setMode] = useState("matrix")'), "decisions use a status matrix by default");
 assert.ok(screens.includes('import { L, opts, SEV_COLOR } from "./lookups.js";'), "Portfolio imports severity metadata used in its governance view");
 assert.ok(projectScreens.includes("function ProjectActivityHub") && projectScreens.includes("label: \"التحديثات\"") && projectScreens.includes("label: \"الاجتماعات\""), "project activity hub brings activity, updates, wins and Knowledge meetings together");
+const projectContextForms = (entities.match(/show: \(\) => !projectId/g) || []).length;
+assert.ok(projectContextForms >= 5, "risk, issue, decision, output, and PRD forms hide project selection when launched from inside a project");
+assert.ok(entities.includes("مهام الإصلاح يجب أن تتبع المشروع نفسه") && entities.includes("task.project_id !== v.project_id"), "issue form rejects cross-project repair task links even when form selections change");
+assert.ok(entities.includes("اختر مشروعًا نشطًا وصالحًا لإنشاء المواصفة"), "PRD creation validates the active owning project before writing");
 
 console.log("t_projects_portfolio_contract: OK");
