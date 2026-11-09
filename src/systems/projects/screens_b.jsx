@@ -229,6 +229,16 @@ function Overview({ p, m }) {
       <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>التتبّع (Traceability)</div>
         {cov ? <><Progress value={cov.ratio} /><div style={{ fontSize: 12, color: C.dim, marginTop: 6 }}>{cov.unlinked.length} مهمة بلا مواصفة أو اكتشاف{settings.traceabilityPolicy !== "off" ? "" : " (السياسة مُعطّلة)"}</div></> : <span style={{ fontSize: 12, color: C.muted }}>لا مهام</span>}</div>
       <div style={{ ...S.card, gridColumn: "1 / -1" }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>الهدف والوصف</div><div style={{ fontSize: 13, lineHeight: 1.9, whiteSpace: "pre-wrap" }}>{p.final_goal || "—"}{p.description ? "\n\n" + p.description : ""}</div></div>
+      {(p.template_checklist || []).length > 0 && <div style={{ ...S.card, gridColumn: "1 / -1" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}><b style={{ fontSize: 13 }}>قائمة جاهزية المشروع من القالب</b><span style={{ flex: 1 }} /><Chip color={(p.template_checklist || []).every((item) => p.template_checklist_state?.[item]) ? C.ok : C.info}>{(p.template_checklist || []).filter((item) => p.template_checklist_state?.[item]).length}/{p.template_checklist.length} مكتمل</Chip></div>
+        <Progress value={p.template_checklist.length ? (p.template_checklist || []).filter((item) => p.template_checklist_state?.[item]).length / p.template_checklist.length : null} height={6} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 6, marginTop: 9 }}>
+          {(p.template_checklist || []).map((item, index) => <label key={index} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12, color: p.template_checklist_state?.[item] ? C.muted : C.text, padding: "5px 0" }}>
+            <input type="checkbox" checked={!!p.template_checklist_state?.[item]} disabled={!can("project.edit", p)} onChange={(event) => act.saveProject({ ...p, template_checklist_state: { ...(p.template_checklist_state || {}), [item]: event.target.checked } }, false)} />
+            <span style={{ textDecoration: p.template_checklist_state?.[item] ? "line-through" : "none" }}>{item}</span>
+          </label>)}
+        </div>
+      </div>}
       {lateTasks.length > 0 && <div style={{ ...S.card, gridColumn: "1 / -1" }}><div style={{ fontSize: 13, fontWeight: 700, color: C.bad, marginBottom: 6 }}>مهام متأخرة ({lateTasks.length})</div>{lateTasks.slice(0, 8).map((t) => <div key={t.id} style={{ fontSize: 12.5, padding: "3px 0" }}>⏰ {t.title} — {fmtShort(t.due_date)} <Who id={t.assignee_id} size={15} /></div>)}</div>}
     </div>
   );
