@@ -772,6 +772,56 @@ export function projectToTemplateSeed(project, data = {}) {
     };
   }).filter((output) => output.name);
 
+  const sourceObjectives = (data.objectives || []).filter((objective) => isActiveRec(objective));
+  const sourceKrs = (data.krs || []).filter((kr) =>
+    isActiveRec(kr) && kr.objective_id &&
+    Array.isArray(kr.project_ids) && kr.project_ids.includes(project.id)
+  );
+  const sourceObjectiveIds = new Set(sourceKrs.map((kr) => kr.objective_id));
+  const sourceObjectiveMap = new Map(sourceObjectives.map((objective) => [objective.id, objective]));
+  const objectiveTemplates = [];
+  for (const kr of sourceKrs) {
+    if (!sourceObjectiveMap.has(kr.objective_id)) {
+      conversionWarnings.push("تعذر نقل النتيجة «" + kr.name + "» لأن الهدف المصدر غير متاح.");
+    }
+  }
+  const selectedObjectives = sourceObjectives
+    .filter((objective) => sourceObjectiveIds.has(objective.id))
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  selectedObjectives.forEach((objective, objectiveIndex) => {
+    const key = "objective_" + (objectiveIndex + 1);
+    const keyResults = sourceKrs.filter((kr) => kr.objective_id === objective.id).map((kr) => {
+      const sourceTaskIds = Array.isArray(kr.task_ids) ? kr.task_ids : tasks.map((task) => task.id);
+      const linkedTasks = sourceTaskIds.map((id) => taskById[id]).filter((task) => task && task.project_id === project.id);
+      const taskTitles = [];
+      for (const task of linkedTasks) {
+        const title = String(task.title || "").trim();
+        if (!title || dependencyTitleCounts.get(title) !== 1) {
+          conversionWarnings.push("لم تُنقل مهمة مرتبطة بنتيجة «" + kr.name + "» لأن عنوانها مكرر أو فارغ.");
+          continue;
+        }
+        if (!taskTitles.includes(title)) taskTitles.push(title);
+      }
+      if (kr.type === "Numeric") {
+        const initialValue = Number(kr.initial_value);
+        const targetValue = Number(kr.target_value);
+        if (!Number.isFinite(initialValue) || !Number.isFinite(targetValue) || initialValue === targetValue) {
+          conversionWarnings.push("لم تُنقل القيم الرقمية للنتيجة «" + kr.name + "» لأنها لا تحتوي على خط أساس وهدف صالحين.");
+          return null;
+        }
+        return { name: String(kr.name || "").trim(), type: "Numeric", unit: String(kr.unit || ""), initial_value: initialValue, target_value: targetValue, task_titles: taskTitles };
+      }
+      if (kr.type !== "Project Based") {
+        conversionWarnings.push("لم تُنقل النتيجة «" + kr.name + "» لأن نوعها غير مدعوم في قوالب المشاريع.");
+        return null;
+      }
+      return { name: String(kr.name || "").trim(), type: "Project Based", task_titles: taskTitles };
+    }).filter(Boolean);
+    objectiveTemplates.push({ key, name: String(objective.name || "").trim(), why: String(objective.why || "").trim(), key_results: keyResults });
+  });
+  for (const objective of objectiveTemplates) {
+    if (!objective.key_results.length) conversionWarnings.push("الهدف «" + objective.name + "» لا يحتوي على نتائج رئيسية قابلة للنقل إلى القالب.");
+  }
   const risks = (data.risks || []).filter((risk) =>
     risk.project_id === project.id && !risk.deleted_at && !risk.archived_at
   ).map((risk) => ({
@@ -788,6 +838,7 @@ export function projectToTemplateSeed(project, data = {}) {
     project_type: project.type || "أخرى",
     duration_days: Number.isFinite(durationDays) && durationDays >= 0 ? durationDays : "",
     task_tree: taskTree,
+    objective_templates: objectiveTemplates.filter((objective) => objective.key_results.length > 0),
     conversion_warnings: conversionWarnings,
     prd_templates: prdTemplates,
     output_templates: outputs,
