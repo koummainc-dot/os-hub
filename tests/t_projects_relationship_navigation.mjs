@@ -135,6 +135,11 @@ assert.ok(screens.includes('import { prepareTemplateSave, restoreTemplateVersion
   screens.includes("الإصدارات"),
   "Template editing creates versions and the history UI restores an old snapshot as a new version");
 
+assert.ok(domain.includes("const dependencyDefinitions = []") &&
+  domain.includes("definition.task.dependency_task_ids") &&
+  domain.includes("conversion_warnings"),
+  "Project-to-template conversion and template instantiation preserve predecessor links with fresh task IDs and report ambiguous links");
+
 assert.ok(domain.includes("export function validateTaskDependencies") &&
   domain.includes("export function analyzeTaskSchedule") &&
   domain.includes("dependency_task_ids"),
