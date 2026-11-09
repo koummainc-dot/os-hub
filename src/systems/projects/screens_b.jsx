@@ -422,16 +422,35 @@ function PeopleTab({ p, canE }) {
   </div>;
 }
 function ProjectOkr({ p }) {
-  const { data, projectProgress, setPage, setView, view } = useP();
+  const { data, projectProgress, setPage, setView, view, A: act, can, toast } = useP();
+  const [linkForm, setLinkForm] = useState(null);
   const objectives = D.objectivesForProject(p.id, data.objectives, data.krs);
   const krs = data.krs.filter((k) => (k.project_ids || []).includes(p.id));
   const openOkrRecord = (kind, id) => {
     setView({ ...view, okrFocus: { kind, id } });
     setPage("okrs");
   };
+  const linkKrToProject = async (v) => {
+    const objective = data.objectives.find((o) => o.id === v.objective_id && !o.deleted_at && !o.archived_at);
+    const kr = data.krs.find((k) => k.id === v.kr_id && !k.deleted_at && !k.archived_at);
+    if (!objective || !kr || kr.objective_id !== objective.id) throw new Error("اختر نتيجة رئيسية صحيحة تحت الهدف المحدد.");
+    if (!can("okr.write", p)) throw new Error("لا تملك صلاحية ربط نتيجة رئيسية بهذا المشروع.");
+    if ((kr.project_ids || []).includes(p.id)) { toast("ℹ️ المشروع مرتبط بهذه النتيجة الرئيسية بالفعل."); setLinkForm(null); return; }
+    await act.put("krs", { ...kr, project_ids: [...new Set([...(kr.project_ids || []), p.id])] });
+    toast("✅ تم ربط المشروع بالنتيجة الرئيسية؛ والهدف أصبح مرتبطًا به تلقائيًا.");
+    setLinkForm(null);
+  };
   const linkStyle = { border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit", textAlign: "start" };
-  if (!krs.length && !objectives.length) return <Empty icon="🎯" title="غير مرتبط بأي هدف أو نتيجة رئيسية" sub="اربط المشروع بهدف أو نتيجة رئيسية من شاشة الأهداف (OKR)." action={<Btn onClick={() => setPage("okrs")}>الأهداف</Btn>} />;
+  const linkButton = <Btn small kind="primary" onClick={() => setLinkForm({})}>＋ ربط نتيجة رئيسية</Btn>;
+  if (!krs.length && !objectives.length) return <div>
+    <Empty icon="🎯" title="غير مرتبط بأي هدف أو نتيجة رئيسية" sub="المشروع لا يرتبط مباشرة بالهدف؛ اختر نتيجة رئيسية تحت الهدف من هنا، وسيُشتق ارتباط الهدف تلقائيًا." action={<div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>{linkButton}<Btn small onClick={() => setPage("okrs")}>فتح الأهداف</Btn></div>} />
+    {linkForm && <FormModal title="ربط المشروع بنتيجة رئيسية" initial={{ objective_id: "", kr_id: "" }} onClose={() => setLinkForm(null)} onSubmit={linkKrToProject} fields={[
+      { key: "objective_id", label: "الهدف", type: "select", required: true, allowEmpty: false, options: data.objectives.filter((o) => !o.deleted_at && !o.archived_at).map((o) => ({ v: o.id, l: o.name })) },
+      { key: "kr_id", label: "النتيجة الرئيسية", type: "select", required: true, allowEmpty: false, options: (v) => data.krs.filter((k) => !k.deleted_at && !k.archived_at && k.objective_id === v.objective_id).map((k) => ({ v: k.id, l: k.name + ((k.project_ids || []).includes(p.id) ? " · مرتبطة بالفعل" : "") })) }
+    ]} />}
+  </div>;
   return <div style={S.card}>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}><b style={{ flex: 1, fontSize: 13 }}>الأهداف والنتائج الرئيسية</b>{linkButton}</div>
     {objectives.map((o) => <div key={o.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13 }}>
       🎯 <b><button type="button" style={linkStyle} onClick={() => openOkrRecord("objective", o.id)}>{o.name} ↗</button></b>
       <div style={{ fontSize: 11, color: C.muted }}>{fmtShort(o.period_start)} → {fmtShort(o.period_end)}</div>
@@ -440,6 +459,10 @@ function ProjectOkr({ p }) {
       🎯 {ob && <span>{ob.name} ← </span>}<b><button type="button" style={linkStyle} onClick={() => openOkrRecord("kr", k.id)}>{k.name} ↗</button></b>
       <div style={{ marginTop: 4 }}><Progress value={D.krProgressValue(k, projectProgress)} /></div>
     </div>; })}
+    {linkForm && <FormModal title="ربط المشروع بنتيجة رئيسية" initial={{ objective_id: "", kr_id: "" }} onClose={() => setLinkForm(null)} onSubmit={linkKrToProject} fields={[
+      { key: "objective_id", label: "الهدف", type: "select", required: true, allowEmpty: false, options: data.objectives.filter((o) => !o.deleted_at && !o.archived_at).map((o) => ({ v: o.id, l: o.name })) },
+      { key: "kr_id", label: "النتيجة الرئيسية", type: "select", required: true, allowEmpty: false, options: (v) => data.krs.filter((k) => !k.deleted_at && !k.archived_at && k.objective_id === v.objective_id).map((k) => ({ v: k.id, l: k.name + ((k.project_ids || []).includes(p.id) ? " · مرتبطة بالفعل" : "") })) }
+    ]} />}
   </div>;
 }
 function RelatedTab({ p, canE }) {
