@@ -306,7 +306,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 9 }}>
             <Chip color={schedule.cyclic || schedule.conflicts.length ? C.bad : schedule.complete ? C.ok : C.warn}>{schedule.cyclic ? "اعتمادات دائرية" : schedule.conflicts.length ? schedule.conflicts.length + " تعارض جدولة" : schedule.complete ? "خريطة الاعتماد مكتملة" : "تحتاج تواريخ للمهام السابقة"}</Chip>
             {schedule.complete && !schedule.cyclic && schedule.project_duration_days != null && <Chip color={C.info}>المدة المحسوبة: {schedule.project_duration_days} يومًا</Chip>}
-            {schedule.critical_task_ids.length > 0 && !schedule.cyclic && <Chip color={C.warn}>المسار الحرج: {schedule.critical_task_ids.length} مهام</Chip>}
+            {schedule.critical_task_ids.length > 0 && schedule.complete && !schedule.cyclic && <Chip color={C.warn}>المسار الحرج: {schedule.critical_task_ids.length} مهام</Chip>}{schedule.cancelled_predecessors.length > 0 && <Chip color={C.bad}>اعتماد على مهام ملغاة: {schedule.cancelled_predecessors.length}</Chip>}
             {schedule.missing_predecessors.length > 0 && <Chip color={C.muted}>مهام سابقة غير مجدولة: {schedule.missing_predecessors.length}</Chip>}
           </div>
           <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 8 }}>المسار الحرج محسوب من مدد التواريخ المسجلة بالأيام التقويمية؛ لا يفترض عطلات أو سعات موارد غير موجودة في البيانات.</div>
