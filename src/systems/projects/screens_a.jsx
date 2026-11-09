@@ -352,7 +352,7 @@ export function Portfolio() {
                 const metric = metrics[project.id] || {};
                 const tasks = leafTasks.filter((task) => task.project_id === project.id);
                 const open = tasks.filter((task) => ["todo", "active"].includes(D.cat(task.status))).length;
-                const overdue = tasks.filter((task) => D.isOverdueLeaf(task, idx, today)).length;
+                const overdue = tasks.filter((t) => D.isOverdueLeaf(t, idx, today)).length;
                 const riskCount = risks.filter((risk) => risk.project_id === project.id).length;
                 const issueCount = issues.filter((issue) => issue.project_id === project.id).length;
                 return <tr key={project.id} style={{ borderTop: "1px solid " + C.line }}>
