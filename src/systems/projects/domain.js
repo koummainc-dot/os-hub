@@ -288,10 +288,29 @@ export function objectivesForProject(projectId, objectives, krs) {
 // Legacy direct task links remain visible as a read-only compatibility fallback until reconciled.
 function expandLegacyTaskRoots(rootIds, idx) {
   const ids = new Set();
+  const fallbackDescendants = (rootId) => {
+    const children = new Map();
+    (idx?.list || []).forEach((task) => {
+      if (task.parent_task_id) {
+        const bucket = children.get(task.parent_task_id) || [];
+        bucket.push(task.id);
+        children.set(task.parent_task_id, bucket);
+      }
+    });
+    const out = [];
+    const queue = [...(children.get(rootId) || [])];
+    while (queue.length) {
+      const childId = queue.shift();
+      out.push(childId);
+      queue.push(...(children.get(childId) || []));
+    }
+    return out;
+  };
   (rootIds || []).forEach((id) => {
     if (idx?.byId?.[id]) {
       ids.add(id);
-      (idx.descendants(id) || []).forEach((childId) => ids.add(childId));
+      const descendants = typeof idx.descendants === "function" ? idx.descendants(id) : fallbackDescendants(id);
+      descendants.forEach((childId) => ids.add(childId));
     }
   });
   return [...ids].map((id) => idx.byId[id]).filter(Boolean);
