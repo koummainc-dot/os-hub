@@ -236,7 +236,8 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
               <Btn small onClick={() => { setCurrentDate(today); setMonth(today.slice(0, 7)); }}>اليوم</Btn>
             </div>
           </div>
-          {calendarMode === "month" ? <div>
+          {calendarMode === "month" ? <div style={{ overflowX: "auto", paddingBottom: 3 }}>
+            <div style={{ minWidth: 680 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 5, direction: "rtl" }}>
               {["السبت","الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة"].map((day) => <div key={day} style={{ textAlign: "center", fontSize: 10.5, fontWeight: 700, color: C.muted, padding: "5px 2px" }}>{day}</div>)}
               {Array.from({ length: dayOffset }, (_, index) => <div key={"blank-" + index} aria-hidden="true" style={{ minHeight: 102, borderRadius: 8, background: "rgba(0,0,0,.015)" }} />)}
@@ -246,8 +247,9 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
               })}
             </div>
             {!projectTasks.some((task) => dateOfTask(task)?.startsWith(month)) && <div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>لا توجد مهام مجدولة في هذا الشهر. استخدم ＋ داخل اليوم لإضافة مهمة بموعد محدد.</div>}
-          </div> : <div>
-            <div style={{ display: "grid", gridTemplateColumns: calendarMode === "week" ? "repeat(7,minmax(0,1fr))" : "minmax(0,1fr)", gap: 7, direction: "rtl" }}>
+            </div>
+          </div> : <div style={{ overflowX: calendarMode === "week" ? "auto" : "visible", paddingBottom: 3 }}>
+            <div style={{ display: "grid", minWidth: calendarMode === "week" ? 840 : "100%", gridTemplateColumns: calendarMode === "week" ? "repeat(7,minmax(0,1fr))" : "minmax(0,1fr)", gap: 7, direction: "rtl" }}>
               {shownDates.map((date) => renderDay(date, null, calendarMode === "day"))}
             </div>
           </div>}
