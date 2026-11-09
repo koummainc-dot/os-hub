@@ -136,8 +136,105 @@ export function TaskTree({ projectId, tasks, readOnly, filter }) {
       </div>
       {mode === "board" && <Board columns={statusGroups.map((status) => ({ id: status, label: L.taskStatus[status] || status, color: STATUS_COLOR[status], items: projectTasks.filter((t) => t.status === status) }))} onMove={async (id, to) => { const t = idx.byId[id]; if (t && canWrite) await act.setTaskStatus(t, to); }} renderCard={(t) => <div onClick={() => openTask(t.id)} style={{ ...S.card, padding: "9px 10px", cursor: "pointer" }}><div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 5 }}>{t.title}</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}><PriorityChip p={t.priority} /><DueChip date={t.due_date} status={t.status} today={today} />{t.assignee_id && <Who id={t.assignee_id} size={17} />}</div></div>} />}
       {mode === "table" && <div style={{ ...S.card, padding: 0, overflowX: "auto" }}><table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ background: "rgba(0,0,0,0.03)" }}>{["المهمة","الحالة","المسؤول","الموعد","الأولوية","التقدير"].map((h) => <th key={h} style={{ padding: "8px 10px", textAlign: "right", color: C.muted, fontSize: 10.5 }}>{h}</th>)}</tr></thead><tbody>{projectTasks.map((t) => <tr key={t.id} style={{ borderTop: "1px solid " + C.line }}><td style={{ padding: "8px 10px", fontWeight: 600, cursor: "pointer" }} onClick={() => openTask(t.id)}>{t.title}</td><td style={{ padding: "8px 10px" }}><StatusChipSm s={t.status} /></td><td style={{ padding: "8px 10px" }}>{t.assignee_id ? <Who id={t.assignee_id} size={17} /> : "—"}</td><td style={{ padding: "8px 10px" }}><DueChip date={t.due_date} status={t.status} today={today} /></td><td style={{ padding: "8px 10px" }}><PriorityChip p={t.priority} /></td><td style={{ padding: "8px 10px", color: C.dim }}>{fmtMinutes(t.estimated_minutes || 0)}</td></tr>)}</tbody></table></div>}
-      {mode === "calendar" && (() => { const [y, m] = month.split("-").map(Number); const lead = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(); const days = new Date(Date.UTC(y, m, 0)).getUTCDate(); return <div style={S.card}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><Btn small onClick={() => { const d = new Date(Date.UTC(y, m - 2, 1)); setMonth(d.toISOString().slice(0,7)); }}>→</Btn><b>{MONTH_NAMES[m - 1]} {y}</b><Btn small onClick={() => { const d = new Date(Date.UTC(y, m, 1)); setMonth(d.toISOString().slice(0,7)); }}>←</Btn></div><div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4 }}>{["أحد","اثنين","ثلاثاء","أربعاء","خميس","جمعة","سبت"].map((d) => <div key={d} style={{ fontSize: 10.5, color: C.muted, textAlign: "center" }}>{d}</div>)}{Array.from({length: lead}).map((_,i)=><div key={"e"+i}/>) }{Array.from({length: days}).map((_,i)=>{const ds=month + "-" + String(i+1).padStart(2,"0");const ts=projectTasks.filter(t=>t.due_date===ds);return <div key={ds} style={{minHeight:76,border:"1px solid " + (ds===today?A:C.line),borderRadius:6,padding:4,background:ds===today?"rgba(239,159,39,0.07)":"transparent"}}><div style={{fontSize:10.5,color:C.muted}}>{i+1}</div>{ts.slice(0,3).map(t=><div key={t.id} onClick={()=>openTask(t.id)} style={{fontSize:10,background:"rgba(59,130,246,0.12)",borderRadius:4,padding:"2px 4px",marginTop:2,cursor:"pointer",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.title}</div>)}{ts.length>3&&<div style={{fontSize:9.5,color:C.muted}}>+{ts.length-3}</div>}</div>})}</div></div>; })()}
-      {mode === "timeline" && <div style={{ ...S.card, overflowX: "auto" }}><div style={{ minWidth: 720 }}>{projectTasks.filter((t) => t.due_date).sort((a,b) => a.due_date.localeCompare(b.due_date)).map((t) => <div key={t.id} style={{ display: "grid", gridTemplateColumns: "220px 1fr 90px", gap: 8, alignItems: "center", marginBottom: 8 }}><div onClick={() => openTask(t.id)} style={{ fontSize: 12, fontWeight: 600, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div><div style={{ position: "relative", height: 22, background: "rgba(0,0,0,0.04)", borderRadius: 5 }}><div style={{ position: "absolute", insetInlineStart: "4%", width: "68%", height: "100%", background: "rgba(59,130,246,0.18)", border: "1px solid rgba(59,130,246,0.5)", borderRadius: 5 }} /></div><DueChip date={t.due_date} status={t.status} today={today} /></div>)}{!projectTasks.some((t) => t.due_date) && <Empty icon="📅" title="لا توجد مهام بمواعيد" sub="أضف موعداً للمهمة لتظهر في الخط الزمني." />}</div></div>}
+      {mode === "calendar" && (() => {
+        const [y, m] = month.split("-").map(Number);
+        const lead = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 1) % 7;
+        const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+        const previousMonth = () => { const d = new Date(Date.UTC(y, m - 2, 1)); setMonth(d.toISOString().slice(0, 7)); };
+        const nextMonth = () => { const d = new Date(Date.UTC(y, m, 1)); setMonth(d.toISOString().slice(0, 7)); };
+        const moveTask = async (task, date) => {
+          if (!canWrite || !task || !date || task.due_date === date) return;
+          await act.saveTask({ ...task, due_date: date }, false);
+        };
+        return <div style={{ ...S.card, padding: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Btn small onClick={previousMonth}>→ السابق</Btn>
+              <b>{MONTH_NAMES[m - 1]} {y}</b>
+              <Btn small onClick={nextMonth}>التالي ←</Btn>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: C.muted }}>اسحب المهمة إلى يوم آخر لتغيير موعدها</span>
+              <Btn small onClick={() => setMonth(today.slice(0, 7))}>اليوم</Btn>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 5, direction: "rtl" }}>
+            {["السبت","الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة"].map((day) => <div key={day} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: C.muted, padding: "5px 2px" }}>{day}</div>)}
+            {Array.from({ length: lead }, (_, i) => <div key={"blank-" + i} aria-hidden="true" style={{ minHeight: 102, borderRadius: 8, background: "rgba(0,0,0,.015)" }} />)}
+            {Array.from({ length: days }, (_, i) => {
+              const ds = month + "-" + String(i + 1).padStart(2, "0");
+              const dayTasks = projectTasks.filter((task) => task.due_date === ds);
+              const isToday = ds === today;
+              return <div key={ds} onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => {
+                if (!canWrite) return;
+                e.preventDefault();
+                const id = e.dataTransfer.getData("text/plain");
+                const task = idx.byId[id];
+                await moveTask(task, ds);
+              }} style={{ minHeight: 102, minWidth: 0, border: "1px solid " + (isToday ? A : C.line), borderRadius: 8, padding: 5, background: isToday ? "rgba(239,159,39,.07)" : "transparent" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4, marginBottom: 5 }}>
+                  <b style={{ fontSize: 11, color: isToday ? A : C.dim }}>{i + 1}</b>
+                  {canWrite && <button type="button" aria-label={"إضافة مهمة بتاريخ " + ds} title="إضافة مهمة بهذا اليوم" onClick={() => setForm({ initial: { due_date: ds } })} style={{ border: "1px solid " + C.line, borderRadius: 6, background: "transparent", color: C.info, cursor: "pointer", fontSize: 12, padding: "0 5px" }}>＋</button>}
+                </div>
+                <div style={{ display: "grid", gap: 4 }}>
+                  {dayTasks.slice(0, 4).map((task) => <button key={task.id} type="button" draggable={canWrite} onDragStart={(e) => { e.dataTransfer.setData("text/plain", task.id); e.dataTransfer.effectAllowed = "move"; }} onClick={() => openTask(task.id)} style={{ border: 0, borderRadius: 5, background: D.cat(task.status) === "done" ? "rgba(16,185,129,.14)" : "rgba(59,130,246,.12)", color: C.text, padding: "4px 5px", textAlign: "start", cursor: "pointer", font: "inherit", fontSize: 10.5, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{task.title}</button>)}
+                  {dayTasks.length > 4 && <span style={{ fontSize: 9.5, color: C.muted }}>+{dayTasks.length - 4} مهام</span>}
+                </div>
+              </div>;
+            })}
+          </div>
+          {!projectTasks.some((task) => task.due_date?.startsWith(month)) && <div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>لا توجد مهام مستحقة في هذا الشهر. استخدم ＋ داخل اليوم لإضافة مهمة بموعد محدد.</div>}
+        </div>;
+      })()}
+      {mode === "timeline" && (() => {
+        const dated = projectTasks.filter((task) => task.start_date || task.due_date);
+        const unscheduled = projectTasks.filter((task) => !task.start_date && !task.due_date);
+        if (!dated.length) return <div><Empty icon="🗓️" title="لا توجد مهام مجدولة بعد" sub="أضف تاريخ بداية أو موعدًا نهائيًا لتظهر المهمة على الخط الزمني." />{unscheduled.length > 0 && <div style={{ ...S.card, marginTop: 10 }}><b style={{ fontSize: 12.5 }}>غير مجدولة ({unscheduled.length})</b>{unscheduled.slice(0, 12).map((task) => <button key={task.id} type="button" onClick={() => openTask(task.id)} style={{ display: "block", width: "100%", textAlign: "start", border: 0, borderTop: "1px solid " + C.line, background: "transparent", padding: "7px 0", color: C.text, cursor: "pointer", font: "inherit", fontSize: 12 }}>{task.title}</button>)}</div>}</div>;
+        const values = dated.flatMap((task) => [task.start_date || task.due_date, task.due_date || task.start_date]);
+        const minDate = values.reduce((a, b) => a < b ? a : b);
+        const maxDate = values.reduce((a, b) => a > b ? a : b);
+        const shiftDate = (date, amount) => { const d = new Date(date + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + amount); return d.toISOString().slice(0, 10); };
+        const start = shiftDate(minDate, -7);
+        const end = shiftDate(maxDate, 7);
+        const totalDays = Math.max(1, diffDays(end, start) + 1);
+        const x = (date) => Math.max(0, Math.min(100, diffDays(date, start) / totalDays * 100));
+        const ticks = [];
+        for (let d = start, n = 0; d <= end && n < 80; d = shiftDate(d, 7), n++) ticks.push(d);
+        const hasToday = today >= start && today <= end;
+        return <div style={{ ...S.card, padding: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+            <b style={{ fontSize: 13 }}>الخط الزمني للمشروع</b>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}><span style={{ fontSize: 11, color: C.muted }}>النطاق: أسبوعي</span><Btn small onClick={() => { if (hasToday) return; setMonth(today.slice(0, 7)); }}>اليوم {today < start || today > end ? "· خارج النطاق" : ""}</Btn></div>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: 940 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "220px minmax(700px,1fr)", gap: 10, alignItems: "end", borderBottom: "1px solid " + C.line, paddingBottom: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 10.5, color: C.muted }}>المهمة</span>
+                <div style={{ position: "relative", height: 30 }}>
+                  {ticks.map((date) => <span key={date} style={{ position: "absolute", insetInlineStart: x(date) + "%", transform: "translateX(50%)", fontSize: 10, color: date <= today && shiftDate(date, 6) >= today ? A : C.muted, whiteSpace: "nowrap" }}>{fmtShort(date)}{date <= today && shiftDate(date, 6) >= today ? " · هذا الأسبوع" : ""}</span>)}
+                </div>
+              </div>
+              {dated.sort((a, b) => String(a.start_date || a.due_date).localeCompare(String(b.start_date || b.due_date))).map((task) => {
+                let a = task.start_date || task.due_date;
+                let b = task.due_date || task.start_date;
+                if (b < a) [a, b] = [b, a];
+                const left = x(a), right = x(b);
+                const width = Math.max(1.1, right - left);
+                const done = D.cat(task.status) === "done";
+                return <div key={task.id} style={{ display: "grid", gridTemplateColumns: "220px minmax(700px,1fr)", gap: 10, alignItems: "center", minHeight: 38, borderBottom: "1px solid " + C.line }}>
+                  <button type="button" onClick={() => openTask(task.id)} style={{ border: 0, background: "transparent", padding: 0, textAlign: "start", font: "inherit", fontSize: 11.5, color: done ? C.muted : C.text, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.title}</button>
+                  <div style={{ position: "relative", height: 26, background: "repeating-linear-gradient(to right, transparent 0, transparent calc(14.285% - 1px), rgba(0,0,0,.035) calc(14.285% - 1px), rgba(0,0,0,.035) 14.285%)", borderRadius: 5 }}>
+                    {ticks.map((date) => <span key={date} style={{ position: "absolute", insetInlineStart: x(date) + "%", top: 0, bottom: 0, width: 1, background: "rgba(0,0,0,.07)" }} />)}
+                    {hasToday && <span style={{ position: "absolute", insetInlineStart: x(today) + "%", top: -6, bottom: -6, width: 2, background: A, zIndex: 2 }} />}
+                    <button type="button" title={task.start_date && task.due_date ? fmtShort(task.start_date) + " → " + fmtShort(task.due_date) : "موعد نهائي: " + fmtShort(task.due_date || task.start_date)} onClick={() => openTask(task.id)} style={{ position: "absolute", insetInlineStart: left + "%", width: (task.start_date && task.due_date ? width : 1.6) + "%", top: 4, height: 18, border: "1px solid " + (done ? C.ok : C.info), borderRadius: task.start_date && task.due_date ? 5 : 12, padding: 0, background: done ? "rgba(16,185,129,.2)" : "rgba(59,130,246,.2)", cursor: "pointer" }} />
+                  </div>
+                </div>;
+              })}
+            </div>
+          </div>
+          {unscheduled.length > 0 && <div style={{ marginTop: 14, borderTop: "1px solid " + C.line, paddingTop: 10 }}><b style={{ fontSize: 12.5 }}>غير مجدولة ({unscheduled.length})</b><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 6, marginTop: 6 }}>{unscheduled.map((task) => <button key={task.id} type="button" onClick={() => openTask(task.id)} style={{ textAlign: "start", border: "1px solid " + C.line, borderRadius: 6, padding: "7px 9px", background: "transparent", color: C.text, cursor: "pointer", font: "inherit", fontSize: 11.5 }}>{task.title}</button>)}</div></div>}
+        </div>;
+      })()}
       {form && <TaskForm projectId={projectId} parentId={form.parentId} initial={form.initial} onClose={() => setForm(null)} />}
     </div>
   );
