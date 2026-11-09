@@ -46,8 +46,8 @@ assert.ok(entities.includes("function RecordDetailModal({ title, fields, onClose
 for (const label of ["تفاصيل المخرج:", "تفاصيل الخطر:", "تفاصيل المشكلة:", "تفاصيل القرار:", "تفاصيل المواصفة:", "تفاصيل الاكتشاف:"]) {
   assert.ok(entities.includes(label), `read-only details must include the ${label} view`);
 }
-assert.ok(entities.includes('onClick={(e) => { e.stopPropagation(); setDetail(p); }}'),
-  "opening PRD details must not trigger the editable PRD editor underneath");
+assert.ok(entities.includes('onClick={(e) => { e.stopPropagation(); setDetail(prd); }}'),
+  "opening PRD details from the selected specification must not bubble into its editor");
 assert.ok(entities.includes('onClick={(e) => { e.stopPropagation(); setDetail(d); }}'),
   "opening Discovery details must not trigger the editable discovery form underneath");
 
