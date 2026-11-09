@@ -16,7 +16,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
     const tile=[...doc.querySelectorAll('main button')].find(b=>b.textContent.includes(s));
     if(!tile){ok(false,'tile '+s);continue;}
     tile.click(); await sleep(s==='Content OS'?400:120);
-    const navBtns=()=>[...doc.querySelectorAll('aside > div:nth-child(2) > button')]; const items=navBtns();
+    const navBtns=()=>[...doc.querySelectorAll('aside > div:nth-child(2) button')]; const items=navBtns();
     let n=0,bad=0;
     for(let i=0;i<items.length;i++){
       const cur=navBtns();
@@ -27,6 +27,6 @@ const {makeEnv,sleep,appJs}=require('./harness');
     if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
   }
   // 2) platform pages
-  for(const p of ['الفريق والصلاحيات','الدعوات','حسابي']){ await toToday(); const b=[...doc.querySelectorAll('aside > div:nth-child(2) > button')].find(x=>x.textContent.includes(p)); b&&b.click(); await sleep(150); ok(!!b&&errors.length===0,'page '+p+' errors='+errors.length); if(errors.length){console.log(errors.slice(0,3));errors.length=0;} }
+  for(const p of ['الفريق والصلاحيات','الدعوات','حسابي']){ await toToday(); const b=[...doc.querySelectorAll('aside > div:nth-child(2) button')].find(x=>x.textContent.includes(p)); b&&b.click(); await sleep(150); ok(!!b&&errors.length===0,'page '+p+' errors='+errors.length); if(errors.length){console.log(errors.slice(0,3));errors.length=0;} }
   console.log('FAILS',fails);
 })().catch(e=>{console.log('HARNESS ERR',e);});
