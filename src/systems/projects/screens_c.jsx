@@ -437,7 +437,7 @@ export function Templates() {
   const show = (nodes, depth = 0) => nodes.map((n, i) => <div key={depth + "-" + i + n.title} style={{ paddingInlineStart: depth * 16, fontSize: 12, color: C.dim, lineHeight: 1.8 }}>{n.milestone ? "◆ " : depth ? "└ " : "• "}{n.title}{n.estimate_minutes ? ` (${fmtMinutes(n.estimate_minutes)})` : ""}{n.offset_days != null ? ` · يوم +${n.offset_days}` : ""}{n.dependency_titles?.length ? <span style={{ color: C.violet }}> · يعتمد على: {n.dependency_titles.join("، ")}</span> : null}{n.children && show(n.children, depth + 1)}</div>);
   return (
     <div>
-      <Head title="القوالب" sub="حزم مشاريع تجمع المراحل والمهام والمواصفات والمتطلبات والمخرجات والمخاطر والأدوار وأسئلة القرارات وقائمة الجاهزية." />
+      <Head title="القوالب" sub="حزم مشاريع تجمع الأهداف والنتائج الرئيسية ومجموعات المهام والاعتمادات والمواصفات والمخرجات والمخاطر والأدوار وقائمة الجاهزية." />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: "projects", label: "قوالب المشاريع", count: templates.length }, { id: "prd", label: "قالب المواصفة" }, { id: "update", label: "قالب التحديث" }, { id: "review", label: "قالب المراجعة" }, { id: "meetings", label: "قوالب الاجتماعات" }]} />
       {tab === "projects" && <div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
@@ -446,7 +446,7 @@ export function Templates() {
           <Btn onClick={() => setShowArchived(!showArchived)}>{showArchived ? "عرض القوالب النشطة" : "عرض المؤرشفة"}</Btn>
           <span style={{ fontSize: 11.5, color: C.muted }}>القوالب المدمجة للنسخ والتخصيص؛ القوالب المرجعية للاجتماعات لا تنشئ اجتماعات.</span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 10 }}>{templates.filter((t) => !!t.archived_at === showArchived).map((t) => <div key={t.id} style={{ ...S.card, padding: "12px 14px", opacity: t.archived_at ? .72 : 1 }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 14 }}>🧩 {t.name}</b>{t.builtin && <Chip>مدمج — للنسخ</Chip>}{!t.builtin && <Chip color={C.muted}>v{t.version || 1}</Chip>}{t.archived_at && <Chip color={C.muted}>مؤرشف</Chip>}</div><div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{t.description}</div><div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>{countN(t.task_tree || [])} مهمة · {(t.prd_templates || []).length} مواصفة · {(t.output_templates || []).length} مخرج متوقع · {(t.risks || []).length} مخاطر · {t.duration_days || "—"} يوم</div><div style={{ maxHeight: 130, overflowY: "auto", marginBottom: 8 }}>{show(t.task_tree || [])}</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{!t.archived_at && can("project.create") && <Btn kind="primary" small onClick={() => setPreviewTpl(t)}>معاينة</Btn>}{!t.archived_at && can("project.create") && <Btn small onClick={() => setUse(t)}>استخدام</Btn>}{canManage && t.builtin && <Btn small onClick={() => beginTemplateForm({ ...t, id: undefined, name: t.name + " — نسخة مخصصة", builtin: false })}>نسخ وتخصيص</Btn>}{canManage && !t.builtin && !t.archived_at && <Btn small onClick={() => beginTemplateForm(t)}>تعديل</Btn>}{canManage && !t.builtin && <Btn small onClick={() => setHistoryTpl(t)}>الإصدارات</Btn>}{canManage && !t.builtin && !t.archived_at && <Btn small onClick={() => act.put("templates", { ...t, archived_at: nowIso() }).then(() => toast("تمت أرشفة القالب"))}>أرشفة</Btn>}{canManage && !t.builtin && t.archived_at && <Btn small onClick={() => { const { archived_at, ...rest } = t; act.put("templates", rest).then(() => toast("تمت استعادة القالب")); }}>استعادة</Btn>}</div></div>)}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 10 }}>{templates.filter((t) => !!t.archived_at === showArchived).map((t) => <div key={t.id} style={{ ...S.card, padding: "12px 14px", opacity: t.archived_at ? .72 : 1 }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 14 }}>🧩 {t.name}</b>{t.builtin && <Chip>مدمج — للنسخ</Chip>}{!t.builtin && <Chip color={C.muted}>v{t.version || 1}</Chip>}{t.archived_at && <Chip color={C.muted}>مؤرشف</Chip>}</div><div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{t.description}</div><div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>{countN(t.task_tree || [])} مهمة · {(t.objective_templates || []).length} هدف · {(t.objective_templates || []).reduce((n, objective) => n + (objective.key_results || []).length, 0)} KR · {(t.prd_templates || []).length} مواصفة · {(t.output_templates || []).length} مخرج متوقع · {(t.risks || []).length} مخاطر · {t.duration_days || "—"} يوم</div><div style={{ maxHeight: 130, overflowY: "auto", marginBottom: 8 }}>{show(t.task_tree || [])}</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{!t.archived_at && can("project.create") && <Btn kind="primary" small onClick={() => setPreviewTpl(t)}>معاينة</Btn>}{!t.archived_at && can("project.create") && <Btn small onClick={() => setUse(t)}>استخدام</Btn>}{canManage && t.builtin && <Btn small onClick={() => beginTemplateForm({ ...t, id: undefined, name: t.name + " — نسخة مخصصة", builtin: false })}>نسخ وتخصيص</Btn>}{canManage && !t.builtin && !t.archived_at && <Btn small onClick={() => beginTemplateForm(t)}>تعديل</Btn>}{canManage && !t.builtin && <Btn small onClick={() => setHistoryTpl(t)}>الإصدارات</Btn>}{canManage && !t.builtin && !t.archived_at && <Btn small onClick={() => act.put("templates", { ...t, archived_at: nowIso() }).then(() => toast("تمت أرشفة القالب"))}>أرشفة</Btn>}{canManage && !t.builtin && t.archived_at && <Btn small onClick={() => { const { archived_at, ...rest } = t; act.put("templates", rest).then(() => toast("تمت استعادة القالب")); }}>استعادة</Btn>}</div></div>)}</div>
         {!templates.some((t) => !!t.archived_at === showArchived) && <Empty icon="🧩" title={showArchived ? "لا توجد قوالب مؤرشفة" : "لا توجد قوالب هنا"} sub={canManage ? "أنشئ قالباً مخصصاً أو انسخ قالباً مدمجاً." : "قد لا تملك صلاحية إدارة القوالب."} />}
       </div>}
       {tab === "prd" && <div style={S.card}>{PRD_TEMPLATE.map((s) => <div key={s.key} style={{ padding: "6px 0", borderBottom: `1px solid ${C.line}` }}><b style={{ fontSize: 13 }}>{s.group} — {s.title}</b>{s.required && <Chip color={C.bad} style={{ marginInlineStart: 6 }}>مطلوب للاعتماد</Chip>}<div style={{ fontSize: 11.5, color: C.muted }}>{s.hint}</div></div>)}</div>}
@@ -544,6 +544,8 @@ export function Templates() {
         { key: "final_goal", label: "صياغة الهدف النهائي للمشروع", type: "textarea", rows: 2, span: 2 },
         { key: "task_tree_text", label: "1) مراحل المشروع وشجرة المهام", type: "textarea", rows: 10, span: 2, hint: "كل سطر مهمة. مسافتان لكل مستوى فرعي. الصيغة: المهمة | التقدير بالدقائق | اليوم من البداية | milestone (اختياري). مثال:\nالاكتشاف\n  مقابلات المستخدمين | 240 | 7\nالتصميم\n  اعتماد التصميم | 0 | 25 | milestone" },
         { key: "task_dependencies_text", label: "علاقات الاعتماد بين المهام", type: "textarea", rows: 4, span: 2, hint: "سطر لكل علاقة: المهمة التالية <- المهمة السابقة. يجب أن يطابق كل عنوان مهمة واحدة فقط. مثال:\nبناء الواجهة <- اعتماد التصميم\nاختبار الإطلاق <- بناء الواجهة. سيتم رفض الروابط المفقودة أو الدائرية." },
+        { key: "objectives_text", label: "2) الأهداف (Objectives)", type: "textarea", rows: 4, span: 2, hint: "سطر لكل هدف: مفتاح فريد | اسم الهدف | لماذا؟ (اختياري). مثال:\nlaunch | إطلاق المنصة | توحيد تجربة العملاء\ngrowth | نمو الإيرادات | تحسين الاستدامة." },
+        { key: "key_results_text", label: "النتائج الرئيسية (KRs) ومجموعات التنفيذ", type: "textarea", rows: 6, span: 2, hint: "Project Based: مفتاح الهدف | اسم KR | Project Based | عناوين المهام مفصولة بـ ; (اختياري). Numeric: مفتاح الهدف | اسم KR | Numeric | الوحدة | القيمة الابتدائية | القيمة المستهدفة | عناوين المهام (اختياري). لا تُدخل قيمًا غير معروفة؛ كل مهمة يجب أن تطابق عنوانًا فريدًا في الشجرة." },
         { key: "prds_text", label: "2) المواصفات المطلوبة", type: "textarea", rows: 4, span: 2, hint: "سطر لكل مواصفة: اسم المواصفة | ملخصها. اترك الملخص اختياريًا." },
         { key: "requirements_text", label: "متطلبات المواصفات ومعايير القبول وربطها بالمهام", type: "textarea", rows: 6, span: 2, hint: "سطر لكل متطلب: اسم المواصفة :: اسم المتطلب | معيار القبول | عنوان المهمة. يجب أن يطابق عنوان المهمة سطرًا واحدًا فقط في شجرة المهام." },
         { key: "outputs_text", label: "3) المخرجات المتوقعة وروابط المصدر", type: "textarea", rows: 5, span: 2, hint: "سطر لكل مخرج: اسم المخرج | النوع (Design/Code/Document/Sample/Video/Other) | عنوان المهمة | اسم المواصفة | اسم المتطلب. الحقول الأخيرة اختيارية لكن يجب أن تكون الروابط صحيحة." },
@@ -555,6 +557,11 @@ export function Templates() {
         {(v) => {
           const treeError = validateTaskTreeText(v.task_tree_text);
           const tree = treeError ? [] : parseTaskTreeText(v.task_tree_text);
+          let objectivePreview = [];
+          let objectiveError = "";
+          try { objectivePreview = parseObjectiveTemplates(v.objectives_text, v.key_results_text, tree); }
+          catch (error) { objectiveError = error?.message || "راجع تعريفات الأهداف والنتائج الرئيسية."; }
+          const objectiveSummary = objectiveTemplateSummary(objectivePreview);
           return <div style={{ gridColumn: "1 / -1", marginTop: 8, display: "grid", gap: 9 }}>
             {(v.conversion_warnings || []).length > 0 && <section role="alert" style={{ padding: 10, border: "1px solid " + C.warn, borderRadius: 8, background: "rgba(239,159,39,.07)" }}>
               <b style={{ fontSize: 12.5 }}>روابط لم تُنقل تلقائيًا — راجعها يدويًا ({v.conversion_warnings.length})</b>
@@ -568,6 +575,22 @@ export function Templates() {
               <Chip color={treeError ? C.bad : C.ok}>{treeError || (countN(tree) + " مهمة")}</Chip>
             </div>
             {treeError ? <div style={{ fontSize: 11.5, color: C.bad }}>صحّح تنسيق المستويات قبل الحفظ. استخدم مسافتين لكل مستوى فرعي.</div> : tree.length ? <div style={{ maxHeight: 220, overflowY: "auto" }}>{show(tree)}</div> : <Empty icon="🧩" title="أضف أول مهمة" sub="اكتب المهام بالترتيب، واستخدم مسافتين لكل مستوى فرعي." />}
+            </section>
+            <section style={{ padding: 10, border: "1px solid " + C.line, borderRadius: 8 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 7 }}>
+                <b style={{ fontSize: 12.5 }}>معاينة الأهداف والنتائج الرئيسية</b>
+                <Chip color={objectiveError ? C.bad : C.ok}>{objectiveError || (objectiveSummary.objective_count + " هدف · " + objectiveSummary.kr_count + " KR · " + objectiveSummary.task_link_count + " ربط مهمة")}</Chip>
+              </div>
+              {objectiveError ? <div style={{ fontSize: 11.5, color: C.bad }}>{objectiveError}</div> : objectivePreview.length ? objectivePreview.map((objective) => <div key={objective.key} style={{ borderTop: "1px solid " + C.line, padding: "7px 0" }}>
+                <b style={{ fontSize: 12.5 }}>🎯 {objective.name}</b><span style={{ fontSize: 10.5, color: C.muted }}> · {objective.key}</span>
+                {objective.why && <div style={{ fontSize: 10.5, color: C.muted }}>{objective.why}</div>}
+                {(objective.key_results || []).map((kr) => <div key={kr.name} style={{ paddingInlineStart: 13, marginTop: 5, fontSize: 11.5 }}>
+                  <b>{kr.name}</b> <Chip>{kr.type === "Numeric" ? "رقمية · " + (kr.unit || "بلا وحدة") : "مبنية على مشروع"}</Chip>
+                  {kr.type === "Numeric" && <span style={{ color: C.muted }}> · {kr.initial_value} → {kr.target_value}</span>}
+                  {(kr.task_titles || []).length > 0 && <div style={{ color: C.info, fontSize: 10.5 }}>المهام: {kr.task_titles.join("، ")}</div>}
+                  {!(kr.task_titles || []).length && <div style={{ color: C.muted, fontSize: 10.5 }}>لا توجد مجموعة مهام محددة؛ يمكن ربطها لاحقًا من بطاقة KR.</div>}
+                </div>)}
+              </div>) : <Empty icon="🎯" title="لا توجد أهداف في القالب" sub="اترك الحقلين فارغين لقالب بلا OKRs، أو أضف Objective واحدًا على الأقل وKR واحدًا لكل هدف." />}
             </section>
           </div>;
         }}
