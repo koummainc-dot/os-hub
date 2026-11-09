@@ -369,10 +369,13 @@ export function Portfolio() {
 // ═════ My Work ═════
 // A dedicated personal work hub reusing the existing Today, Week and Tasks views.
 export function MyWork() {
+  const { idx } = useP();
   const [tab, setTab] = useState("tasks");
+  const preview = (idx?.list || []).slice(0, 8);
   return (
     <div>
       <Head title="عملي" sub="مساحة واحدة لمتابعة ما عليك اليوم وخلال الأسبوع وكل مهامك." />
+      {preview.length > 0 && <Section title="المهام الحالية" count={preview.length}>{preview.map((t) => <TaskLine key={t.id} t={t} />)}</Section>}
       <Tabs value={tab} onChange={setTab} tabs={[
         { id: "today", label: "اليوم" },
         { id: "week", label: "هذا الأسبوع" },
