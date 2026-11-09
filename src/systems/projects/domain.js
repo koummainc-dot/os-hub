@@ -191,12 +191,15 @@ export function analyzeTaskSchedule(tasks = []) {
   const successors = {};
   const durations = {};
   const missingPredecessors = [];
+  const cancelledPredecessors = [];
   for (const task of dated) {
     const allDeps = [...new Set(Array.isArray(task.dependency_task_ids) ? task.dependency_task_ids : [])];
     predecessors[task.id] = allDeps.filter((id) => !!datedById[id]);
     successors[task.id] = [];
     const missing = allDeps.filter((id) => !byId[id] || !datedById[id]);
     missing.forEach((id) => missingPredecessors.push({ task_id: task.id, dependency_task_id: id }));
+    allDeps.filter((id) => byId[id] && cat(byId[id].status) === "cancelled")
+      .forEach((id) => cancelledPredecessors.push({ task_id: task.id, dependency_task_id: id }));
     const from = task.start_date || task.due_date;
     const to = task.due_date || task.start_date;
     durations[task.id] = Math.max(1, diffDays(to < from ? from : to, to < from ? to : from) + 1);
@@ -222,7 +225,7 @@ export function analyzeTaskSchedule(tasks = []) {
     for (const predecessorId of predecessors[task.id]) {
       const predecessor = datedById[predecessorId];
       const predecessorEnd = predecessor.due_date || predecessor.start_date;
-      if (start < predecessorEnd) conflicts.push({
+      if (start <= predecessorEnd) conflicts.push({
         task_id: task.id,
         dependency_task_id: predecessorId,
         start_date: start,
@@ -241,9 +244,10 @@ export function analyzeTaskSchedule(tasks = []) {
       total_float: {},
       edges: dated.flatMap((task) => predecessors[task.id].map((id) => ({ from: id, to: task.id }))),
       missing_predecessors: missingPredecessors,
+      cancelled_predecessors: cancelledPredecessors,
       conflicts,
       cyclic,
-      complete: dated.length > 0 && !cyclic && !missingPredecessors.length,
+      complete: dated.length > 0 && !cyclic && !missingPredecessors.length && !cancelledPredecessors.length,
     };
   }
   const earliestStart = {};
@@ -266,17 +270,18 @@ export function analyzeTaskSchedule(tasks = []) {
   const criticalTaskIds = ids.filter((id) => totalFloat[id] === 0);
   return {
     task_count: dated.length,
-    project_duration_days: projectDuration,
-    critical_task_ids: criticalTaskIds,
+    project_duration_days: missingPredecessors.length || cancelledPredecessors.length ? null : projectDuration,
+    critical_task_ids: missingPredecessors.length || cancelledPredecessors.length ? [] : criticalTaskIds,
     earliest_start: earliestStart,
     earliest_finish: earliestFinish,
     latest_start: latestStart,
     total_float: totalFloat,
     edges: dated.flatMap((task) => predecessors[task.id].map((id) => ({ from: id, to: task.id }))),
     missing_predecessors: missingPredecessors,
+    cancelled_predecessors: cancelledPredecessors,
     conflicts,
     cyclic: false,
-    complete: missingPredecessors.length === 0,
+    complete: missingPredecessors.length === 0 && cancelledPredecessors.length === 0,
   };
 }
 
