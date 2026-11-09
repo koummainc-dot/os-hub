@@ -151,6 +151,19 @@ assert.ok(parts.includes('key: "dependency_task_ids"') &&
 assert.ok(parts.includes('D.cat(task.status) === "cancelled" ? " · ملغاة — استبدل الاعتماد" : ""') &&
   parts.includes("المهام الملغاة تظهر بعلامة تحذير لتستبدل اعتمادها"),
   "Existing cancelled predecessor links remain selectable so users can replace them safely");
+assert.ok(parts.includes('const [timelineZoom, setTimelineZoom] = useState("week")') &&
+  parts.includes('[["week", "أسبوع"], ["month", "شهر"], ["quarter", "ربع سنة"]]') &&
+  parts.includes('timelineStep = timelineZoom === "week" ? 7 : timelineZoom === "month" ? 30 : 90') &&
+  parts.includes('const rangeStart = minDate < today ? minDate : today') &&
+  parts.includes('● مؤشر اليوم داخل النطاق'),
+  "Task Gantt supports week/month/quarter zoom and keeps the real current-day marker in the visible range");
+assert.ok(parts.includes('/^\\d{4}-\\d{2}-\\d{2}/.test(String(meeting.date || ""))'),
+  "Project Calendar accepts ISO date prefixes from Knowledge OS meeting timestamps");
+assert.ok(parts.includes('review.status === "Closed" && review.visibility === "team"') &&
+  parts.includes('review.snapshot?.relatedProjects') &&
+  parts.includes('String(review.closed_at).slice(0, 10)'),
+  "Calendar shows only closed, team-shared reviews whose snapshots explicitly include the project");
+
 assert.ok(parts.includes("D.analyzeTaskSchedule(projectTasks)") &&
   parts.includes("dependencyPaths") &&
   parts.includes("schedule.critical_task_ids.includes(task.id)") &&
