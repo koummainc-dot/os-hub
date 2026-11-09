@@ -197,7 +197,40 @@ function ProjectActivityHub({ p }) {
   </div>;
 }
 
-function ProjectDetail() {
+function ProjectSubprojects({ p }) {
+  const { data, metrics, can, openProject } = useP();
+  const [form, setForm] = useState(null);
+  const children = data.projects.filter((project) => !project.is_system && !project.archived_at && String(project.parent_project_id || "") === String(p.id)).sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ar"));
+  const canCreate = can("project.create");
+  return <div style={{ display: "grid", gap: 12 }}><section style={S.card}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><b style={{ fontSize: 14 }}>المشاريع داخل {p.name}</b><Chip>{children.length}</Chip><span style={{ flex: 1 }} />{canCreate && <Btn kind="primary" onClick={() => setForm({ parent_project_id: p.id })}>＋ مشروع داخل هذا المشروع</Btn>}</div>
+    <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 10 }}>هذه مشاريع فرعية حقيقية مرتبطة بالمشروع الحالي، وليست نظامًا مستقلاً. يمكن فتح كل مشروع منها والعودة إلى المشروع الأب.</div>
+    {!children.length ? <Empty icon="📁" title="لا توجد مشاريع فرعية" sub="أنشئ أول مشروع فرعي من هنا؛ سيُحفظ مباشرة تحت المشروع الحالي." /> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 8 }}>{children.map((child) => { const m = metrics[child.id]; return <button key={child.id} type="button" onClick={() => openProject(child.id)} style={{ ...S.card, textAlign: "start", cursor: "pointer", font: "inherit", padding: 12 }}><div style={{ display: "flex", gap: 8, alignItems: "center" }}><b style={{ flex: 1 }}>{child.name}</b><StatusChip s={child.status} /></div><div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>{child.type || "مشروع"} · {m ? `${m.leafCompleted}/${m.leafTotal} مهمة` : "لا توجد مهام"}</div>{m && <div style={{ marginTop: 7 }}><Progress value={m.progress} /></div>}</button>; })}</div>}
+  </section>{form && <ProjectForm initial={form} onClose={() => setForm(null)} />}</div>;
+}
+
+function ProjectAgenda({ p }) {
+  const { ws, data, setPage, today, openTask } = useP();
+  const [meetings, setMeetings] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  useEffect(() => { let active = true; if (!ws?.id) { setMeetings([]); setLoading(false); return; } setLoading(true); setError(""); listKnowledgeMeetings(ws.id).then((result) => { if (!active) return; if (!result?.ok) { setError(result?.error?.message || "تعذر تحميل أجندة الاجتماعات."); setMeetings([]); } else setMeetings((result.meetings || []).filter((meeting) => !meeting.archived && meeting.status !== "archived" && meeting.relatedSystem === "projects" && String(meeting.relatedId) === String(p.id)).sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")))); setLoading(false); }).catch((e) => { if (active) { setError(e?.message || "تعذر تحميل أجندة الاجتماعات."); setLoading(false); } }); return () => { active = false; }; }, [ws?.id, p.id]);
+  const upcomingTasks = data.tasks.filter((task) => task.project_id === p.id && task.due_date && task.due_date >= today && D.cat(task.status) !== "done" && D.cat(task.status) !== "cancelled").sort((a, b) => String(a.due_date).localeCompare(String(b.due_date))).slice(0, 20);
+  return <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 12 }}><section style={S.card}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><b style={{ fontSize: 14 }}>أجندة المشروع</b><span style={{ flex: 1 }} /><Btn small onClick={() => setPage("meetings")}>كل الاجتماعات</Btn></div>
+    <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 9 }}>الاجتماعات مملوكة لـKnowledge OS وتظهر هنا لأنها مرتبطة بهذا المشروع.</div>
+    {loading ? <div style={{ color: C.muted, fontSize: 12 }}>جارٍ تحميل الاجتماعات…</div> : error ? <div role="alert" style={{ color: C.bad, fontSize: 12 }}>{error}</div> : !meetings.length ? <Empty icon="🗓️" title="لا توجد اجتماعات مرتبطة" sub="اربط الاجتماع بالمشروع من Knowledge OS ليظهر هنا." /> : meetings.map((meeting) => <article key={meeting.id} style={{ borderTop: "1px solid " + C.line, padding: "9px 0" }}><div style={{ display: "flex", gap: 8, alignItems: "center" }}><b style={{ flex: 1 }}>{meeting.title || "اجتماع"}</b><Chip color={C.info}>{meeting.date || "بدون تاريخ"}</Chip></div>{meeting.startTime && <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3 }}>{meeting.startTime}{meeting.endTime ? " → " + meeting.endTime : ""}</div>}{meeting.summary && <div style={{ fontSize: 11.5, lineHeight: 1.7, marginTop: 5, whiteSpace: "pre-wrap" }}>{meeting.summary}</div>}{Array.isArray(meeting.followups) && meeting.followups.length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>متابعات: {meeting.followups.length} · يمكن تحويلها إلى مهام من شاشة الاجتماعات.</div>}</article>)}</section>
+    <section style={S.card}><div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><b style={{ fontSize: 14 }}>المواعيد القادمة للمهام</b><Chip>{upcomingTasks.length}</Chip></div>{!upcomingTasks.length ? <Empty icon="✓" title="لا توجد مهام قادمة" sub="أضف موعدًا للمهام لتظهر في أجندة المشروع." /> : upcomingTasks.map((task) => <div key={task.id} style={{ display: "flex", gap: 8, alignItems: "center", borderTop: "1px solid " + C.line, padding: "7px 0" }}><Chip color={C.info}>{task.due_date}</Chip><button type="button" onClick={() => openTask(task.id)} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", font: "inherit", textAlign: "start", flex: 1 }}>{task.title}</button></div>)}</section>
+  </div>;
+}
+
+function ProjectUpdates({ p }) {
+  const { data, A: act, can, metrics, today, settings, idx } = useP();
+  const [form, setForm] = useState(false); const [sel, setSel] = useState(null);
+  const updates = data.updates.filter((u) => String(u.project_id) === String(p.id)).sort((a, b) => String(b.period_end || "").localeCompare(String(a.period_end || ""))); const writable = can("update.write", p);
+  function draft() { const m = metrics[p.id]; const ps = addDays(today, -14); const done = idx.list.filter((t) => t.project_id === p.id && idx.isLeaf(t.id) && D.cat(t.status) === "done"); const risks = data.risks.filter((r) => r.project_id === p.id && D.isOpenRisk(r)); const issues = data.issues.filter((i) => i.project_id === p.id && D.isOpenIssue(i)); const delayed = idx.list.filter((t) => t.project_id === p.id && idx.isLeaf(t.id) && D.isOverdueLeaf(t, idx, today)); return { id: uid(), project_id: p.id, period_start: ps, period_end: today, type: "Stakeholder", audience: "Management", status: "Draft", lead_assessment: "On Track", author_id: p.lead_id, completed_task_ids: done.map((t) => t.id), delayed_task_ids: delayed.map((t) => t.id), related_risk_ids: risks.map((r) => r.id), related_issue_ids: issues.map((i) => i.id), related_decision_ids: data.decisions.filter((d) => d.project_id === p.id && d.decided_at >= ps && d.decided_at <= today).map((d) => d.id), sections: { highlights: done.slice(0, 8).map((t) => "• أُنجز: " + t.title).join("\n"), lows: [...issues.map((i) => "• مشكلة: " + i.title), ...risks.filter((r) => D.riskScore(r) >= settings.riskHigh).map((r) => "• خطر عالٍ: " + r.title), ...delayed.slice(0, 8).map((t) => "• متأخرة: " + t.title)].join("\n"), metrics: "التقدم " + (m.progress == null ? "—" : Math.round(m.progress * 100) + "%") + " · الصحة: " + D.HEALTH_META[m.health].label + " · المهام " + m.leafCompleted + "/" + m.leafTotal, asks: "", next: "" } }; }
+  async function create() { if (!writable) return; const saved = await act.put("updates", draft(), p); if (saved) { setForm(false); setSel(saved.id); } }
+  const selected = sel ? data.updates.find((u) => u.id === sel) : null;
+  return <div style={{ display: "grid", gap: 12 }}><section style={S.card}><div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><b style={{ fontSize: 14 }}>تحديثات {p.name}</b><Chip>{updates.length}</Chip><span style={{ flex: 1 }} />{writable && <Btn kind="primary" onClick={() => setForm(true)}>＋ إنشاء تحديث</Btn>}</div><div style={{ fontSize: 11.5, color: C.muted, marginBottom: 9 }}>التحديثات مملوكة للمشروع وتُبنى من حالة المهام والمخاطر والمشاكل والقرارات الحالية.</div>{!updates.length ? <Empty icon="📣" title="لا توجد تحديثات" sub="أنشئ أول تحديث للمشروع؛ سيبدأ بمسودة مبنية على البيانات الحالية." /> : <div style={{ display: "grid", gap: 7 }}>{updates.map((u) => <button key={u.id} type="button" onClick={() => setSel(u.id)} style={{ ...S.card, cursor: "pointer", textAlign: "start", font: "inherit", padding: 10 }}><div style={{ display: "flex", gap: 8, alignItems: "center" }}><b style={{ flex: 1 }}>{u.title || "تحديث"}</b><Chip color={u.status === "Published" ? C.ok : C.muted}>{u.status === "Published" ? "منشور" : "مسودة"}</Chip></div><div style={{ fontSize: 10.5, color: C.muted, marginTop: 4 }}>{fmtShort(u.period_start)} → {fmtShort(u.period_end)}</div></button>)}</div>}</section>{form && <Modal title="إنشاء تحديث للمشروع" onClose={() => setForm(false)} footer={<><Btn onClick={() => setForm(false)}>إلغاء</Btn><Btn kind="primary" onClick={create}>إنشاء مسودة</Btn></>}><div style={{ fontSize: 12, lineHeight: 1.8 }}>سيتم إنشاء مسودة تلقائية من المهام المكتملة والمتأخرة والمخاطر والمشاكل والقرارات الحالية، مع الاحتفاظ بالمراجع الأصلية للسجلات.</div></Modal>}{selected && <UpdateEditor u={selected} onClose={() => setSel(null)} />}</div>;
+}function ProjectDetail() {
   const { view, setView, projectsById, metrics, data, can, A: act, idx, today, people, nameOf, toast, sessionsDummy, openTask } = useP();
   const p = projectsById[view.projectId]; const [edit, setEdit] = useState(false); const [wf, setWf] = useState(false); const [tm, setTm] = useState(false);
   if (!p) return <div><Btn onClick={() => setView({ projectId: null, tab: "overview" })}>← المشاريع</Btn><Empty icon="🔎" title="المشروع غير موجود أو محجوب" /></div>;
@@ -205,8 +238,11 @@ function ProjectDetail() {
   const counts = { tasks: m.leafTotal, outputs: m.outputsCount, risks: m.openRisks, issues: m.openIssues, decisions: m.decisionsCount, prds: data.prds.filter((x) => x.project_id === p.id).length };
   const tabGroups = [
     { id: "overview", label: "نظرة عامة", defaultTab: "overview", tabs: [{ id: "overview", label: "نظرة عامة" }] },
-    { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "tasks", label: "المهام", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }] },
+    { id: "projects", label: "المشاريع", defaultTab: "projects", tabs: [{ id: "projects", label: "المشاريع الفرعية" }] },
+    { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "tasks", label: "المهام والمهام الفرعية", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }] },
     { id: "goals", label: "الأهداف", defaultTab: "okr", tabs: [{ id: "okr", label: "الأهداف (OKR)" }] },
+    { id: "agenda", label: "الأجندة", defaultTab: "agenda", tabs: [{ id: "agenda", label: "الأجندة" }] },
+    { id: "updates", label: "التحديثات", defaultTab: "updates", tabs: [{ id: "updates", label: "التحديثات" }] },
     { id: "delivery", label: "التسليم", defaultTab: "outputs", tabs: [{ id: "outputs", label: "المخرجات", count: counts.outputs }, { id: "work", label: "العمل والوقت" }, { id: "timeline", label: "الخط الزمني" }, { id: "related", label: "المراجع" }] },
     { id: "governance", label: "الحوكمة", defaultTab: "risks", tabs: [{ id: "risks", label: "المخاطر", count: counts.risks }, { id: "issues", label: "المشاكل", count: counts.issues }, { id: "decisions", label: "القرارات", count: counts.decisions }] },
     { id: "collaboration", label: "التعاون", defaultTab: "people", tabs: [{ id: "people", label: "الفريق" }, { id: "activity", label: "النشاط" }] },
@@ -230,7 +266,10 @@ function ProjectDetail() {
       <Tabs tabs={tabGroups.map(({ id, label }) => ({ id, label }))} value={activeGroup.id} onChange={setGroup} small />
       {activeGroup.tabs.length > 1 && <Tabs tabs={activeGroup.tabs} value={tab} onChange={setTab} small />}
       {tab === "overview" && <Overview p={p} m={m} />}
+      {tab === "projects" && <ProjectSubprojects p={p} />}
       {tab === "tasks" && <div style={{ display: "grid", gridTemplateColumns: view.taskId && view.inlineTask ? "repeat(auto-fit,minmax(min(100%,340px),1fr))" : "minmax(0,1fr)", gap: 12, alignItems: "start" }}><div style={{ minWidth: 0 }}><TaskTree projectId={p.id} /></div>{view.taskId && view.inlineTask && <TaskSheet inline />}</div>}
+      {tab === "agenda" && <ProjectAgenda p={p} />}
+      {tab === "updates" && <ProjectUpdates p={p} />}
       {tab === "timeline" && <TaskTree projectId={p.id} initialMode="timeline" />}
       {tab === "outputs" && <OutputsView projectId={p.id} />}
       {tab === "work" && <WorkTab p={p} />}
