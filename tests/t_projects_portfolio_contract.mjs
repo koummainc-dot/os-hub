@@ -51,6 +51,7 @@ const taskTree = taskParts.slice(taskParts.indexOf("export function TaskTree"), 
 assert.ok(taskTree.includes('useState("month")') && taskTree.includes('[["month","شهر"],["week","أسبوع"],["day","يوم"]]'), "project calendar exposes month, week and day views");
 assert.ok(taskTree.includes("calendarMode === \"week\" ? weekDates") && taskTree.includes("calendarMode === \"day\" ? [calendarDate]"), "project calendar renders the selected week/day date range");
 assert.ok(taskTree.includes("إضافة مهمة بتاريخ ") && taskTree.includes("moveTask(task, date)"), "calendar day cells can create dated tasks and drop tasks to reschedule");
+assert.ok(taskTree.includes("minWidth: 680") && taskTree.includes('overflowX: calendarMode === "week" ? "auto" : "visible"'), "month and week calendar layouts remain navigable on narrow screens");
 assert.ok(taskParts.includes('key: "start_date"') && taskParts.includes('key: "due_date"'), "task form stores both planning start and due dates for timeline/calendar");
 
 assert.ok(entities.includes("مصفوفة المخاطر 5×5") && entities.includes('setMode(projectId ? "matrix" : "list")'), "project risk view opens on an actionable 5x5 risk matrix");
