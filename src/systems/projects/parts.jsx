@@ -345,17 +345,58 @@ export function TaskSheet({ inline = false }) {
   });
   const acts = data.activity.filter((a) => a.entity_id === t.id).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 15);
   const tabs = [{ id: "details", label: "التفاصيل" }, { id: "time", label: "الوقت", count: sessions.length }, { id: "outputs", label: "المخرجات", count: outs.length }, { id: "links", label: "الروابط" }, { id: "activity", label: "النشاط" }];
-  async function saveOutput(v) {
-    if (!String(v.name || "").trim()) throw new Error("اسم المخرج مطلوب");
-    const prd = v.prd_id ? data.prds.find((x) => x.id === v.prd_id) : null;
+  async function saveOutput(values) {
+    if (!String(values.name || "").trim()) throw new Error("اسم المخرج مطلوب");
+    const prd = values.prd_id ? data.prds.find((x) => x.id === values.prd_id) : null;
     if (prd && prd.project_id !== t.project_id) throw new Error("المواصفة يجب أن تتبع نفس مشروع المهمة");
-    if (v.prd_requirement_id && (!prd || !(prd.requirements || []).some((x) => x.id === v.prd_requirement_id))) throw new Error("المتطلب المختار لا ينتمي إلى المواصفة المحددة");
-    const existing = v.id ? data.outputs.find((x) => x.id === v.id) : null;
+    if (values.prd_requirement_id && (!prd || !(prd.requirements || []).some((x) => x.id === values.prd_requirement_id))) throw new Error("المتطلب المختار لا ينتمي إلى المواصفة المحددة");
+    const existing = values.id ? data.outputs.find((x) => x.id === values.id) : null;
     if (existing?.approval === "Final") throw new Error("المخرج النهائي مقفل؛ أنشئ مخرجاً جديداً بدل تعديل النسخة المعتمدة.");
-    if (v.approval === "Final" && !can("output.approve", project)) throw new Error("لا تملك صلاحية اعتماد المخرج نهائياً");
-    await act.put("outputs", { ...v, id: v.id || uid(), project_id: t.project_id, task_id: t.id, approval: v.approval || "Draft", approved_by: v.approval === "Final" ? me : null, approved_at: v.approval === "Final" ? new Date().toISOString() : null }, project);
-    toast(existing ? "✅ تم تحديث المخرج" : "✅ تم إنشاء المخرج وربطه بالمهمة");
+    if (values.approval === "Final" && !can("output.approve", project)) throw new Error("لا تملك صلاحية اعتماد المخرج نهائياً");
+    const pendingFiles = Array.from(values.__pendingFiles || []).filter(Boolean);
+    const { __pendingFiles, ...draft } = values;
+    const rec = {
+      ...draft,
+      id: values.id || uid(),
+      project_id: t.project_id,
+      task_id: t.id,
+      files: Array.isArray(existing?.files) ? existing.files : (Array.isArray(values.files) ? values.files : []),
+      approval: values.approval || "Draft",
+      approved_by: values.approval === "Final" ? me : null,
+      approved_at: values.approval === "Final" ? new Date().toISOString() : null,
+    };
+    await act.put("outputs", rec, project);
+    const uploaded = [];
+    try {
+      if (pendingFiles.length && !ws?.id) throw new Error("المساحة الحالية غير متاحة للرفع.");
+      for (const file of pendingFiles) {
+        const validation = validateOutputUpload(file);
+        if (!validation.ok) throw new Error(validation.error);
+        const objectPath = outputObjectPath({ workspaceId: ws.id, projectId: t.project_id, outputId: rec.id, fileId: uid(), filename: file.name });
+        const { error } = await supabase.storage.from(OUTPUT_STORAGE_BUCKET).upload(objectPath, file, { upsert: false, contentType: file.type });
+        if (error) throw error;
+        uploaded.push(outputFileMetadata({ file, objectPath }));
+      }
+      if (uploaded.length) await act.put("outputs", { ...rec, files: [...rec.files, ...uploaded] }, project);
+    } catch (error) {
+      if (uploaded.length) {
+        await supabase.storage.from(OUTPUT_STORAGE_BUCKET).remove(uploaded.map((file) => file.object_path)).catch(() => null);
+      }
+      if (!existing) await act.del("outputs", rec.id, rec.name).catch(() => null);
+      throw new Error("تعذّر إكمال حفظ مرفقات المخرج: " + (error?.message || "فشل الرفع"));
+    }
+    toast(uploaded.length ? "✅ تم حفظ المخرج ورفع المرفقات بأمان" : existing ? "✅ تم تحديث المخرج" : "✅ تم إنشاء المخرج وربطه بالمهمة");
     setOutputForm(null);
+  }
+  async function openOutputFile(file) {
+    try {
+      const { data: signed, error } = await supabase.storage.from(OUTPUT_STORAGE_BUCKET).createSignedUrl(file.object_path, 60);
+      if (error) throw error;
+      if (!signed?.signedUrl) throw new Error("تعذّر إنشاء رابط تنزيل مؤقت.");
+      window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toast("⛔ تعذّر فتح المرفق: " + (error?.message || "فشل التنزيل"));
+    }
   }
   return (
     <SideSheet title={t.title} onClose={closeTask} inline={inline} footer={<>
