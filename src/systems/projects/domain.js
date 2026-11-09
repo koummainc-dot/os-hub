@@ -897,6 +897,56 @@ export function instantiateProjectTemplate(tpl, opts, newId) {
     if (dependencyErrors.length) throw new Error(dependencyErrors[0]);
   }
 
+  const objectives = [];
+  const krs = [];
+  const objectiveDefinitions = Array.isArray(tpl.objective_templates) ? tpl.objective_templates : [];
+  if (objectiveDefinitions.length && (!project.start_date || !project.target_date || project.start_date > project.target_date)) {
+    throw new Error("هذا القالب يحتوي على أهداف ونتائج رئيسية؛ حدد تاريخ بدء وموعدًا مستهدفًا للمشروع أو مدة إرشادية حتى تُنشأ فترة الهدف بصورة صحيحة.");
+  }
+  const objectiveNames = new Set();
+  for (const definition of objectiveDefinitions) {
+    const objectiveName = String(definition.name || "").trim();
+    if (!objectiveName) throw new Error("كل هدف داخل القالب يجب أن يحتوي على اسم.");
+    if (objectiveNames.has(objectiveName)) throw new Error("اسم الهدف مكرر داخل القالب: " + objectiveName);
+    objectiveNames.add(objectiveName);
+    const objectiveId = newId();
+    const objective = {
+      id: objectiveId, name: objectiveName, why: String(definition.why || "").trim(),
+      period_start: project.start_date, period_end: project.target_date,
+      status: "Active", owner_id: opts.lead_id || null, template_seed: true,
+    };
+    const definitions = Array.isArray(definition.key_results) ? definition.key_results : [];
+    if (!definitions.length) throw new Error("الهدف «" + objectiveName + "» لا يحتوي على نتائج رئيسية.");
+    const krNames = new Set();
+    for (const krDefinition of definitions) {
+      const krName = String(krDefinition.name || "").trim();
+      if (!krName) throw new Error("كل نتيجة رئيسية داخل الهدف «" + objectiveName + "» يجب أن تحتوي على اسم.");
+      if (krNames.has(krName)) throw new Error("اسم النتيجة الرئيسية مكرر ضمن الهدف «" + objectiveName + "»: " + krName);
+      krNames.add(krName);
+      const taskIds = [];
+      for (const title of (krDefinition.task_titles || [])) {
+        const matches = taskByTitle.get(String(title || "").trim()) || [];
+        if (matches.length !== 1) throw new Error("المهمة «" + title + "» المرتبطة بالنتيجة «" + krName + "» يجب أن تطابق مهمة واحدة بالضبط.");
+        if (matches[0].project_id !== projectId) throw new Error("كل مهمة مرتبطة بالنتيجة «" + krName + "» يجب أن تتبع المشروع الجديد.");
+        if (!taskIds.includes(matches[0].id)) taskIds.push(matches[0].id);
+      }
+      const kr = {
+        id: newId(), name: krName, objective_id: objectiveId,
+        type: krDefinition.type, owner_id: opts.lead_id || null,
+        project_ids: [projectId], task_ids: taskIds, template_seed: true,
+        ...(krDefinition.type === "Numeric" ? {
+          unit: String(krDefinition.unit || ""),
+          initial_value: Number(krDefinition.initial_value),
+          target_value: Number(krDefinition.target_value),
+          current_value: Number(krDefinition.initial_value),
+        } : {}),
+      };
+      const krErrors = validateKR(kr, { tasksById });
+      if (krErrors.length) throw new Error("النتيجة الرئيسية «" + krName + "»: " + krErrors[0]);
+      krs.push(kr);
+    }
+    objectives.push(objective);
+  }
   const prds = [];
   const outputs = [];
   const prdByTitle = new Map();
@@ -963,7 +1013,7 @@ export function instantiateProjectTemplate(tpl, opts, newId) {
     impact: r.impact || 3, status: "Open", mitigation: r.mitigation || "",
     template_seed: true, needs_review: true,
   }));
-  return { project, tasks, risks, prds, outputs };
+  return { project, tasks, objectives, krs, risks, prds, outputs };
 }
 
 // ── weekly review live metrics ──────────────────────────────────────
