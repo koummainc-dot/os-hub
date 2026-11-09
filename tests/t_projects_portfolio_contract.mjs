@@ -27,7 +27,7 @@ assert.ok(portfolio.includes("D.objectiveProgress(objective, data.krs, projectPr
 assert.ok(portfolio.includes("const projectIds = [...new Set(krs.flatMap((kr) => kr.project_ids || []))]"), "Portfolio derives contributing Projects only from KR.project_ids");
 assert.ok(!portfolio.includes("objective.project_ids"), "Portfolio does not restore legacy direct Objective→Project links");
 assert.ok(portfolio.includes("id: \"governance\"") && portfolio.includes("id: \"outputs\"") && portfolio.includes("id: \"specs\""), "Portfolio groups governance, outputs, and specifications in shared tabs");
-assert.ok(portfolio.includes("D.pace(progress, o.period_start, o.period_end, o.status, today, settings)"), "Portfolio shows time-aware OKR pace");
+assert.ok(portfolio.includes("D.pace(progress, objective.period_start, objective.period_end, objective.status, today, settings)"), "Portfolio shows time-aware OKR pace");
 assert.ok(portfolio.includes("aria-label=\"بحث في المشاريع\""), "Portfolio search has an accessible Arabic label");
 assert.ok(portfolio.includes("aria-label=\"تصفية المشاريع\""), "Portfolio filter has an accessible Arabic label");
 assert.ok(portfolio.includes("openProject(p.id)"), "Portfolio cards navigate to the exact project");
