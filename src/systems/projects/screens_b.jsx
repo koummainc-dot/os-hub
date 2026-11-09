@@ -5,7 +5,7 @@ import { fmt, fmtShort, fmtMinutes, addDays, diffDays, monthDays, MONTH_NAMES, d
 import { uid } from "../../core/records.jsx";
 import { useP } from "./store.jsx";
 import * as D from "./domain.js";
-import { L, opts, STATUS_COLOR } from "./lookups.js";
+import { L, opts, STATUS_COLOR, activityEventText } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, ProjectName, ProjectForm, TaskTree, TaskSheet, mOpts } from "./parts.jsx";
 import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView } from "./entities.jsx";
 import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
@@ -160,7 +160,7 @@ function ProjectActivityHub({ p }) {
       const task = event.entity === "tasks" ? idx.byId[event.entity_id] : null;
       return <div key={event.id} style={{ display: "grid", gridTemplateColumns: "90px 28px minmax(0,1fr)", gap: 8, alignItems: "start", padding: "9px 0", borderTop: "1px solid " + C.line }}>
         <span style={{ fontSize: 10.5, color: C.muted }}>{event.at ? dateOf(event.at) : "—"}</span><span style={{ color: C.info, textAlign: "center" }}>●</span>
-        <div style={{ minWidth: 0, fontSize: 12.5, lineHeight: 1.7 }}><b>{nameOf(event.actor_id)}</b> · {event.action} {event.summary || ""}{task && <div><Btn small onClick={() => openTask(task.id)}>{task.title}</Btn></div>}</div>
+        <div style={{ minWidth: 0, fontSize: 12.5, lineHeight: 1.7 }}><b>{nameOf(event.actor_id)}</b> · {activityEventText(event)}{task && <div><Btn small onClick={() => openTask(task.id)}>{task.title}</Btn></div>}</div>
       </div>;
     })}</section>}
     {tab === "updates" && <section style={S.card}>{!updates.length ? <Empty icon="📣" title="لا توجد تحديثات" sub="أنشئ تحديثًا من قسم التحديثات وسيظهر هنا مرتبطًا بالمشروع." /> : updates.map((update) => <div key={update.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "9px 0", borderTop: "1px solid " + C.line }}><div style={{ flex: 1, minWidth: 140 }}><b style={{ fontSize: 12.5 }}>{update.title || "تحديث المشروع"}</b><div style={{ fontSize: 10.5, color: C.muted }}>{fmtShort(update.period_start)} → {fmtShort(update.period_end)} · {update.status === "Published" ? "منشور" : "مسودة"}</div></div><Chip color={update.lead_assessment === "On Track" ? C.ok : update.lead_assessment === "At Risk" ? C.warn : C.bad}>{update.lead_assessment || "غير مقيّم"}</Chip></div>)}</section>}
