@@ -148,6 +148,9 @@ assert.ok(parts.includes('key: "dependency_task_ids"') &&
   parts.includes("const taskDependencies = (t.dependency_task_ids || [])") &&
   parts.includes("const taskDependents = idx.list.filter((task) => (task.dependency_task_ids || []).includes(t.id))"),
   "TaskForm can set dependencies and Task Sheet exposes both predecessor and successor relations");
+assert.ok(parts.includes('D.cat(task.status) === "cancelled" ? " · ملغاة — استبدل الاعتماد" : ""') &&
+  parts.includes("المهام الملغاة تظهر بعلامة تحذير لتستبدل اعتمادها"),
+  "Existing cancelled predecessor links remain selectable so users can replace them safely");
 assert.ok(parts.includes("D.analyzeTaskSchedule(projectTasks)") &&
   parts.includes("dependencyPaths") &&
   parts.includes("schedule.critical_task_ids.includes(task.id)") &&
