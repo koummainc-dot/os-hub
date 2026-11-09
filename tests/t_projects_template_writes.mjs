@@ -118,4 +118,33 @@ const stamp = (record) => ({ ...record, stamped: true });
   }
   assert.equal(versioned.version_history.length, TEMPLATE_VERSION_HISTORY_LIMIT, "history retains the configured rolling window");
 }
+{
+  const batches = [];
+  const objectives = [{ id: "objective_1", name: "Growth" }];
+  const krs = [{ id: "kr_1", objective_id: "objective_1", project_ids: ["p4"], task_ids: ["t5"] }];
+  await persistTemplateBundle({
+    project: { id: "p4" }, tasks: [{ id: "t5" }], objectives, krs,
+    prds: [{ id: "prd4" }], outputs: [{ id: "output4" }], risks: [{ id: "risk4" }],
+    stamp, atomic: true,
+    putAtomic: async (ops) => { batches.push(ops); return ops.map((op) => op.rec); },
+    put: async () => { throw new Error("sequential fallback must not run"); },
+    softDelete: async () => ({ deleted: true }),
+  });
+  assert.deepEqual(batches[0].map((op) => [op.coll, op.rec.id]), [
+    ["projects", "p4"], ["tasks", "t5"], ["objectives", "objective_1"], ["krs", "kr_1"],
+    ["prds", "prd4"], ["outputs", "output4"], ["risks", "risk4"],
+  ], "online OKR template creation persists Project → Tasks → Objectives → KRs → specs → outputs → risks in one RPC batch");
+}
+{
+  const deleted = [];
+  await assert.rejects(() => persistTemplateBundle({
+    project: { id: "p5" }, tasks: [{ id: "t6" }],
+    objectives: [{ id: "objective_2" }], krs: [{ id: "kr_2" }],
+    stamp, actorId: "u1",
+    put: async (coll) => coll === "krs" ? null : { id: "ok" },
+    softDelete: async (coll, id) => { deleted.push([coll, id]); return { deleted: true }; },
+  }), /لم يكتمل إنشاء المشروع/);
+  assert.deepEqual(deleted, [["objectives", "objective_2"], ["tasks", "t6"], ["projects", "p5"]],
+    "offline failure during KR write compensates previously written Objective, Task and Project records");
+}
 console.log("PASS template bundle failure safety");
