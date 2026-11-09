@@ -161,6 +161,32 @@ export function validateTaskDependencies(task, tasksById = {}) {
       errors.push("المهمة السابقة يجب أن تكون من المشروع نفسه.");
       continue;
     }
+    let parentId = task.parent_task_id;
+    const ancestorIds = new Set();
+    while (parentId && !ancestorIds.has(parentId)) {
+      ancestorIds.add(parentId);
+      if (parentId === dependencyId) break;
+      parentId = tasksById[parentId]?.parent_task_id || null;
+    }
+    if (ancestorIds.has(dependencyId)) {
+      errors.push("لا يمكن ربط المهمة بمهمة أب لها داخل شجرة المهام؛ استخدم مهمة تنفيذ مستقلة من نفس المستوى.");
+      continue;
+    }
+    const descendants = new Set();
+    const childQueue = [task.id];
+    while (childQueue.length) {
+      const parent = childQueue.shift();
+      for (const candidate of Object.values(tasksById)) {
+        if (candidate?.parent_task_id === parent && !descendants.has(candidate.id)) {
+          descendants.add(candidate.id);
+          childQueue.push(candidate.id);
+        }
+      }
+    }
+    if (descendants.has(dependencyId)) {
+      errors.push("لا يمكن ربط المهمة بمهمة فرعية تابعة لها؛ استخدم مهمة تنفيذ مستقلة.");
+      continue;
+    }
     // A dependency edge is task → predecessor. Adding it is cyclic when
     // the predecessor already reaches this task through its own predecessors.
     const stack = [dependencyId];
