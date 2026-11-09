@@ -383,7 +383,7 @@ export function Templates() {
               <b style={{ flex: 1 }}>الإصدار الحالي · v{templates.find((item) => item.id === historyTpl.id)?.version || historyTpl.version || 1}</b>
               <Chip color={C.ok}>الحالي</Chip>
             </div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>آخر تحديث: {fmtShort((templates.find((item) => item.id === historyTpl.id)?.updated_at || historyTpl.updated_at || "").slice(0, 10))}</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>آخر تحديث: {(templates.find((item) => item.id === historyTpl.id)?.updated_at || historyTpl.updated_at) ? fmtShort(String(templates.find((item) => item.id === historyTpl.id)?.updated_at || historyTpl.updated_at).slice(0, 10)) : "—"}</div>
           </div>
           {(historyTpl.version_history || []).length === 0 ? <Empty icon="🕘" title="لا توجد إصدارات سابقة" sub="سيظهر هنا كل إصدار سابق عند تعديل القالب أو استعادة نسخة." /> : [...historyTpl.version_history].sort((a, b) => Number(b.version) - Number(a.version)).map((version) => <div key={version.version} style={{ ...S.card, padding: 10, display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 180 }}>
