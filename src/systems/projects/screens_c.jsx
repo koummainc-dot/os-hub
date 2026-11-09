@@ -37,20 +37,21 @@ export function Okrs() {
     }, 2400);
     return () => { window.clearTimeout(scrollTimer); window.clearTimeout(clearTimer); };
   }, [view?.okrFocus, data.objectives, data.krs, setView, toast]);
-  const [oForm, setOForm] = useState(null); const [kForm, setKForm] = useState(null); const [ci, setCi] = useState(null); const [hist, setHist] = useState(null); const [taskForm, setTaskForm] = useState(null); const [taskAllowedProjectIds, setTaskAllowedProjectIds] = useState(null); const [taskProjectForm, setTaskProjectForm] = useState(null); const [filter, setFilter] = useState("Active");
+  const [oForm, setOForm] = useState(null); const [kForm, setKForm] = useState(null); const [ci, setCi] = useState(null); const [hist, setHist] = useState(null); const [taskForm, setTaskForm] = useState(null); const [taskAllowedProjectIds, setTaskAllowedProjectIds] = useState(null); const [taskProjectForm, setTaskProjectForm] = useState(null); const [taskKrId, setTaskKrId] = useState(null); const [filter, setFilter] = useState("Active");
   const objs = data.objectives.filter((o) => filter === "all" || o.status === filter);
   const canEditObj = (o) => role === "Owner" || role === "Admin" || !o || o.owner_id === me || o.created_by === me;
   const checkinsOf = (id) => data.checkins.filter((c) => c.kr_id === id).sort((a, b) => b.checked_at.localeCompare(a.checked_at));
-  const startObjectiveTask = (objective, linkedKrs) => {
-    const projectIds = [...new Set((linkedKrs || []).flatMap((kr) => Array.isArray(kr.project_ids) ? kr.project_ids : []))]
-      .filter((id) => data.projects.some((project) => project.id === id && !project.archived_at && !project.deleted_at));
+  const startObjectiveTask = (objective, kr) => {
+    const projectIds = [...new Set(Array.isArray(kr?.project_ids) ? kr.project_ids : [])]
+      .filter((id) => data.projects.some((project) => project.id === id && !project.is_system && !project.archived_at && !project.deleted_at));
     if (!projectIds.length) {
       toast("اربط مشروعًا بنتيجة رئيسية أولًا؛ ربط المهمة بالهدف يُشتق من المشروع والنتيجة الرئيسية.");
       return;
     }
+    setTaskKrId(kr.id);
     setTaskAllowedProjectIds(projectIds);
     if (projectIds.length === 1) setTaskForm({ project_id: projectIds[0] });
-    else setTaskProjectForm({ objectiveId: objective.id, projectIds });
+    else setTaskProjectForm({ objectiveId: objective.id, krId: kr.id, projectIds });
   };
   return (
     <div>
@@ -64,7 +65,7 @@ export function Okrs() {
               {canEditObj(o) && <><Btn small onClick={() => setOForm(o)}>✎</Btn><Btn small onClick={() => setKForm({ objective_id: o.id, type: "Numeric", owner_id: o.owner_id })}>➕ نتيجة</Btn><Btn small danger onClick={async () => { const linkedTasks = D.objectiveTaskExecution(o, krs, idx).tasks; const linkedWins = data.wins.filter((w) => w.objective_id === o.id); const linkedKrs = data.krs.filter((k) => k.objective_id === o.id); if (linkedTasks.length || linkedWins.length || linkedKrs.length) return toast("لا يمكن حذف هدف مرتبط بمهام أو نتائج رئيسية أو إنجازات. غيّر حالة الهدف إلى ملغى للاحتفاظ بالتاريخ."); if (await confirm("حذف الهدف؟ لا يمكن التراجع عن هذا الإجراء.")) await act.del("objectives", o.id, o.name); }}>🗑</Btn></>}</div>
             {o.why && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>لماذا؟ {o.why}</div>}
             {(() => { const linkedTasks = taskExecution.tasks; const done = linkedTasks.filter((t) => idx.isLeaf(t.id) && D.cat(t.status) === "done").length; return <div style={{ marginTop: 10, padding: "9px 10px", border: "1px solid " + C.line, borderRadius: 9 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}><b style={{ fontSize: 12.5 }}>المهام المرتبطة بالهدف</b><Chip>{done}/{linkedTasks.filter((t) => idx.isLeaf(t.id)).length} مكتملة</Chip><span style={{ flex: 1 }} />{canEditObj(o) && <Btn small onClick={() => startObjectiveTask(o, krs)}>＋ إضافة مهمة</Btn>}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}><b style={{ fontSize: 12.5 }}>المهام المرتبطة بالهدف</b><Chip>{done}/{linkedTasks.filter((t) => idx.isLeaf(t.id)).length} مكتملة</Chip><span style={{ flex: 1 }} /></div>
               {linkedTasks.length ? linkedTasks.map((t) => <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 0", borderTop: "1px solid " + C.line, fontSize: 12 }}>
                 <span style={{ flex: 1, cursor: "pointer" }} onClick={() => openTask(t.id)}>{D.cat(t.status) === "done" ? "✅ " : "▫️ "}{t.title}</span><ProjectName id={t.project_id} /><Btn small onClick={() => openTask(t.id)}>فتح</Btn>
               </div>) : <div style={{ fontSize: 11.5, color: C.muted }}>لا توجد مهام مرتبطة بعد. اربط مهامًا موجودة أو أنشئ مهمة من هنا.</div>}
@@ -75,24 +76,36 @@ export function Okrs() {
               <div key={k.id} id={okrFocusDomId("kr", k.id)} style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.5fr) minmax(110px,1fr) 100px auto", gap: 8, padding: "7px 0", borderTop: `1px solid ${C.line}`, alignItems: "center", fontSize: 12.5, ...(focusTarget?.kind === "kr" && focusTarget.id === k.id ? { outline: "2px solid " + C.info, outlineOffset: 2, borderRadius: 6 } : {}) }}>
                 <div><b>{k.name}</b><div style={{ fontSize: 10.5, color: C.muted }}>{k.type === "Numeric" ? `${k.initial_value ?? 0} → ${k.target_value} ${k.unit || ""} · الحالي ${k.current_value ?? k.initial_value ?? 0}${(k.project_ids || []).length ? ` · ${(k.project_ids || []).length} مشروع داعم` : ""}` : `${(k.project_ids || []).length} مشروع`}{raw != null && raw > 1 ? ` · تجاوز الهدف ${Math.round(raw * 100)}%` : ""}</div></div>
                 <div><Progress value={val} />{execution.progress != null && <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3 }}>تنفيذ المهام المرتبطة: {execution.leafDone}/{execution.leafTotal} ({Math.round(execution.progress * 100)}%)</div>}</div><Chip color={D.PACE_META[kp].color}>{D.PACE_META[kp].label}</Chip>
-                <span style={{ display: "inline-flex", gap: 4 }}>{k.type === "Numeric" && canEditObj(o) && <Btn small onClick={() => setCi({ kr: k, value: k.current_value ?? k.initial_value ?? 0 })}>📍 Check-in</Btn>}<Btn small onClick={() => setHist(k)}>سجل</Btn>{canEditObj(o) && <><Btn small onClick={() => setKForm(k)}>✎</Btn><Btn small danger onClick={() => act.del("krs", k.id, k.name)}>🗑</Btn></>}</span>
+                <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>{canEditObj(o) && <Btn small onClick={() => startObjectiveTask(o, k)}>＋ مهمة مرتبطة</Btn>}{k.type === "Numeric" && canEditObj(o) && <Btn small onClick={() => setCi({ kr: k, value: k.current_value ?? k.initial_value ?? 0 })}>📍 Check-in</Btn>}<Btn small onClick={() => setHist(k)}>سجل</Btn>{canEditObj(o) && <><Btn small onClick={() => setKForm(k)}>✎</Btn><Btn small danger onClick={() => act.del("krs", k.id, k.name)}>🗑</Btn></>}</span>
               </div>); })}{!krs.length && <div style={{ fontSize: 12, color: C.muted }}>لا نتائج رئيسية بعد</div>}</div>
           </div>);
       })}
-      {taskForm && <TaskForm initial={taskForm} allowedProjectIds={taskAllowedProjectIds} onClose={() => { setTaskForm(null); setTaskAllowedProjectIds(null); }} />}
-      {taskProjectForm && <FormModal title="اختر المشروع الذي ستُضاف إليه المهمة" initial={{ project_id: taskProjectForm.projectIds[0] }} onClose={() => setTaskProjectForm(null)} onSubmit={async (v) => { if (!taskProjectForm.projectIds.includes(v.project_id)) return false; setTaskForm({ project_id: v.project_id }); setTaskProjectForm(null); }} fields={[{ key: "project_id", label: "المشروع المرتبط بالنتيجة الرئيسية", type: "select", allowEmpty: false, required: true, options: taskProjectForm.projectIds.map((id) => data.projects.find((project) => project.id === id)).filter(Boolean).map((project) => ({ v: project.id, l: project.name })) }]} />}
+      {taskForm && <TaskForm key={taskKrId || "unlinked"} initial={taskForm} linkedKrId={taskKrId} allowedProjectIds={taskAllowedProjectIds} onClose={() => { setTaskForm(null); setTaskAllowedProjectIds(null); setTaskKrId(null); }} />}
+      {taskProjectForm && <FormModal title="اختر المشروع المرتبط بالنتيجة الرئيسية" initial={{ project_id: taskProjectForm.projectIds[0] }} onClose={() => { setTaskProjectForm(null); setTaskAllowedProjectIds(null); setTaskKrId(null); }} onSubmit={async (v) => { if (!taskProjectForm.projectIds.includes(v.project_id)) return false; setTaskKrId(taskProjectForm.krId); setTaskForm({ project_id: v.project_id }); setTaskProjectForm(null); }} fields={[{ key: "project_id", label: "المشروع الذي ستُضاف إليه المهمة", type: "select", allowEmpty: false, required: true, options: taskProjectForm.projectIds.map((id) => data.projects.find((project) => project.id === id)).filter(Boolean).map((project) => ({ v: project.id, l: project.name })) }]} />}
       {oForm && <FormModal title={oForm.id ? "تعديل الهدف" : "هدف جديد"} wide initial={{ status: "Active", owner_id: me, period_start: today, period_end: addDays(today, 90), ...oForm }} onClose={() => setOForm(null)} validate={(v) => (D.validateDates(v.period_start, v.period_end).length ? { period_end: "النهاية قبل البداية" } : null)} onSubmit={async (v) => { await act.put("objectives", { ...v, id: v.id || uid() }); setOForm(null); }} fields={[{ key: "name", label: "الهدف", required: true, span: 2 }, { key: "why", label: "لماذا؟", type: "textarea", rows: 2 }, { key: "period_start", label: "بداية الفترة", type: "date", required: true }, { key: "period_end", label: "نهاية الفترة", type: "date", required: true }, { key: "status", label: "الحالة", type: "select", allowEmpty: false, options: opts(L.objectiveStatus) }, { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people) }]} />}
       {kForm && <FormModal title={kForm.id ? "تعديل النتيجة الرئيسية" : "نتيجة رئيسية جديدة"} wide initial={kForm} onClose={() => setKForm(null)} validate={(v) => { const e = D.validateKR(v); return e.length ? { target_value: e[0] } : null; }} onSubmit={async (v) => {
-          const rec = { ...v, id: v.id || uid(), task_ids: Array.isArray(v.task_ids) ? v.task_ids : [] };
-          const allowedTaskIds = new Set(data.tasks.filter((t) => !t.deleted_at && (!rec.project_ids?.length || rec.project_ids.includes(t.project_id))).map((t) => t.id));
-          if (rec.task_ids.some((id) => !allowedTaskIds.has(id))) throw new Error("كل مهمة مرتبطة بالنتيجة يجب أن تتبع أحد المشاريع المرتبطة بها.");
+          const currentKr = kForm.id ? data.krs.find((item) => item.id === kForm.id) : null;
+          const legacyTaskIds = currentKr && !Array.isArray(currentKr.task_ids)
+            ? data.tasks.filter((task) => !task.deleted_at && !task.archived_at && (v.project_ids || []).includes(task.project_id)).map((task) => task.id)
+            : [];
+          const selectedTaskIds = Array.isArray(v.task_ids) && (Array.isArray(currentKr?.task_ids) || v.task_ids.length > 0)
+            ? v.task_ids
+            : (currentKr ? legacyTaskIds : (Array.isArray(v.task_ids) ? v.task_ids : []));
+          const rec = { ...v, id: v.id || uid(), task_ids: [...new Set(selectedTaskIds)] };
+          if (rec.task_ids.length && !(rec.project_ids || []).length) throw new Error("اربط مشروعًا بنتيجة رئيسية أولًا؛ ربط المهمة بالهدف يُشتق من المشروع والنتيجة الرئيسية.");
+          const taskById = new Map(data.tasks.map((task) => [task.id, task]));
+          const invalidTaskIds = rec.task_ids.filter((id) => {
+            const task = taskById.get(id);
+            return !task || task.deleted_at || task.archived_at || !(rec.project_ids || []).includes(task.project_id);
+          });
+          if (invalidTaskIds.length) throw new Error("كل مهمة مرتبطة بالنتيجة يجب أن تتبع مشروعًا مرتبطًا بهذه النتيجة الرئيسية.");
           if (rec.type === "Numeric" && rec.current_value == null) rec.current_value = rec.initial_value;
           await act.put("krs", rec); setKForm(null);
         }} fields={[
         { key: "name", label: "النتيجة الرئيسية", required: true, span: 2 }, { key: "type", label: "النوع", type: "select", allowEmpty: false, options: opts(L.krType) }, { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people) },
         { key: "unit", label: "الوحدة", show: (v) => v.type === "Numeric" }, { key: "initial_value", label: "القيمة الابتدائية", type: "number", show: (v) => v.type === "Numeric", required: (v) => v.type === "Numeric" }, { key: "target_value", label: "القيمة المستهدفة", type: "number", show: (v) => v.type === "Numeric", required: (v) => v.type === "Numeric" },
-        { key: "project_ids", label: "المشاريع المرتبطة", type: "multi", hint: "المشاريع التي تدعم هذه النتيجة، دون تغيير قياسها.", options: data.projects.filter((p) => !p.is_system && !p.archived_at).map((p) => ({ v: p.id, l: p.name })) },
-        { key: "task_ids", label: "مجموعة المهام التي تحقق النتيجة", type: "multi", hint: "اختياري. اختر المهام/الشجرة التي تمثل التنفيذ الفعلي لهذه النتيجة. لا تُحسب كل مهام المشروع تلقائياً للـKR الجديد.", options: (v) => data.tasks.filter((t) => !t.deleted_at && (!v.project_ids?.length || v.project_ids.includes(t.project_id))).map((t) => ({ v: t.id, l: t.title })) }]} />}
+        { key: "project_ids", label: "المشاريع المرتبطة", type: "multi", hint: "اربط مشروعًا واحدًا أو أكثر بالنتيجة الرئيسية أولًا؛ ثم اربط بها مجموعة المهام التي تنفذها، دون تغيير قياس النتيجة.", options: data.projects.filter((p) => !p.is_system && !p.archived_at).map((p) => ({ v: p.id, l: p.name })) },
+        { key: "task_ids", label: "مجموعة المهام التي تحقق النتيجة", type: "multi", hint: "تظهر مهام المشاريع المرتبطة فقط. يمكنك اختيار مجموعة تنفيذ، أو إضافة مهام مباشرة من بطاقة النتيجة الرئيسية.", options: (v) => data.tasks.filter((t) => !t.deleted_at && !t.archived_at && (v.project_ids || []).includes(t.project_id)).map((t) => ({ v: t.id, l: t.title })) }]} />}
       {ci && <FormModal title={"Check-in: " + ci.kr.name} initial={{ value: ci.value }} onClose={() => setCi(null)} onSubmit={async (v) => { await act.put("checkins", { id: uid(), kr_id: ci.kr.id, member_id: me, value: v.value, note: v.note || "", checked_at: nowIso() }); await act.put("krs", { ...ci.kr, current_value: v.value }); toast("✅ سُجّل الـ Check-in"); setCi(null); }} fields={[{ key: "value", label: "القيمة الحالية", type: "number", required: true }, { key: "note", label: "ملاحظة", type: "textarea", rows: 2 }]}><div style={{ fontSize: 11, color: C.muted }}>القيمة الحالية لا تتغير إلا عبر Check-in ليبقى السجل التاريخي سليماً.</div></FormModal>}
       {hist && <Modal title={"سجل Check-ins: " + hist.name} onClose={() => setHist(null)}>{!checkinsOf(hist.id).length ? <Empty icon="📍" title="لا Check-ins" /> : checkinsOf(hist.id).map((c) => <div key={c.id} style={{ display: "flex", gap: 10, fontSize: 12.5, padding: "5px 0", borderBottom: `1px solid ${C.line}` }}><b>{c.value}</b><span>{fmt(dateOf(c.checked_at, settings.timezone))}</span><Who id={c.member_id} size={16} /><span style={{ color: C.muted }}>{c.note}</span></div>)}</Modal>}
     </div>
