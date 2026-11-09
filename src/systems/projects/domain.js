@@ -455,6 +455,147 @@ export function computeAlerts(memberId, ctx) {
 }
 
 // ── templates ───────────────────────────────────────────────────────
+// Build a reusable, identity-free template draft from a live project.
+// Runtime state (people, sessions, approvals, completion and absolute dates) is deliberately omitted.
+export function projectToTemplateSeed(project, data = {}) {
+  if (!project?.id) throw new Error("اختر مشروعًا صالحًا لتحويله إلى قالب.");
+  const tasks = (data.tasks || []).filter((task) =>
+    task.project_id === project.id && !task.deleted_at
+  );
+  const taskById = Object.fromEntries(tasks.map((task) => [task.id, task]));
+  const ordered = (items) => [...items].sort((a, b) =>
+    (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) ||
+    String(a.created_at || "").localeCompare(String(b.created_at || "")) ||
+    String(a.title || "").localeCompare(String(b.title || ""))
+  );
+  const children = new Map();
+  const roots = [];
+  for (const task of ordered(tasks)) {
+    const parent = task.parent_task_id && taskById[task.parent_task_id];
+    if (parent && parent.id !== task.id) {
+      const list = children.get(parent.id) || [];
+      list.push(task);
+      children.set(parent.id, list);
+    } else {
+      roots.push(task);
+    }
+  }
+  // An invalid cycle or orphan must not disappear from the converted structure.
+  const treeIds = new Set();
+  const toNode = (task, ancestry = new Set()) => {
+    if (treeIds.has(task.id) || ancestry.has(task.id)) return null;
+    treeIds.add(task.id);
+    const nextAncestry = new Set(ancestry);
+    nextAncestry.add(task.id);
+    const node = {
+      title: String(task.title || "").trim(),
+      ...(Number(task.estimated_minutes) > 0 ? { estimate_minutes: Number(task.estimated_minutes) } : {}),
+      ...(!!(task.milestone || task.template_kind === "Milestone") ? { milestone: true } : {}),
+    };
+    const date = task.start_date || task.due_date || null;
+    if (date) node.__template_date = String(date).slice(0, 10);
+    const nested = ordered(children.get(task.id) || []).map((child) => toNode(child, nextAncestry)).filter(Boolean);
+    if (nested.length) node.children = nested;
+    return node;
+  };
+  let taskTree = ordered(roots).map((task) => toNode(task)).filter(Boolean);
+  // Recover any nodes left unvisited by cyclic parent references as independent roots.
+  for (const task of ordered(tasks)) {
+    if (!treeIds.has(task.id)) {
+      const node = toNode(task);
+      if (node) taskTree.push(node);
+    }
+  }
+
+  const dateValues = [
+    project.start_date,
+    ...tasks.flatMap((task) => [task.start_date, task.due_date]),
+  ].filter(Boolean).map((value) => String(value).slice(0, 10)).filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value)).sort();
+  const baseline = dateValues[0] || null;
+  const utcDay = (value) => Date.parse(value + "T00:00:00Z");
+  const toOffsets = (nodes) => nodes.forEach((node) => {
+    if (node.__template_date && baseline) {
+      const offset = Math.round((utcDay(node.__template_date) - utcDay(baseline)) / 86400000);
+      if (Number.isFinite(offset) && offset >= 0) node.offset_days = offset;
+    }
+    delete node.__template_date;
+    toOffsets(node.children || []);
+  });
+  toOffsets(taskTree);
+  const durationDays = baseline && project.target_date
+    ? Math.round((utcDay(String(project.target_date).slice(0, 10)) - utcDay(baseline)) / 86400000)
+    : null;
+
+  const prds = (data.prds || []).filter((prd) =>
+    prd.project_id === project.id && !prd.deleted_at && !prd.archived_at
+  );
+  const taskCountsByTitle = new Map();
+  for (const task of tasks) {
+    const title = String(task.title || "").trim();
+    taskCountsByTitle.set(title, (taskCountsByTitle.get(title) || 0) + 1);
+  }
+  const uniqueTaskTitle = (taskId) => {
+    const task = taskById[taskId];
+    if (!task) return null;
+    const title = String(task.title || "").trim();
+    return title && taskCountsByTitle.get(title) === 1 ? title : null;
+  };
+  const prdTemplates = prds.map((prd) => ({
+    title: String(prd.title || "").trim(),
+    tldr: String(prd.tldr || "").trim(),
+    requirements: (prd.requirements || []).filter((req) => req.status !== "Deprecated").map((req) => {
+      const linked = tasks.filter((task) => task.prd_id === prd.id && task.prd_requirement_id === req.id);
+      return {
+        title: String(req.title || "").trim(),
+        acceptance_criteria: String(req.acceptance_criteria || "").trim(),
+        priority: req.priority || "Medium",
+        task_title: linked.length === 1 ? uniqueTaskTitle(linked[0].id) : null,
+      };
+    }),
+  })).filter((prd) => prd.title);
+  const prdById = Object.fromEntries(prds.map((prd) => [prd.id, prd]));
+  const outputs = (data.outputs || []).filter((output) =>
+    output.project_id === project.id && !output.deleted_at && !output.archived_at
+  ).map((output) => {
+    const prd = output.prd_id ? prdById[output.prd_id] : null;
+    const requirement = prd && output.prd_requirement_id
+      ? (prd.requirements || []).find((item) => item.id === output.prd_requirement_id)
+      : null;
+    const taskTitle = output.task_id ? uniqueTaskTitle(output.task_id) : null;
+    return {
+      name: String(output.name || "").trim(),
+      type: output.type || "Other",
+      task_title: taskTitle,
+      prd_title: prd?.title || null,
+      requirement_title: requirement?.status === "Deprecated" ? null : (requirement?.title || null),
+    };
+  }).filter((output) => output.name);
+
+  const risks = (data.risks || []).filter((risk) =>
+    risk.project_id === project.id && !risk.deleted_at && !risk.archived_at
+  ).map((risk) => ({
+    title: String(risk.title || "").trim(),
+    probability: Math.max(1, Math.min(5, Number(risk.probability) || 3)),
+    impact: Math.max(1, Math.min(5, Number(risk.impact) || 3)),
+    mitigation: String(risk.mitigation || "").trim(),
+  })).filter((risk) => risk.title);
+
+  return {
+    name: String(project.name || "مشروع").trim() + " — قالب",
+    description: String(project.description || "").trim(),
+    final_goal: String(project.final_goal || "").trim(),
+    project_type: project.type || "أخرى",
+    duration_days: Number.isFinite(durationDays) && durationDays >= 0 ? durationDays : "",
+    task_tree: taskTree,
+    prd_templates: prdTemplates,
+    output_templates: outputs,
+    risks,
+    decision_prompts: [...new Set((project.decision_prompts || []).map((value) => String(value || "").trim()).filter(Boolean))],
+    team_roles: [...new Set((project.template_roles || []).map((value) => String(value || "").trim()).filter(Boolean))],
+    checklist: [...new Set((project.template_checklist || []).map((value) => String(value || "").trim()).filter(Boolean))],
+  };
+}
+
 export function instantiateProjectTemplate(tpl, opts, newId) {
   const start = opts.start_date || null; const projectId = newId();
   const project = {
