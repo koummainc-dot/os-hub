@@ -7,6 +7,7 @@ const parts=fs.readFileSync(new URL("../src/systems/projects/parts.jsx",import.m
 const okrs=screens.slice(screens.indexOf("export function Okrs()"),screens.indexOf("// ═════ Stakeholder updates"));
 const taskForm=parts.slice(parts.indexOf("export function TaskForm"),parts.indexOf("// ── Task tree"));
 const taskSheet=parts.slice(parts.indexOf("export function TaskSheet"),parts.indexOf("export function SessionForm"));
+const taskTree=parts.slice(parts.indexOf("export function TaskTree"),parts.indexOf("function StatusChipSm"));
 const store=fs.readFileSync(new URL("../src/systems/projects/store.jsx",import.meta.url),"utf8");
 const router=fs.readFileSync(new URL("../src/systems/projects/index.jsx",import.meta.url),"utf8");
 const kit=fs.readFileSync(new URL("../src/core/kit.jsx",import.meta.url),"utf8");
@@ -39,6 +40,10 @@ assert.ok(kit.includes("export function SideSheet({ title, onClose, children, fo
 assert.ok(kit.includes("if (inline) return ("),"Embedded side-sheet mode does not create a fullscreen overlay");
 assert.ok(parts.includes("gridTemplateColumns: \"minmax(235px,1fr) 100px 105px 116px 118px auto\""),"Task list rows use stable aligned columns");
 assert.ok(parts.includes("موعد الاستحقاق"),"Task list includes a visible due-date column header");
+assert.ok(taskTree.includes('export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "list" })'),"Shared task view can open in a requested initial mode");
+assert.ok(taskTree.includes("useState(initialMode)"),"The shared task view honors its initial mode");
+assert.ok(projectScreens.includes('{tab === "timeline" && <TaskTree projectId={p.id} initialMode="timeline" />}'),"Project timeline tab reuses the canonical task dataset and timeline implementation");
+assert.ok(taskTree.includes("const unscheduled = projectTasks.filter((task) => !task.start_date && !task.due_date)"),"Timeline retains unscheduled tasks instead of hiding them");
 assert.ok(store.includes("task_ids: [...new Set(["),"Store appends the task to the KR execution group without duplicates");
 assert.ok(store.includes("اربط مشروعًا بنتيجة رئيسية أولًا؛ ربط المهمة بالهدف يُشتق من المشروع والنتيجة الرئيسية."),"Missing project-to-KR prerequisite is surfaced with the required actionable validation");
 assert.ok(okrs.includes('label: "المشاريع المرتبطة"'),"All KR types can link supporting Projects");
