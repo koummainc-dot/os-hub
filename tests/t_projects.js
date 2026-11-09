@@ -216,7 +216,13 @@ const {makeEnv,sleep,appJs}=require('./harness');
   const nameIn=all('input',setupDlg).find(i=>i.type==='text'||!i.type);
   ok(!!nameIn,'template setup exposes the project name input');
   if(nameIn) await setVal(nameIn,'مشروع اختبار القالب');
-  await click('حفظ',doc.querySelector('[role=dialog]'),400);
+  ok(!!nameIn&&nameIn.value==='مشروع اختبار القالب','template setup retains the entered project name');
+  const submitted=await click('حفظ',doc.querySelector('[role=dialog]'),800);
+  ok(submitted,'template setup exposes an active save action');
+  if(!txt().includes('مشروع اختبار القالب')){
+    const failedDialog=doc.querySelector('[role=dialog]');
+    console.log('  DEBUG template creation',{dialog:failedDialog?.textContent?.slice(-1400),buttons:all('button',failedDialog).map(b=>({label:b.textContent.trim(),disabled:b.disabled})),page:txt().slice(-900)});
+  }
   ok(txt().includes('مشروع اختبار القالب'),'project created and opened'); 
   await click('التخطيط'); await sleep(100); await click('المهام'); await sleep(200); ok(txt().includes('الاكتشاف')&&txt().includes('كتابة المواصفة'),'template task tree copied (parents + children)');
   ok(!!btn('＋ فرعية'),'child-task action is visible without opening the overflow menu');
