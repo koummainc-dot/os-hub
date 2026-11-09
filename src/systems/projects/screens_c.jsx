@@ -602,7 +602,7 @@ export function Meetings() {
   const visible = useMemo(() => meetings
     .filter((m) => !m.archived && m.status !== "archived")
     .filter((m) => projectFilter === "all" || (m.relatedSystem === "projects" && String(m.relatedId) === String(projectFilter)))
-    .sort((a, b) => (a.id === focusMeetingId ? -1 : b.id === focusMeetingId ? 1 : String(b.date || "").localeCompare(String(a.date || ""))), [meetings, projectFilter, focusMeetingId]);
+    .sort((a, b) => (a.id === focusMeetingId ? -1 : b.id === focusMeetingId ? 1 : String(b.date || "").localeCompare(String(a.date || "")))), [meetings, projectFilter, focusMeetingId]);
   const linkedCount = meetings.filter((m) => m.relatedSystem === "projects" && projectsById[m.relatedId]).length;
   const orphanCount = meetings.filter((m) => m.relatedSystem === "projects" && m.relatedId && !projectsById[m.relatedId]).length;
   const archivedCount = meetings.filter((m) => {
