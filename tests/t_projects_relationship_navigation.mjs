@@ -149,4 +149,13 @@ assert.ok(parts.includes("D.analyzeTaskSchedule(projectTasks)") &&
   parts.includes("markerEnd"),
   "Project Timeline draws dependency connectors and highlights the calculated critical path");
 
+assert.ok(screens.includes("task_dependencies_text: flattenTaskDependencies(tpl.task_tree || [])") &&
+  screens.includes("parseTaskDependenciesText(v.task_dependencies_text, tree)") &&
+  screens.includes("علاقات الاعتماد بين المهام") &&
+  screens.includes("dependency_titles.join"),
+  "Template editor preserves, edits and previews predecessor links in a readable relation field");
+assert.ok(screens.includes("D.instantiateProjectTemplate(") &&
+  screens.includes("قالب قيد التحقق"),
+  "Template saves run an in-memory instantiation check to reject missing or cyclic dependency links");
+
 console.log("✓ Projects relationship navigation contracts passed");
