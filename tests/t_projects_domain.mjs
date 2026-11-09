@@ -82,7 +82,7 @@ t("T-80 project-to-template conversion preserves reusable structure and strips r
   assert.deepEqual(seed.team_roles, ["Product", "QA"]);
   assert.deepEqual(seed.decision_prompts, ["حسم سياسة الإطلاق"]);
   assert.deepEqual(seed.checklist, ["اعتماد النطاق"]);
-  assert.equal(seed.task_tree.length, 3, "roots and recovered orphan tasks are all retained");
+  assert.equal(seed.task_tree.length, 4, "roots and recovered orphan tasks are all retained");
   assert.equal(seed.task_tree[0].title, "مرحلة البحث");
   assert.equal(seed.task_tree[0].children[0].title, "مقابلات المستخدمين");
   assert.equal(seed.task_tree[0].offset_days, 1);
