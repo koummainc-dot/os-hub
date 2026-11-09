@@ -27,7 +27,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
 
   await click('جرّب الوضع التجريبي'); await sleep(200); ok(await openProjects(),'Projects OS opens before section acceptance');
   console.log('— sections render real content');
-  const markers={ 'الرئيسية':'صحة المشاريع','اليوم':'مستحقة اليوم','هذا الأسبوع':'اكتشافات قيد العمل','المشاريع':'تطبيق إدارة الوقت','مهامي':'مهمة ورقية','الاكتشاف':'ظهور التطبيق في نتائج المتجر','المواصفات':'مواصفة تطبيق إدارة الوقت','الأهداف (OKR)':'إطلاق منتج ناجح','المخرجات':'Wireframes','المخاطر والمشاكل والقرارات':'تعقيد المزامنة','الاجتماعات':'Knowledge OS','التحديثات':'تحديث الإدارة','الإنجازات':'اعتماد المواصفة','المراجعات الأسبوعية':'المراجعات الأسبوعية','جهات الاتصال':'ليلى المنصور','الفريق':'حِمل الأسبوع','القوالب':'قوالب المشاريع','الإعدادات':'المنطقة الزمنية' };
+  const markers={ 'الرئيسية':'صحة المشاريع','اليوم':'مستحقة اليوم','هذا الأسبوع':'اكتشافات قيد العمل','المشاريع':'تطبيق إدارة الوقت','مهامي':'كل المهام','الاكتشاف':'ظهور التطبيق في نتائج المتجر','المواصفات':'مواصفة تطبيق إدارة الوقت','الأهداف (OKR)':'إطلاق منتج ناجح','المخرجات':'Wireframes','المخاطر والمشاكل والقرارات':'تعقيد المزامنة','الاجتماعات':'Knowledge OS','التحديثات':'تحديث الإدارة','الإنجازات':'اعتماد المواصفة','المراجعات الأسبوعية':'المراجعات الأسبوعية','جهات الاتصال':'ليلى المنصور','الفريق':'حِمل الأسبوع','القوالب':'قوالب المشاريع','الإعدادات':'المنطقة الزمنية' };
   for(const [label,marker] of Object.entries(markers)){
     const good=await goSection(label); const has=txt().includes(marker);
     ok(good&&has,`section «${label}» shows «${marker}»`+(good?'':' (nav missing)'));
@@ -189,7 +189,9 @@ const {makeEnv,sleep,appJs}=require('./harness');
   ok(errors.length===0,'no console errors in Phase A task UX flow ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
 
   console.log('— task search recovery');
-  await goSection('مهامي');
+  const myWorkOpened = await goSection('مهامي');
+  const allTasksOpened = await click('كل المهام',null,120);
+  ok(myWorkOpened && allTasksOpened,'My Work opens its all-tasks view before search recovery');
   const taskSearch=all('input').find(i=>i.placeholder==='بحث في المهام…');
   await setVal(taskSearch,'no-task-will-match-xyz');
   ok(!!btn('مسح الفلاتر'),'clear-filters action appears after narrowing task search');
