@@ -104,7 +104,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
   };
   const isOpen = (id, depth) => (open[id] === undefined ? depth < 2 : open[id]);
   const Row = ({ t, depth }) => {
-    const d = idx.derived[t.id]; const kids = idx.children[t.id] || []; const leaf = d.isLeaf; const status = leaf ? t.status : d.status; const done = D.cat(status) === "done"; const cancelled = D.cat(status) === "cancelled";
+    const d = idx.derived[t.id]; const kids = idx.children[t.id] || []; const leaf = d.isLeaf; const status = leaf ? t.status : d.status; const done = D.cat(status) === "done"; const cancelled = D.cat(status) === "cancelled"; const dependencies = (t.dependency_task_ids || []).map((id) => idx.byId[id]).filter(Boolean); const openDependencies = dependencies.filter((dependency) => D.cat(idx.derived[dependency.id]?.status || dependency.status) !== "done");
     if (!visible(t)) return null;
     return (
       <div>
@@ -117,7 +117,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
             <button type="button" onClick={() => openTask(t.id)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, textAlign: "start", border: 0, padding: 0, background: "transparent", color: done ? C.muted : C.text, cursor: "pointer", font: "inherit", overflow: "hidden" }}>
               <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12.5, fontWeight: leaf ? 500 : 750, textDecoration: done || cancelled ? "line-through" : "none" }}>{t.title}</span>
               {t.milestone && <Chip color={C.warn}>◆ معلم</Chip>}
-              {t.blocked && <Chip color={C.bad}>متعطّلة</Chip>}
+              {t.blocked && <Chip color={C.bad}>متعطّلة</Chip>}{dependencies.length > 0 && <Chip color={openDependencies.length ? C.warn : C.ok} title={dependencies.map((dependency) => dependency.title).join(" · ")}>{openDependencies.length ? "ينتظر " + openDependencies.length + " مهمة" : "الاعتمادات مكتملة"}</Chip>}
             </button>
           </div>
           <div style={{ minWidth: 0, display: "flex", justifyContent: "flex-start" }}>{leaf ? <StatusChipSm s={status} /> : <div style={{ width: "100%" }}><Progress value={d.progress} height={6} /><span style={{ display: "block", fontSize: 9.5, color: C.muted, marginTop: 2 }}>{d.leafDone}/{d.leafTotal} مكتملة</span></div>}</div>
