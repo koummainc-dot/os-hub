@@ -158,4 +158,22 @@ assert.ok(screens.includes("D.instantiateProjectTemplate(") &&
   screens.includes("قالب قيد التحقق"),
   "Template saves run an in-memory instantiation check to reject missing or cyclic dependency links");
 
+assert.ok(domain.includes("export function validateTaskDependencies") &&
+  domain.includes("export function analyzeTaskSchedule") &&
+  domain.includes("cancelled_predecessors"),
+  "Dependency validation and critical-path calculations account for cycles and cancelled or undated predecessors");
+assert.ok(parts.includes('key: "dependency_task_ids"') &&
+  parts.includes("const taskDependencies = (t.dependency_task_ids || [])") &&
+  parts.includes("const taskDependents = idx.list.filter((task) => (task.dependency_task_ids || []).includes(t.id))"),
+  "TaskForm sets prerequisite tasks and Task Sheet navigates to predecessors and dependent tasks from both ends");
+assert.ok(parts.includes("D.analyzeTaskSchedule(projectTasks)") &&
+  parts.includes("dependencyPaths") &&
+  parts.includes("schedule.critical_task_ids.includes(task.id)") &&
+  parts.includes("markerEnd") &&
+  parts.includes("اعتمادات دائرية"),
+  "Project Timeline draws dependency connectors and shows the calculated critical path and schedule warnings");
+assert.ok(parts.includes('task.dependency_task_ids || []') &&
+  parts.includes('openDependencies.length ? "ينتظر " + openDependencies.length + " مهمة" : "الاعتمادات مكتملة"'),
+  "Task Tree surfaces whether prerequisite tasks have been completed");
+
 console.log("✓ Projects relationship navigation contracts passed");
