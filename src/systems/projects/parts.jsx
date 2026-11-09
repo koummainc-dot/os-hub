@@ -75,14 +75,27 @@ export function TaskForm({ initial, projectId, parentId, allowedProjectIds, link
 export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "list" }) {
   const { idx, A: act, can, today, people, openTask, projectsById, toast, view } = useP(); const project = projectsById[projectId];
   const [open, setOpen] = useState({}); const [form, setForm] = useState(null); const [menu, setMenu] = useState(null); const [dragId, setDragId] = useState(null);
+  const [quickTitle, setQuickTitle] = useState(""); const [quickSaving, setQuickSaving] = useState(false);
+  const [filterStatus, setFilterStatus] = useState("all"); const [filterAssignee, setFilterAssignee] = useState("all");
   const canWrite = !readOnly && can("task.write", project);
-  const roots = idx.roots.filter((t) => t.project_id === projectId);
   const [mode, setMode] = useState(initialMode);
   const [month, setMonth] = useState(today.slice(0, 7));
-  const projectTasks = idx.list.filter((t) => t.project_id === projectId && idx.isLeaf(t.id));
   const statusGroups = ["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"];
-  const matches = (t) => !filter || filter(t);
-  const visible = (t) => matches(t) || (idx.children[t.id] || []).some((k) => visible(idx.byId[k]));
+  const matches = (t) => (!filter || filter(t)) && (filterStatus === "all" || t.status === filterStatus) && (filterAssignee === "all" || (filterAssignee === "unassigned" ? !t.assignee_id : t.assignee_id === filterAssignee));
+  const visible = (t) => matches(t) || (idx.children[t.id] || []).some((id) => visible(idx.byId[id]));
+  const roots = idx.roots.filter((t) => t.project_id === projectId && visible(t));
+  const projectTasks = idx.list.filter((t) => t.project_id === projectId && idx.isLeaf(t.id) && matches(t));
+  const handleQuickAdd = async () => {
+    const title = quickTitle.trim();
+    if (!title || !canWrite || quickSaving) return;
+    setQuickSaving(true);
+    try {
+      const saved = await act.saveTask({ title, project_id: projectId, status: "Not Started", priority: "Medium", planning_bucket: "Inbox", due_date: null }, true);
+      if (saved) setQuickTitle("");
+    } catch (error) {
+      toast("⛔ تعذّر إضافة المهمة: " + (error?.message || "راجع الحقول والروابط المطلوبة."));
+    } finally { setQuickSaving(false); }
+  };
   const isOpen = (id, depth) => (open[id] === undefined ? depth < 2 : open[id]);
   const Row = ({ t, depth }) => {
     const d = idx.derived[t.id]; const kids = idx.children[t.id] || []; const leaf = d.isLeaf; const status = leaf ? t.status : d.status; const done = D.cat(status) === "done"; const cancelled = D.cat(status) === "cancelled";
@@ -134,11 +147,18 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
         <div style={{ display: "inline-flex", border: "1px solid " + C.line, borderRadius: 8, overflow: "hidden" }}>
           {[["list","قائمة"],["board","لوحة"],["table","جدول"],["calendar","تقويم"],["timeline","خط زمني"]].map(([v,l], i) => <button key={v} type="button" onClick={() => setMode(v)} style={{ border: 0, borderInlineStart: i ? "1px solid " + C.line : 0, background: mode === v ? "rgba(59,130,246,0.10)" : "#fff", color: mode === v ? C.info : C.dim, padding: "6px 10px", cursor: "pointer", font: "inherit", fontSize: 11.5 }}>{l}</button>)}
         </div>
-        {canWrite && <Btn kind="primary" small onClick={() => setForm({})}>➕ مهمة جديدة</Btn>}
+        {canWrite && <>
+          <input aria-label="عنوان مهمة سريعة" value={quickTitle} onChange={(e) => setQuickTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleQuickAdd(); } }} placeholder="اكتب مهمة جديدة ثم Enter…" style={{ ...S.inp, flex: "1 1 210px", minWidth: 170, maxWidth: 340, fontSize: 12 }} />
+          <Btn kind="primary" small disabled={!quickTitle.trim() || quickSaving} onClick={handleQuickAdd}>{quickSaving ? "جارٍ الإضافة…" : "＋ إضافة سريعة"}</Btn>
+          <Btn small onClick={() => setForm({})}>تفاصيل متقدمة</Btn>
+        </>}
+        <select aria-label="تصفية حالة المهام" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ ...S.sel, width: 135, fontSize: 11.5 }}><option value="all">كل الحالات</option>{statusGroups.map((status) => <option key={status} value={status}>{L.taskStatus[status] || status}</option>)}</select>
+        <select aria-label="تصفية مسؤول المهام" value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)} style={{ ...S.sel, width: 150, fontSize: 11.5 }}><option value="all">كل المسؤولين</option><option value="unassigned">غير مسندة</option>{people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select>
+        {(filterStatus !== "all" || filterAssignee !== "all") && <Btn small onClick={() => { setFilterStatus("all"); setFilterAssignee("all"); }}>مسح الفلاتر</Btn>}
       </div>
       <div style={{ display: mode === "list" ? "block" : "none" }}>
         {canWrite && <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>يمكنك استخدام «＋ فرعية» أو خيارات المهمة لنقلها؛ السحب الاختياري يحافظ على ترتيب الشجرة.</div>}
-        {roots.length === 0 && <Empty icon="✅" title="لا توجد مهام بعد" sub="أضف أول مهمة أو أنشئ المشروع من قالب جاهز." />}
+        {roots.length === 0 && <Empty icon="✅" title={filterStatus !== "all" || filterAssignee !== "all" ? "لا توجد مهام مطابقة للفلاتر" : "لا توجد مهام بعد"} sub={filterStatus !== "all" || filterAssignee !== "all" ? "غيّر الحالة أو المسؤول لعرض مهام أخرى." : "أضف أول مهمة من خانة الإضافة السريعة أو أنشئ المشروع من قالب جاهز."} />}
         <div style={{ ...S.card, padding: 0, overflowX: "auto", overflowY: "hidden", display: roots.length ? "block" : "none" }}
           onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => { const id = e.dataTransfer.getData("text/plain"); if (id && e.target === e.currentTarget) await act.reparent(id, null); }}>
           <div style={{ minWidth: 835 }}>
