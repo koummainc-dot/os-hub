@@ -369,7 +369,7 @@ export function Portfolio() {
 // ═════ My Work ═════
 // A dedicated personal work hub reusing the existing Today, Week and Tasks views.
 export function MyWork() {
-  const [tab, setTab] = useState("today");
+  const [tab, setTab] = useState("tasks");
   return (
     <div>
       <Head title="عملي" sub="مساحة واحدة لمتابعة ما عليك اليوم وخلال الأسبوع وكل مهامك." />
