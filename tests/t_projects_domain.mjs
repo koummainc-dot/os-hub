@@ -56,6 +56,7 @@ t("T-80 project-to-template conversion preserves reusable structure and strips r
     { id: "orphan", project_id: "source_project", parent_task_id: "missing_parent", title: "مهمة يتيمة", sort_order: 3, status: "In Progress" },
     { id: "duplicate_a", project_id: "source_project", title: "مهمة مكررة", sort_order: 4, prd_id: "prd1", prd_requirement_id: "req2" },
     { id: "duplicate_b", project_id: "source_project", title: "مهمة مكررة", sort_order: 5 },
+    { id: "archived_task", project_id: "source_project", title: "مهمة مؤرشفة", archived_at: "2026-02-01", sort_order: 6 },
     { id: "other_project", project_id: "another_project", title: "لا تنقلني", sort_order: 1 }
   ];
   const prds = [{
@@ -83,6 +84,7 @@ t("T-80 project-to-template conversion preserves reusable structure and strips r
   assert.deepEqual(seed.decision_prompts, ["حسم سياسة الإطلاق"]);
   assert.deepEqual(seed.checklist, ["اعتماد النطاق"]);
   assert.equal(seed.task_tree.length, 4, "roots and recovered orphan tasks are all retained");
+  assert.ok(!JSON.stringify(seed.task_tree).includes("مهمة مؤرشفة"), "archived tasks are excluded from a reusable project template");
   assert.equal(seed.task_tree[0].title, "مرحلة البحث");
   assert.equal(seed.task_tree[0].children[0].title, "مقابلات المستخدمين");
   assert.equal(seed.task_tree[0].offset_days, 1);
