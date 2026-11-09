@@ -208,7 +208,20 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
         const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
         const shiftDate = (date, amount) => { const d = new Date(date + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + amount); return d.toISOString().slice(0, 10); };
         const dateOfTask = (task) => task.due_date || task.start_date || "";
+        const calendarEvents = [
+          ...(project?.target_date ? [{ id: "project-target-" + project.id, kind: "project", date: String(project.target_date).slice(0, 10), title: "موعد المشروع المستهدف", subtitle: project.name }] : []),
+          ...data.decisions.filter((decision) => decision.project_id === projectId && !decision.deleted_at && !decision.archived_at && decision.decided_at).map((decision) => ({ id: decision.id, kind: "decision", date: String(decision.decided_at).slice(0, 10), title: "قرار: " + decision.title, subtitle: decision.status })),
+          ...data.outputs.filter((output) => output.project_id === projectId && !output.deleted_at && !output.archived_at && output.due_date).map((output) => ({ id: output.id, kind: "output", date: String(output.due_date).slice(0, 10), title: "تسليم: " + output.name, subtitle: output.approval })),
+          ...calendarMeetings.map((meeting) => ({ id: meeting.id, kind: "meeting", date: String(meeting.date).slice(0, 10), title: "اجتماع: " + meeting.title, subtitle: meeting.summary || "" })),
+        ];
         const dayTasks = (date) => projectTasks.filter((task) => dateOfTask(task) === date);
+        const dayEvents = (date) => calendarEvents.filter((event) => event.date === date);
+        const openCalendarEvent = (event) => {
+          if (event.kind === "decision") return openProject(projectId, "decisions", { kind: "decision", id: event.id });
+          if (event.kind === "output") return openProject(projectId, "outputs", { kind: "output", id: event.id });
+          if (event.kind === "project") return openProject(projectId, "overview");
+          if (event.kind === "meeting") return setPage("meetings");
+        };
         const moveTask = async (task, date) => {
           if (!canWrite || !task || !date || task.due_date === date) return;
           await act.saveTask({ ...task, due_date: date }, false);
@@ -235,6 +248,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
         };
         const renderDay = (date, dayNumber, compact = false) => {
           const tasks = dayTasks(date);
+          const events = dayEvents(date);
           const isToday = date === today;
           return <div key={date} onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => {
             if (!canWrite) return;
