@@ -314,6 +314,7 @@ export function IssuesView({ projectId }) {
             {!items.length ? <div style={{ padding: "12px 4px", fontSize: 11, color: C.muted }}>لا توجد مشاكل في هذه الحالة</div> : items.map((issue) => <button key={issue.id} type="button" onClick={() => setDetail(issue)} style={{ display: "block", width: "100%", textAlign: "start", border: "1px solid " + C.line, borderRadius: 7, padding: 8, marginBottom: 6, background: "transparent", cursor: "pointer", font: "inherit" }}>
               <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}><Chip color={SEV_COLOR[issue.severity]} solid>{L.severity[issue.severity]}</Chip><span style={{ fontSize: 11.5, fontWeight: 700, flex: 1, minWidth: 90 }}>{issue.title}</span></div>
               <div style={{ fontSize: 10.5, color: C.muted, marginTop: 5 }}>{!projectId ? (projectsById[issue.project_id]?.name || "مشروع") + " · " : ""}{people.find((person) => person.id === issue.owner_id)?.name || "غير مسند"} · {fmtShort(issue.discovered_at)}</div>
+              <span style={{ display: "block", marginTop: 5, fontSize: 10.5, color: C.info, fontWeight: 700 }}>عرض التفاصيل ←</span>
               {repairTasks(issue).length > 0 && <div style={{ fontSize: 10.5, color: C.info, marginTop: 5 }}>مهام الإصلاح: {repairTasks(issue).length}</div>}
             </button>)}
           </section>;
@@ -370,6 +371,7 @@ export function DecisionsView({ projectId }) {
                 <div style={{ display: "flex", gap: 5, alignItems: "center" }}><b style={{ fontSize: 11.5, flex: 1 }}>{decision.title}</b><Chip color={status === "Approved" ? C.ok : status === "Superseded" ? C.warn : C.muted}>{L.decisionStatus[status]}</Chip></div>
                 {decision.rationale && <div style={{ fontSize: 10.5, color: C.dim, marginTop: 5, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{decision.rationale}</div>}
                 <div style={{ fontSize: 10, color: C.muted, marginTop: 5 }}>{!projectId ? (projectsById[decision.project_id]?.name || "مشروع") + " · " : ""}{fmt(decision.decided_at)} · {relatedCount} روابط</div>
+                <span style={{ display: "block", marginTop: 5, fontSize: 10.5, color: C.info, fontWeight: 700 }}>عرض التفاصيل ←</span>
               </button>;
             })}
           </section>;
