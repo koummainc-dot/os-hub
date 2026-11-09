@@ -67,14 +67,21 @@ t("T-82 project task schedule calculates a deterministic critical path and repor
   assert.equal(result.edges.length, 2);
   const conflict = D.analyzeTaskSchedule([
     tasks[0],
-    { ...tasks[1], start_date: "2026-01-01" },
+    { ...tasks[1], start_date: "2026-01-02" },
   ]);
-  assert.equal(conflict.conflicts.length, 1, "successor starting before predecessor finish is reported");
+  assert.equal(conflict.conflicts.length, 1, "successor starting on the predecessor's final planned day is reported as an overlap");
   const missing = D.analyzeTaskSchedule([
     task("x", { start_date: "2026-02-01", due_date: "2026-02-02", dependency_task_ids: ["unplanned"] })
   ]);
   assert.equal(missing.complete, false, "undated or unresolved predecessors block a complete schedule");
   assert.equal(missing.missing_predecessors.length, 1);
+  const cancelled = D.analyzeTaskSchedule([
+    task("cancelled_predecessor", { status: "Cancelled", start_date: "2026-03-01", due_date: "2026-03-02" }),
+    task("successor", { start_date: "2026-03-03", due_date: "2026-03-04", dependency_task_ids: ["cancelled_predecessor"] }),
+  ]);
+  assert.equal(cancelled.complete, false, "a cancelled predecessor does not count as a satisfied dependency");
+  assert.equal(cancelled.cancelled_predecessors.length, 1);
+  assert.deepEqual(cancelled.critical_task_ids, [], "critical path is not reported while a predecessor is cancelled");
   const cyclic = D.analyzeTaskSchedule([
     task("x", { start_date: "2026-02-01", due_date: "2026-02-02", dependency_task_ids: ["y"] }),
     task("y", { start_date: "2026-02-03", due_date: "2026-02-04", dependency_task_ids: ["x"] })
