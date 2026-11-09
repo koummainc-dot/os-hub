@@ -53,6 +53,7 @@ export function TaskForm({ initial, projectId, parentId, allowedProjectIds, link
     { key: "title", label: "عنوان المهمة", required: true, span: 2 },
     { key: "project_id", label: "المشروع", type: "select", allowEmpty: false, options: projOpts(data.projects.filter((p) => !allowedProjectIds || allowedProjectIds.includes(p.id))), disabled: () => (!isNew && !!initial.id) || (Array.isArray(allowedProjectIds) && allowedProjectIds.length === 1), hint: allowedProjectIds?.length === 1 ? "المشروع مثبت حسب سياق الإنشاء؛ لا يمكن نقل المهمة من هذا النموذج." : "لنقل المهمة لمشروع آخر استخدم «نقل الشجرة»" },
     { key: "priority", label: "الأولوية", type: "select", options: opts(L.priority), allowEmpty: false },
+    { key: "start_date", label: "تاريخ البداية", type: "date", show: () => !isParent },
     { key: "due_date", label: isParent ? "الموعد (مشتق من الأبناء)" : "الموعد النهائي", type: "date", disabled: () => isParent },
     { key: "status", label: isParent ? "الحالة (مشتقة)" : "الحالة", type: "select", allowEmpty: false, options: opts(L.taskStatus), disabled: () => isParent, show: () => !showAdvanced },
     { key: "parent_task_id", label: "المهمة الأب", type: "select", emptyLabel: "— مستوى أعلى —", options: (v) => idx.list.filter((t) => t.project_id === v.project_id && !descIds.includes(t.id)).map((t) => ({ v: t.id, l: "  ".repeat(idx.derived[t.id] ? idx.derived[t.id].depth : 0) + t.title })), show: () => showAdvanced },
@@ -198,7 +199,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
             {Array.from({ length: lead }, (_, i) => <div key={"blank-" + i} aria-hidden="true" style={{ minHeight: 102, borderRadius: 8, background: "rgba(0,0,0,.015)" }} />)}
             {Array.from({ length: days }, (_, i) => {
               const ds = month + "-" + String(i + 1).padStart(2, "0");
-              const dayTasks = projectTasks.filter((task) => task.due_date === ds);
+              const dayTasks = projectTasks.filter((task) => (task.due_date || task.start_date) === ds);
               const isToday = ds === today;
               return <div key={ds} onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => {
                 if (!canWrite) return;
