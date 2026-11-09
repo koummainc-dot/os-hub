@@ -275,18 +275,70 @@ export function Team() {
 
 // ═════ Templates ═════
 const flattenTaskTree = (nodes, depth = 0) => (nodes || []).flatMap((n) => {
-  const dependencyField = (n.dependency_titles || []).length
-    ? "deps=" + encodeURIComponent(JSON.stringify(n.dependency_titles))
-    : "";
   const suffix = [
     n.estimate_minutes == null ? "" : String(n.estimate_minutes),
     n.offset_days == null ? "" : String(n.offset_days),
     n.milestone ? "milestone" : "",
-    dependencyField,
   ];
   while (suffix.length && !suffix[suffix.length - 1]) suffix.pop();
   return ["  ".repeat(depth) + (n.title || "") + (suffix.length ? " | " + suffix.join(" | ") : ""), ...flattenTaskTree(n.children || [], depth + 1)];
 });
+const flattenTaskDependencies = (nodes) => {
+  const lines = [];
+  const walk = (items) => (items || []).forEach((node) => {
+    (node.dependency_titles || []).forEach((title) => lines.push(String(node.title || "") + " <- " + String(title || "")));
+    walk(node.children || []);
+  });
+  walk(nodes || []);
+  return lines.join("\n");
+};
+function parseTaskDependenciesText(value, taskTree) {
+  const nodes = [];
+  const byTitle = new Map();
+  const walk = (items) => (items || []).forEach((node) => {
+    delete node.dependency_titles;
+    nodes.push(node);
+    const title = String(node.title || "").trim();
+    const matches = byTitle.get(title) || [];
+    matches.push(node);
+    byTitle.set(title, matches);
+    walk(node.children || []);
+  });
+  walk(taskTree || []);
+  for (const [index, raw] of String(value || "").split("\n").entries()) {
+    const line = raw.trim();
+    if (!line) continue;
+    const separator = line.indexOf(" <- ");
+    if (separator <= 0) throw new Error("سطر الاعتماد " + (index + 1) + ": استخدم «المهمة <- المهمة السابقة».");
+    const taskTitle = line.slice(0, separator).trim();
+    const predecessorTitle = line.slice(separator + 4).trim();
+    if (!taskTitle || !predecessorTitle) throw new Error("سطر الاعتماد " + (index + 1) + ": حدد المهمة والسابقة معًا.");
+    const taskMatches = byTitle.get(taskTitle) || [];
+    const predecessorMatches = byTitle.get(predecessorTitle) || [];
+    if (taskMatches.length !== 1) throw new Error("المهمة «" + taskTitle + "» في روابط الاعتماد غير موجودة أو عنوانها مكرر.");
+    if (predecessorMatches.length !== 1) throw new Error("المهمة السابقة «" + predecessorTitle + "» غير موجودة أو عنوانها مكرر.");
+    if (taskMatches[0] === predecessorMatches[0]) throw new Error("المهمة «" + taskTitle + "» لا يمكن أن تعتمد على نفسها.");
+    const current = taskMatches[0].dependency_titles || [];
+    if (!current.includes(predecessorTitle)) taskMatches[0].dependency_titles = [...current, predecessorTitle];
+  }
+  const visiting = new Set();
+  const visited = new Set();
+  const hasCycle = (node) => {
+    const title = String(node.title || "").trim();
+    if (visiting.has(title)) return true;
+    if (visited.has(title)) return false;
+    visiting.add(title);
+    for (const dependencyTitle of node.dependency_titles || []) {
+      const dependency = byTitle.get(dependencyTitle)?.[0];
+      if (dependency && hasCycle(dependency)) return true;
+    }
+    visiting.delete(title);
+    visited.add(title);
+    return false;
+  };
+  for (const node of nodes) if (hasCycle(node)) throw new Error("روابط الاعتماد في شجرة القالب تحتوي على دورة؛ راجع التسلسل.");
+  return taskTree;
+}
 function parseTaskTreeText(value) {
   const roots = []; const stack = [];
   for (const raw of String(value || "").split("\n")) {
