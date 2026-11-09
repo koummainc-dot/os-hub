@@ -223,15 +223,20 @@ const {makeEnv,sleep,appJs}=require('./harness');
     const failedDialog=doc.querySelector('[role=dialog]');
     console.log('  DEBUG template creation',{dialog:failedDialog?.textContent?.slice(-1400),buttons:all('button',failedDialog).map(b=>({label:b.textContent.trim(),disabled:b.disabled})),page:txt().slice(-900)});
   }
-  ok(txt().includes('مشروع اختبار القالب'),'project created and opened'); 
-  await click('التخطيط'); await sleep(100); await click('المهام'); await sleep(200); ok(txt().includes('الاكتشاف')&&txt().includes('كتابة المواصفة'),'template task tree copied (parents + children)');
-  ok(!!btn('＋ فرعية'),'child-task action is visible without opening the overflow menu');
-  const checks=all('input[type=checkbox]'); ok(checks.length>10,'leaf checkboxes rendered ('+checks.length+')');
+  ok(txt().includes('مشروع اختبار القالب'),'project created and opened');
+  const clickProjectTab=async(label,ms=150)=>{
+    const button=all('main button').find(x=>x.textContent.trim()===label||x.textContent.trim().startsWith(label+' '));
+    if(!button)return false; button.click(); await sleep(ms); return true;
+  };
+  await clickProjectTab('التخطيط'); await clickProjectTab('المهام',200);
+  ok(txt().includes('الاكتشاف')&&txt().includes('كتابة المواصفة'),'template task tree copied (parents + children)');
+  ok(!!all('button[aria-label^="إضافة مهمة فرعية إلى"]').length,'child-task action is available through its contextual accessible control');
+  const checks=all('main input[type=checkbox]'); ok(checks.length>10,'leaf checkboxes rendered ('+checks.length+')');
   console.log('— complete a task & progress');
-  if(checks[0]){ checks[0].click(); await sleep(250); await click('نظرة عامة'); await sleep(150); ok(/\d+\/\d+ مهمة/.test(txt()),'overview shows leaf counts after completing'); }
+  if(checks[0]){ checks[0].click(); await sleep(250); await clickProjectTab('نظرة عامة'); ok(/\d+\/\d+ مهمة/.test(txt()),'overview shows leaf counts after completing'); }
   else ok(false,'a leaf checkbox is available for completion acceptance');
   console.log('— new task form');
-  await click('التخطيط'); await sleep(100); await click('المهام'); await sleep(150); await click('مهمة جديدة'); await sleep(150);
+  await clickProjectTab('التخطيط'); await clickProjectTab('المهام',150); await clickProjectTab('تفاصيل متقدمة',150);
   const dlg=doc.querySelector('[role=dialog]');
   ok(!!dlg&& !dlg.textContent.includes('المواصفة (PRD)'),'advanced task fields start collapsed');
   if(dlg){
