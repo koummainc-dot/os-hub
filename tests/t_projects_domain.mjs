@@ -41,6 +41,15 @@ t("T-25 property: progress = done leaves / active leaves for random trees", () =
 });
 t("T-24 5,000-node tree builds fast", () => { const tasks = []; for (let i = 0; i < 5000; i++) tasks.push(task("t" + i, { parent_task_id: i ? "t" + Math.floor((i - 1) / 4) : null, status: i % 3 ? "Not Started" : "Completed" })); const t0 = Date.now(); const idx = D.buildTaskIndex(tasks); D.projectMetrics(P(), ctx(tasks)); assert.ok(Date.now() - t0 < 1500, "took " + (Date.now() - t0) + "ms"); assert.ok(idx.derived.t0.leafTotal > 0); });
 
+t("T-79 output defaults inherit only valid task PRD and requirement links", () => {
+  const task = { id: "task_1", project_id: "project_1", prd_id: "prd_1", prd_requirement_id: "req_1" };
+  const validPrds = [{ id: "prd_1", project_id: "project_1", requirements: [{ id: "req_1", status: "Active" }] }];
+  assert.deepEqual(D.defaultOutputRelationsForTask(task, validPrds), { prd_id: "prd_1", prd_requirement_id: "req_1" });
+  assert.deepEqual(D.defaultOutputRelationsForTask({ ...task, project_id: "project_2" }, validPrds), { prd_id: "", prd_requirement_id: "" });
+  assert.deepEqual(D.defaultOutputRelationsForTask({ ...task, prd_requirement_id: "req_missing" }, validPrds), { prd_id: "prd_1", prd_requirement_id: "" });
+  assert.deepEqual(D.defaultOutputRelationsForTask(task, [{ ...validPrds[0], archived_at: "2026-11-01" }]), { prd_id: "", prd_requirement_id: "" });
+  assert.deepEqual(D.defaultOutputRelationsForTask(task, [{ ...validPrds[0], requirements: [{ id: "req_1", status: "Deprecated" }] }]), { prd_id: "prd_1", prd_requirement_id: "" });
+});
 t("T-78 activity events use human-readable Arabic descriptions", () => {
   assert.equal(activityEventText({ entity: "tasks", action: "created", summary: "تحليل المنافسين" }), "أنشأ المهمة «تحليل المنافسين»");
   assert.equal(activityEventText({ entity: "projects", action: "created_from_template", summary: "تطبيق" }), "أنشأ مشروعًا من قالب «تطبيق»");
