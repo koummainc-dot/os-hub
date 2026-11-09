@@ -453,6 +453,7 @@ export function instantiateProjectTemplate(tpl, opts, newId) {
     template_roles: [...new Set((tpl.team_roles || []).map((role) => String(role || "").trim()).filter(Boolean))],
     decision_prompts: (tpl.decision_prompts || []).map((prompt) => String(prompt || "").trim()).filter(Boolean),
     template_checklist: (tpl.checklist || []).map((item) => String(item || "").trim()).filter(Boolean),
+    template_checklist_state: {},
     template_seed: true,
   };
   const tasks = []; let order = 0; const taskByTitle = new Map();
