@@ -212,6 +212,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
           ...(project?.target_date ? [{ id: "project-target-" + project.id, kind: "project", date: String(project.target_date).slice(0, 10), title: "موعد المشروع المستهدف", subtitle: project.name }] : []),
           ...data.decisions.filter((decision) => decision.project_id === projectId && !decision.deleted_at && !decision.archived_at && decision.decided_at).map((decision) => ({ id: decision.id, kind: "decision", date: String(decision.decided_at).slice(0, 10), title: "قرار: " + decision.title, subtitle: decision.status })),
           ...data.outputs.filter((output) => output.project_id === projectId && !output.deleted_at && !output.archived_at && output.due_date).map((output) => ({ id: output.id, kind: "output", date: String(output.due_date).slice(0, 10), title: "تسليم: " + output.name, subtitle: output.approval })),
+          ...data.reviews.filter((review) => review.status === "Closed" && review.visibility === "team" && review.closed_at && (review.snapshot?.relatedProjects || []).some((related) => String(related.id) === String(projectId))).map((review) => ({ id: review.id, kind: "review", date: String(review.closed_at).slice(0, 10), title: "مراجعة أسبوعية: " + (people.find((person) => person.id === review.member_id)?.name || "عضو الفريق"), subtitle: "مشاركة مع الفريق" })),
           ...calendarMeetings.map((meeting) => ({ id: meeting.id, kind: "meeting", date: String(meeting.date).slice(0, 10), title: "اجتماع: " + meeting.title, subtitle: meeting.summary || "" })),
         ];
         const dayTasks = (date) => projectTasks.filter((task) => dateOfTask(task) === date);
@@ -221,6 +222,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
           if (event.kind === "output") return openProject(projectId, "outputs", { kind: "output", id: event.id });
           if (event.kind === "project") return openProject(projectId, "overview");
           if (event.kind === "meeting") return setPage("meetings");
+          if (event.kind === "review") return setPage("reviews");
         };
         const moveTask = async (task, date) => {
           if (!canWrite || !task || !date || task.due_date === date) return;
@@ -264,9 +266,9 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
               {tasks.slice(0, compact ? 30 : 4).map((task) => <button key={task.id} type="button" draggable={canWrite} onDragStart={(e) => { e.dataTransfer.setData("text/plain", task.id); e.dataTransfer.effectAllowed = "move"; }} onClick={() => openTask(task.id)} style={{ display: "block", width: "100%", border: "1px solid " + C.line, borderInlineStart: "3px solid " + (D.cat(task.status) === "done" ? C.ok : D.cat(task.status) === "cancelled" ? C.muted : C.info), borderRadius: 5, background: D.cat(task.status) === "done" ? "rgba(16,185,129,.1)" : "rgba(59,130,246,.08)", color: C.text, padding: "5px 6px", textAlign: "start", cursor: "pointer", font: "inherit", fontSize: 10.5, lineHeight: 1.35, overflowWrap: "anywhere" }}>{task.title}<span style={{ display: "block", color: C.muted, fontSize: 9.5 }}>{task.start_date && task.due_date ? fmtShort(task.start_date) + " → " + fmtShort(task.due_date) : task.start_date ? "بداية" : "موعد نهائي"}</span></button>)}
               {tasks.length > (compact ? 30 : 4) && <span style={{ fontSize: 9.5, color: C.muted }}>+{tasks.length - (compact ? 30 : 4)} مهام أخرى</span>}
               {events.slice(0, compact ? 20 : 4).map((event) => {
-                const color = event.kind === "decision" ? C.violet : event.kind === "output" ? C.ok : event.kind === "meeting" ? C.orange : event.kind === "project" ? C.info : A;
+                const color = event.kind === "decision" ? C.violet : event.kind === "output" ? C.ok : event.kind === "meeting" ? C.orange : event.kind === "review" ? C.info : event.kind === "project" ? C.info : A;
                 return <button key={event.kind + ":" + event.id} type="button" title={event.subtitle || event.title} onClick={() => openCalendarEvent(event)} style={{ display: "block", width: "100%", border: "1px solid " + C.line, borderInlineStart: "3px solid " + color, borderRadius: 5, background: "rgba(0,0,0,.025)", color: C.text, padding: "5px 6px", textAlign: "start", cursor: "pointer", font: "inherit", fontSize: 10.5, lineHeight: 1.35, overflowWrap: "anywhere" }}>
-                  {event.title}<span style={{ display: "block", color: C.muted, fontSize: 9.5 }}>{event.kind === "decision" ? "قرار" : event.kind === "output" ? "موعد تسليم" : event.kind === "meeting" ? "اجتماع Knowledge OS" : "موعد المشروع"}</span>
+                  {event.title}<span style={{ display: "block", color: C.muted, fontSize: 9.5 }}>{event.kind === "decision" ? "قرار" : event.kind === "output" ? "موعد تسليم" : event.kind === "meeting" ? "اجتماع Knowledge OS" : event.kind === "review" ? "مراجعة أسبوعية للفريق" : "موعد المشروع"}</span>
                 </button>;
               })}
               {events.length > (compact ? 20 : 4) && <span style={{ fontSize: 9.5, color: C.muted }}>+{events.length - (compact ? 20 : 4)} عناصر أخرى</span>}
@@ -308,7 +310,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
           </div>}
           {calendarMeetingState === "error" && <div role="status" style={{ marginTop: 8, fontSize: 10.5, color: C.warn }}>تعذر تحميل اجتماعات Knowledge OS؛ بقية أحداث التقويم ما زالت متاحة.</div>}
           <div style={{ borderTop: "1px solid " + C.line, marginTop: 10, paddingTop: 8, display: "flex", gap: 10, flexWrap: "wrap", fontSize: 10.5, color: C.muted }}>
-            <span>● المهمة: تاريخ التسليم أو البداية عند غياب الموعد</span><span>🔵 موعد المشروع</span><span>🟠 اجتماعات</span><span>🟣 قرارات</span><span>🟢 تسليم المخرجات</span><span>اسحب المهمة لتحديث موعدها النهائي</span>
+            <span>● المهمة: تاريخ التسليم أو البداية عند غياب الموعد</span><span>🔵 موعد المشروع</span><span>🟠 اجتماعات</span><span>🟣 قرارات</span><span>🟢 تسليم المخرجات</span><span>مراجعة فريق مشتركة</span><span>اسحب المهمة لتحديث موعدها النهائي</span>
           </div>
         </div>;
       })()}
