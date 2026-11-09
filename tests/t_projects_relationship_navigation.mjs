@@ -162,6 +162,10 @@ assert.ok(screens.includes("task_dependencies_text: flattenTaskDependencies(tpl.
   screens.includes("علاقات الاعتماد بين المهام") &&
   screens.includes("dependency_titles.join"),
   "Template editor preserves, edits and previews predecessor links in a readable relation field");
+assert.ok(screens.includes("conversion_warnings: Array.isArray(tpl.conversion_warnings) ? tpl.conversion_warnings : []") &&
+  screens.includes("روابط لم تُنقل تلقائيًا — راجعها يدويًا") &&
+  screens.includes("v.conversion_warnings.map((warning, index)"),
+  "Project-to-template conversion warnings remain visible in the editable template review form");
 assert.ok(screens.includes("D.instantiateProjectTemplate(") &&
   screens.includes("قالب قيد التحقق"),
   "Template saves run an in-memory instantiation check to reject missing or cyclic dependency links");
