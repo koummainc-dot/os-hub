@@ -43,7 +43,7 @@ export function ProjectForm({ initial, onClose }) {
 }
 
 // ── Task form ───────────────────────────────────────────────────────
-export function TaskForm({ initial, projectId, parentId, allowedProjectIds, onClose }) {
+export function TaskForm({ initial, projectId, parentId, allowedProjectIds, linkedKrId, onClose }) {
   const { A: act, people, data, idx, projectsById, toast, can } = useP(); const isNew = !initial || !initial.id; const [showAdvanced, setShowAdvanced] = useState(false);
   const base = { project_id: projectId || (initial && initial.project_id) || "", parent_task_id: parentId || null, priority: "Medium", planning_bucket: "Inbox", status: "Not Started", custom_label: initial?.custom_fields?.label || "", custom_url: initial?.custom_fields?.url || "", ...initial };
   const isParent = !isNew && !idx.isLeaf(initial.id); const dv = isParent ? idx.derived[initial.id] : null;
@@ -68,7 +68,7 @@ export function TaskForm({ initial, projectId, parentId, allowedProjectIds, onCl
     { key: "description", label: "الوصف", type: "textarea", show: () => showAdvanced }, { key: "result_note", label: "النتيجة السريعة (نص/رابط)", type: "textarea", rows: 2, show: () => showAdvanced }, { key: "custom_label", label: "حقل مخصص — قيمة مختصرة", hint: "بيانات مرنة خاصة بالمهمة، تُحفظ داخل custom_fields دون تغيير المخطط.", show: () => showAdvanced }, { key: "custom_url", label: "حقل مخصص — رابط", type: "url", show: () => showAdvanced },
   ];
   return <FormModal title={isNew ? (parentId ? "مهمة فرعية جديدة" : "مهمة جديدة") : "تعديل المهمة"} wide fields={fields} initial={initVals}
-    onSubmit={async (v) => { const out = { ...v, custom_fields: { ...(initial?.custom_fields || {}), label: String(v.custom_label || "").trim(), url: String(v.custom_url || "").trim() || null } }; delete out.custom_label; delete out.custom_url; if (isParent) { out.status = initial.status; out.estimated_minutes = initial.estimated_minutes; out.due_date = initial.due_date; } if (out.status !== "Cancelled") out.cancelled_reason = null; const saved = await act.saveTask(out, isNew); if (saved === null) return false; toast("✅ تم الحفظ"); onClose(); }} onClose={onClose}>{() => <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid " + C.line }}><Btn small onClick={() => setShowAdvanced((v) => !v)}>{showAdvanced ? "إخفاء التفاصيل الإضافية" : "⚙ تفاصيل إضافية"}</Btn><span style={{ marginInlineStart: 8, fontSize: 11, color: C.muted }}>ابدأ بالعنوان والأولوية والموعد؛ بقية الحقول اختيارية.</span></div>}</FormModal>;
+    onSubmit={async (v) => { const out = { ...v, custom_fields: { ...(initial?.custom_fields || {}), label: String(v.custom_label || "").trim(), url: String(v.custom_url || "").trim() || null } }; delete out.custom_label; delete out.custom_url; if (isParent) { out.status = initial.status; out.estimated_minutes = initial.estimated_minutes; out.due_date = initial.due_date; } if (out.status !== "Cancelled") out.cancelled_reason = null; const saved = await act.saveTask(out, isNew, linkedKrId); if (saved === null) return false; toast("✅ تم الحفظ"); onClose(); }} onClose={onClose}>{() => <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid " + C.line }}><Btn small onClick={() => setShowAdvanced((v) => !v)}>{showAdvanced ? "إخفاء التفاصيل الإضافية" : "⚙ تفاصيل إضافية"}</Btn><span style={{ marginInlineStart: 8, fontSize: 11, color: C.muted }}>ابدأ بالعنوان والأولوية والموعد؛ بقية الحقول اختيارية.</span></div>}</FormModal>;
 }
 
 // ── Task tree ───────────────────────────────────────────────────────
