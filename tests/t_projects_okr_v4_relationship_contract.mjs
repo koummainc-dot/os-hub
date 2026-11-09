@@ -6,6 +6,7 @@ const screens=fs.readFileSync(new URL("../src/systems/projects/screens_c.jsx",im
 const parts=fs.readFileSync(new URL("../src/systems/projects/parts.jsx",import.meta.url),"utf8");
 const okrs=screens.slice(screens.indexOf("export function Okrs()"),screens.indexOf("// ═════ Stakeholder updates"));
 const taskForm=parts.slice(parts.indexOf("export function TaskForm"),parts.indexOf("// ── Task tree"));
+const store=fs.readFileSync(new URL("../src/systems/projects/store.jsx",import.meta.url),"utf8");
 const projectScreens=fs.readFileSync(new URL("../src/systems/projects/screens_b.jsx",import.meta.url),"utf8");
 const projectOkr=projectScreens.slice(projectScreens.indexOf("function ProjectOkr"),projectScreens.indexOf("function RelatedTab"));
 
@@ -13,12 +14,18 @@ assert.ok(okrs.includes("D.objectiveTaskExecution(o, krs, idx)"),"Objective exec
 assert.ok(projectOkr.includes("D.objectivesForProject(p.id, data.objectives, data.krs)"),"Project detail derives Objectives through linked KRs");
 assert.ok(!projectOkr.includes("o.project_ids"),"Project detail does not read the forbidden Objective→Project legacy field");
 assert.ok(okrs.includes("const linkedTasks = taskExecution.tasks"),"Objective task list uses the same derived relationship");
-assert.ok(okrs.includes("startObjectiveTask(o, krs)"),"Objective task creation starts from its linked KR projects");
+assert.ok(okrs.includes("startObjectiveTask(o, k)"),"Task creation starts from one explicit KR, not an ambiguous Objective project set");
 assert.ok(okrs.includes("allowedProjectIds={taskAllowedProjectIds}"),"Objective task creation is restricted to linked projects");
 assert.ok(okrs.includes("taskProjectForm.projectIds"),"Multiple linked projects require explicit project selection");
 assert.ok(!okrs.includes("setTaskForm({ objective_id: o.id })"),"Objective task creation no longer writes a direct objective_id");
 assert.ok(!taskForm.includes('key: "objective_id"'),"Task form no longer exposes direct Task→Objective storage");
 assert.ok(taskForm.includes("allowedProjectIds"),"Task form supports restricting the project picker");
+assert.ok(taskForm.includes("linkedKrId"),"Task form carries the selected KR relationship into persistence");
+assert.ok(taskForm.includes("act.saveTask(out, isNew, linkedKrId)"),"Task creation submits the selected KR as part of the canonical write");
+assert.ok(store.includes("async saveTask(v, isNew, linkedKrId)"),"Store accepts the explicit KR link context");
+assert.ok(store.includes("R.putAtomic(writes)"),"Task and KR task-group link are persisted atomically");
+assert.ok(store.includes("task_ids: [...new Set(["),"Store appends the task to the KR execution group without duplicates");
+assert.ok(store.includes("اربط مشروعًا بنتيجة رئيسية أولًا؛ ربط المهمة بالهدف يُشتق من المشروع والنتيجة الرئيسية."),"Missing project-to-KR prerequisite is surfaced with the required actionable validation");
 assert.ok(okrs.includes('label: "المشاريع المرتبطة"'),"All KR types can link supporting Projects");
 assert.ok(okrs.includes('label: "مجموعة المهام التي تحقق النتيجة"'),"KRs can link an explicit execution task group");
 assert.ok(okrs.includes("دون تغيير قياسها"),"Numeric KR measurement remains separate from supporting task execution");
