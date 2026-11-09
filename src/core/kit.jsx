@@ -68,17 +68,27 @@ export function Seg({ options, value, onChange, small }) {
     </span>
   );
 }
-export function SideSheet({ title, onClose, children, footer }) {
+export function SideSheet({ title, onClose, children, footer, inline = false }) {
   useEffect(() => { const f = (e) => { if (e.key === "Escape") onClose && onClose(); }; window.addEventListener("keydown", f); return () => window.removeEventListener("keydown", f); }, [onClose]);
+  if (inline) return (
+    <aside style={{ position: "sticky", top: 12, alignSelf: "start", minWidth: 0, maxHeight: "calc(100vh - 150px)", background: "#fff", direction: "rtl", border: "1px solid " + C.line, borderRadius: 12, boxShadow: "0 4px 18px rgba(0,0,0,.06)", display: "flex", flexDirection: "column", overflow: "hidden" }} aria-label={title}>
+      <div style={{ padding: "13px 15px", borderBottom: "1px solid " + C.line, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div style={{ minWidth: 0, fontSize: 14, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+        <button type="button" aria-label="إغلاق" onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, lineHeight: 1, cursor: "pointer", color: C.dim }}>×</button>
+      </div>
+      <div style={{ padding: 14, overflowY: "auto", flex: 1, minHeight: 240 }}>{children}</div>
+      {footer && <div style={{ padding: "10px 12px", borderTop: "1px solid " + C.line, display: "flex", gap: 7, flexWrap: "wrap" }}>{footer}</div>}
+    </aside>
+  );
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 6500, pointerEvents: "none" }} aria-hidden="false">
       <div role="dialog" aria-label={title} aria-modal="true" style={{ position: "absolute", insetBlock: 0, insetInlineEnd: 0, width: "min(520px, 92vw)", background: "#fff", direction: "rtl", boxShadow: "-16px 0 40px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column", pointerEvents: "auto" }}>
-        <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid " + C.line, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
           <div style={{ minWidth: 0, fontSize: 15, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
           <button aria-label="إغلاق" onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, lineHeight: 1, cursor: "pointer", color: C.dim }}>×</button>
         </div>
         <div style={{ padding: 18, overflowY: "auto", flex: 1 }}>{children}</div>
-        {footer && <div style={{ padding: "12px 18px", borderTop: `1px solid ${C.line}`, display: "flex", gap: 8, flexWrap: "wrap" }}>{footer}</div>}
+        {footer && <div style={{ padding: "12px 18px", borderTop: "1px solid " + C.line, display: "flex", gap: 8, flexWrap: "wrap" }}>{footer}</div>}
       </div>
     </div>
   );
