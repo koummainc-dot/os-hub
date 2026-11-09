@@ -194,7 +194,11 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
             const next = d.toISOString().slice(0, 7);
             setMonth(next);
             setCalendarDate(next + "-01");
-          } else setCalendarDate((current) => shiftDate(current, direction * (calendarMode === "week" ? 7 : 1)));
+          } else {
+            const nextDate = shiftDate(calendarDate, direction * (calendarMode === "week" ? 7 : 1));
+            setCalendarDate(nextDate);
+            setMonth(nextDate.slice(0, 7));
+          }
         };
         const setCurrentDate = (value) => {
           if (!value) return;
@@ -226,7 +230,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
         return <div style={{ ...S.card, padding: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
             <div style={{ display: "inline-flex", border: "1px solid " + C.line, borderRadius: 8, overflow: "hidden" }}>
-              {[["month","شهر"],["week","أسبوع"],["day","يوم"]].map(([value, label], index) => <button key={value} type="button" onClick={() => setCalendarMode(value)} style={{ border: 0, borderInlineStart: index ? "1px solid " + C.line : 0, background: calendarMode === value ? "rgba(59,130,246,.1)" : "transparent", color: calendarMode === value ? C.info : C.dim, padding: "6px 10px", cursor: "pointer", font: "inherit", fontSize: 11.5 }}>{label}</button>)}
+              {[["month","شهر"],["week","أسبوع"],["day","يوم"]].map(([value, label], index) => <button key={value} type="button" onClick={() => { setCalendarMode(value); if (value === "month") setMonth(calendarDate.slice(0, 7)); }} style={{ border: 0, borderInlineStart: index ? "1px solid " + C.line : 0, background: calendarMode === value ? "rgba(59,130,246,.1)" : "transparent", color: calendarMode === value ? C.info : C.dim, padding: "6px 10px", cursor: "pointer", font: "inherit", fontSize: 11.5 }}>{label}</button>)}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
               <Btn small onClick={() => changePeriod(-1)}>→ السابق</Btn>
