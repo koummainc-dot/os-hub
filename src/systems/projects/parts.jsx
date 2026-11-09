@@ -311,7 +311,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
           </div>
           <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 8 }}>المسار الحرج محسوب من مدد التواريخ المسجلة بالأيام التقويمية؛ لا يفترض عطلات أو سعات موارد غير موجودة في البيانات.</div>
           <div style={{ overflowX: "auto" }}>
-            <div style={{ minWidth: 940, position: "relative" }}>
+            <div style={{ minWidth: 940, width: 940, position: "relative" }}>
               <div style={{ display: "grid", gridTemplateColumns: "220px 700px", gap: 10, alignItems: "end", borderBottom: "1px solid " + C.line, paddingBottom: 8, marginBottom: 6 }}>
                 <span style={{ fontSize: 10.5, color: C.muted }}>المهمة</span>
                 <div style={{ position: "relative", height: 30 }}>
@@ -326,8 +326,8 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
                 const width = Math.max(1.1, right - left);
                 const done = D.cat(task.status) === "done";
                 return <div key={task.id} style={{ display: "grid", gridTemplateColumns: "220px 700px", gap: 10, alignItems: "center", minHeight: 38, borderBottom: "1px solid " + C.line }}>
-                  <div style={{ display: "flex", gap: 5, alignItems: "center", minWidth: 0, flexWrap: "wrap" }}>
-                    <button type="button" onClick={() => openTask(task.id)} style={{ border: 0, background: "transparent", padding: 0, textAlign: "start", font: "inherit", fontSize: 11.5, color: done ? C.muted : C.text, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{task.title}</button>
+                  <div style={{ display: "flex", gap: 5, alignItems: "center", minWidth: 0, flexWrap: "nowrap", overflow: "hidden" }}>
+                    <button type="button" onClick={() => openTask(task.id)} style={{ border: 0, background: "transparent", padding: 0, textAlign: "start", font: "inherit", fontSize: 11.5, color: done ? C.muted : C.text, cursor: "pointer", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{task.title}</button>
                     {schedule.critical_task_ids.includes(task.id) && <Chip color={C.warn}>حرجة</Chip>}
                     {(task.dependency_task_ids || []).length > 0 && <Chip color={C.violet}>← {(task.dependency_task_ids || []).length} اعتماد</Chip>}
                   </div>
