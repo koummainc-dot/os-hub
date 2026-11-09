@@ -100,7 +100,7 @@ t("T-80 project-to-template conversion preserves reusable structure and strips r
   };
   const tasks = [
     { id: "root", project_id: "source_project", title: "مرحلة البحث", sort_order: 1, status: "Completed", assignee_id: "real_person_1", completed_at: "2026-01-20", start_date: "2026-01-11", due_date: "2026-01-12", estimated_minutes: 90 },
-    { id: "child", project_id: "source_project", parent_task_id: "root", title: "مقابلات المستخدمين", sort_order: 2, status: "Cancelled", assignee_id: "real_person_2", start_date: "2026-01-15", due_date: "2026-01-17", estimated_minutes: 45, prd_id: "prd1", prd_requirement_id: "req1" },
+    { id: "child", project_id: "source_project", parent_task_id: "root", title: "مقابلات المستخدمين", sort_order: 2, status: "Cancelled", assignee_id: "real_person_2", start_date: "2026-01-15", due_date: "2026-01-17", estimated_minutes: 45, prd_id: "prd1", prd_requirement_id: "req1", dependency_task_ids: ["orphan"] },
     { id: "orphan", project_id: "source_project", parent_task_id: "missing_parent", title: "مهمة يتيمة", sort_order: 3, status: "In Progress" },
     { id: "duplicate_a", project_id: "source_project", title: "مهمة مكررة", sort_order: 4, prd_id: "prd1", prd_requirement_id: "req2" },
     { id: "duplicate_b", project_id: "source_project", title: "مهمة مكررة", sort_order: 5 },
@@ -137,6 +137,7 @@ t("T-80 project-to-template conversion preserves reusable structure and strips r
   assert.equal(seed.task_tree[0].children[0].title, "مقابلات المستخدمين");
   assert.equal(seed.task_tree[0].offset_days, 1);
   assert.equal(seed.task_tree[0].children[0].offset_days, 5);
+  assert.deepEqual(seed.task_tree[0].children[0].dependency_titles, ["مهمة يتيمة"], "unique prerequisite links are converted to title references for a new template");
   assert.equal(seed.task_tree[0].status, undefined);
   assert.equal(seed.task_tree[0].assignee_id, undefined);
   assert.equal(seed.task_tree[0].completed_at, undefined);
@@ -152,6 +153,10 @@ t("T-80 project-to-template conversion preserves reusable structure and strips r
   assert.equal(seed.output_templates[1].task_title, null, "ambiguous task links are not copied");
   assert.deepEqual(seed.risks, [{ title: "Launch scope", probability: 4, impact: 5, mitigation: "Phase the rollout" }]);
   assert.equal(seed.lead_id, undefined);
+  const instantiated = D.instantiateProjectTemplate(seed, { name: "Template copy", start_date: "2026-02-01" }, (() => { let sequence = 0; return () => "copy_" + (++sequence); })());
+  const copiedChild = instantiated.tasks.find((candidate) => candidate.title === "مقابلات المستخدمين");
+  const copiedPredecessor = instantiated.tasks.find((candidate) => candidate.title === "مهمة يتيمة");
+  assert.deepEqual(copiedChild.dependency_task_ids, [copiedPredecessor.id], "template instantiation resolves predecessor titles to fresh task IDs");
   assert.equal(seed.members, undefined);
   assert.equal(seed.sessions, undefined);
   assert.equal(seed.id, undefined, "template gets a new id only when saved");
