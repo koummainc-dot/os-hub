@@ -85,6 +85,69 @@ export function TemplatePicker({ onClose, tpl }) {
 const countNodes = (nodes) => nodes.reduce((a, n) => a + 1 + countNodes(n.children || []), 0);
 
 // ═════ Project detail ═════
+function ProjectActivityHub({ p }) {
+  const { data, idx, ws, me, today, nameOf, can, A: act, toast, openTask, setPage } = useP();
+  const [tab, setTab] = useState("activity");
+  const [meetings, setMeetings] = useState([]);
+  const [meetingState, setMeetingState] = useState("loading");
+  const [creatingKey, setCreatingKey] = useState("");
+  const activity = data.activity.filter((event) => event.entity_id === p.id || (event.entity === "tasks" && idx.byId[event.entity_id]?.project_id === p.id)).sort((a, b) => String(b.at || "").localeCompare(String(a.at || ""))).slice(0, 60);
+  const updates = data.updates.filter((update) => update.project_id === p.id && !update.deleted_at).sort((a, b) => String(b.period_end || "").localeCompare(String(a.period_end || "")));
+  const wins = data.wins.filter((win) => win.project_id === p.id || (win.task_ids || (win.task_id ? [win.task_id] : [])).some((id) => idx.byId[id]?.project_id === p.id)).sort((a, b) => String(b.achieved_on || "").localeCompare(String(a.achieved_on || "")));
+  useEffect(() => {
+    let active = true;
+    if (!ws?.id) { setMeetings([]); setMeetingState("ready"); return () => { active = false; }; }
+    setMeetingState("loading");
+    listKnowledgeMeetings(ws.id).then((result) => {
+      if (!active) return;
+      if (!result.ok) throw result.error || new Error("تعذر تحميل الاجتماعات.");
+      setMeetings((result.meetings || []).filter((meeting) => !meeting.archived && meeting.status !== "archived" && meeting.relatedSystem === "projects" && String(meeting.relatedId) === String(p.id)).sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))));
+      setMeetingState("ready");
+    }).catch(() => { if (active) setMeetingState("error"); });
+    return () => { active = false; };
+  }, [ws?.id, p.id]);
+  async function makeFollowup(meeting, followup, index) {
+    const key = String(meeting.id) + ":" + index;
+    if (creatingKey || p.archived_at || !can("task.write", p)) return;
+    const existing = data.tasks.find((task) => task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index);
+    if (existing) { toast("هذه المتابعة مرتبطة بالفعل بالمهمة: " + existing.title); return; }
+    const title = String(followup || "").trim();
+    if (!title) return;
+    setCreatingKey(key);
+    try {
+      const saved = await act.saveTask({ title, project_id: p.id, assignee_id: me, status: "Not Started", planning_bucket: "Inbox", due_date: meeting.date && meeting.date >= today ? meeting.date : "", source_meeting_id: meeting.id, source_meeting_title: meeting.title || "", source_followup_index: index }, true);
+      if (saved) toast("✅ أُنشئت مهمة متابعة من الاجتماع.");
+    } catch (error) { toast("⛔ تعذّر إنشاء مهمة المتابعة: " + (error?.message || "فشل الحفظ")); }
+    finally { setCreatingKey(""); }
+  }
+  const tabs = [{ id: "activity", label: "النشاط", count: activity.length }, { id: "updates", label: "التحديثات", count: updates.length }, { id: "wins", label: "الإنجازات", count: wins.length }, { id: "meetings", label: "الاجتماعات", count: meetings.length }];
+  return <div style={{ display: "grid", gap: 10 }}>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><Tabs small value={tab} onChange={setTab} tabs={tabs} /><span style={{ flex: 1 }} />{tab === "updates" && <Btn small onClick={() => setPage("updates")}>فتح التحديثات</Btn>}{tab === "wins" && <Btn small onClick={() => setPage("wins")}>فتح الإنجازات</Btn>}{tab === "meetings" && <Btn small onClick={() => setPage("meetings")}>كل الاجتماعات</Btn>}</div>
+    {tab === "activity" && <section style={S.card}>{!activity.length ? <Empty icon="🕘" title="لا يوجد نشاط مسجّل لهذا المشروع" sub="سيظهر هنا إنشاء المهام وتعديلها وتغيّر الحالات والسجلات المرتبطة." /> : activity.map((event) => {
+      const task = event.entity === "tasks" ? idx.byId[event.entity_id] : null;
+      return <div key={event.id} style={{ display: "grid", gridTemplateColumns: "90px 28px minmax(0,1fr)", gap: 8, alignItems: "start", padding: "9px 0", borderTop: "1px solid " + C.line }}>
+        <span style={{ fontSize: 10.5, color: C.muted }}>{event.at ? dateOf(event.at) : "—"}</span><span style={{ color: C.info, textAlign: "center" }}>●</span>
+        <div style={{ minWidth: 0, fontSize: 12.5, lineHeight: 1.7 }}><b>{nameOf(event.actor_id)}</b> · {event.action} {event.summary || ""}{task && <div><Btn small onClick={() => openTask(task.id)}>{task.title}</Btn></div>}</div>
+      </div>;
+    })}</section>}
+    {tab === "updates" && <section style={S.card}>{!updates.length ? <Empty icon="📣" title="لا توجد تحديثات" sub="أنشئ تحديثًا من قسم التحديثات وسيظهر هنا مرتبطًا بالمشروع." /> : updates.map((update) => <div key={update.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "9px 0", borderTop: "1px solid " + C.line }}><div style={{ flex: 1, minWidth: 140 }}><b style={{ fontSize: 12.5 }}>{update.title || "تحديث المشروع"}</b><div style={{ fontSize: 10.5, color: C.muted }}>{fmtShort(update.period_start)} → {fmtShort(update.period_end)} · {update.status === "Published" ? "منشور" : "مسودة"}</div></div><Chip color={update.lead_assessment === "On Track" ? C.ok : update.lead_assessment === "At Risk" ? C.warn : C.bad}>{update.lead_assessment || "غير مقيّم"}</Chip></div>)}</section>}
+    {tab === "wins" && <section style={S.card}>{!wins.length ? <Empty icon="🏆" title="لا توجد إنجازات مرتبطة" sub="اربط الإنجاز بمهمة من هذا المشروع أو حدّد المشروع في سجل الإنجاز." /> : wins.map((win) => <div key={win.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "9px 0", borderTop: "1px solid " + C.line }}><span>🏆</span><div style={{ flex: 1, minWidth: 0 }}><b style={{ fontSize: 12.5 }}>{win.title}</b><div style={{ fontSize: 10.5, color: C.muted }}>{win.achieved_on || "—"} · {nameOf(win.member_id)}</div></div>{(win.task_ids || (win.task_id ? [win.task_id] : [])).filter((id) => idx.byId[id]?.project_id === p.id).map((id) => <Btn key={id} small onClick={() => openTask(id)}>فتح المهمة</Btn>)}</div>)}</section>}
+    {tab === "meetings" && <section style={S.card}>
+      {meetingState === "loading" ? <div style={{ fontSize: 12, color: C.muted }}>جارٍ تحميل اجتماعات Knowledge OS…</div> : meetingState === "error" ? <div role="alert" style={{ fontSize: 12, color: C.bad }}>تعذّر تحميل الاجتماعات من Knowledge OS. افتح صفحة الاجتماعات للتحقق من المصدر.</div> : !meetings.length ? <Empty icon="🗓️" title="لا اجتماعات مرتبطة بهذا المشروع" sub="اربط الاجتماع بالمشروع من Knowledge OS ليظهر هنا." /> : meetings.map((meeting) => {
+        const followups = Array.isArray(meeting.followups) ? meeting.followups : [];
+        return <article key={meeting.id} style={{ padding: "9px 0", borderTop: "1px solid " + C.line }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><b style={{ flex: 1, fontSize: 12.5 }}>🗓️ {meeting.title}</b><Chip>{meeting.date || "بدون تاريخ"}</Chip></div>
+          {meeting.summary && <div style={{ fontSize: 11.5, marginTop: 5, whiteSpace: "pre-wrap" }}>{meeting.summary}</div>}
+          {followups.map((followup, index) => {
+            const existing = data.tasks.find((task) => task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index);
+            return <div key={index} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6, fontSize: 11.5 }}><span style={{ flex: 1 }}>{String(followup)}</span>{existing ? <Chip color={C.ok}>مرتبطة: {existing.title}</Chip> : can("task.write", p) ? <Btn small disabled={creatingKey === String(meeting.id) + ":" + index} onClick={() => makeFollowup(meeting, followup, index)}>تحويل إلى مهمة</Btn> : <Chip color={C.muted}>لا توجد صلاحية</Chip>}</div>;
+          })}
+        </article>;
+      })}
+    </section>}
+  </div>;
+}
+
 function ProjectDetail() {
   const { view, setView, projectsById, metrics, data, can, A: act, idx, today, people, nameOf, toast, sessionsDummy, openTask } = useP();
   const p = projectsById[view.projectId]; const [edit, setEdit] = useState(false); const [wf, setWf] = useState(false); const [tm, setTm] = useState(false);
@@ -129,7 +192,7 @@ function ProjectDetail() {
       {tab === "people" && <PeopleTab p={p} canE={can("project.members", p)} />}
       {tab === "okr" && <ProjectOkr p={p} />}
       {tab === "related" && <RelatedTab p={p} canE={canE} />}
-      {tab === "activity" && <div style={S.card}>{data.activity.filter((a) => a.entity_id === p.id || (a.entity === "tasks" && idx.byId[a.entity_id] && idx.byId[a.entity_id].project_id === p.id)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40).map((a) => <div key={a.id} style={{ fontSize: 12, padding: "4px 0", color: C.dim }}>{dateOf(a.at)} · {nameOf(a.actor_id)} · {a.action} {a.summary}</div>)}{!data.activity.some((a) => a.entity_id === p.id) && <span style={{ fontSize: 12, color: C.muted }}>لا نشاط مسجَّل</span>}</div>}
+      {tab === "activity" && <ProjectActivityHub p={p} />}
       {edit && <ProjectForm initial={p} onClose={() => setEdit(false)} />}
     </div>
   );
@@ -211,16 +274,25 @@ function WorkTab({ p }) {
   </div>;
 }
 function PeopleTab({ p, canE }) {
-  const { people, nameOf, A: act, toast, confirm } = useP(); const [add, setAdd] = useState(false);
+  const { people, nameOf, A: act, toast, confirm, idx, today } = useP(); const [add, setAdd] = useState(false);
   const members = p.members || [];
   const save = async (list, lead) => { await act.saveProject({ ...p, members: list, lead_id: lead || p.lead_id }, false); };
   return <div style={S.card}>
-    {members.map((mm) => <div key={mm.member_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.line}` }}><Who id={mm.member_id} /><Chip color={mm.role === "Lead" ? A : C.info}>{L.memberRole[mm.role]}</Chip><span style={{ flex: 1 }} />
-      {canE && mm.role !== "Lead" && <select style={{ ...S.sel, width: 120, padding: "3px 6px" }} value={mm.role} onChange={(e) => save(members.map((x) => (x.member_id === mm.member_id ? { ...x, role: e.target.value } : x)))}>{["Contributor", "Reviewer", "Stakeholder"].map((r) => <option key={r} value={r}>{L.memberRole[r]}</option>)}</select>}
-      {canE && mm.role !== "Lead" && <Btn small danger onClick={async () => { if (await confirm(`إزالة ${nameOf(mm.member_id)} من المشروع؟`)) save(members.filter((x) => x.member_id !== mm.member_id)); }}>إزالة</Btn>}</div>)}
-    {canE && <div style={{ marginTop: 10 }}><Btn small kind="primary" onClick={() => setAdd(true)}>➕ إضافة عضو</Btn></div>}
-    <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>الأعضاء هم أعضاء الـ Workspace. لدعوة شخص جديد استخدم «الفريق والصلاحيات» في المنصة.</div>
-    {add && <FormModal title="إضافة عضو للمشروع" initial={{ role: "Contributor" }} onClose={() => setAdd(false)} fields={[{ key: "member_id", label: "العضو", type: "select", required: true, allowEmpty: false, options: people.filter((x) => !members.some((m) => m.member_id === x.id)).map((x) => ({ v: x.id, l: x.name })) }, { key: "role", label: "الدور", type: "select", allowEmpty: false, options: ["Contributor", "Reviewer", "Stakeholder", "Lead"].map((r) => ({ v: r, l: L.memberRole[r] })) }]} onSubmit={async (v) => { if (v.role === "Lead") { await save([...members.map((x) => (x.role === "Lead" ? { ...x, role: "Contributor" } : x)), { member_id: v.member_id, role: "Lead" }], v.member_id); } else await save([...members, { member_id: v.member_id, role: v.role }]); setAdd(false); }} />}
+    {p.lead_id && <div style={{ padding: "7px 0 10px", borderBottom: "1px solid " + C.line, marginBottom: 5 }}><div style={{ fontSize: 10.5, color: C.muted, marginBottom: 4 }}>قائد المشروع</div><Who id={p.lead_id} /></div>}
+    {!members.length ? <Empty icon="👥" title="لا يوجد أعضاء مضافون للمشروع" sub="أضف أعضاء من مساحة العمل وحدد دور كل عضو. لا تتم إضافة أشخاص غير مسجلين." /> : members.map((mm) => {
+      const assigned = idx.list.filter((task) => task.project_id === p.id && task.assignee_id === mm.member_id && idx.isLeaf(task.id));
+      const open = assigned.filter((task) => ["todo", "active"].includes(D.cat(task.status)));
+      const overdue = open.filter((task) => D.isOverdueLeaf(task, idx, today));
+      return <div key={mm.member_id} style={{ display: "grid", gridTemplateColumns: "minmax(130px,1.2fr) auto minmax(110px,1fr) auto", gap: 8, alignItems: "center", padding: "9px 0", borderBottom: "1px solid " + C.line }}>
+        <Who id={mm.member_id} />
+        {canE && mm.role !== "Lead" ? <select aria-label={"دور " + nameOf(mm.member_id)} style={{ ...S.sel, width: 120, padding: "4px 6px" }} value={mm.role} onChange={(e) => save(members.map((x) => x.member_id === mm.member_id ? { ...x, role: e.target.value } : x))}>{["Contributor", "Reviewer", "Stakeholder"].map((role) => <option key={role} value={role}>{L.memberRole[role]}</option>)}</select> : <Chip color={mm.role === "Lead" ? A : C.info}>{L.memberRole[mm.role]}</Chip>}
+        <span style={{ fontSize: 10.5, color: overdue.length ? C.bad : C.muted }}>{open.length} مفتوحة · {overdue.length} متأخرة · {assigned.length} إجمالي</span>
+        {canE && mm.role !== "Lead" && <Btn small danger onClick={async () => { if (await confirm("إزالة " + nameOf(mm.member_id) + " من المشروع؟")) await save(members.filter((x) => x.member_id !== mm.member_id)); }}>إزالة</Btn>}
+      </div>;
+    })}
+    {canE && <div style={{ marginTop: 10 }}><Btn small kind="primary" onClick={() => setAdd(true)}>＋ إضافة عضو</Btn></div>}
+    <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>حِمل العمل محسوب من المهام المسندة لهذا العضو داخل هذا المشروع فقط. الأعضاء هم أعضاء مساحة العمل، ولا تتم دعوة حسابات جديدة من هذه الشاشة.</div>
+    {add && <FormModal title="إضافة عضو للمشروع" initial={{ role: "Contributor" }} onClose={() => setAdd(false)} fields={[{ key: "member_id", label: "العضو", type: "select", required: true, allowEmpty: false, options: people.filter((x) => !members.some((m) => m.member_id === x.id)).map((x) => ({ v: x.id, l: x.name })) }, { key: "role", label: "الدور", type: "select", allowEmpty: false, options: ["Contributor", "Reviewer", "Stakeholder", "Lead"].map((role) => ({ v: role, l: L.memberRole[role] })) }]} onSubmit={async (v) => { if (v.role === "Lead") await save([...members.map((x) => x.role === "Lead" ? { ...x, role: "Contributor" } : x), { member_id: v.member_id, role: "Lead" }], v.member_id); else await save([...members, { member_id: v.member_id, role: v.role }]); setAdd(false); }} />}
   </div>;
 }
 function ProjectOkr({ p }) {
