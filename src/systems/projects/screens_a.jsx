@@ -368,6 +368,7 @@ export function Portfolio() {
           </div>}
       </>}
       {tab === "goals" && <div style={{ display: "grid", gap: 9, marginTop: 12 }}>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn small onClick={() => setPage("okrs")}>إدارة الأهداف والنتائج الرئيسية</Btn></div>
         {!objectives.length ? <Empty icon="🎯" title="لا توجد أهداف نشطة" sub="أضف أهدافًا واربط نتائجها الرئيسية بالمشاريع لتظهر مساهمة كل مشروع هنا." /> : objectives.map((objective) => {
           const krs = data.krs.filter((kr) => kr.objective_id === objective.id && !kr.deleted_at && !kr.archived_at);
           const projectIds = [...new Set(krs.flatMap((kr) => kr.project_ids || []))];
