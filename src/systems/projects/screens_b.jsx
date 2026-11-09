@@ -6,7 +6,7 @@ import { uid } from "../../core/records.jsx";
 import { useP } from "./store.jsx";
 import * as D from "./domain.js";
 import { L, opts, STATUS_COLOR } from "./lookups.js";
-import { HealthBadge, StatusChip, PriorityChip, Who, ProjectName, ProjectForm, TaskTree, mOpts } from "./parts.jsx";
+import { HealthBadge, StatusChip, PriorityChip, Who, ProjectName, ProjectForm, TaskTree, TaskSheet, mOpts } from "./parts.jsx";
 import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView } from "./entities.jsx";
 import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
@@ -181,7 +181,7 @@ function ProjectDetail() {
       <Tabs tabs={tabGroups.map(({ id, label }) => ({ id, label }))} value={activeGroup.id} onChange={setGroup} small />
       {activeGroup.tabs.length > 1 && <Tabs tabs={activeGroup.tabs} value={tab} onChange={setTab} small />}
       {tab === "overview" && <Overview p={p} m={m} />}
-      {tab === "tasks" && <TaskTree projectId={p.id} />}
+      {tab === "tasks" && <div style={{ display: "grid", gridTemplateColumns: view.taskId && view.inlineTask ? "repeat(auto-fit,minmax(min(100%,340px),1fr))" : "minmax(0,1fr)", gap: 12, alignItems: "start" }}><div style={{ minWidth: 0 }}><TaskTree projectId={p.id} /></div>{view.taskId && view.inlineTask && <TaskSheet inline />}</div>}
       {tab === "timeline" && <ProjectTimeline p={p} />}
       {tab === "outputs" && <OutputsView projectId={p.id} />}
       {tab === "work" && <WorkTab p={p} />}
