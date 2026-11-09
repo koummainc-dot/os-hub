@@ -361,23 +361,61 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
           });
           const orderedPhases = [...phaseGroups.entries()].map(([id, tasks]) => ({
             id,
+            task: idx.byId[id],
             title: idx.byId[id].title,
             tasks,
             start: tasks.map((task) => task.start_date || task.due_date).sort()[0] || "9999",
           })).sort((a, b) => a.start.localeCompare(b.start));
           orderedPhases.forEach((phase) => {
             const phaseDone = phase.tasks.filter((task) => D.cat(task.status) === "done").length;
-            timelineRows.push({ kind: "phase", id: phase.id, title: phase.title, total: phase.tasks.length, completed: phaseDone });
-            [...phase.tasks].sort((a, b) => String(a.start_date || a.due_date).localeCompare(String(b.start_date || b.due_date))).forEach((task) => {
-              timelineRows.push({ kind: "task", task, otherObjectives: (taskObjectiveRefs.get(task.id) || []).filter((name) => name !== group.title) });
+            timelineRows.push({ kind: "phase", id: phase.id, task: phase.task, title: phase.title, total: phase.tasks.length, completed: phaseDone });
+            const branchChildren = new Map();
+            const addChild = (parentId, child) => {
+              const children = branchChildren.get(parentId) || new Map();
+              children.set(child.id, child);
+              branchChildren.set(parentId, children);
+            };
+            phase.tasks.forEach((task) => {
+              const ancestors = idx.ancestors(task.id);
+              const intermediate = ancestors.slice(0, -1).reverse();
+              let parentId = phase.id;
+              intermediate.forEach((parentTask) => {
+                addChild(parentId, { id: parentTask.id, kind: "main", task: parentTask });
+                parentId = parentTask.id;
+              });
+              addChild(parentId, {
+                id: task.id,
+                kind: "task",
+                task,
+                otherObjectives: (taskObjectiveRefs.get(task.id) || []).filter((name) => name !== group.title),
+              });
             });
+            const branchStart = (node) => {
+              if (node.kind === "task") return node.task.start_date || node.task.due_date || "9999";
+              const descendants = phase.tasks.filter((task) => idx.ancestors(task.id).includes(node.task.id));
+              return descendants.map((task) => task.start_date || task.due_date).sort()[0] || "9999";
+            };
+            const emitChildren = (parentId, depth) => {
+              const children = [...(branchChildren.get(parentId)?.values() || [])].sort((a, b) => branchStart(a).localeCompare(branchStart(b)));
+              children.forEach((node) => {
+                if (node.kind === "main") {
+                  const descendants = phase.tasks.filter((task) => idx.ancestors(task.id).includes(node.task.id));
+                  const completed = descendants.filter((task) => D.cat(task.status) === "done").length;
+                  timelineRows.push({ kind: "main", id: node.id, task: node.task, title: node.task.title, total: descendants.length, completed });
+                  emitChildren(node.id, depth + 1);
+                } else timelineRows.push({ ...node, depth });
+              });
+            };
+            emitChildren(phase.id, 1);
           });
           standalone.forEach((task) => timelineRows.push({
-            kind: "task", task,
+            kind: "task",
+            task,
+            depth: 1,
             otherObjectives: (taskObjectiveRefs.get(task.id) || []).filter((name) => name !== group.title),
           }));
         };
-        objectiveGroups.forEach((group) => addObjectiveRows(group, "objective:" + group.objective.id));
+        objectiveGroups.forEach((group) => addObjectiveRows({ ...group, title: group.objective.name }, "objective:" + group.objective.id));
         if (ungroupedTimelineTasks.length) addObjectiveRows({ title: "مهام بلا هدف / نتيجة رئيسية مرتبطة", tasks: ungroupedTimelineTasks }, "objective:unlinked");
         const rowIndex = Object.fromEntries(timelineRows.filter((row) => row.kind === "task").map((row, index) => [row.task.id, timelineRows.indexOf(row)]));
         const dependencyPaths = timelineTasks.flatMap((task) => (task.dependency_task_ids || []).flatMap((dependencyId) => {
