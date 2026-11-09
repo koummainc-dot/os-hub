@@ -182,7 +182,7 @@ function ProjectDetail() {
       {activeGroup.tabs.length > 1 && <Tabs tabs={activeGroup.tabs} value={tab} onChange={setTab} small />}
       {tab === "overview" && <Overview p={p} m={m} />}
       {tab === "tasks" && <div style={{ display: "grid", gridTemplateColumns: view.taskId && view.inlineTask ? "repeat(auto-fit,minmax(min(100%,340px),1fr))" : "minmax(0,1fr)", gap: 12, alignItems: "start" }}><div style={{ minWidth: 0 }}><TaskTree projectId={p.id} /></div>{view.taskId && view.inlineTask && <TaskSheet inline />}</div>}
-      {tab === "timeline" && <ProjectTimeline p={p} />}
+      {tab === "timeline" && <TaskTree projectId={p.id} initialMode="timeline" />}
       {tab === "outputs" && <OutputsView projectId={p.id} />}
       {tab === "work" && <WorkTab p={p} />}
       {tab === "prds" && <PrdsView projectId={p.id} />}
