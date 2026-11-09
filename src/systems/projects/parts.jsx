@@ -73,7 +73,7 @@ export function TaskForm({ initial, projectId, parentId, allowedProjectIds, link
 
 // ── Task tree ───────────────────────────────────────────────────────
 export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "list" }) {
-  const { idx, A: act, can, today, people, openTask, projectsById, toast } = useP(); const project = projectsById[projectId];
+  const { idx, A: act, can, today, people, openTask, projectsById, toast, view } = useP(); const project = projectsById[projectId];
   const [open, setOpen] = useState({}); const [form, setForm] = useState(null); const [menu, setMenu] = useState(null); const [dragId, setDragId] = useState(null);
   const canWrite = !readOnly && can("task.write", project);
   const roots = idx.roots.filter((t) => t.project_id === projectId);
@@ -91,7 +91,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
       <div>
         <div draggable={canWrite} onDragStart={(e) => { setDragId(t.id); e.dataTransfer.setData("text/plain", t.id); }} onDragOver={(e) => canWrite && e.preventDefault()}
           onDrop={async (e) => { e.preventDefault(); const id = e.dataTransfer.getData("text/plain"); if (id && id !== t.id) await act.reparent(id, t.id); setDragId(null); }}
-          style={{ display: "grid", gridTemplateColumns: "minmax(235px,1fr) 100px 105px 116px 118px auto", gap: 10, alignItems: "center", minHeight: 48, padding: "6px 10px", borderBottom: "1px solid " + C.line, background: dragId === t.id ? "rgba(239,159,39,.1)" : "transparent", opacity: cancelled ? .55 : 1 }}>
+          style={{ display: "grid", gridTemplateColumns: "minmax(235px,1fr) 100px 105px 116px 118px auto", gap: 10, alignItems: "center", minHeight: 48, padding: "6px 10px", borderBottom: "1px solid " + C.line, background: dragId === t.id ? "rgba(239,159,39,.1)" : view.taskId === t.id ? "rgba(59,130,246,.07)" : "transparent", borderInlineStart: view.taskId === t.id ? "3px solid " + C.info : "3px solid transparent", opacity: cancelled ? .55 : 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0, paddingInlineStart: depth * 18 }}>
             {kids.length ? <button type="button" aria-label={isOpen(t.id, depth) ? "طي المهام الفرعية" : "فتح المهام الفرعية"} onClick={() => setOpen({ ...open, [t.id]: !isOpen(t.id, depth) })} style={{ flex: "0 0 18px", width: 18, background: "none", border: 0, cursor: "pointer", color: C.muted, padding: 0 }}>{isOpen(t.id, depth) ? "▾" : "▸"}</button> : <span style={{ flex: "0 0 18px", width: 18 }} />}
             {leaf ? <input type="checkbox" aria-label={"إكمال " + t.title} checked={done} disabled={!canWrite || cancelled} onChange={(e) => act.setTaskStatus(t, e.target.checked ? "Completed" : "Not Started")} /> : <span title="الحالة مشتقة من الأبناء" style={{ fontSize: 11, width: 16, textAlign: "center" }}>{done ? "✓" : "◐"}</span>}
