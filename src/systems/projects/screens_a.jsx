@@ -428,17 +428,17 @@ export function Portfolio() {
                 const width = Math.max(1, right - left);
                 const metric = metrics[project.id] || {};
                 const healthColor = metric.health === "Red" ? C.bad : metric.health === "Orange" ? C.orange : metric.health === "Green" ? C.ok : C.info;
-                const pct = Math.max(0, Math.min(100, Number(metric.progress) || 0));
+                const pct = metric.progress == null ? null : Math.max(0, Math.min(100, Number(metric.progress) || 0));
                 return <div key={project.id} style={{ display: "grid", gridTemplateColumns: "250px minmax(700px,1fr)", gap: 10, alignItems: "center", minHeight: 47, borderBottom: "1px solid " + C.line }}>
                   <button type="button" onClick={() => openProject(project.id)} style={{ border: 0, background: "transparent", padding: "4px 0", textAlign: "start", color: C.text, cursor: "pointer", font: "inherit", minWidth: 0 }}>
                     <b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11.5 }}>{project.name}</b>
-                    <span style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 9.5, color: C.muted }}><span>{L.projectStatus[project.status] || project.status}</span><span>·</span><span style={{ color: healthColor }}>{Math.round(pct)}%</span><span>·</span><span>{fmtShort(project.target_date || project.start_date)}</span></span>
+                    <span style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 9.5, color: C.muted }}><span>{L.projectStatus[project.status] || project.status}</span><span>·</span><span style={{ color: healthColor }}>{pct == null ? "—" : Math.round(pct) + "%"}</span><span>·</span><span>{fmtShort(project.target_date || project.start_date)}</span></span>
                   </button>
                   <div style={{ position: "relative", height: 30, borderRadius: 5, background: "repeating-linear-gradient(to right, transparent 0, transparent calc(14.285% - 1px), rgba(0,0,0,.035) calc(14.285% - 1px), rgba(0,0,0,.035) 14.285%)" }}>
                     {ticks.map((date) => <span key={date} style={{ position: "absolute", insetInlineStart: x(date) + "%", top: 0, bottom: 0, width: 1, background: "rgba(0,0,0,.07)" }} />)}
                     {hasToday && <span style={{ position: "absolute", insetInlineStart: x(today) + "%", top: -5, bottom: -5, width: 2, background: A, zIndex: 2 }} />}
                     <button type="button" aria-label={"فتح مشروع " + project.name + " على الخط الزمني"} title={project.name + " · " + fmtShort(from) + " → " + fmtShort(to)} onClick={() => openProject(project.id)} style={{ position: "absolute", insetInlineStart: left + "%", width: width + "%", minWidth: 8, top: 5, height: 20, border: "1px solid " + healthColor, borderRadius: 5, overflow: "hidden", padding: 0, background: "rgba(59,130,246,.12)", cursor: "pointer" }}>
-                      <span style={{ display: "block", width: pct + "%", height: "100%", background: healthColor + "55" }} />
+                      <span style={{ display: "block", width: (pct == null ? 0 : pct) + "%", height: "100%", background: healthColor + "55" }} />
                     </button>
                     {project.target_date && <span title={"الموعد المستهدف: " + fmtShort(project.target_date)} style={{ position: "absolute", insetInlineStart: x(project.target_date) + "%", top: 8, width: 14, height: 14, transform: "translateX(50%) rotate(45deg)", border: "1px solid " + healthColor, background: C.bg, borderRadius: 2, pointerEvents: "none", zIndex: 1 }} />}
                   </div>
