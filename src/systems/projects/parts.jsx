@@ -81,6 +81,8 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
   const canWrite = !readOnly && can("task.write", project);
   const [mode, setMode] = useState(initialMode);
   const [month, setMonth] = useState(today.slice(0, 7));
+  const [calendarMode, setCalendarMode] = useState("month");
+  const [calendarDate, setCalendarDate] = useState(today);
   const statusGroups = ["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"];
   const matches = (t) => (!filter || filter(t)) && (filterStatus === "all" || t.status === filterStatus) && (filterAssignee === "all" || (filterAssignee === "unassigned" ? !t.assignee_id : t.assignee_id === filterAssignee));
   const visible = (t) => matches(t) || (idx.children[t.id] || []).some((id) => visible(idx.byId[id]));
@@ -176,50 +178,82 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
         const [y, m] = month.split("-").map(Number);
         const lead = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 1) % 7;
         const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
-        const previousMonth = () => { const d = new Date(Date.UTC(y, m - 2, 1)); setMonth(d.toISOString().slice(0, 7)); };
-        const nextMonth = () => { const d = new Date(Date.UTC(y, m, 1)); setMonth(d.toISOString().slice(0, 7)); };
+        const shiftDate = (date, amount) => { const d = new Date(date + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + amount); return d.toISOString().slice(0, 10); };
+        const dateOfTask = (task) => task.due_date || task.start_date || "";
+        const dayTasks = (date) => projectTasks.filter((task) => dateOfTask(task) === date);
         const moveTask = async (task, date) => {
           if (!canWrite || !task || !date || task.due_date === date) return;
           await act.saveTask({ ...task, due_date: date }, false);
         };
+        const weekStart = shiftDate(calendarDate, -((new Date(calendarDate + "T00:00:00Z").getUTCDay() + 1) % 7));
+        const weekDates = Array.from({ length: 7 }, (_, index) => shiftDate(weekStart, index));
+        const shownDates = calendarMode === "day" ? [calendarDate] : calendarMode === "week" ? weekDates : [];
+        const changePeriod = (direction) => {
+          if (calendarMode === "month") {
+            const d = new Date(Date.UTC(y, m - 1 + direction, 1));
+            const next = d.toISOString().slice(0, 7);
+            setMonth(next);
+            setCalendarDate(next + "-01");
+          } else setCalendarDate((current) => shiftDate(current, direction * (calendarMode === "week" ? 7 : 1)));
+        };
+        const setCurrentDate = (value) => {
+          if (!value) return;
+          setCalendarDate(value);
+          setMonth(value.slice(0, 7));
+        };
+        const renderDay = (date, dayNumber, compact = false) => {
+          const tasks = dayTasks(date);
+          const isToday = date === today;
+          return <div key={date} onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => {
+            if (!canWrite) return;
+            e.preventDefault();
+            const task = idx.byId[e.dataTransfer.getData("text/plain")];
+            await moveTask(task, date);
+          }} style={{ minHeight: compact ? 300 : 105, minWidth: 0, border: "1px solid " + (isToday ? A : C.line), borderRadius: 8, padding: 6, background: isToday ? "rgba(239,159,39,.07)" : "transparent" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4, marginBottom: 6 }}>
+              <div><b style={{ fontSize: 11, color: isToday ? A : C.dim }}>{dayNumber || date.slice(-2)}</b><span style={{ fontSize: 9.5, color: C.muted, marginInlineStart: 5 }}>{fmtShort(date)}</span></div>
+              {canWrite && <button type="button" aria-label={"إضافة مهمة بتاريخ " + date} title="إضافة مهمة بهذا اليوم" onClick={() => setForm({ initial: { due_date: date } })} style={{ border: "1px solid " + C.line, borderRadius: 6, background: "transparent", color: C.info, cursor: "pointer", fontSize: 12, padding: "0 5px" }}>＋</button>}
+            </div>
+            <div style={{ display: "grid", gap: 4 }}>
+              {tasks.slice(0, compact ? 30 : 4).map((task) => <button key={task.id} type="button" draggable={canWrite} onDragStart={(e) => { e.dataTransfer.setData("text/plain", task.id); e.dataTransfer.effectAllowed = "move"; }} onClick={() => openTask(task.id)} style={{ display: "block", width: "100%", border: "1px solid " + C.line, borderInlineStart: "3px solid " + (D.cat(task.status) === "done" ? C.ok : D.cat(task.status) === "cancelled" ? C.muted : C.info), borderRadius: 5, background: D.cat(task.status) === "done" ? "rgba(16,185,129,.1)" : "rgba(59,130,246,.08)", color: C.text, padding: "5px 6px", textAlign: "start", cursor: "pointer", font: "inherit", fontSize: 10.5, lineHeight: 1.35, overflowWrap: "anywhere" }}>{task.title}<span style={{ display: "block", color: C.muted, fontSize: 9.5 }}>{task.start_date && task.due_date ? fmtShort(task.start_date) + " → " + fmtShort(task.due_date) : task.start_date ? "بداية" : "موعد نهائي"}</span></button>)}
+              {tasks.length > (compact ? 30 : 4) && <span style={{ fontSize: 9.5, color: C.muted }}>+{tasks.length - (compact ? 30 : 4)} مهام أخرى</span>}
+              {!tasks.length && compact && <span style={{ fontSize: 11, color: C.muted }}>لا مهام مسجلة في هذا اليوم</span>}
+            </div>
+          </div>;
+        };
+        const dayOffset = calendarMode === "month" ? lead : 0;
+        const periodLabel = calendarMode === "month" ? MONTH_NAMES[m - 1] + " " + y : calendarMode === "week" ? fmtShort(weekDates[0]) + " – " + fmtShort(weekDates[6]) : fmtShort(calendarDate);
         return <div style={{ ...S.card, padding: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Btn small onClick={previousMonth}>→ السابق</Btn>
-              <b>{MONTH_NAMES[m - 1]} {y}</b>
-              <Btn small onClick={nextMonth}>التالي ←</Btn>
+            <div style={{ display: "inline-flex", border: "1px solid " + C.line, borderRadius: 8, overflow: "hidden" }}>
+              {[["month","شهر"],["week","أسبوع"],["day","يوم"]].map(([value, label], index) => <button key={value} type="button" onClick={() => setCalendarMode(value)} style={{ border: 0, borderInlineStart: index ? "1px solid " + C.line : 0, background: calendarMode === value ? "rgba(59,130,246,.1)" : "transparent", color: calendarMode === value ? C.info : C.dim, padding: "6px 10px", cursor: "pointer", font: "inherit", fontSize: 11.5 }}>{label}</button>)}
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 11, color: C.muted }}>اسحب المهمة إلى يوم آخر لتغيير موعدها</span>
-              <Btn small onClick={() => setMonth(today.slice(0, 7))}>اليوم</Btn>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+              <Btn small onClick={() => changePeriod(-1)}>→ السابق</Btn>
+              <b style={{ fontSize: 12.5 }}>{periodLabel}</b>
+              <Btn small onClick={() => changePeriod(1)}>التالي ←</Btn>
+              <input aria-label="انتقل إلى تاريخ" type="date" style={{ ...S.inp, width: 145, padding: "5px 7px" }} value={calendarDate} onChange={(e) => setCurrentDate(e.target.value)} />
+              <Btn small onClick={() => { setCurrentDate(today); setMonth(today.slice(0, 7)); }}>اليوم</Btn>
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 5, direction: "rtl" }}>
-            {["السبت","الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة"].map((day) => <div key={day} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: C.muted, padding: "5px 2px" }}>{day}</div>)}
-            {Array.from({ length: lead }, (_, i) => <div key={"blank-" + i} aria-hidden="true" style={{ minHeight: 102, borderRadius: 8, background: "rgba(0,0,0,.015)" }} />)}
-            {Array.from({ length: days }, (_, i) => {
-              const ds = month + "-" + String(i + 1).padStart(2, "0");
-              const dayTasks = projectTasks.filter((task) => (task.due_date || task.start_date) === ds);
-              const isToday = ds === today;
-              return <div key={ds} onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => {
-                if (!canWrite) return;
-                e.preventDefault();
-                const id = e.dataTransfer.getData("text/plain");
-                const task = idx.byId[id];
-                await moveTask(task, ds);
-              }} style={{ minHeight: 102, minWidth: 0, border: "1px solid " + (isToday ? A : C.line), borderRadius: 8, padding: 5, background: isToday ? "rgba(239,159,39,.07)" : "transparent" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4, marginBottom: 5 }}>
-                  <b style={{ fontSize: 11, color: isToday ? A : C.dim }}>{i + 1}</b>
-                  {canWrite && <button type="button" aria-label={"إضافة مهمة بتاريخ " + ds} title="إضافة مهمة بهذا اليوم" onClick={() => setForm({ initial: { due_date: ds } })} style={{ border: "1px solid " + C.line, borderRadius: 6, background: "transparent", color: C.info, cursor: "pointer", fontSize: 12, padding: "0 5px" }}>＋</button>}
-                </div>
-                <div style={{ display: "grid", gap: 4 }}>
-                  {dayTasks.slice(0, 4).map((task) => <button key={task.id} type="button" draggable={canWrite} onDragStart={(e) => { e.dataTransfer.setData("text/plain", task.id); e.dataTransfer.effectAllowed = "move"; }} onClick={() => openTask(task.id)} style={{ border: 0, borderRadius: 5, background: D.cat(task.status) === "done" ? "rgba(16,185,129,.14)" : "rgba(59,130,246,.12)", color: C.text, padding: "4px 5px", textAlign: "start", cursor: "pointer", font: "inherit", fontSize: 10.5, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{task.title}</button>)}
-                  {dayTasks.length > 4 && <span style={{ fontSize: 9.5, color: C.muted }}>+{dayTasks.length - 4} مهام</span>}
-                </div>
-              </div>;
-            })}
+          {calendarMode === "month" ? <div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 5, direction: "rtl" }}>
+              {["السبت","الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة"].map((day) => <div key={day} style={{ textAlign: "center", fontSize: 10.5, fontWeight: 700, color: C.muted, padding: "5px 2px" }}>{day}</div>)}
+              {Array.from({ length: dayOffset }, (_, index) => <div key={"blank-" + index} aria-hidden="true" style={{ minHeight: 102, borderRadius: 8, background: "rgba(0,0,0,.015)" }} />)}
+              {Array.from({ length: days }, (_, index) => {
+                const date = month + "-" + String(index + 1).padStart(2, "0");
+                return renderDay(date, index + 1, false);
+              })}
+            </div>
+            {!projectTasks.some((task) => dateOfTask(task)?.startsWith(month)) && <div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>لا توجد مهام مجدولة في هذا الشهر. استخدم ＋ داخل اليوم لإضافة مهمة بموعد محدد.</div>}
+          </div> : <div>
+            <div style={{ display: "grid", gridTemplateColumns: calendarMode === "week" ? "repeat(7,minmax(0,1fr))" : "minmax(0,1fr)", gap: 7, direction: "rtl" }}>
+              {shownDates.map((date) => renderDay(date, null, calendarMode === "day"))}
+            </div>
+          </div>}
+          <div style={{ borderTop: "1px solid " + C.line, marginTop: 10, paddingTop: 8, display: "flex", gap: 10, flexWrap: "wrap", fontSize: 10.5, color: C.muted }}>
+            <span>● موعد المهمة: تاريخ التسليم أو البداية عند غياب موعد التسليم</span><span>اسحب المهمة لتحديث موعدها النهائي</span>
           </div>
-          {!projectTasks.some((task) => task.due_date?.startsWith(month)) && <div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>لا توجد مهام مستحقة في هذا الشهر. استخدم ＋ داخل اليوم لإضافة مهمة بموعد محدد.</div>}
         </div>;
       })()}
       {mode === "timeline" && (() => {
