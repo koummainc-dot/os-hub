@@ -188,4 +188,23 @@ assert.ok(parts.includes('task.dependency_task_ids || []') &&
   parts.includes('openDependencies.length ? "ينتظر " + openDependencies.length + " مهمة" : "الاعتمادات مكتملة"'),
   "Task Tree surfaces whether prerequisite tasks have been completed");
 
+assert.ok(parts.includes('import { listKnowledgeMeetings } from "../knowledge/repository.js"') &&
+  parts.includes("listKnowledgeMeetings(ws.id)") &&
+  parts.includes("meeting.relatedSystem === \"projects\"") &&
+  parts.includes("String(meeting.relatedId) === String(projectId)"),
+  "Project Calendar loads only active Knowledge OS meetings linked to the current project");
+assert.ok(parts.includes('kind: "decision", date: String(decision.decided_at).slice(0, 10)') &&
+  parts.includes('kind: "output", date: String(output.due_date).slice(0, 10)') &&
+  parts.includes('kind: "project", date: String(project.target_date).slice(0, 10)') &&
+  parts.includes('kind: "meeting", date: String(meeting.date).slice(0, 10)'),
+  "Project Calendar contains only source-backed dated decisions, output due dates, project target and linked meetings");
+assert.ok(parts.includes("const dayEvents = (date) => calendarEvents.filter((event) => event.date === date)") &&
+  parts.includes('openProject(projectId, "decisions", { kind: "decision", id: event.id })') &&
+  parts.includes('openProject(projectId, "outputs", { kind: "output", id: event.id })') &&
+  parts.includes('setPage("meetings")'),
+  "Calendar events navigate to their source record or owning system");
+assert.ok(entities.includes('{ key: "due_date", label: "موعد التسليم", type: "date" }') &&
+  parts.includes('{ key: "due_date", label: "موعد التسليم", type: "date" }'),
+  "Output due dates can be entered from both Outputs and Task Sheet forms");
+
 console.log("✓ Projects relationship navigation contracts passed");
