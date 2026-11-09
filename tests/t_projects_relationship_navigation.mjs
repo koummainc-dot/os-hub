@@ -127,4 +127,11 @@ assert.ok(screens.includes("إنشاء قالب من مشروع") &&
   screens.includes('can("project.read", project)'),
   "Project-to-template conversion must be available to editors, scoped to readable active projects, and routed through the pure identity-stripping converter");
 
+assert.ok(screens.includes('import { prepareTemplateSave, restoreTemplateVersion } from "./templateVersions.js"') &&
+  screens.includes("prepareTemplateSave(previous, rec, nowIso())") &&
+  screens.includes("restoreTemplateVersion(current, version, nowIso())") &&
+  screens.includes("version_history") &&
+  screens.includes("الإصدارات"),
+  "Template editing creates versions and the history UI restores an old snapshot as a new version");
+
 console.log("✓ Projects relationship navigation contracts passed");
