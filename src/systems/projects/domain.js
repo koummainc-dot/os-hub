@@ -159,6 +159,20 @@ export function validateTaskRefs(task, ctx) {
   if (cat(task.status) === "cancelled" && !task.cancelled_reason) errors.push("V-19: سبب الإلغاء مطلوب");
   return errors;
 }
+// Prefill a new output with only the still-valid specification relations of its source task.
+export function defaultOutputRelationsForTask(task, prds) {
+  const prd = task?.prd_id ? (prds || []).find((item) =>
+    item.id === task.prd_id && item.project_id === task.project_id && !item.deleted_at && !item.archived_at
+  ) : null;
+  if (!prd) return { prd_id: "", prd_requirement_id: "" };
+  const requirement = task.prd_requirement_id
+    ? (prd.requirements || []).find((item) => item.id === task.prd_requirement_id && item.status !== "Deprecated")
+    : null;
+  return {
+    prd_id: prd.id,
+    prd_requirement_id: requirement?.id || "",
+  };
+}
 export function canReparent(taskId, newParentId, idx) {
   const t = idx.byId[taskId]; if (!t) return { ok: false, error: "المهمة غير موجودة" };
   if (!newParentId) return { ok: true };
