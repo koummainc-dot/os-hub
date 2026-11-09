@@ -431,7 +431,7 @@ const flattenRisks = (risks) => (risks || []).map((r) => `${r.title || ""}${r.mi
 function parseRiskText(value) { return String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [title, ...rest] = line.split(/\s[—-]\s/); return { title: title.trim(), probability: 3, impact: 3, status: "Open", mitigation: rest.join(" — ").trim() }; }); }
 export function Templates() {
   const { templates, data, A: act, can, toast, role } = useP(); const [use, setUse] = useState(null); const [tab, setTab] = useState("projects"); const [templateForm, setTemplateForm] = useState(null); const [previewTpl, setPreviewTpl] = useState(null); const [historyTpl, setHistoryTpl] = useState(null); const [showArchived, setShowArchived] = useState(false); const [sourceProjectForm, setSourceProjectForm] = useState(false); const canManage = can("project.create") && role !== "Viewer";
-  const beginTemplateForm = (tpl = {}) => setTemplateForm({ id: tpl.id, name: tpl.name || "", description: tpl.description || "", final_goal: tpl.final_goal || "", project_type: tpl.project_type || "", duration_days: tpl.duration_days || "", task_tree_text: flattenTaskTree(tpl.task_tree || []).join("\n"), task_dependencies_text: flattenTaskDependencies(tpl.task_tree || []), risks_text: flattenRisks(tpl.risks || []), prds_text: flattenPrdTemplates(tpl.prd_templates || []), requirements_text: flattenRequirements(tpl.prd_templates || []), outputs_text: flattenOutputs(tpl.output_templates || []), decision_prompts_text: (tpl.decision_prompts || []).join("\n"), team_roles_text: (tpl.team_roles || []).join("\n"), checklist_text: (tpl.checklist || []).join("\n") });
+  const beginTemplateForm = (tpl = {}) => setTemplateForm({ id: tpl.id, name: tpl.name || "", description: tpl.description || "", final_goal: tpl.final_goal || "", project_type: tpl.project_type || "", duration_days: tpl.duration_days || "", task_tree_text: flattenTaskTree(tpl.task_tree || []).join("\n"), task_dependencies_text: flattenTaskDependencies(tpl.task_tree || []), conversion_warnings: Array.isArray(tpl.conversion_warnings) ? tpl.conversion_warnings : [], risks_text: flattenRisks(tpl.risks || []), prds_text: flattenPrdTemplates(tpl.prd_templates || []), requirements_text: flattenRequirements(tpl.prd_templates || []), outputs_text: flattenOutputs(tpl.output_templates || []), decision_prompts_text: (tpl.decision_prompts || []).join("\n"), team_roles_text: (tpl.team_roles || []).join("\n"), checklist_text: (tpl.checklist || []).join("\n") });
   const countN = (n) => n.reduce((a, x) => a + 1 + countN(x.children || []), 0);
   const show = (nodes, depth = 0) => nodes.map((n, i) => <div key={depth + "-" + i + n.title} style={{ paddingInlineStart: depth * 16, fontSize: 12, color: C.dim, lineHeight: 1.8 }}>{n.milestone ? "◆ " : depth ? "└ " : "• "}{n.title}{n.estimate_minutes ? ` (${fmtMinutes(n.estimate_minutes)})` : ""}{n.offset_days != null ? ` · يوم +${n.offset_days}` : ""}{n.dependency_titles?.length ? <span style={{ color: C.violet }}> · يعتمد على: {n.dependency_titles.join("، ")}</span> : null}{n.children && show(n.children, depth + 1)}</div>);
   return (
@@ -553,12 +553,20 @@ export function Templates() {
         {(v) => {
           const treeError = validateTaskTreeText(v.task_tree_text);
           const tree = treeError ? [] : parseTaskTreeText(v.task_tree_text);
-          return <div style={{ gridColumn: "1 / -1", marginTop: 8, padding: 10, border: "1px solid " + C.line, borderRadius: 8 }}>
+          return <div style={{ gridColumn: "1 / -1", marginTop: 8, display: "grid", gap: 9 }}>
+            {(v.conversion_warnings || []).length > 0 && <section role="alert" style={{ padding: 10, border: "1px solid " + C.warn, borderRadius: 8, background: "rgba(239,159,39,.07)" }}>
+              <b style={{ fontSize: 12.5 }}>روابط لم تُنقل تلقائيًا — راجعها يدويًا ({v.conversion_warnings.length})</b>
+              <div style={{ display: "grid", gap: 4, marginTop: 6, fontSize: 11.5, color: C.dim }}>
+                {v.conversion_warnings.map((warning, index) => <div key={index}>• {warning}</div>)}
+              </div>
+            </section>}
+            <section style={{ padding: 10, border: "1px solid " + C.line, borderRadius: 8 }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
               <b style={{ fontSize: 12.5 }}>معاينة شجرة المهام قبل الحفظ</b>
               <Chip color={treeError ? C.bad : C.ok}>{treeError || (countN(tree) + " مهمة")}</Chip>
             </div>
             {treeError ? <div style={{ fontSize: 11.5, color: C.bad }}>صحّح تنسيق المستويات قبل الحفظ. استخدم مسافتين لكل مستوى فرعي.</div> : tree.length ? <div style={{ maxHeight: 220, overflowY: "auto" }}>{show(tree)}</div> : <Empty icon="🧩" title="أضف أول مهمة" sub="اكتب المهام بالترتيب، واستخدم مسافتين لكل مستوى فرعي." />}
+            </section>
           </div>;
         }}
       </FormModal>}
