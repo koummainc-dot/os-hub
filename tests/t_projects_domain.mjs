@@ -74,6 +74,38 @@ t("T-49a task requirement must belong to linked PRD", () => { const prd = { proj
 t("T-55 PRD needs 4 sections + all reviewers", () => { const prd = { tldr: "x", reviewer_ids: ["r1"], version: 1 }; const secs = [{ key: "problem_overview", content: "a" }, { key: "proposed_solution", content: "b" }, { key: "success_metrics", content: "c" }]; assert.equal(D.prdApprovalReady(prd, secs, []).ok, false); assert.equal(D.prdApprovalReady(prd, secs, [{ reviewer_id: "r1", decision: "approve", version: 1 }]).ok, true); assert.equal(D.prdApprovalReady({ ...prd, tldr: "" }, secs, [{ reviewer_id: "r1", decision: "approve", version: 1 }]).ok, false); });
 t("T-58 coverage index + traceability policy", () => { const idx = D.buildTaskIndex([task("a", { prd_id: "x" }), task("b"), task("c", { discovery_ids: ["d"] }), task("d")]); const c = D.coverageOf(P(), idx); assert.equal(c.ratio, 0.5); assert.equal(D.traceabilityBlocked({ traceabilityPolicy: "require", traceabilityTypes: ["تطبيق"] }, "تطبيق", false, task("z")), true); assert.equal(D.traceabilityBlocked({ traceabilityPolicy: "require", traceabilityTypes: ["تطبيق"] }, "تطبيق", false, task("issue-linked", { issue_ids: ["i1"] })), false); assert.equal(D.traceabilityBlocked({ traceabilityPolicy: "warn", traceabilityTypes: ["تطبيق"] }, "تطبيق", false, task("z")), false); assert.equal(D.traceabilityBlocked({ traceabilityPolicy: "require", traceabilityTypes: ["تطبيق"] }, "تطبيق", true, task("z")), false); });
 t("T-59 project template copies tree with explicit project_id and shifts dates", () => { let n = 0; const id = () => "id" + ++n; const tpl = { id: "tpl", task_tree: [{ title: "A", offset_days: 5, children: [{ title: "A1", offset_days: 7, estimate_minutes: 60 }] }, { title: "B", offset_days: 20 }], risks: [{ title: "r", probability: 3, impact: 4 }] }; const r = D.instantiateProjectTemplate(tpl, { name: "N", start_date: "2026-11-01" }, id); assert.equal(r.tasks.length, 3); assert.ok(r.tasks.every((x) => x.project_id === r.project.id)); assert.equal(r.tasks[0].due_date, "2026-11-06"); assert.equal(r.tasks[1].parent_task_id, r.tasks[0].id); assert.equal(r.tasks[1].due_date, "2026-11-08"); assert.equal(r.risks[0].project_id, r.project.id); });
+t("T-59b full project template seeds linked PRD requirements and planned outputs", () => {
+  let n = 0; const id = () => "seed" + ++n;
+  const tpl = {
+    id: "tpl_full", name: "قالب متكامل",
+    task_tree: [{ title: "تصميم الواجهة", offset_days: 4 }, { title: "تسليم النسخة", offset_days: 10, milestone: true }],
+    prd_templates: [{ title: "مواصفة الواجهة", tldr: "مواصفة أولية", requirements: [{ title: "تجربة الدخول", acceptance_criteria: "يدخل المستخدم بنجاح", task_title: "تصميم الواجهة" }] }],
+    output_templates: [{ name: "تصميم معتمد", type: "Design", task_title: "تصميم الواجهة", prd_title: "مواصفة الواجهة", requirement_title: "تجربة الدخول" }],
+    risks: [{ title: "تأخر الاعتماد", probability: 3, impact: 4, mitigation: "مراجعة مبكرة" }],
+    team_roles: ["مصمم", "مطور"], decision_prompts: ["ما معيار الإطلاق؟"], checklist: ["راجع النطاق"]
+  };
+  const result = D.instantiateProjectTemplate(tpl, { name: "K", start_date: "2026-11-01", lead_id: "owner" }, id);
+  assert.equal(result.prds.length, 1);
+  assert.equal(result.prds[0].project_id, result.project.id);
+  assert.equal(result.prds[0].requirements.length, 1);
+  assert.equal(result.tasks[0].prd_id, result.prds[0].id);
+  assert.equal(result.tasks[0].prd_requirement_id, result.prds[0].requirements[0].id);
+  assert.equal(result.outputs[0].task_id, result.tasks[0].id);
+  assert.equal(result.outputs[0].prd_id, result.prds[0].id);
+  assert.equal(result.outputs[0].prd_requirement_id, result.prds[0].requirements[0].id);
+  assert.equal(result.outputs[0].approval, "Draft");
+  assert.equal(result.risks[0].needs_review, true);
+  assert.deepEqual(result.project.template_roles, ["مصمم", "مطور"]);
+  assert.deepEqual(result.project.decision_prompts, ["ما معيار الإطلاق؟"]);
+  assert.deepEqual(result.project.template_checklist, ["راجع النطاق"]);
+  assert.equal(result.tasks[1].milestone, true);
+});
+t("T-59c template output rejects ambiguous or broken source links", () => {
+  let n = 0; const id = () => "bad" + ++n;
+  const ambiguous = { task_tree: [{ title: "مهمة" }, { title: "مهمة" }], output_templates: [{ name: "مخرج", task_title: "مهمة" }] };
+  assert.throws(() => D.instantiateProjectTemplate(ambiguous, { name: "A" }, id), /تطابق مهمة واحدة بالضبط/);
+});
+
 
 console.log("OKR, pace, contacts, feeds, alerts");
 t("T-65a Project detail derives Objectives through linked KRs (v4)", () => {
