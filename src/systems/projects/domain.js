@@ -143,9 +143,147 @@ export function canChangeProjectStatus(project, to, idx) {
   return { ok: true };
 }
 
+export function validateTaskDependencies(task, tasksById = {}) {
+  const errors = [];
+  const raw = task?.dependency_task_ids;
+  if (raw != null && !Array.isArray(raw)) return ["قائمة المهام السابقة يجب أن تكون قائمة صالحة."];
+  const ids = Array.isArray(raw) ? raw : [];
+  if (new Set(ids).size !== ids.length) errors.push("لا يمكن تكرار المهمة السابقة في قائمة الاعتماد.");
+  for (const dependencyId of ids) {
+    if (!dependencyId) { errors.push("توجد علاقة اعتماد بلا مهمة محددة."); continue; }
+    if (dependencyId === task.id) { errors.push("لا يمكن أن تعتمد المهمة على نفسها."); continue; }
+    const dependency = tasksById[dependencyId];
+    if (!dependency || dependency.deleted_at || dependency.archived_at) {
+      errors.push("إحدى المهام السابقة غير موجودة أو مؤرشفة.");
+      continue;
+    }
+    if (dependency.project_id !== task.project_id) {
+      errors.push("المهمة السابقة يجب أن تكون من المشروع نفسه.");
+      continue;
+    }
+    // A dependency edge is task → predecessor. Adding it is cyclic when
+    // the predecessor already reaches this task through its own predecessors.
+    const stack = [dependencyId];
+    const seen = new Set();
+    let cycle = false;
+    while (stack.length && !cycle) {
+      const currentId = stack.pop();
+      if (currentId === task.id) { cycle = true; break; }
+      if (seen.has(currentId)) continue;
+      seen.add(currentId);
+      const current = tasksById[currentId];
+      (Array.isArray(current?.dependency_task_ids) ? current.dependency_task_ids : []).forEach((id) => {
+        if (tasksById[id] && !tasksById[id].deleted_at && !tasksById[id].archived_at) stack.push(id);
+      });
+    }
+    if (cycle) errors.push("علاقة الاعتماد ستنشئ دورة بين المهام؛ راجع ترتيب المهام السابقة.");
+  }
+  return [...new Set(errors)];
+}
+
+export function analyzeTaskSchedule(tasks = []) {
+  const list = (tasks || []).filter((task) => task && !task.deleted_at && !task.archived_at);
+  const byId = Object.fromEntries(list.map((task) => [task.id, task]));
+  const dated = list.filter((task) => task.start_date || task.due_date);
+  const datedById = Object.fromEntries(dated.map((task) => [task.id, task]));
+  const ids = dated.map((task) => task.id);
+  const predecessors = {};
+  const successors = {};
+  const durations = {};
+  const missingPredecessors = [];
+  for (const task of dated) {
+    const allDeps = [...new Set(Array.isArray(task.dependency_task_ids) ? task.dependency_task_ids : [])];
+    predecessors[task.id] = allDeps.filter((id) => !!datedById[id]);
+    successors[task.id] = [];
+    const missing = allDeps.filter((id) => !byId[id] || !datedById[id]);
+    missing.forEach((id) => missingPredecessors.push({ task_id: task.id, dependency_task_id: id }));
+    const from = task.start_date || task.due_date;
+    const to = task.due_date || task.start_date;
+    durations[task.id] = Math.max(1, diffDays(to < from ? from : to, to < from ? to : from) + 1);
+  }
+  for (const task of dated) {
+    for (const predecessorId of predecessors[task.id]) successors[predecessorId].push(task.id);
+  }
+  const indegree = Object.fromEntries(ids.map((id) => [id, predecessors[id].length]));
+  const queue = ids.filter((id) => indegree[id] === 0);
+  const order = [];
+  while (queue.length) {
+    const id = queue.shift();
+    order.push(id);
+    for (const nextId of successors[id]) {
+      indegree[nextId] -= 1;
+      if (indegree[nextId] === 0) queue.push(nextId);
+    }
+  }
+  const cyclic = order.length !== ids.length;
+  const conflicts = [];
+  for (const task of dated) {
+    const start = task.start_date || task.due_date;
+    for (const predecessorId of predecessors[task.id]) {
+      const predecessor = datedById[predecessorId];
+      const predecessorEnd = predecessor.due_date || predecessor.start_date;
+      if (start < predecessorEnd) conflicts.push({
+        task_id: task.id,
+        dependency_task_id: predecessorId,
+        start_date: start,
+        predecessor_end: predecessorEnd,
+      });
+    }
+  }
+  if (!dated.length || cyclic) {
+    return {
+      task_count: dated.length,
+      project_duration_days: null,
+      critical_task_ids: [],
+      earliest_start: {},
+      earliest_finish: {},
+      latest_start: {},
+      total_float: {},
+      edges: dated.flatMap((task) => predecessors[task.id].map((id) => ({ from: id, to: task.id }))),
+      missing_predecessors: missingPredecessors,
+      conflicts,
+      cyclic,
+      complete: dated.length > 0 && !cyclic && !missingPredecessors.length,
+    };
+  }
+  const earliestStart = {};
+  const earliestFinish = {};
+  for (const id of order) {
+    earliestStart[id] = predecessors[id].reduce((max, previousId) => Math.max(max, earliestFinish[previousId] || 0), 0);
+    earliestFinish[id] = earliestStart[id] + durations[id];
+  }
+  const projectDuration = Math.max(0, ...ids.map((id) => earliestFinish[id] || 0));
+  const latestStart = {};
+  const latestFinish = {};
+  for (const id of [...order].reverse()) {
+    latestFinish[id] = successors[id].length
+      ? Math.min(...successors[id].map((nextId) => latestStart[nextId]))
+      : projectDuration;
+    latestStart[id] = latestFinish[id] - durations[id];
+  }
+  const totalFloat = {};
+  for (const id of ids) totalFloat[id] = latestStart[id] - earliestStart[id];
+  const criticalTaskIds = ids.filter((id) => totalFloat[id] === 0);
+  return {
+    task_count: dated.length,
+    project_duration_days: projectDuration,
+    critical_task_ids: criticalTaskIds,
+    earliest_start: earliestStart,
+    earliest_finish: earliestFinish,
+    latest_start: latestStart,
+    total_float: totalFloat,
+    edges: dated.flatMap((task) => predecessors[task.id].map((id) => ({ from: id, to: task.id }))),
+    missing_predecessors: missingPredecessors,
+    conflicts,
+    cyclic: false,
+    complete: missingPredecessors.length === 0,
+  };
+}
+
 // ── validation (V-xx) ───────────────────────────────────────────────
 export function validateTaskRefs(task, ctx) {
   const errors = []; const { projectsById, tasksById, prdsById } = ctx;
+  errors.push(...validateTaskDependencies(task, tasksById));
   if (!task.project_id) errors.push("V-01: المهمة تحتاج مشروعاً صريحاً");
   else if (projectsById && !projectsById[task.project_id]) errors.push("V-22: المشروع غير موجود");
   if (task.parent_task_id) {
