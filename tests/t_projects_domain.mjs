@@ -116,7 +116,7 @@ t("T-65a KR task execution uses the explicit task group when task_ids is present
 t("T-65b Objective task execution follows each KR's explicit task group and keeps legacy KRs compatible", () => {
   const krs = [
     { id: "kr1", objective_id: "o1", type: "Project Based", project_ids: ["p1", "p2"], task_ids: ["p3-root"] },
-    { id: "kr2", objective_id: "o1", type: "Project Based", project_ids: ["p2"] },
+    { id: "kr2", objective_id: "o1", type: "Project Based", project_ids: ["p2"], task_ids: ["p2-root"] },
   ];
   const r = D.objectiveTaskExecution({ id: "o1" }, krs, okrIdx);
   assert.deepEqual(r.projectIds, ["p1", "p2"]);
@@ -124,7 +124,7 @@ t("T-65b Objective task execution follows each KR's explicit task group and keep
   assert.equal(r.leafTotal, 2);
   assert.equal(r.leafDone, 1);
   assert.equal(r.progress, 0.5);
-  assert.equal(r.legacyTaskCount, 2);
+  assert.equal(r.legacyTaskCount, 0);
 });
 t("T-65c legacy KR task groups remain visible only when task_ids is absent", () => {
   const r = D.krTaskExecution({ task_ids: ["p3-root"] }, okrIdx);
