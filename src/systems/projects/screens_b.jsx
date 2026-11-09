@@ -129,7 +129,7 @@ export function TemplatePicker({ onClose, tpl }) {
   return <FormModal title={"إعداد مشروع من حزمة القالب: " + sel.name} wide initial={{ name: "", description: sel.description || "", final_goal: sel.final_goal || "", start_date: today, lead_id: me }} onClose={onClose} fields={[
     { key: "name", label: "اسم المشروع", required: true, span: 2 }, { key: "description", label: "وصف المشروع (تخصيص)", type: "textarea", rows: 2, span: 2 }, { key: "final_goal", label: "الهدف النهائي", type: "textarea", rows: 2, span: 2 },
     { key: "start_date", label: "تاريخ البدء (تُزاح المواعيد نسبةً إليه)", type: "date", required: true }, { key: "lead_id", label: "القائد", type: "select", options: mOpts(people), allowEmpty: false }, { key: "target_date", label: "الموعد المستهدف (اختياري)", type: "date" }]}
-    onSubmit={async (v) => { const project = await act.createFromTemplate(sel, v); toast("✅ أُنشئ «" + project.name + "» مع هيكل المهام والمواصفات والمخرجات والمخاطر."); onClose(); openProject(project.id); }} />;
+    onSubmit={async (v) => { if (objectiveCount && (!v.start_date || (!v.target_date && !(Number(sel.duration_days) > 0)))) throw new Error("القالب يحتوي على أهداف ونتائج رئيسية؛ حدد موعدًا مستهدفًا أو أضف مدة إرشادية للقالب حتى تُنشأ فترة الأهداف بصورة صحيحة."); const project = await act.createFromTemplate(sel, v); toast("✅ أُنشئ «" + project.name + "» مع " + objectiveCount + " هدف و" + keyResultCount + " KR ومجموعات المهام والمواصفات والمخرجات والمخاطر."); onClose(); openProject(project.id); }} />;
 }
 const countNodes = (nodes) => nodes.reduce((a, n) => a + 1 + countNodes(n.children || []), 0);
 
