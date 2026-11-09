@@ -172,18 +172,15 @@ export function validateTaskDependencies(task, tasksById = {}) {
       errors.push("لا يمكن ربط المهمة بمهمة أب لها داخل شجرة المهام؛ استخدم مهمة تنفيذ مستقلة من نفس المستوى.");
       continue;
     }
-    const descendants = new Set();
-    const childQueue = [task.id];
-    while (childQueue.length) {
-      const parent = childQueue.shift();
-      for (const candidate of Object.values(tasksById)) {
-        if (candidate?.parent_task_id === parent && !descendants.has(candidate.id)) {
-          descendants.add(candidate.id);
-          childQueue.push(candidate.id);
-        }
-      }
+    let dependencyParentId = dependency.parent_task_id;
+    const hierarchySeen = new Set();
+    let isDescendant = false;
+    while (dependencyParentId && !hierarchySeen.has(dependencyParentId)) {
+      if (dependencyParentId === task.id) { isDescendant = true; break; }
+      hierarchySeen.add(dependencyParentId);
+      dependencyParentId = tasksById[dependencyParentId]?.parent_task_id || null;
     }
-    if (descendants.has(dependencyId)) {
+    if (isDescendant) {
       errors.push("لا يمكن ربط المهمة بمهمة فرعية تابعة لها؛ استخدم مهمة تنفيذ مستقلة.");
       continue;
     }
