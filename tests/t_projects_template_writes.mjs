@@ -110,7 +110,7 @@ const stamp = (record) => ({ ...record, stamped: true });
   assert.equal(restored.name, "Koumma — قالب");
   assert.equal(restored.task_tree[0].title, "الاكتشاف");
   assert.equal(restored.version_history.at(-1).version, 3, "the pre-restore current version is preserved in history");
-  assert.rejects(() => Promise.resolve(restoreTemplateVersion(restored, { version: 99, name: "foreign" })), /غير موجود/);
+  assert.throws(() => restoreTemplateVersion(restored, { version: 99, name: "foreign" }), /غير موجود/);
   assert.throws(() => prepareTemplateSave({ id: "builtin", builtin: true }, { id: "builtin", name: "edited" }), /القوالب المدمجة/);
   let versioned = first;
   for (let i = 0; i < TEMPLATE_VERSION_HISTORY_LIMIT + 5; i++) {
