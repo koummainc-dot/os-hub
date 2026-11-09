@@ -60,6 +60,38 @@ export const MEETING_TEMPLATES = [
 ];
 
 const n = (title, offset, est, children, extra) => ({ title, offset_days: offset, estimate_minutes: est, children, ...(extra || {}) });
+export function activityEventText(event) {
+  const entity = ({ projects: "المشروع", tasks: "المهمة", prds: "المواصفة", outputs: "المخرج", risks: "الخطر", issues: "المشكلة", decisions: "القرار", discovery: "الاكتشاف", objectives: "الهدف", krs: "النتيجة الرئيسية", wins: "الإنجاز", updates: "التحديث" })[event?.entity] || "السجل";
+  const summary = String(event?.summary || "").trim();
+  const quoted = summary ? ` «${summary}»` : "";
+  const action = String(event?.action || "");
+  const messages = {
+    created: `أنشأ ${entity}${quoted}`,
+    updated: `عدّل ${entity}${quoted}`,
+    approved: `اعتمد ${entity}${quoted}`,
+    archived: `أرشف ${entity}${quoted}`,
+    assigned: `عيّن مسؤولًا للمهمة${quoted}`,
+    converted_to_issue: `حوّل اكتشافًا إلى مشكلة${quoted}`,
+    converted_to_prd: `حوّل اكتشافًا إلى مواصفة${quoted}`,
+    converted_to_task: `حوّل اكتشافًا إلى مهمة${quoted}`,
+    created_from_discovery: `أنشأ مشروعًا من اكتشاف${quoted}`,
+    created_from_template: `أنشأ مشروعًا من قالب${quoted}`,
+    deleted: `نقل ${entity} إلى السلة${quoted}`,
+    implementation_task_created: `أنشأ مهمة تنفيذ للقرار${quoted}`,
+    materialized: `حوّل خطرًا إلى مشكلة${quoted}`,
+    mitigation_task_created: `أنشأ مهمة تخفيف للخطر${quoted}`,
+    moved_tree: `نقل شجرة المهام${quoted}`,
+    permanently_deleted: `حذف ${entity} نهائيًا${quoted}`,
+    repair_task_created: `أنشأ مهمة إصلاح للمشكلة${quoted}`,
+    restored: `استعاد ${entity}${quoted}`,
+    restored_from_trash: `استعاد ${entity} من السلة${quoted}`,
+    status: `غيّر حالة ${entity}${quoted}`,
+    version_created: `أنشأ إصدارًا جديدًا للمواصفة${quoted}`,
+    completed: `أكمل ${entity}${quoted}`,
+    reopened: `أعاد فتح ${entity}${quoted}`,
+  };
+  return messages[action] || `حدّث ${entity}${quoted}`;
+}
 export const BUILTIN_TEMPLATES = [
   { id: "tpl_app", builtin: true, name: "تطبيق", project_type: "تطبيق", duration_days: 120, description: "اكتشاف ← مواصفة ← تصميم ← تطوير ← اختبار ← إطلاق ← ما بعد الإطلاق",
     task_tree: [
