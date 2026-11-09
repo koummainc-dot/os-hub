@@ -107,7 +107,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   if(tdlg){
     await click('حفظ',tdlg,200);
     ok(tdlg.textContent.includes('لا يمكن تخطي مستوى كامل'),'invalid task-tree indentation is rejected with a useful message');
-    await click('إلغاء',tdlg,100);
+    w.confirm=()=>true; await click('إلغاء',tdlg,100);
   }
 
   console.log('— Phase A task UX: quick add, inline edit, bulk actions, custom fields');
