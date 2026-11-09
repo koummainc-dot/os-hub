@@ -9,7 +9,6 @@ on:
       - "supabase/tests/projects_template_okr_atomic_batch_smoke.sql"
       - "supabase/tests/projects_okr_v4_legacy_seed.sql"
       - "supabase/tests/projects_okr_v4_relationship_reconciliation_smoke.sql"
-      - "supabase/tests/projects_template_okr_atomic_batch_smoke.sql"
       - "supabase/tests/projects_two_identity_privacy_smoke.sql"
       - "supabase/tests/projects_persistence_lifecycle_smoke.sql"
       - "tests/projects_sql_bootstrap.sql"
