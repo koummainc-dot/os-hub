@@ -48,13 +48,13 @@ assert.ok(overview.includes("p.decision_prompts") && overview.includes("أسئل
 assert.ok(overview.includes('setView({ ...view, tab: "people" })') && overview.includes('setView({ ...view, tab: "decisions" })'), "template role and decision prompts navigate to their canonical project sections");
 
 const taskTree = taskParts.slice(taskParts.indexOf("export function TaskTree"), taskParts.indexOf("function StatusChipSm"));
-assert.ok(taskTree.includes('setCalendarMode("month")') && taskTree.includes('setCalendarMode("week")') && taskTree.includes('setCalendarMode("day")'), "project calendar exposes month, week and day views");
+assert.ok(taskTree.includes('useState("month")') && taskTree.includes('[["month","شهر"],["week","أسبوع"],["day","يوم"]]'), "project calendar exposes month, week and day views");
 assert.ok(taskTree.includes("calendarMode === \"week\" ? weekDates") && taskTree.includes("calendarMode === \"day\" ? [calendarDate]"), "project calendar renders the selected week/day date range");
 assert.ok(taskTree.includes("إضافة مهمة بتاريخ ") && taskTree.includes("moveTask(task, date)"), "calendar day cells can create dated tasks and drop tasks to reschedule");
 assert.ok(taskParts.includes('key: "start_date"') && taskParts.includes('key: "due_date"'), "task form stores both planning start and due dates for timeline/calendar");
 
 assert.ok(entities.includes("مصفوفة المخاطر 5×5") && entities.includes('setMode(projectId ? "matrix" : "list")'), "project risk view opens on an actionable 5x5 risk matrix");
-assert.ok(entities.includes("لوحة حسب الحالة") && entities.includes('setState(projectId ? "matrix" : "list")') === false, "project issues expose a status matrix rather than relying only on the global list");
+const issueView = entities.slice(entities.indexOf("export function IssuesView"), entities.indexOf("// ═════ Decisions ═════"));\nassert.ok(issueView.includes("لوحة حسب الحالة") && issueView.includes('setMode(projectId ? "matrix" : "list")'), "project issues open on a status matrix rather than relying only on the global list");
 assert.ok(entities.includes("مصفوفة القرارات") && entities.includes('const [mode, setMode] = useState("matrix")'), "decisions use a status matrix by default");
 assert.ok(screens.includes('import { L, opts, SEV_COLOR } from "./lookups.js";'), "Portfolio imports severity metadata used in its governance view");
 assert.ok(projectScreens.includes("function ProjectActivityHub") && projectScreens.includes("label: \"التحديثات\"") && projectScreens.includes("label: \"الاجتماعات\""), "project activity hub brings activity, updates, wins and Knowledge meetings together");
