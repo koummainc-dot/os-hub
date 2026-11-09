@@ -327,16 +327,17 @@ export function objectiveTaskExecution(obj, krs, idx) {
   const linkedKrs = (krs || []).filter((kr) => kr.objective_id === obj?.id && isActiveRec(kr));
   const projectIds = [...new Set(linkedKrs.flatMap((kr) => Array.isArray(kr.project_ids) ? kr.project_ids.filter(Boolean) : []))];
   const directLegacyRoots = (idx.list || []).filter((task) => task.objective_id === obj?.id).map((task) => task.id);
-  const legacyTasks = [
-    ...expandLegacyTaskRoots(directLegacyRoots, idx),
-    ...linkedKrs.flatMap((kr) => {
-      const execution = krTaskExecution(kr, idx);
-      return Array.isArray(execution.tasks) ? execution.tasks : [];
-    }),
-  ];
-  const result = taskExecutionSummary([...legacyTasks], idx, {
+  const directLegacyTasks = expandLegacyTaskRoots(directLegacyRoots, idx);
+  const krExecutions = linkedKrs.map((kr) => ({ kr, execution: krTaskExecution(kr, idx) }));
+  const linkedTasks = krExecutions.flatMap(({ execution }) => Array.isArray(execution.tasks) ? execution.tasks : []);
+  const legacyKrTasks = krExecutions
+    .filter(({ kr }) => !Array.isArray(kr.task_ids))
+    .flatMap(({ execution }) => Array.isArray(execution.tasks) ? execution.tasks : []);
+  const legacyTasks = [...directLegacyTasks, ...linkedTasks];
+  const legacyTaskCount = new Set([...directLegacyTasks, ...legacyKrTasks].map((task) => task.id)).size;
+  const result = taskExecutionSummary(legacyTasks, idx, {
     projectIds,
-    legacyTaskCount: new Set(legacyTasks.map((task) => task.id)).size,
+    legacyTaskCount,
   });
   return result;
 }
