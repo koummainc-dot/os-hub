@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { persistTemplateBundle } from "../src/systems/projects/templateWrites.js";
+import { prepareTemplateSave, restoreTemplateVersion, TEMPLATE_VERSION_HISTORY_LIMIT } from "../src/systems/projects/templateVersions.js";
 
 const bundle = () => ({
   project: { id: "p1" },
@@ -84,5 +85,37 @@ const stamp = (record) => ({ ...record, stamped: true });
     softDelete: async (coll, id) => { deleted.push([coll, id]); return { deleted: true }; },
   }), /لم يكتمل إنشاء المشروع/);
   assert.deepEqual(deleted, [["prds", "prd2"], ["tasks", "t4"], ["projects", "p3"]], "offline compensation must roll back every created collection in reverse order");
+}
+{
+  const first = prepareTemplateSave(null, {
+    id: "template_1", name: "Koumma — قالب", task_tree: [{ title: "الاكتشاف" }],
+    prd_templates: [{ title: "Architecture", requirements: [{ title: "ERD" }] }],
+  }, "2026-11-01T00:00:00.000Z");
+  assert.equal(first.version, 1);
+  assert.deepEqual(first.version_history, []);
+  const second = prepareTemplateSave(first, {
+    id: "template_1", name: "Koumma — قالب v2", task_tree: [{ title: "الاكتشاف" }, { title: "التصميم" }],
+  }, "2026-11-02T00:00:00.000Z");
+  assert.equal(second.version, 2);
+  assert.equal(second.version_history.length, 1);
+  assert.equal(second.version_history[0].version, 1);
+  assert.equal(second.version_history[0].name, "Koumma — قالب");
+  second.version_history[0].task_tree[0].title = "corrupted snapshot";
+  assert.equal(first.task_tree[0].title, "الاكتشاف", "version snapshots are deep copies");
+  const cleanSecond = prepareTemplateSave(first, { id: "template_1", name: "Koumma — قالب v2", task_tree: [{ title: "الاكتشاف" }, { title: "التصميم" }] }, "2026-11-02T00:00:00.000Z");
+  const third = prepareTemplateSave(cleanSecond, { id: "template_1", name: "Koumma — قالب v3", task_tree: [{ title: "التخطيط" }] }, "2026-11-03T00:00:00.000Z");
+  const restored = restoreTemplateVersion(third, third.version_history[0], "2026-11-04T00:00:00.000Z");
+  assert.equal(restored.id, "template_1");
+  assert.equal(restored.version, 4, "restoring an old snapshot creates a new forward version");
+  assert.equal(restored.name, "Koumma — قالب");
+  assert.equal(restored.task_tree[0].title, "الاكتشاف");
+  assert.equal(restored.version_history.at(-1).version, 3, "the pre-restore current version is preserved in history");
+  assert.rejects(() => Promise.resolve(restoreTemplateVersion(restored, { version: 99, name: "foreign" })), /غير موجود/);
+  assert.throws(() => prepareTemplateSave({ id: "builtin", builtin: true }, { id: "builtin", name: "edited" }), /القوالب المدمجة/);
+  let versioned = first;
+  for (let i = 0; i < TEMPLATE_VERSION_HISTORY_LIMIT + 5; i++) {
+    versioned = prepareTemplateSave(versioned, { id: versioned.id, name: "Version " + (versioned.version + 1), task_tree: [] }, "2026-11-05T00:00:00.000Z");
+  }
+  assert.equal(versioned.version_history.length, TEMPLATE_VERSION_HISTORY_LIMIT, "history retains the configured rolling window");
 }
 console.log("PASS template bundle failure safety");
