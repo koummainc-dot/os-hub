@@ -275,13 +275,17 @@ export function Team() {
 
 // ═════ Templates ═════
 const flattenTaskTree = (nodes, depth = 0) => (nodes || []).flatMap((n) => {
+  const dependencyField = (n.dependency_titles || []).length
+    ? "deps=" + encodeURIComponent(JSON.stringify(n.dependency_titles))
+    : "";
   const suffix = [
     n.estimate_minutes == null ? "" : String(n.estimate_minutes),
     n.offset_days == null ? "" : String(n.offset_days),
     n.milestone ? "milestone" : "",
+    dependencyField,
   ];
   while (suffix.length && !suffix[suffix.length - 1]) suffix.pop();
-  return [`${"  ".repeat(depth)}${n.title || ""}${suffix.length ? " | " + suffix.join(" | ") : ""}`, ...flattenTaskTree(n.children || [], depth + 1)];
+  return ["  ".repeat(depth) + (n.title || "") + (suffix.length ? " | " + suffix.join(" | ") : ""), ...flattenTaskTree(n.children || [], depth + 1)];
 });
 function parseTaskTreeText(value) {
   const roots = []; const stack = [];
@@ -290,13 +294,26 @@ function parseTaskTreeText(value) {
     const indent = (raw.match(/^[ \t]*/) || [""])[0].replace(/\t/g, "  ").length;
     const depth = Math.floor(indent / 2); const parts = raw.trim().split(/\s+\|\s+/);
     const node = { title: parts[0].trim(), children: [] };
-    if (parts[1] !== undefined) node.estimate_minutes = Number(parts[1]);
-    if (parts[2] !== undefined && parts[2] !== "") node.offset_days = Number(parts[2]);
+    if (parts[1]?.trim()) node.estimate_minutes = Number(parts[1]);
+    if (parts[2]?.trim()) node.offset_days = Number(parts[2]);
     if (parts[3]?.toLowerCase() === "milestone") node.milestone = true;
+    if (parts[4]?.startsWith("deps=")) {
+      try {
+        const titles = JSON.parse(decodeURIComponent(parts[4].slice(5)));
+        if (!Array.isArray(titles) || titles.some((title) => typeof title !== "string" || !title.trim())) throw new Error("invalid dependency titles");
+        node.dependency_titles = [...new Set(titles.map((title) => title.trim()))];
+      } catch { throw new Error("قائمة اعتماد المهام في شجرة القالب غير صالحة."); }
+    }
     if (depth === 0 || !stack[depth - 1]) roots.push(node); else stack[depth - 1].children.push(node);
     stack[depth] = node; stack.length = depth + 1;
   }
-  const clean = (nodes) => nodes.map((n) => ({ ...n, ...(n.estimate_minutes == null ? {} : { estimate_minutes: n.estimate_minutes }), ...(n.offset_days == null ? {} : { offset_days: n.offset_days }), children: clean(n.children) }));
+  const clean = (nodes) => nodes.map((n) => ({
+    ...n,
+    ...(n.estimate_minutes == null ? {} : { estimate_minutes: n.estimate_minutes }),
+    ...(n.offset_days == null ? {} : { offset_days: n.offset_days }),
+    ...(n.dependency_titles?.length ? { dependency_titles: n.dependency_titles } : {}),
+    children: clean(n.children)
+  }));
   return clean(roots);
 }
 function validateTaskTreeText(value) {
@@ -305,16 +322,23 @@ function validateTaskTreeText(value) {
   for (let i = 0; i < lines.length; i++) {
     const { raw, text } = lines[i];
     const prefix = (raw.match(/^[ \t]*/) || [""])[0].replace(/\t/g, "  ");
-    if (prefix.length % 2 !== 0) return `السطر ${i + 1}: استخدم مسافتين لكل مستوى فرعي.`;
+    if (prefix.length % 2 !== 0) return "السطر " + (i + 1) + ": استخدم مسافتين لكل مستوى فرعي.";
     const depth = prefix.length / 2;
     if (i === 0 && depth !== 0) return "ابدأ شجرة المهام بمهمة رئيسية دون مسافات في أول سطر.";
-    if (i > 0 && depth > previousDepth + 1) return `السطر ${i + 1}: لا يمكن تخطي مستوى كامل؛ أضف المهمة الأب أولاً.`;
+    if (i > 0 && depth > previousDepth + 1) return "السطر " + (i + 1) + ": لا يمكن تخطي مستوى كامل؛ أضف المهمة الأب أولاً.";
     const parts = text.split(/\s+\|\s+/);
-    if (!parts[0] || !parts[0].trim()) return `السطر ${i + 1}: عنوان المهمة مطلوب.`;
-    if (parts[1] !== undefined && (!/^\d+(\.\d+)?$/.test(parts[1].trim()) || Number(parts[1]) < 0)) return `السطر ${i + 1}: التقدير بالدقائق يجب أن يكون رقمًا موجبًا أو صفرًا.`;
-    if (parts[2] !== undefined && (!/^\d+$/.test(parts[2].trim()) || Number(parts[2]) < 0)) return `السطر ${i + 1}: إزاحة الموعد بالأيام يجب أن تكون عددًا صحيحًا غير سالب.`;
-    if (parts[3] !== undefined && parts[3].toLowerCase() !== "milestone") return `السطر ${i + 1}: القيمة الرابعة الوحيدة المتاحة هي milestone.`;
-    if (parts.length > 4) return `السطر ${i + 1}: الصيغة المدعومة هي العنوان | دقائق | أيام من البداية | milestone.`;
+    if (!parts[0] || !parts[0].trim()) return "السطر " + (i + 1) + ": عنوان المهمة مطلوب.";
+    if (parts[1] !== undefined && parts[1].trim() && (!/^\d+(\.\d+)?$/.test(parts[1].trim()) || Number(parts[1]) < 0)) return "السطر " + (i + 1) + ": التقدير بالدقائق يجب أن يكون رقمًا موجبًا أو صفرًا.";
+    if (parts[2] !== undefined && parts[2].trim() && (!/^\d+$/.test(parts[2].trim()) || Number(parts[2]) < 0)) return "السطر " + (i + 1) + ": إزاحة الموعد بالأيام يجب أن تكون عددًا صحيحًا غير سالب.";
+    if (parts[3]?.trim() && parts[3].toLowerCase() !== "milestone") return "السطر " + (i + 1) + ": القيمة الرابعة الوحيدة المتاحة هي milestone.";
+    if (parts[4] !== undefined) {
+      if (!parts[4].startsWith("deps=") || parts.length > 5) return "السطر " + (i + 1) + ": حقل الاعتماد غير صالح.";
+      try {
+        const titles = JSON.parse(decodeURIComponent(parts[4].slice(5)));
+        if (!Array.isArray(titles) || titles.some((title) => typeof title !== "string" || !title.trim()) || new Set(titles).size !== titles.length) return "السطر " + (i + 1) + ": قائمة المهام السابقة غير صالحة أو مكررة.";
+      } catch { return "السطر " + (i + 1) + ": قائمة المهام السابقة غير صالحة."; }
+    }
+    if (parts.length > 5) return "السطر " + (i + 1) + ": الصيغة المدعومة هي العنوان | دقائق | أيام من البداية | milestone | deps=...";
     previousDepth = depth;
   }
   return null;
