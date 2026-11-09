@@ -328,8 +328,8 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
           const fromDate = predecessor.due_date || predecessor.start_date;
           const toDate = task.start_date || task.due_date;
           if (!fromDate || !toDate) return [];
-          const x1 = 230 + 700 * x(fromDate);
-          const x2 = 230 + 700 * x(toDate);
+          const x1 = 230 + 7 * x(fromDate);
+          const x2 = 230 + 7 * x(toDate);
           const y1 = 44 + predecessorIndex * 38 + 19;
           const y2 = 44 + rowIndex[task.id] * 38 + 19;
           const elbow = x1 + Math.max(12, (x2 - x1) / 2);
