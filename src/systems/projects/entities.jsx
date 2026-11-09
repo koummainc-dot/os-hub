@@ -82,6 +82,7 @@ export function OutputsView({ projectId }) {
     let rec = { ...v, id: v.id || uid(), files: Array.isArray(v.files) ? v.files : (prev?.files || []) };
     const pendingFiles = Array.from(v.__pendingFiles || []);
     delete rec.__pendingFiles;
+    if (rec.url || rec.files.length || pendingFiles.length) rec.template_seed = false;
     if (!project || project.is_system) throw new Error("اختر مشروعًا صالحًا قبل حفظ المخرج.");
     if (rec.task_id) {
       const task = idx.byId[rec.task_id];
@@ -130,7 +131,7 @@ export function OutputsView({ projectId }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}>
           {list.map((o) => (
             <div key={o.id} id={recordDomId("output", o.id)} style={{ ...S.card, padding: "10px 12px", ...recordFocusStyle(view, "output", o.id) }}>
-              <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}><span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>📦 {o.name}</span><Chip color={o.approval === "Final" ? C.ok : o.approval === "Review" ? C.warn : C.muted}>{L.approval[o.approval]}</Chip></div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}><span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>📦 {o.name}</span>{o.template_seed && <Chip color={C.muted}>مخرج متوقع من القالب</Chip>}<Chip color={o.approval === "Final" ? C.ok : o.approval === "Review" ? C.warn : C.muted}>{L.approval[o.approval]}</Chip></div>
               <div style={{ fontSize: 11.5, color: C.dim, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><Chip>{o.type}</Chip>{!projectId && <ProjectName id={o.project_id} />}{o.task_id && idx.byId[o.task_id] && <button onClick={() => openTask(o.task_id)} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", padding: 0 }}>🔗 {idx.byId[o.task_id].title}</button>}{o.prd_requirement_id && <button type="button" onClick={() => openProject(o.project_id, "prds", { kind: "prd", id: o.prd_id })} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>متطلب: {(data.prds.find((p) => p.id === o.prd_id)?.requirements || []).find((r) => r.id === o.prd_requirement_id)?.title || "فتح المواصفة"} ↗</button>}{data.wins.some((w) => (w.output_ids || []).includes(o.id)) && <button type="button" onClick={() => setPage("wins")} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>🏆 إنجاز مرتبط</button>}</div>
               {o.url && <a href={o.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.info, display: "block", margin: "4px 0", wordBreak: "break-all" }}>🔗 {o.url}</a>}
               {o.notes && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{o.notes}</div>}
@@ -143,7 +144,7 @@ export function OutputsView({ projectId }) {
         { label: "المشروع", value: projectsById[detail.project_id]?.name }, { label: "النوع", value: detail.type },
         { label: "حالة الاعتماد", value: L.approval[detail.approval] || detail.approval }, { label: "الرابط", value: detail.url },
         { label: "المهمة المرتبطة", value: idx.byId[detail.task_id]?.title }, { label: "المواصفة", value: data.prds.find((x) => x.id === detail.prd_id)?.title },
-        { label: "الملاحظات", value: detail.notes }, { label: "اعتمده", value: people.find((x) => x.id === detail.approved_by)?.name },
+        { label: "حالة المخرج", value: detail.template_seed ? "متوقع من القالب — لم يتم تسليمه بعد" : "مخرج فعلي" }, { label: "الملاحظات", value: detail.notes }, { label: "اعتمده", value: people.find((x) => x.id === detail.approved_by)?.name },
         { label: "تاريخ الاعتماد", value: detail.approved_at ? fmt(detail.approved_at.slice(0, 10)) : "" },
         { label: "الملفات", value: (detail.files || []).map((file) => typeof file === "string" ? file : file.name || file.url || "ملف").join("، ") }
       ]} />}
