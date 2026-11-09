@@ -114,6 +114,27 @@ assert.ok(decisionsView.indexOf("const list = data.decisions") < decisionsView.i
   "DecisionsView must derive its record list before passing its length to the focus hook");
 
 
+assert.ok(projectScreens.includes("function ProjectSubprojects") &&
+  projectScreens.includes('parent_project_id: p.id') &&
+  projectScreens.includes("المشاريع الفرعية"),
+  "Project Detail exposes real child projects under the current project and creates them with the current project as parent");
+assert.ok(projectScreens.includes("function ProjectAgenda") &&
+  projectScreens.includes("المواعيد القادمة للمهام") &&
+  projectScreens.includes("أجندة المشروع"),
+  "Project Detail exposes an Agenda section combining linked Knowledge OS meetings with upcoming project tasks");
+assert.ok(projectScreens.includes("function ProjectUpdates") &&
+  projectScreens.includes('act.put("updates", draft(), p)') &&
+  projectScreens.includes("تحديثات " + "{p.name}"),
+  "Project Detail exposes project-owned Updates with a real create flow");
+assert.ok(projectScreens.includes('{ id: "projects", label: "المشاريع"') &&
+  projectScreens.includes('{ id: "agenda", label: "الأجندة"') &&
+  projectScreens.includes('{ id: "updates", label: "التحديثات"') &&
+  projectScreens.includes('{ id: "tasks", label: "المهام والمهام الفرعية"'),
+  "Project Detail navigation explicitly contains the requested project workspace sections");
+assert.ok(parts.includes('key: "parent_project_id"') &&
+  parts.includes('اختياري: اجعل المشروع جزءًا من مشروع رئيسي'),
+  "Project creation/editing supports parent-project ownership without introducing a second project data source");
+
 assert.ok(projectScreens.includes('const tabGroups = [') &&
   projectScreens.includes('{ id: "plan", label: "التخطيط"') &&
   projectScreens.includes('{ id: "delivery", label: "التسليم"') &&
