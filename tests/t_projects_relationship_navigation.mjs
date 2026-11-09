@@ -29,7 +29,7 @@ assert.ok(screens.includes("معاينة الأهداف والنتائج الر�
   "Template editor provides a live Objective/KR preview with parser errors and relation counts");
 assert.ok(projectScreens.includes("objective_templates || []") &&
   projectScreens.includes('label="الأهداف / KRs"') &&
-  projectScreens.includes("الهدف والنتائج الرئيسية") &&
+  projectScreens.includes("الأهداف والنتائج الرئيسية") &&
   projectScreens.includes("objectiveCount && (!v.start_date"),
   "Template picker previews Objectives/KRs and requires a real project date range before creating them");
 assert.ok(store.includes("objectives: (r.objectives || []).map") &&
