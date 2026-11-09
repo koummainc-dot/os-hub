@@ -6,6 +6,7 @@ const screens=fs.readFileSync(new URL("../src/systems/projects/screens_c.jsx",im
 const parts=fs.readFileSync(new URL("../src/systems/projects/parts.jsx",import.meta.url),"utf8");
 const okrs=screens.slice(screens.indexOf("export function Okrs()"),screens.indexOf("// ═════ Stakeholder updates"));
 const taskForm=parts.slice(parts.indexOf("export function TaskForm"),parts.indexOf("// ── Task tree"));
+const taskSheet=parts.slice(parts.indexOf("export function TaskSheet"),parts.indexOf("// ── Task form"));
 const store=fs.readFileSync(new URL("../src/systems/projects/store.jsx",import.meta.url),"utf8");
 const projectScreens=fs.readFileSync(new URL("../src/systems/projects/screens_b.jsx",import.meta.url),"utf8");
 const projectOkr=projectScreens.slice(projectScreens.indexOf("function ProjectOkr"),projectScreens.indexOf("function RelatedTab"));
@@ -24,6 +25,9 @@ assert.ok(taskForm.includes("linkedKrId"),"Task form carries the selected KR rel
 assert.ok(taskForm.includes("act.saveTask(out, isNew, linkedKrId)"),"Task creation submits the selected KR as part of the canonical write");
 assert.ok(store.includes("async saveTask(v, isNew, linkedKrId)"),"Store accepts the explicit KR link context");
 assert.ok(store.includes("R.putAtomic(writes)"),"Task and KR task-group link are persisted atomically");
+assert.ok(store.includes("delete rec.objective_id"),"New task writes cannot create a direct Objective relationship");
+assert.ok(taskForm.includes("النتائج الرئيسية المرتبطة") === false, "Task form remains free of direct Objective picker fields");
+assert.ok(taskSheet.includes("الأهداف المشتقة عبر النتائج الرئيسية"), "Task detail presents the Objective link derived through its KR");
 assert.ok(store.includes("task_ids: [...new Set(["),"Store appends the task to the KR execution group without duplicates");
 assert.ok(store.includes("اربط مشروعًا بنتيجة رئيسية أولًا؛ ربط المهمة بالهدف يُشتق من المشروع والنتيجة الرئيسية."),"Missing project-to-KR prerequisite is surfaced with the required actionable validation");
 assert.ok(okrs.includes('label: "المشاريع المرتبطة"'),"All KR types can link supporting Projects");
