@@ -6,6 +6,7 @@ import { uid } from "../../core/records.jsx";
 import { supabase } from "../../core/supabase.js";
 import { OUTPUT_STORAGE_BUCKET, outputFileMetadata, outputObjectPath, validateOutputUpload } from "./outputStorage.js";
 import { useP } from "./store.jsx";
+import { listKnowledgeMeetings } from "../knowledge/repository.js";
 import * as D from "./domain.js";
 import { L, opts, PRIORITY_COLOR, STATUS_COLOR, SEV_COLOR, activityEventText } from "./lookups.js";
 
@@ -77,7 +78,7 @@ export function TaskForm({ initial, projectId, parentId, allowedProjectIds, link
 
 // ── Task tree ───────────────────────────────────────────────────────
 export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "list" }) {
-  const { idx, A: act, can, today, people, openTask, projectsById, toast, view } = useP(); const project = projectsById[projectId];
+  const { idx, A: act, can, today, people, openTask, openProject, projectsById, toast, view, data, ws, setPage } = useP(); const project = projectsById[projectId];
   const [open, setOpen] = useState({}); const [form, setForm] = useState(null); const [menu, setMenu] = useState(null); const [dragId, setDragId] = useState(null);
   const [quickTitle, setQuickTitle] = useState(""); const [quickSaving, setQuickSaving] = useState(false);
   const [filterStatus, setFilterStatus] = useState("all"); const [filterAssignee, setFilterAssignee] = useState("all");
@@ -86,9 +87,33 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
   const [month, setMonth] = useState(today.slice(0, 7));
   const [calendarMode, setCalendarMode] = useState("month");
   const [calendarDate, setCalendarDate] = useState(today);
+  const [calendarMeetings, setCalendarMeetings] = useState([]);
+  const [calendarMeetingState, setCalendarMeetingState] = useState("loading");
   const statusGroups = ["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"];
   const matches = (t) => (!filter || filter(t)) && (filterStatus === "all" || t.status === filterStatus) && (filterAssignee === "all" || (filterAssignee === "unassigned" ? !t.assignee_id : t.assignee_id === filterAssignee));
   const visible = (t) => matches(t) || (idx.children[t.id] || []).some((id) => visible(idx.byId[id]));
+  useEffect(() => {
+    let active = true;
+    if (!ws?.id || !projectId) {
+      setCalendarMeetings([]);
+      setCalendarMeetingState("ready");
+      return () => { active = false; };
+    }
+    setCalendarMeetingState("loading");
+    listKnowledgeMeetings(ws.id).then((result) => {
+      if (!active) return;
+      if (!result?.ok) throw result?.error || new Error("تعذر تحميل اجتماعات Knowledge OS.");
+      const related = (result.meetings || []).filter((meeting) =>
+        !meeting.archived && meeting.status !== "archived" &&
+        !meeting.deleted_at && meeting.relatedSystem === "projects" &&
+        String(meeting.relatedId) === String(projectId) &&
+        /^\\d{4}-\\d{2}-\\d{2}/.test(String(meeting.date || ""))
+      );
+      setCalendarMeetings(related);
+      setCalendarMeetingState("ready");
+    }).catch(() => { if (active) setCalendarMeetingState("error"); });
+    return () => { active = false; };
+  }, [ws?.id, projectId]);
   const roots = idx.roots.filter((t) => t.project_id === projectId && visible(t));
   const projectTasks = idx.list.filter((t) => t.project_id === projectId && idx.isLeaf(t.id) && matches(t));
   const handleQuickAdd = async () => {
