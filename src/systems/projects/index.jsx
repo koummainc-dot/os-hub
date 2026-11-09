@@ -55,7 +55,7 @@ function Router({ sourceWriteRequest }) {
     const groups = [
       { id: "work", label: "العمل", items: [
         { id: "dashboard", label: "الرئيسية", icon: "⌂" },
-        { id: "myWork", label: "عملي", icon: "✓" },
+        { id: "myWork", label: "مهامي", icon: "✓" },
         { id: "projects", label: "المشاريع", icon: "📁" },
         { id: "tasks", label: "المهام", icon: "☑" },
         { id: "week", label: "هذا الأسبوع", icon: "🗓️" },
