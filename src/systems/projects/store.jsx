@@ -569,8 +569,12 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (v.prd_requirement_id) { const prd = data.prds.find((item) => item.id === v.prd_id); if (!prd || !(prd.requirements || []).some((requirement) => requirement.id === v.prd_requirement_id)) throw new Error("المتطلب المحدد يجب أن يكون ضمن المواصفة المرتبطة بالمهمة."); }
       for (const discoveryId of (v.discovery_ids || [])) { const discovery = data.discovery.find((d) => d.id === discoveryId); if (!discovery) throw new Error("عنصر اكتشاف مرتبط غير موجود"); if ((discovery.project_ids || []).length && !discovery.project_ids.includes(v.project_id)) throw new Error("عنصر الاكتشاف يجب أن يكون مرتبطاً بالمشروع نفسه"); }
       if (D.traceabilityBlocked(settings, project && project.type, project && project.is_system, v)) throw new Error("سياسة التتبع: هذا النوع من المشاريع يتطلب ربط المهمة بمواصفة أو اكتشاف");
-      const rec = { ...v, id: v.id || uid(), planning_bucket: v.planning_bucket || "Inbox", status: v.status || "Not Started" }; delete rec.objective_id;
+      const rec = { ...v, id: v.id || uid(), planning_bucket: v.planning_bucket || "Inbox", status: v.status || "Not Started" };
       const prev = v.id ? idx.byId[v.id] || (recs.tasks || {})[v.id] : null;
+      // Preserve legacy direct Objective links on edits until they can be explicitly reconciled through a KR.
+      // New tasks never persist a direct Task→Objective relationship.
+      if (prev?.objective_id) rec.objective_id = prev.objective_id; else delete rec.objective_id;
+      if (rec.start_date && rec.due_date && rec.start_date > rec.due_date) throw new Error("تاريخ بداية المهمة يجب أن يسبق موعدها النهائي أو يساويه.");
       let firstChildParentPatch = null;
       if (isNew) {
         rec.created_by = me; rec.sort_order = rec.sort_order || Date.now();
