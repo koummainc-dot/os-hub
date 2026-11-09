@@ -47,7 +47,7 @@ assert.ok(taskTree.includes('export function TaskTree({ projectId, tasks, readOn
 assert.ok(taskTree.includes("useState(initialMode)"),"The shared task view honors its initial mode");
 assert.ok(projectScreens.includes('{tab === "timeline" && <TaskTree projectId={p.id} initialMode="timeline" />}'),"Project timeline tab reuses the canonical task dataset and timeline implementation");
 assert.ok(taskTree.includes("const unscheduled = projectTasks.filter((task) => !task.start_date && !task.due_date)"),"Timeline retains unscheduled tasks instead of hiding them");
-assert.ok(taskTree.includes("(task.due_date || task.start_date) === ds"),"Calendar includes tasks that have a start date but no due date");
+assert.ok(taskTree.includes("const dateOfTask = (task) => task.due_date || task.start_date || \"\";") && taskTree.includes("const dayTasks = (date) => projectTasks.filter((task) => dateOfTask(task) === date);"),"Calendar includes tasks by due date or falls back to start date when no due date exists");
 assert.ok(store.includes("task_ids: [...new Set(["),"Store appends the task to the KR execution group without duplicates");
 assert.ok(store.includes("اربط مشروعًا بنتيجة رئيسية أولًا؛ ربط المهمة بالهدف يُشتق من المشروع والنتيجة الرئيسية."),"Missing project-to-KR prerequisite is surfaced with the required actionable validation");
 assert.ok(okrs.includes('label: "المشاريع المرتبطة"'),"All KR types can link supporting Projects");
