@@ -1,8 +1,10 @@
 // Coordinates a complete project template bundle. Online writes must stay atomic;
 // offline fallback compensates every collection it has already created.
-export async function persistTemplateBundle({ project, tasks, risks, prds, outputs, put, putAtomic, atomic = false, softDelete, stamp, actorId }) {
+export async function persistTemplateBundle({ project, tasks, objectives, krs, risks, prds, outputs, put, putAtomic, atomic = false, softDelete, stamp, actorId }) {
   const collections = [
     ["tasks", tasks || []],
+    ["objectives", objectives || []],
+    ["krs", krs || []],
     ["prds", prds || []],
     ["outputs", outputs || []],
     ["risks", risks || []],
