@@ -37,6 +37,7 @@ export function ProjectForm({ initial, onClose }) {
     { key: "priority", label: "الأولوية", type: "select", options: opts(L.priority), allowEmpty: false },
     { key: "start_date", label: "تاريخ البدء", type: "date" }, { key: "target_date", label: "الموعد المستهدف", type: "date" },
     { key: "lead_id", label: "قائد المشروع", type: "select", options: mOpts(people), allowEmpty: false },
+    { key: "parent_project_id", label: "المشروع الأب", type: "select", emptyLabel: "— مشروع رئيسي —", options: data.projects.filter((p) => !p.is_system && !p.archived_at && p.id !== initial?.id).map((p) => ({ v: p.id, l: p.name })) , hint: "اختياري: اجعل المشروع جزءًا من مشروع رئيسي. من داخل مشروع Koumma يُملأ هذا تلقائيًا." },
     { key: "visibility", label: "الرؤية", type: "select", options: opts(L.visibility), allowEmpty: false, hint: "الخاص لا يراه إلا أعضاؤه (يُطبَّق في قاعدة البيانات)" },
     { key: "final_goal", label: "الهدف النهائي", type: "textarea" }, { key: "description", label: "الوصف", type: "textarea" },
     { key: "budget_planned", label: "الميزانية المخطَّطة", type: "number", min: 0 }, { key: "budget_currency", label: "العملة" },
