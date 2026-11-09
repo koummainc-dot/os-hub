@@ -599,7 +599,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
       {tab === "tasks" && (!linkedTasks.length ? <Empty icon="✅" title="لا مهام مرتبطة" sub="اربط المهام بهذه المواصفة من نموذج المهمة (حقل المواصفة)." /> : linkedTasks.map((t) => { const req = requirements.find((x) => x.id === t.prd_requirement_id); return <div key={t.id} onClick={() => openTask(t.id)} style={{ padding: "6px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13, cursor: "pointer" }}>{D.cat(t.status) === "done" ? "✅" : "⬜"} {t.title}{req && <span style={{ color: C.muted }}> · {req.title}</span>}</div>; }))}
       {rejectForm && <FormModal title="رفض المواصفة" initial={{ comment: "" }} onClose={() => setRejectForm(false)} onSubmit={async (v) => { if (!String(v.comment || "").trim()) throw new Error("اكتب سبب الرفض أو ملاحظات المراجعة."); await review("reject", v.comment.trim()); }} fields={[{ key: "comment", label: "سبب الرفض / الملاحظات", type: "textarea", required: true, rows: 3 }]} />}
     </Modal>
-    {taskForm && <TaskForm initial={taskForm} onClose={() => setTaskForm(null)} />}
+    {taskForm && <TaskForm initial={taskForm} allowedProjectIds={[taskForm.project_id]} onClose={() => setTaskForm(null)} />}
     </>
   );
 }
