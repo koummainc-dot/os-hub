@@ -84,16 +84,20 @@ export function TemplatePicker({ onClose, tpl }) {
     {node.offset_days != null && <span style={{ fontSize: 10, color: C.muted }}>اليوم +{node.offset_days}</span>}
     {node.children?.length > 0 && <span style={{ fontSize: 10, color: C.muted }}>{countN(node.children)} فرعي</span>}
   </div>).concat((nodes || []).flatMap((node, index) => previewTree(node.children || [], depth + 1)));
+  const objectiveCount = (sel?.objective_templates || []).length;
+  const keyResultCount = (sel?.objective_templates || []).reduce((sum, objective) => sum + (objective.key_results || []).length, 0);
+  const objectiveTaskLinkCount = (sel?.objective_templates || []).reduce((sum, objective) => sum + (objective.key_results || []).reduce((count, kr) => count + (kr.task_titles || []).length, 0), 0);
   const prdCount = (sel?.prd_templates || []).length;
   const requirementCount = (sel?.prd_templates || []).reduce((total, prd) => total + (prd.requirements || []).length, 0);
   const outputCount = (sel?.output_templates || []).length;
   const riskCount = (sel?.risks || []).length;
   const roleCount = (sel?.team_roles || []).length;
   const checklistCount = (sel?.checklist || []).length;
-  if (!sel) return <Modal title="اختر قالباً" wide onClose={onClose}><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 9 }}>{templates.filter((t) => !t.archived_at).map((t) => <button type="button" key={t.id} onClick={() => setSel(t)} style={{ ...S.card, cursor: "pointer", textAlign: "start", padding: 12, font: "inherit" }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 13.5 }}>🧩 {t.name}</b>{t.builtin && <Chip>مدمج</Chip>}</div><div style={{ fontSize: 11.5, color: C.dim, marginTop: 5 }}>{t.description}</div><div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 8 }}><Chip>{countN(t.task_tree)} مهمة</Chip><Chip>{(t.prd_templates || []).length} مواصفة</Chip><Chip>{(t.output_templates || []).length} مخرج</Chip><Chip>{(t.risks || []).length} خطر</Chip><Chip>{(t.team_roles || []).length} دور</Chip></div></button>)}</div></Modal>;
+  if (!sel) return <Modal title="اختر قالباً" wide onClose={onClose}><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 9 }}>{templates.filter((t) => !t.archived_at).map((t) => <button type="button" key={t.id} onClick={() => setSel(t)} style={{ ...S.card, cursor: "pointer", textAlign: "start", padding: 12, font: "inherit" }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 13.5 }}>🧩 {t.name}</b>{t.builtin && <Chip>مدمج</Chip>}</div><div style={{ fontSize: 11.5, color: C.dim, marginTop: 5 }}>{t.description}</div><div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 8 }}><Chip>{countN(t.task_tree)} مهمة</Chip><Chip>{(t.objective_templates || []).length} هدف</Chip><Chip>{(t.objective_templates || []).reduce((sum, objective) => sum + (objective.key_results || []).length, 0)} KR</Chip><Chip>{(t.prd_templates || []).length} مواصفة</Chip><Chip>{(t.output_templates || []).length} مخرج</Chip><Chip>{(t.risks || []).length} خطر</Chip><Chip>{(t.team_roles || []).length} دور</Chip></div></button>)}</div></Modal>;
   if (!configure) return <Modal title={"معاينة حزمة المشروع: " + sel.name} wide onClose={onClose} footer={<><Btn onClick={() => setSel(null)}>اختيار قالب آخر</Btn><Btn kind="primary" onClick={() => setConfigure(true)}>متابعة إعداد المشروع</Btn></>}>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(135px,1fr))", gap: 8, marginBottom: 12 }}>
       <Stat label="المهام" value={countN(sel.task_tree)} color={C.info} />
+      <Stat label="الأهداف / KRs" value={objectiveCount + " / " + keyResultCount} color={C.violet} />
       <Stat label="معالم" value={(function countMilestones(nodes){ return (nodes || []).reduce((n, x) => n + (x.milestone ? 1 : 0) + countMilestones(x.children || []), 0); })(sel.task_tree)} color={C.warn} />
       <Stat label="المواصفات / المتطلبات" value={prdCount + " / " + requirementCount} color={C.violet} />
       <Stat label="المخرجات" value={outputCount} color={C.ok} />
