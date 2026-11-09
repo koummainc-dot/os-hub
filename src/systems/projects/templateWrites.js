@@ -17,7 +17,7 @@ export async function persistTemplateBundle({ project, tasks, risks, prds, outpu
     return project;
   }
 
-  const written = [["projects", project.id]];
+  const written = [];
   const write = async (collection, record) => {
     const saved = await put(collection, stamp(record));
     if (!saved) throw new Error(`تعذّر حفظ سجل ضمن إنشاء المشروع (${collection}).`);
