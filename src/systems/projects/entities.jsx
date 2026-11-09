@@ -407,7 +407,7 @@ export function DecisionsView({ projectId }) {
            { key: "related_task_ids", label: "المهام المتأثرة", type: "multi", options: (v) => idx.list.filter((t) => t.project_id === v.project_id).map((t) => ({ v: t.id, l: t.title })) },
            { key: "related_issue_ids", label: "المشاكل المتأثرة", type: "multi", options: (v) => data.issues.filter((i) => i.project_id === v.project_id).map((i) => ({ v: i.id, l: i.title })) },
            { key: "related_risk_ids", label: "المخاطر المتأثرة", type: "multi", options: (v) => data.risks.filter((r) => r.project_id === v.project_id).map((r) => ({ v: r.id, l: r.title })) },
-           { key: "related_discovery_ids", label: "الاكتشافات التي أثرت في القرار", type: "multi", options: () => data.discovery.map((d) => ({ v: d.id, l: d.title })) },
+           { key: "related_discovery_ids", label: "الاكتشافات التي أثرت في القرار", type: "multi", options: (v) => data.discovery.filter((d) => !d.project_ids?.length || d.project_ids.includes(v.project_id)).map((d) => ({ v: d.id, l: d.title })) },
           { key: "rationale", label: "لماذا؟", type: "textarea" }, { key: "rejected_alternatives", label: "البدائل المرفوضة", type: "textarea", rows: 2 }, { key: "expected_impact", label: "الأثر المتوقع", type: "textarea", rows: 2 }]} />}
     </div>
   );
