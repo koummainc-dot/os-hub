@@ -107,7 +107,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
         !meeting.archived && meeting.status !== "archived" &&
         !meeting.deleted_at && meeting.relatedSystem === "projects" &&
         String(meeting.relatedId) === String(projectId) &&
-        /^\\d{4}-\\d{2}-\\d{2}/.test(String(meeting.date || ""))
+        /^\d{4}-\d{2}-\d{2}/.test(String(meeting.date || ""))
       );
       setCalendarMeetings(related);
       setCalendarMeetingState("ready");
