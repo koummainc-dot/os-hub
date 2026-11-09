@@ -461,7 +461,7 @@ export function PrdsView({ projectId }) {
                   <div style={{ flex: 1, minWidth: 180 }}><div style={{ fontSize: 16, fontWeight: 800 }}>{prd.title}</div><div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>v{prd.version || 1} · {L.prdStatus[prd.status] || prd.status}{!projectId ? " · " + (projectsById[prd.project_id]?.name || "مشروع غير متاح") : ""}</div></div>
                   <Chip color={prd.status === "Approved" ? C.ok : prd.status === "Ready for Review" ? C.warn : C.info}>{L.prdStatus[prd.status] || prd.status}</Chip>
                   {canEdit && <Btn kind="primary" small onClick={() => setEditorId(prd.id)}>فتح المواصفة وتحريرها</Btn>}
-                  <Btn small onClick={() => setDetail(prd)}>ملخص كامل</Btn>
+                  <Btn small onClick={(e) => { e.stopPropagation(); setDetail(prd); }}>عرض التفاصيل</Btn>
                 </div>
                 {prd.tldr && <p style={{ fontSize: 12.5, lineHeight: 1.8, color: C.dim, margin: "10px 0" }}>{prd.tldr}</p>}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(115px,1fr))", gap: 8, marginTop: 10 }}>
