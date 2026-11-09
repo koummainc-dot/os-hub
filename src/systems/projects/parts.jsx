@@ -268,6 +268,24 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
       {mode === "timeline" && (() => {
         const dated = projectTasks.filter((task) => task.start_date || task.due_date);
         const unscheduled = projectTasks.filter((task) => !task.start_date && !task.due_date);
+        const timelineTasks = [...dated].sort((a, b) => String(a.start_date || a.due_date).localeCompare(String(b.start_date || b.due_date)));
+        const schedule = D.analyzeTaskSchedule(projectTasks);
+        const rowIndex = Object.fromEntries(timelineTasks.map((task, index) => [task.id, index]));
+        const dependencyPaths = timelineTasks.flatMap((task) => (task.dependency_task_ids || []).flatMap((dependencyId) => {
+          const predecessor = idx.byId[dependencyId];
+          const predecessorIndex = rowIndex[dependencyId];
+          if (!predecessor || predecessorIndex == null) return [];
+          const fromDate = predecessor.due_date || predecessor.start_date;
+          const toDate = task.start_date || task.due_date;
+          if (!fromDate || !toDate) return [];
+          const x1 = 230 + 700 * x(fromDate);
+          const x2 = 230 + 700 * x(toDate);
+          const y1 = 44 + predecessorIndex * 38 + 19;
+          const y2 = 44 + rowIndex[task.id] * 38 + 19;
+          const elbow = x1 + Math.max(12, (x2 - x1) / 2);
+          return [{ id: task.id + ":" + dependencyId, path: "M " + x1 + " " + y1 + " L " + elbow + " " + y1 + " L " + elbow + " " + y2 + " L " + x2 + " " + y2 }];
+        }));
+        const timelineMarkerId = "project-dependency-arrow-" + String(projectId).replace(/[^a-zA-Z0-9_-]/g, "_");
         if (!dated.length) return <div><Empty icon="🗓️" title="لا توجد مهام مجدولة بعد" sub="أضف تاريخ بداية أو موعدًا نهائيًا لتظهر المهمة على الخط الزمني." />{unscheduled.length > 0 && <div style={{ ...S.card, marginTop: 10 }}><b style={{ fontSize: 12.5 }}>غير مجدولة ({unscheduled.length})</b>{unscheduled.slice(0, 12).map((task) => <button key={task.id} type="button" onClick={() => openTask(task.id)} style={{ display: "block", width: "100%", textAlign: "start", border: 0, borderTop: "1px solid " + C.line, background: "transparent", padding: "7px 0", color: C.text, cursor: "pointer", font: "inherit", fontSize: 12 }}>{task.title}</button>)}</div>}</div>;
         const values = dated.flatMap((task) => [task.start_date || task.due_date, task.due_date || task.start_date]);
         const minDate = values.reduce((a, b) => a < b ? a : b);
@@ -283,25 +301,36 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
         return <div style={{ ...S.card, padding: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
             <b style={{ fontSize: 13 }}>الخط الزمني للمشروع</b>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}><span style={{ fontSize: 11, color: C.muted }}>النطاق: أسبوعي</span><Btn small onClick={() => { if (hasToday) return; setMonth(today.slice(0, 7)); }}>اليوم {today < start || today > end ? "· خارج النطاق" : ""}</Btn></div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 11, color: C.muted }}>النطاق: أسبوعي</span><Btn small onClick={() => { if (hasToday) return; setMonth(today.slice(0, 7)); }}>اليوم {today < start || today > end ? "· خارج النطاق" : ""}</Btn></div>
           </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 9 }}>
+            <Chip color={schedule.cyclic || schedule.conflicts.length ? C.bad : schedule.complete ? C.ok : C.warn}>{schedule.cyclic ? "اعتمادات دائرية" : schedule.conflicts.length ? schedule.conflicts.length + " تعارض جدولة" : schedule.complete ? "خريطة الاعتماد مكتملة" : "تحتاج تواريخ للمهام السابقة"}</Chip>
+            {schedule.complete && !schedule.cyclic && schedule.project_duration_days != null && <Chip color={C.info}>المدة المحسوبة: {schedule.project_duration_days} يومًا</Chip>}
+            {schedule.critical_task_ids.length > 0 && !schedule.cyclic && <Chip color={C.warn}>المسار الحرج: {schedule.critical_task_ids.length} مهام</Chip>}
+            {schedule.missing_predecessors.length > 0 && <Chip color={C.muted}>مهام سابقة غير مجدولة: {schedule.missing_predecessors.length}</Chip>}
+          </div>
+          <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 8 }}>المسار الحرج محسوب من مدد التواريخ المسجلة بالأيام التقويمية؛ لا يفترض عطلات أو سعات موارد غير موجودة في البيانات.</div>
           <div style={{ overflowX: "auto" }}>
-            <div style={{ minWidth: 940 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "220px minmax(700px,1fr)", gap: 10, alignItems: "end", borderBottom: "1px solid " + C.line, paddingBottom: 8, marginBottom: 6 }}>
+            <div style={{ minWidth: 940, position: "relative" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "220px 700px", gap: 10, alignItems: "end", borderBottom: "1px solid " + C.line, paddingBottom: 8, marginBottom: 6 }}>
                 <span style={{ fontSize: 10.5, color: C.muted }}>المهمة</span>
                 <div style={{ position: "relative", height: 30 }}>
                   {ticks.map((date) => <span key={date} style={{ position: "absolute", insetInlineStart: x(date) + "%", transform: "translateX(50%)", fontSize: 10, color: date <= today && shiftDate(date, 6) >= today ? A : C.muted, whiteSpace: "nowrap" }}>{fmtShort(date)}{date <= today && shiftDate(date, 6) >= today ? " · هذا الأسبوع" : ""}</span>)}
                 </div>
               </div>
-              {dated.sort((a, b) => String(a.start_date || a.due_date).localeCompare(String(b.start_date || b.due_date))).map((task) => {
+              {timelineTasks.map((task) => {
                 let a = task.start_date || task.due_date;
                 let b = task.due_date || task.start_date;
                 if (b < a) [a, b] = [b, a];
                 const left = x(a), right = x(b);
                 const width = Math.max(1.1, right - left);
                 const done = D.cat(task.status) === "done";
-                return <div key={task.id} style={{ display: "grid", gridTemplateColumns: "220px minmax(700px,1fr)", gap: 10, alignItems: "center", minHeight: 38, borderBottom: "1px solid " + C.line }}>
-                  <button type="button" onClick={() => openTask(task.id)} style={{ border: 0, background: "transparent", padding: 0, textAlign: "start", font: "inherit", fontSize: 11.5, color: done ? C.muted : C.text, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.title}</button>
+                return <div key={task.id} style={{ display: "grid", gridTemplateColumns: "220px 700px", gap: 10, alignItems: "center", minHeight: 38, borderBottom: "1px solid " + C.line }}>
+                  <div style={{ display: "flex", gap: 5, alignItems: "center", minWidth: 0, flexWrap: "wrap" }}>
+                    <button type="button" onClick={() => openTask(task.id)} style={{ border: 0, background: "transparent", padding: 0, textAlign: "start", font: "inherit", fontSize: 11.5, color: done ? C.muted : C.text, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{task.title}</button>
+                    {schedule.critical_task_ids.includes(task.id) && <Chip color={C.warn}>حرجة</Chip>}
+                    {(task.dependency_task_ids || []).length > 0 && <Chip color={C.violet}>← {(task.dependency_task_ids || []).length} اعتماد</Chip>}
+                  </div>
                   <div style={{ position: "relative", height: 26, background: "repeating-linear-gradient(to right, transparent 0, transparent calc(14.285% - 1px), rgba(0,0,0,.035) calc(14.285% - 1px), rgba(0,0,0,.035) 14.285%)", borderRadius: 5 }}>
                     {ticks.map((date) => <span key={date} style={{ position: "absolute", insetInlineStart: x(date) + "%", top: 0, bottom: 0, width: 1, background: "rgba(0,0,0,.07)" }} />)}
                     {hasToday && <span style={{ position: "absolute", insetInlineStart: x(today) + "%", top: -6, bottom: -6, width: 2, background: A, zIndex: 2 }} />}
@@ -309,6 +338,10 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
                   </div>
                 </div>;
               })}
+              {dependencyPaths.length > 0 && <svg aria-hidden="true" viewBox={"0 0 940 " + (44 + timelineTasks.length * 38)} preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: 44 + timelineTasks.length * 38, pointerEvents: "none", zIndex: 3, overflow: "visible" }}>
+                <defs><marker id={timelineMarkerId} markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill={C.violet} /></marker></defs>
+                {dependencyPaths.map((edge) => <path key={edge.id} d={edge.path} fill="none" stroke={C.violet} strokeWidth="1.5" strokeDasharray="4 3" opacity=".82" markerEnd={"url(#" + timelineMarkerId + ")"} />)}
+              </svg>}
             </div>
           </div>
           {unscheduled.length > 0 && <div style={{ marginTop: 14, borderTop: "1px solid " + C.line, paddingTop: 10 }}><b style={{ fontSize: 12.5 }}>غير مجدولة ({unscheduled.length})</b><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 6, marginTop: 6 }}>{unscheduled.map((task) => <button key={task.id} type="button" onClick={() => openTask(task.id)} style={{ textAlign: "start", border: "1px solid " + C.line, borderRadius: 6, padding: "7px 9px", background: "transparent", color: C.text, cursor: "pointer", font: "inherit", fontSize: 11.5 }}>{task.title}</button>)}</div></div>}
