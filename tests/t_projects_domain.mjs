@@ -41,6 +41,47 @@ t("T-25 property: progress = done leaves / active leaves for random trees", () =
 });
 t("T-24 5,000-node tree builds fast", () => { const tasks = []; for (let i = 0; i < 5000; i++) tasks.push(task("t" + i, { parent_task_id: i ? "t" + Math.floor((i - 1) / 4) : null, status: i % 3 ? "Not Started" : "Completed" })); const t0 = Date.now(); const idx = D.buildTaskIndex(tasks); D.projectMetrics(P(), ctx(tasks)); assert.ok(Date.now() - t0 < 1500, "took " + (Date.now() - t0) + "ms"); assert.ok(idx.derived.t0.leafTotal > 0); });
 
+t("T-81 task dependencies reject cross-project, missing, self and cyclic links", () => {
+  const a = task("dep_a", { dependency_task_ids: [] });
+  const b = task("dep_b", { dependency_task_ids: ["dep_a"] });
+  const tasksById = { dep_a: a, dep_b: b };
+  assert.deepEqual(D.validateTaskDependencies(b, tasksById), []);
+  assert.match(D.validateTaskDependencies({ ...b, dependency_task_ids: ["dep_b"] }, tasksById)[0], /نفسها/);
+  assert.match(D.validateTaskDependencies({ ...b, dependency_task_ids: ["missing"] }, tasksById)[0], /غير موجود/);
+  assert.match(D.validateTaskDependencies({ ...b, dependency_task_ids: ["other"] }, { ...tasksById, other: { id: "other", project_id: "p2" } })[0], /المشروع نفسه/);
+  assert.match(D.validateTaskDependencies({ ...a, dependency_task_ids: ["dep_b"] }, tasksById)[0], /دورة/);
+  assert.match(D.validateTaskDependencies({ ...b, dependency_task_ids: ["dep_a", "dep_a"] }, tasksById)[0], /تكرار/);
+});
+t("T-82 project task schedule calculates a deterministic critical path and reports planning gaps", () => {
+  const tasks = [
+    task("a", { start_date: "2026-01-01", due_date: "2026-01-02", dependency_task_ids: [] }),
+    task("b", { start_date: "2026-01-03", due_date: "2026-01-04", dependency_task_ids: ["a"] }),
+    task("c", { start_date: "2026-01-05", due_date: "2026-01-05", dependency_task_ids: ["b"] }),
+    task("d", { start_date: "2026-01-01", due_date: "2026-01-01", dependency_task_ids: [] }),
+  ];
+  const result = D.analyzeTaskSchedule(tasks);
+  assert.equal(result.cyclic, false);
+  assert.equal(result.complete, true);
+  assert.equal(result.project_duration_days, 5);
+  assert.deepEqual(result.critical_task_ids, ["a", "b", "c"]);
+  assert.equal(result.edges.length, 2);
+  const conflict = D.analyzeTaskSchedule([
+    tasks[0],
+    { ...tasks[1], start_date: "2026-01-01" },
+  ]);
+  assert.equal(conflict.conflicts.length, 1, "successor starting before predecessor finish is reported");
+  const missing = D.analyzeTaskSchedule([
+    task("x", { start_date: "2026-02-01", due_date: "2026-02-02", dependency_task_ids: ["unplanned"] })
+  ]);
+  assert.equal(missing.complete, false, "undated or unresolved predecessors block a complete schedule");
+  assert.equal(missing.missing_predecessors.length, 1);
+  const cyclic = D.analyzeTaskSchedule([
+    task("x", { start_date: "2026-02-01", due_date: "2026-02-02", dependency_task_ids: ["y"] }),
+    task("y", { start_date: "2026-02-03", due_date: "2026-02-04", dependency_task_ids: ["x"] })
+  ]);
+  assert.equal(cyclic.cyclic, true);
+  assert.deepEqual(cyclic.critical_task_ids, []);
+});
 t("T-80 project-to-template conversion preserves reusable structure and strips runtime state", () => {
   const project = {
     id: "source_project", name: "Koumma Source", type: "business", status: "In Progress",
