@@ -14,7 +14,7 @@ for (const method of ["completeAll", "archiveTree", "deleteTree"]) {
   assert.doesNotMatch(body, /for\s*\([^)]*\)\s*await R\.(put|softDelete)/, `${method} must not sequentially write records`);
   assert.match(body, /catch \(error\)/, `${method} must surface batch failures`);
 }
-assert.match(records, /if \(!\["tasks", "outputs", "projects", "risks", "issues", "decisions", "prds", "updates", "discovery"\]\.includes\(coll\) \|\| !rec\?\.id\)/);
+assert.ok(records.includes('if (!["tasks", "outputs", "projects", "risks", "issues", "decisions", "prds", "updates", "discovery", "objectives", "krs"].includes(coll) || !rec?.id)'), "atomic record store must retain existing collections and allow Objective/KR template writes");
 assert.ok(/collection_name not in \([^)]*\x27discovery\x27/.test(batchMigration), "server RPC migration must allow discovery in atomic record batches");
 const saveStart = store.indexOf("async saveTask(v, isNew");
 const saveEnd = store.indexOf("async setTaskStatus(t, to, reason)", saveStart);
