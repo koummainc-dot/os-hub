@@ -9,7 +9,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   const setVal=async(el,v)=>{if(!el)throw new Error('Acceptance harness could not find the expected form control');const proto=el.tagName==='SELECT'?w.HTMLSelectElement.prototype:el.tagName==='TEXTAREA'?w.HTMLTextAreaElement.prototype:w.HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,v);el.dispatchEvent(new w.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));await sleep(60);};
   const nav=()=>all('aside button');
   const isSectionButton=(button,label)=>[...button.querySelectorAll('span')].some(span=>span.textContent.trim().startsWith(label));
-  const goSection=async(label)=>{const b=nav().find(x=>isSectionButton(x,label));if(!b)return false;b.click();await sleep(450);return true;};
+  const goSection=async(label)=>{const b=nav().find(x=>x.getAttribute('aria-label')===label)||nav().find(x=>isSectionButton(x,label));if(!b)return false;b.click();await sleep(450);return true;};
   const toToday=async()=>{const c=all('aside button').find(x=>x.textContent.includes('▾'));c&&c.click();await sleep(60);const t=all('aside button').find(x=>x.textContent.includes('اليوم (كل الأنظمة)'));t&&t.click();await sleep(80);};
   const openProjects=async()=>{
     await toToday();
@@ -193,6 +193,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   const allTasksOpened = await click('كل المهام',null,120);
   ok(myWorkOpened && allTasksOpened,'My Work opens its all-tasks view before search recovery');
   const taskSearch=all('input').find(i=>i.placeholder==='بحث في المهام…');
+  if(!myWorkOpened || !allTasksOpened || !taskSearch) console.log('DEBUG My Work navigation',{myWorkOpened,allTasksOpened,nav:nav().map(b=>({label:b.getAttribute('aria-label'),id:b.getAttribute('data-section-id'),text:b.textContent.trim()})),main:all('main').map(m=>m.textContent.slice(0,1500)),inputs:all('input').map(x=>({placeholder:x.placeholder,type:x.type}))});
   await setVal(taskSearch,'no-task-will-match-xyz');
   ok(!!btn('مسح الفلاتر'),'clear-filters action appears after narrowing task search');
   await click('مسح الفلاتر',null,150);
