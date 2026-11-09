@@ -228,6 +228,11 @@ assert.ok(entities.includes('{ key: "due_date", label: "موعد التسليم"
   parts.includes('{ key: "due_date", label: "موعد التسليم", type: "date" }'),
   "Output due dates can be entered from both Outputs and Task Sheet forms");
 
+assert.ok(parts.includes('rowKey: groupKey + ":phase:" + phase.id') &&
+  parts.includes('rowKey: groupKey + ":main:" + node.id') &&
+  parts.includes('rowKey: groupKey + ":task:" + task.id') &&
+  parts.includes("paddingInlineStart: (row.depth || 0) * 12"),
+  "Gantt grouping uses stable unique row keys for repeated Objective memberships and keeps nested Main Task indentation");
 assert.ok(parts.includes("const timelineRows = []") &&
   parts.includes('kind: "objective"') &&
   parts.includes('kind: "phase"') &&
