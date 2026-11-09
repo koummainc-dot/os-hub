@@ -91,21 +91,30 @@ export function TaskTree({ projectId, tasks, readOnly, filter }) {
       <div>
         <div draggable={canWrite} onDragStart={(e) => { setDragId(t.id); e.dataTransfer.setData("text/plain", t.id); }} onDragOver={(e) => canWrite && e.preventDefault()}
           onDrop={async (e) => { e.preventDefault(); const id = e.dataTransfer.getData("text/plain"); if (id && id !== t.id) await act.reparent(id, t.id); setDragId(null); }}
-          style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 8px", paddingInlineStart: 8 + depth * 22, borderBottom: `1px solid ${C.line}`, background: dragId === t.id ? "rgba(239,159,39,0.1)" : "transparent", opacity: cancelled ? 0.55 : 1 }}>
-          {kids.length ? <button onClick={() => setOpen({ ...open, [t.id]: !isOpen(t.id, depth) })} style={{ background: "none", border: "none", cursor: "pointer", width: 16, color: C.muted }}>{isOpen(t.id, depth) ? "▾" : "▸"}</button> : <span style={{ width: 16 }} />}
-          {leaf ? <input type="checkbox" aria-label="إكمال" checked={done} disabled={!canWrite || cancelled} onChange={(e) => act.setTaskStatus(t, e.target.checked ? "Completed" : "Not Started")} /> : <span title="الحالة مشتقة من الأبناء" style={{ fontSize: 11 }}>{done ? "✅" : "◐"}</span>}
-          <span onClick={() => openTask(t.id)} style={{ flex: 1, minWidth: 0, cursor: "pointer", fontSize: 13, fontWeight: leaf ? 500 : 700, textDecoration: done || cancelled ? "line-through" : "none", color: done ? C.muted : C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}{t.milestone && <Chip color={C.warn} style={{ marginInlineStart: 6 }}>◆ معلم</Chip>}{t.blocked && <Chip color={C.bad} style={{ marginInlineStart: 6 }}>⛔ متعطّلة</Chip>}</span>
-          {!leaf && <span style={{ width: 90 }}><Progress value={d.progress} height={5} /></span>}
-          {leaf && <StatusChipSm s={status} />}
-          {t.priority && t.priority !== "Medium" && <PriorityChip p={t.priority} />}
-          {t.assignee_id && <Who id={t.assignee_id} size={18} />}
-          <DueChip date={leaf ? t.due_date : d.dueMax} status={status} today={today} />
-          {(d.estimated > 0) && <span style={{ fontSize: 10.5, color: C.muted }}>⏱ {fmtMinutes(d.actual)}/{fmtMinutes(d.estimated)}</span>}
-          {canWrite && <><button type="button" aria-label={"إضافة مهمة فرعية إلى " + t.title} title="إضافة مهمة فرعية" onClick={() => setForm({ parentId: t.id })} style={{ background: "none", border: "1px solid " + C.line, borderRadius: 6, cursor: "pointer", color: C.info, fontSize: 11, padding: "3px 5px", whiteSpace: "nowrap" }}>＋ فرعية</button><button aria-label="خيارات" onClick={() => setMenu(menu === t.id ? null : t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 16 }}>⋯</button></>}
+          style={{ display: "grid", gridTemplateColumns: "minmax(235px,1fr) 100px 105px 116px 118px auto", gap: 10, alignItems: "center", minHeight: 48, padding: "6px 10px", borderBottom: "1px solid " + C.line, background: dragId === t.id ? "rgba(239,159,39,.1)" : "transparent", opacity: cancelled ? .55 : 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0, paddingInlineStart: depth * 18 }}>
+            {kids.length ? <button type="button" aria-label={isOpen(t.id, depth) ? "طي المهام الفرعية" : "فتح المهام الفرعية"} onClick={() => setOpen({ ...open, [t.id]: !isOpen(t.id, depth) })} style={{ flex: "0 0 18px", width: 18, background: "none", border: 0, cursor: "pointer", color: C.muted, padding: 0 }}>{isOpen(t.id, depth) ? "▾" : "▸"}</button> : <span style={{ flex: "0 0 18px", width: 18 }} />}
+            {leaf ? <input type="checkbox" aria-label={"إكمال " + t.title} checked={done} disabled={!canWrite || cancelled} onChange={(e) => act.setTaskStatus(t, e.target.checked ? "Completed" : "Not Started")} /> : <span title="الحالة مشتقة من الأبناء" style={{ fontSize: 11, width: 16, textAlign: "center" }}>{done ? "✓" : "◐"}</span>}
+            <button type="button" onClick={() => openTask(t.id)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, textAlign: "start", border: 0, padding: 0, background: "transparent", color: done ? C.muted : C.text, cursor: "pointer", font: "inherit", overflow: "hidden" }}>
+              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12.5, fontWeight: leaf ? 500 : 750, textDecoration: done || cancelled ? "line-through" : "none" }}>{t.title}</span>
+              {t.milestone && <Chip color={C.warn}>◆ معلم</Chip>}
+              {t.blocked && <Chip color={C.bad}>متعطّلة</Chip>}
+            </button>
+          </div>
+          <div style={{ minWidth: 0, display: "flex", justifyContent: "flex-start" }}>{leaf ? <StatusChipSm s={status} /> : <div style={{ width: "100%" }}><Progress value={d.progress} height={6} /><span style={{ display: "block", fontSize: 9.5, color: C.muted, marginTop: 2 }}>{d.leafDone}/{d.leafTotal} مكتملة</span></div>}</div>
+          <div style={{ minWidth: 0, overflow: "hidden" }}><Who id={t.assignee_id} size={17} /></div>
+          <div style={{ minWidth: 0, whiteSpace: "nowrap" }}><DueChip date={leaf ? t.due_date : d.dueMax} status={status} today={today} /></div>
+          <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><PriorityChip p={t.priority} />{d.estimated > 0 && <span style={{ fontSize: 9.5, color: C.muted }}>⏱ {fmtMinutes(d.estimated)}</span>}</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+            {canWrite && <>
+              <button type="button" aria-label={"إضافة مهمة فرعية إلى " + t.title} title="إضافة مهمة فرعية" onClick={() => setForm({ parentId: t.id })} style={{ background: "none", border: "1px solid " + C.line, borderRadius: 6, cursor: "pointer", color: C.info, fontSize: 11, padding: "4px 6px", whiteSpace: "nowrap" }}>＋</button>
+              <button type="button" aria-label={"خيارات " + t.title} title="خيارات المهمة" onClick={() => setMenu(menu === t.id ? null : t.id)} style={{ background: "none", border: "1px solid transparent", borderRadius: 6, cursor: "pointer", color: C.muted, fontSize: 16, padding: "2px 5px" }}>⋯</button>
+            </>}
+          </div>
         </div>
         {menu === t.id && canWrite && (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "6px 8px", paddingInlineStart: 30 + depth * 22, background: "rgba(0,0,0,0.03)" }}>
-            <Btn small onClick={() => { setMenu(null); setForm({ parentId: t.id }); }}>➕ مهمة فرعية</Btn>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "7px 10px", paddingInlineStart: 32 + depth * 18, background: "rgba(0,0,0,.025)" }}>
+            <Btn small onClick={() => { setMenu(null); setForm({ parentId: t.id }); }}>＋ مهمة فرعية</Btn>
             <Btn small onClick={() => { setMenu(null); setForm({ initial: t }); }}>✎ تعديل</Btn>
             {!leaf && <Btn small onClick={() => { setMenu(null); act.completeAll(t.id); }}>✔ أكمل كل الفروع</Btn>}
             <MoveTreeButton t={t} onDone={() => setMenu(null)} />
@@ -118,6 +127,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter }) {
       </div>
     );
   };
+
   return (
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -129,9 +139,14 @@ export function TaskTree({ projectId, tasks, readOnly, filter }) {
       <div style={{ display: mode === "list" ? "block" : "none" }}>
         {canWrite && <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>يمكنك استخدام «＋ فرعية» أو خيارات المهمة لنقلها؛ السحب الاختياري يحافظ على ترتيب الشجرة.</div>}
         {roots.length === 0 && <Empty icon="✅" title="لا توجد مهام بعد" sub="أضف أول مهمة أو أنشئ المشروع من قالب جاهز." />}
-        <div style={{ ...S.card, padding: 0, overflow: "hidden", display: roots.length ? "block" : "none" }}
+        <div style={{ ...S.card, padding: 0, overflowX: "auto", overflowY: "hidden", display: roots.length ? "block" : "none" }}
           onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => { const id = e.dataTransfer.getData("text/plain"); if (id && e.target === e.currentTarget) await act.reparent(id, null); }}>
-          {roots.map((t) => <Row key={t.id} t={t} depth={0} />)}
+          <div style={{ minWidth: 835 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(235px,1fr) 100px 105px 116px 118px auto", gap: 10, alignItems: "center", padding: "9px 10px", background: "rgba(0,0,0,.025)", borderBottom: "1px solid " + C.line, color: C.muted, fontSize: 10.5, fontWeight: 700 }}>
+              <span>المهمة</span><span>الحالة / التقدم</span><span>المسؤول</span><span>موعد الاستحقاق</span><span>الأولوية / التقدير</span><span />
+            </div>
+            {roots.map((t) => <Row key={t.id} t={t} depth={0} />)}
+          </div>
         </div>
       </div>
       {mode === "board" && <Board columns={statusGroups.map((status) => ({ id: status, label: L.taskStatus[status] || status, color: STATUS_COLOR[status], items: projectTasks.filter((t) => t.status === status) }))} onMove={async (id, to) => { const t = idx.byId[id]; if (t && canWrite) await act.setTaskStatus(t, to); }} renderCard={(t) => <div onClick={() => openTask(t.id)} style={{ ...S.card, padding: "9px 10px", cursor: "pointer" }}><div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 5 }}>{t.title}</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}><PriorityChip p={t.priority} /><DueChip date={t.due_date} status={t.status} today={today} />{t.assignee_id && <Who id={t.assignee_id} size={17} />}</div></div>} />}
