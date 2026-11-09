@@ -9,6 +9,7 @@ import {
 } from "../src/systems/projects/outputStorage.js";
 
 const entities = fs.readFileSync(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
+const taskParts = fs.readFileSync(new URL("../src/systems/projects/parts.jsx", import.meta.url), "utf8");
 const outputs = entities.slice(entities.indexOf("export function OutputsView"));
 const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 const projectsIndex = fs.readFileSync(new URL("../src/systems/projects/index.jsx", import.meta.url), "utf8");
@@ -20,6 +21,19 @@ assert.ok(!outputs.includes("data:URL") && !outputs.includes("base64"), "Direct 
 assert.ok(!outputs.includes("localStorage"), "Outputs upload contract must not introduce a second local-only persistence path");
 assert.ok(outputs.includes("supabase.storage.from(OUTPUT_STORAGE_BUCKET).upload"), "Outputs use the Supabase Storage upload boundary");
 assert.ok(outputs.includes("createSignedUrl"), "Private Output files use signed URLs rather than public bucket URLs");
+assert.ok(taskParts.includes("supabase.storage.from(OUTPUT_STORAGE_BUCKET).upload") &&
+  taskParts.includes("validateOutputUpload(file)") &&
+  taskParts.includes("outputObjectPath({ workspaceId: ws.id, projectId: t.project_id") &&
+  taskParts.includes('setValue("__pendingFiles", Array.from(event.target.files || []))'),
+  "Task Sheet can attach multiple validated files through the same private Storage path");
+assert.ok(taskParts.includes("createSignedUrl(file.object_path, 60)") &&
+  taskParts.includes("تعذّر فتح المرفق"),
+  "Task Sheet opens stored attachments with short-lived signed links");
+assert.ok(taskParts.includes("needsPlaceholder = !existing && pendingFiles.length > 0") &&
+  taskParts.includes("remove(uploaded.map((file) => file.object_path))") &&
+  taskParts.includes('if (!existing) await act.del("outputs", rec.id, rec.name)'),
+  "Task Sheet upload order and compensation prevent orphaned objects and placeholder outputs");
+
 assert.ok(migration.includes("projects_outputs_select") && migration.includes("projects_outputs_insert") && migration.includes("projects_outputs_delete"), "Storage migration defines the three required private-object policies");
 assert.ok(!migration.includes("create policy projects_outputs_update"), "Storage migration deliberately forbids object UPDATE/upsert");
 assert.ok(migration.includes("collection = 'outputs'"), "Storage policies authorize against the persisted Output record");
