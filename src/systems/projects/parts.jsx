@@ -347,7 +347,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
         const addObjectiveRows = (group, groupKey) => {
           const tasksInGroup = [...group.tasks].sort((a, b) => String(a.start_date || a.due_date).localeCompare(String(b.start_date || b.due_date)));
           const completedCount = tasksInGroup.filter((task) => D.cat(task.status) === "done").length;
-          timelineRows.push({ kind: "objective", id: groupKey, title: group.title, total: tasksInGroup.length, completed: completedCount });
+          timelineRows.push({ kind: "objective", id: groupKey, rowKey: groupKey, title: group.title, total: tasksInGroup.length, completed: completedCount });
           const phaseGroups = new Map();
           const standalone = [];
           tasksInGroup.forEach((task) => {
@@ -368,7 +368,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
           })).sort((a, b) => a.start.localeCompare(b.start));
           orderedPhases.forEach((phase) => {
             const phaseDone = phase.tasks.filter((task) => D.cat(task.status) === "done").length;
-            timelineRows.push({ kind: "phase", id: phase.id, task: phase.task, title: phase.title, total: phase.tasks.length, completed: phaseDone });
+            timelineRows.push({ kind: "phase", id: phase.id, rowKey: groupKey + ":phase:" + phase.id, task: phase.task, title: phase.title, total: phase.tasks.length, completed: phaseDone });
             const branchChildren = new Map();
             const addChild = (parentId, child) => {
               const children = branchChildren.get(parentId) || new Map();
@@ -386,6 +386,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
               addChild(parentId, {
                 id: task.id,
                 kind: "task",
+                rowKey: groupKey + ":task:" + task.id,
                 task,
                 otherObjectives: (taskObjectiveRefs.get(task.id) || []).filter((name) => name !== group.title),
               });
@@ -401,7 +402,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
                 if (node.kind === "main") {
                   const descendants = phase.tasks.filter((task) => idx.ancestors(task.id).includes(node.task.id));
                   const completed = descendants.filter((task) => D.cat(task.status) === "done").length;
-                  timelineRows.push({ kind: "main", id: node.id, task: node.task, title: node.task.title, total: descendants.length, completed });
+                  timelineRows.push({ kind: "main", id: node.id, rowKey: groupKey + ":main:" + node.id, depth, task: node.task, title: node.task.title, total: descendants.length, completed });
                   emitChildren(node.id, depth + 1);
                 } else timelineRows.push({ ...node, depth });
               });
@@ -410,6 +411,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
           });
           standalone.forEach((task) => timelineRows.push({
             kind: "task",
+            rowKey: groupKey + ":task:" + task.id,
             task,
             depth: 1,
             otherObjectives: (taskObjectiveRefs.get(task.id) || []).filter((name) => name !== group.title),
@@ -480,8 +482,8 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
                   const objectiveRow = row.kind === "objective";
                   const parentTask = row.task;
                   const ratio = row.total ? row.completed / row.total : null;
-                  return <div key={row.kind + ":" + row.id} style={{ display: "grid", gridTemplateColumns: "220px 700px", gap: 10, alignItems: "center", minHeight: 38, borderBottom: "1px solid " + C.line, background: objectiveRow ? "rgba(59,130,246,.055)" : row.kind === "phase" ? "rgba(0,0,0,.025)" : "transparent" }}>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", minWidth: 0, paddingInlineStart: row.kind === "main" ? 12 : 0 }}>
+                  return <div key={row.rowKey || row.kind + ":" + row.id} style={{ display: "grid", gridTemplateColumns: "220px 700px", gap: 10, alignItems: "center", minHeight: 38, borderBottom: "1px solid " + C.line, background: objectiveRow ? "rgba(59,130,246,.055)" : row.kind === "phase" ? "rgba(0,0,0,.025)" : "transparent" }}>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", minWidth: 0, paddingInlineStart: (row.depth || 0) * 12 }}>
                       {objectiveRow ? <button type="button" onClick={() => setPage("okrs")} style={{ border: 0, padding: 0, background: "transparent", textAlign: "start", font: "inherit", fontSize: 11.5, fontWeight: 800, color: C.info, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>🎯 {row.title}</button> : <button type="button" onClick={() => openTask(parentTask.id)} style={{ border: 0, padding: 0, background: "transparent", textAlign: "start", font: "inherit", fontSize: row.kind === "phase" ? 11.5 : 10.8, fontWeight: row.kind === "phase" ? 750 : 650, color: C.text, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{row.kind === "phase" ? "▰ " : "└ "} {row.title}</button>}
                       <Chip color={ratio != null && ratio === 1 ? C.ok : C.muted}>{row.completed}/{row.total}</Chip>
                     </div>
