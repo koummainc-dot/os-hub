@@ -249,7 +249,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
 
   console.log('— task sheet + timer');
   const taskSpan=all('span').find(s=>s.textContent==='مهمة يدوية جديدة'); taskSpan&&taskSpan.click(); await sleep(250);
-  ok(!!doc.querySelector('[role=dialog]'),'task sheet opens'); await click('ابدأ المؤقّت'); await sleep(250); ok(txt().includes('إيقاف'),'timer bar visible'); await click('أوقف المؤقّت',doc.querySelector('[role=dialog]'),250);
+  ok(!!doc.querySelector('aside[aria-label="مهمة يدوية جديدة"]')||!!doc.querySelector('[role=dialog][aria-label="مهمة يدوية جديدة"]'),'task sheet opens in the project inline side panel'); await click('ابدأ المؤقّت'); await sleep(250); ok(txt().includes('إيقاف'),'timer bar visible'); await click('أوقف المؤقّت',doc.querySelector('[role=dialog]'),250);
   ok(errors.length===0,'no errors in project/task flows ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
   const x=doc.querySelector('[role=dialog] button[aria-label="إغلاق"]'); x&&x.click(); await sleep(100);
 
