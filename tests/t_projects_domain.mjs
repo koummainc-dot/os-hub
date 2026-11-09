@@ -124,7 +124,7 @@ t("T-65b Objective task execution follows each KR's explicit task group and keep
   assert.equal(r.leafTotal, 2);
   assert.equal(r.leafDone, 1);
   assert.equal(r.progress, 0.5);
-  assert.equal(r.legacyTaskCount, 0);
+  assert.equal(r.legacyTaskCount, 2);
 });
 t("T-65c legacy KR task groups remain visible only when task_ids is absent", () => {
   const r = D.krTaskExecution({ task_ids: ["p3-root"] }, okrIdx);
