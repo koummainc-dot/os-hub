@@ -164,6 +164,9 @@ assert.ok(parts.includes('review.status === "Closed" && review.visibility === "t
   parts.includes('String(review.closed_at).slice(0, 10)'),
   "Calendar shows only closed, team-shared reviews whose snapshots explicitly include the project");
 
+assert.ok(parts.includes("const x1 = 230 + 7 * x(fromDate)") &&
+  parts.includes("const x2 = 230 + 7 * x(toDate)"),
+  "Gantt dependency connectors convert percentage positions into the 700px grid coordinate system");
 assert.ok(parts.includes("D.analyzeTaskSchedule(projectTasks)") &&
   parts.includes("dependencyPaths") &&
   parts.includes("schedule.critical_task_ids.includes(task.id)") &&
