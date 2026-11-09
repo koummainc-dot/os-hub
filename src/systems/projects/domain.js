@@ -443,16 +443,102 @@ export function computeAlerts(memberId, ctx) {
 // ── templates ───────────────────────────────────────────────────────
 export function instantiateProjectTemplate(tpl, opts, newId) {
   const start = opts.start_date || null; const projectId = newId();
-  const project = { id: projectId, name: opts.name, type: opts.type || tpl.project_type || "أخرى", status: "Planned", priority: opts.priority || "Medium", start_date: start, target_date: opts.target_date || (start && tpl.duration_days ? addDays(start, tpl.duration_days) : null), description: tpl.description || "", final_goal: opts.final_goal || tpl.final_goal || "", lead_id: opts.lead_id || null, visibility: "workspace", template_id: tpl.id, members: opts.lead_id ? [{ member_id: opts.lead_id, role: "Lead" }] : [], links: [] };
-  const tasks = []; let order = 0;
-  const walk = (nodes, parentId) => nodes.forEach((n) => {
+  const project = {
+    id: projectId, name: opts.name, type: opts.type || tpl.project_type || "أخرى", status: "Planned",
+    priority: opts.priority || "Medium", start_date: start,
+    target_date: opts.target_date || (start && tpl.duration_days ? addDays(start, tpl.duration_days) : null),
+    description: opts.description || tpl.description || "", final_goal: opts.final_goal || tpl.final_goal || "",
+    lead_id: opts.lead_id || null, visibility: "workspace", template_id: tpl.id,
+    members: opts.lead_id ? [{ member_id: opts.lead_id, role: "Lead" }] : [], links: [],
+    template_roles: [...new Set((tpl.team_roles || []).map((role) => String(role || "").trim()).filter(Boolean))],
+    decision_prompts: (tpl.decision_prompts || []).map((prompt) => String(prompt || "").trim()).filter(Boolean),
+    template_checklist: (tpl.checklist || []).map((item) => String(item || "").trim()).filter(Boolean),
+    template_seed: true,
+  };
+  const tasks = []; let order = 0; const taskByTitle = new Map();
+  const walk = (nodes, parentId) => (nodes || []).forEach((n) => {
     const id = newId(); order += 1;
-    tasks.push({ id, project_id: projectId, parent_task_id: parentId, title: n.title, description: n.description || "", status: "Not Started", priority: n.priority || "Medium", planning_bucket: "Inbox", due_date: start && n.offset_days != null ? addDays(start, n.offset_days) : null, estimated_minutes: n.estimate_minutes || null, sort_order: order });
+    const task = {
+      id, project_id: projectId, parent_task_id: parentId, title: n.title, description: n.description || "",
+      status: "Not Started", priority: n.priority || "Medium", planning_bucket: "Inbox",
+      due_date: start && n.offset_days != null ? addDays(start, n.offset_days) : null,
+      estimated_minutes: n.estimate_minutes || null, sort_order: order,
+      ...(n.milestone ? { milestone: true, template_kind: "Milestone" } : {}),
+    };
+    tasks.push(task);
+    const sameTitle = taskByTitle.get(String(n.title || "")) || [];
+    sameTitle.push(task); taskByTitle.set(String(n.title || ""), sameTitle);
     if (n.children && n.children.length) walk(n.children, id);
   });
   walk(tpl.task_tree || [], null);
-  const risks = (tpl.risks || []).map((r) => ({ id: newId(), project_id: projectId, title: r.title, probability: r.probability || 2, impact: r.impact || 3, status: "Open", mitigation: r.mitigation || "" }));
-  return { project, tasks, risks };
+
+  const prds = [];
+  const outputs = [];
+  const prdByTitle = new Map();
+  for (const definition of (tpl.prd_templates || [])) {
+    const prdId = newId();
+    const requirements = (definition.requirements || []).map((req) => ({
+      ...req, id: newId(), title: String(req.title || "").trim(),
+      status: "Active", priority: req.priority || "Medium",
+      acceptance_criteria: req.acceptance_criteria || "",
+    }));
+    const prd = {
+      id: prdId, project_id: projectId, title: String(definition.title || "").trim(),
+      tldr: definition.tldr || "", status: "Not Started", version: 1,
+      sections: (definition.sections || []).map((section) => ({ ...section, content: "" })),
+      requirements, approvals: [], reviewer_ids: [], lead_id: opts.lead_id || null,
+      template_seed: true,
+    };
+    if (!prd.title) throw new Error("كل مواصفة داخل القالب يجب أن تحتوي على عنوان.");
+    if (prdByTitle.has(prd.title)) throw new Error("اسم المواصفة مكرر داخل القالب: " + prd.title);
+    prdByTitle.set(prd.title, prd); prds.push(prd);
+
+    for (const req of requirements) {
+      if (!req.task_title) continue;
+      const matches = taskByTitle.get(String(req.task_title).trim()) || [];
+      if (matches.length > 1) throw new Error("عنوان المهمة «" + req.task_title + "» مكرر؛ استخدم عنوانًا فريدًا لربط متطلب القالب.");
+      if (matches.length === 1) {
+        matches[0].prd_id = prd.id;
+        matches[0].prd_requirement_id = req.id;
+      }
+    }
+  }
+
+  for (const definition of (tpl.output_templates || [])) {
+    const name = String(definition.name || "").trim();
+    if (!name) throw new Error("كل مخرج متوقع داخل القالب يجب أن يحتوي على اسم.");
+    let taskId = null, prdId = null, requirementId = null;
+    if (definition.task_title) {
+      const matches = taskByTitle.get(String(definition.task_title).trim()) || [];
+      if (matches.length !== 1) throw new Error("المهمة المصدر للمخرج «" + name + "» يجب أن تطابق مهمة واحدة بالضبط.");
+      taskId = matches[0].id;
+    }
+    if (definition.prd_title) {
+      const prd = prdByTitle.get(String(definition.prd_title).trim());
+      if (!prd) throw new Error("المواصفة المصدر للمخرج «" + name + "» غير موجودة داخل القالب.");
+      prdId = prd.id;
+      if (definition.requirement_title) {
+        const req = prd.requirements.find((item) => item.title === String(definition.requirement_title).trim());
+        if (!req) throw new Error("متطلب المخرج «" + name + "» غير موجود ضمن المواصفة المحددة.");
+        requirementId = req.id;
+      }
+    } else if (definition.requirement_title) {
+      throw new Error("لا يمكن ربط مخرج بمتطلب دون تحديد المواصفة.");
+    }
+    outputs.push({
+      id: newId(), project_id: projectId, name, type: definition.type || "Other",
+      task_id: taskId, prd_id: prdId, prd_requirement_id: requirementId,
+      approval: "Draft", url: "", files: [], notes: definition.notes || "مخرج متوقع من قالب المشروع — أضف الملف أو الرابط عند توفره.",
+      template_seed: true,
+    });
+  }
+
+  const risks = (tpl.risks || []).map((r) => ({
+    id: newId(), project_id: projectId, title: r.title, probability: r.probability || 2,
+    impact: r.impact || 3, status: "Open", mitigation: r.mitigation || "",
+    template_seed: true, needs_review: true,
+  }));
+  return { project, tasks, risks, prds, outputs };
 }
 
 // ── weekly review live metrics ──────────────────────────────────────
