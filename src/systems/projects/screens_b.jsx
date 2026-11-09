@@ -272,6 +272,20 @@ function Overview({ p, m }) {
           </label>)}
         </div>
       </div>}
+      {((p.template_roles || []).length > 0 || (p.decision_prompts || []).length > 0) && <div style={{ display: "grid", gridColumn: "1 / -1", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 12 }}>
+        {(p.template_roles || []).length > 0 && <section style={S.card}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 7 }}>الأدوار المطلوبة حسب القالب</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{p.template_roles.map((role, index) => <Chip key={index} color={C.info}>{role}</Chip>)}</div>
+          <div style={{ fontSize: 10.5, color: C.muted, marginTop: 7 }}>هذه احتياجات أدوار وليست أعضاء معيّنين. أضف عضوًا موجودًا من تبويب الفريق عند اختيار الشخص المناسب.</div>
+          <div style={{ marginTop: 7 }}><button type="button" onClick={() => setView({ ...view, tab: "people" })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", font: "inherit", fontSize: 11.5 }}>إدارة أعضاء المشروع ←</button></div>
+        </section>}
+        {(p.decision_prompts || []).length > 0 && <section style={S.card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}><b style={{ flex: 1, fontSize: 13 }}>أسئلة قرارات مطلوب حسمها</b><Chip>{p.decision_prompts.length}</Chip></div>
+          {(p.decision_prompts || []).map((prompt, index) => <div key={index} style={{ display: "flex", gap: 7, alignItems: "flex-start", padding: "5px 0", borderTop: index ? "1px solid " + C.line : 0, fontSize: 11.5 }}><span style={{ color: C.warn }}>؟</span><span>{prompt}</span></div>)}
+          <div style={{ marginTop: 7 }}><button type="button" onClick={() => setView({ ...view, tab: "decisions" })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", font: "inherit", fontSize: 11.5 }}>افتح مصفوفة القرارات لحسمها ←</button></div>
+          <div style={{ fontSize: 10.5, color: C.muted, marginTop: 5 }}>تبقى الأسئلة مقترحات من القالب حتى تسجّل قرارًا فعليًا بالمبرر والمالك والحالة.</div>
+        </section>}
+      </div>}
       {lateTasks.length > 0 && <div style={{ ...S.card, gridColumn: "1 / -1" }}><div style={{ fontSize: 13, fontWeight: 700, color: C.bad, marginBottom: 6 }}>مهام متأخرة ({lateTasks.length})</div>{lateTasks.slice(0, 8).map((t) => <div key={t.id} style={{ fontSize: 12.5, padding: "3px 0" }}>⏰ {t.title} — {fmtShort(t.due_date)} <Who id={t.assignee_id} size={15} /></div>)}</div>}
     </div>
   );
