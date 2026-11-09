@@ -51,6 +51,11 @@ t("T-81 task dependencies reject cross-project, missing, self and cyclic links",
   assert.match(D.validateTaskDependencies({ ...b, dependency_task_ids: ["other"] }, { ...tasksById, other: { id: "other", project_id: "p2" } })[0], /المشروع نفسه/);
   assert.match(D.validateTaskDependencies({ ...a, dependency_task_ids: ["dep_b"] }, tasksById)[0], /دورة/);
   assert.match(D.validateTaskDependencies({ ...b, dependency_task_ids: ["dep_a", "dep_a"] }, tasksById)[0], /تكرار/);
+  const parent = { id: "parent", project_id: "p1", parent_task_id: null, dependency_task_ids: [] };
+  const child = { id: "child", project_id: "p1", parent_task_id: "parent", dependency_task_ids: [] };
+  const hierarchy = { parent, child };
+  assert.match(D.validateTaskDependencies({ ...child, dependency_task_ids: ["parent"] }, hierarchy)[0], /مهمة أب/);
+  assert.match(D.validateTaskDependencies({ ...parent, dependency_task_ids: ["child"] }, hierarchy)[0], /مهمة فرعية/);
 });
 t("T-82 project task schedule calculates a deterministic critical path and reports planning gaps", () => {
   const tasks = [
