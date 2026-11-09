@@ -341,8 +341,10 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
         const minDate = values.reduce((a, b) => a < b ? a : b);
         const maxDate = values.reduce((a, b) => a > b ? a : b);
         const shiftDate = (date, amount) => { const d = new Date(date + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + amount); return d.toISOString().slice(0, 10); };
-        const start = shiftDate(minDate, -7);
-        const end = shiftDate(maxDate, 7);
+        const rangeStart = minDate < today ? minDate : today;
+        const rangeEnd = maxDate > today ? maxDate : today;
+        const start = shiftDate(rangeStart, -7);
+        const end = shiftDate(rangeEnd, 7);
         const totalDays = Math.max(1, diffDays(end, start) + 1);
         const x = (date) => Math.max(0, Math.min(100, diffDays(date, start) / totalDays * 100));
         const timelineStep = timelineZoom === "week" ? 7 : timelineZoom === "month" ? 30 : 90;
@@ -358,7 +360,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
                 {[["week", "أسبوع"], ["month", "شهر"], ["quarter", "ربع سنة"]].map(([value, label], index) => <button key={value} type="button" onClick={() => setTimelineZoom(value)} style={{ border: 0, borderInlineStart: index ? "1px solid " + C.line : 0, background: timelineZoom === value ? "rgba(59,130,246,.1)" : "transparent", color: timelineZoom === value ? C.info : C.dim, padding: "6px 9px", cursor: "pointer", font: "inherit", fontSize: 10.5 }}>{label}</button>)}
               </div>
               <span style={{ fontSize: 10.5, color: C.muted }}>النطاق: {timelineRangeLabel}</span>
-              <Btn small onClick={() => { if (!hasToday) setMonth(today.slice(0, 7)); }}>اليوم {hasToday ? "· ظاهر" : "· خارج المدى"}</Btn>
+              <Chip color={C.info}>● مؤشر اليوم داخل النطاق</Chip>
             </div>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 9 }}>
