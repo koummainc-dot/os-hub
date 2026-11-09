@@ -8,6 +8,8 @@ const okrs=screens.slice(screens.indexOf("export function Okrs()"),screens.index
 const taskForm=parts.slice(parts.indexOf("export function TaskForm"),parts.indexOf("// ── Task tree"));
 const taskSheet=parts.slice(parts.indexOf("export function TaskSheet"),parts.indexOf("export function SessionForm"));
 const store=fs.readFileSync(new URL("../src/systems/projects/store.jsx",import.meta.url),"utf8");
+const router=fs.readFileSync(new URL("../src/systems/projects/index.jsx",import.meta.url),"utf8");
+const kit=fs.readFileSync(new URL("../src/core/kit.jsx",import.meta.url),"utf8");
 const projectScreens=fs.readFileSync(new URL("../src/systems/projects/screens_b.jsx",import.meta.url),"utf8");
 const projectOkr=projectScreens.slice(projectScreens.indexOf("function ProjectOkr"),projectScreens.indexOf("function RelatedTab"));
 
@@ -28,6 +30,15 @@ assert.ok(store.includes("R.putAtomic(writes)"),"Task and KR task-group link are
 assert.ok(store.includes("delete rec.objective_id"),"New task writes cannot create a direct Objective relationship");
 assert.ok(taskForm.includes("النتائج الرئيسية المرتبطة") === false, "Task form remains free of direct Objective picker fields");
 assert.ok(taskSheet.includes("الأهداف المشتقة عبر النتائج الرئيسية"), "Task detail presents the Objective link derived through its KR");
+assert.ok(parts.includes("export function TaskSheet({ inline = false })"),"Task details support both contextual and floating side-panel modes");
+assert.ok(parts.includes("<SideSheet title={t.title} onClose={closeTask} inline={inline}"),"Task detail forwards the inline presentation mode to the shared side-sheet");
+assert.ok(store.includes("const inlineTask = !!(v.projectId && v.tab === \"tasks\")"),"Opening a task from a project task tab enables the inline workspace layout");
+assert.ok(router.includes("{!ctx.view?.inlineTask && <TaskSheet />}"),"The global floating task sheet is suppressed while the inline sheet is active");
+assert.ok(projectScreens.includes("{view.taskId && view.inlineTask && <TaskSheet inline />}"),"Project task view keeps the task list and selected task panel in one workspace");
+assert.ok(kit.includes("export function SideSheet({ title, onClose, children, footer, inline = false })"),"Shared SideSheet supports an embedded presentation");
+assert.ok(kit.includes("if (inline) return ("),"Embedded side-sheet mode does not create a fullscreen overlay");
+assert.ok(parts.includes("gridTemplateColumns: \"minmax(235px,1fr) 100px 105px 116px 118px auto\""),"Task list rows use stable aligned columns");
+assert.ok(parts.includes("موعد الاستحقاق"),"Task list includes a visible due-date column header");
 assert.ok(store.includes("task_ids: [...new Set(["),"Store appends the task to the KR execution group without duplicates");
 assert.ok(store.includes("اربط مشروعًا بنتيجة رئيسية أولًا؛ ربط المهمة بالهدف يُشتق من المشروع والنتيجة الرئيسية."),"Missing project-to-KR prerequisite is surfaced with the required actionable validation");
 assert.ok(okrs.includes('label: "المشاريع المرتبطة"'),"All KR types can link supporting Projects");
