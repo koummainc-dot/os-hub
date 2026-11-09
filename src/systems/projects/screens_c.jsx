@@ -273,19 +273,29 @@ export function Team() {
 }
 
 // ═════ Templates ═════
-const flattenTaskTree = (nodes, depth = 0) => (nodes || []).flatMap((n) => [`${"  ".repeat(depth)}${n.title || ""}${n.estimate_minutes ? " | " + n.estimate_minutes : ""}`, ...flattenTaskTree(n.children || [], depth + 1)]);
+const flattenTaskTree = (nodes, depth = 0) => (nodes || []).flatMap((n) => {
+  const suffix = [
+    n.estimate_minutes == null ? "" : String(n.estimate_minutes),
+    n.offset_days == null ? "" : String(n.offset_days),
+    n.milestone ? "milestone" : "",
+  ];
+  while (suffix.length && !suffix[suffix.length - 1]) suffix.pop();
+  return [`${"  ".repeat(depth)}${n.title || ""}${suffix.length ? " | " + suffix.join(" | ") : ""}`, ...flattenTaskTree(n.children || [], depth + 1)];
+});
 function parseTaskTreeText(value) {
   const roots = []; const stack = [];
   for (const raw of String(value || "").split("\n")) {
     if (!raw.trim()) continue;
     const indent = (raw.match(/^[ \t]*/) || [""])[0].replace(/\t/g, "  ").length;
-    const depth = Math.floor(indent / 2); const [titlePart, estimatePart] = raw.trim().split(/\s+\|\s+/);
-    const node = { title: titlePart.trim(), children: [] };
-    if (estimatePart && Number.isFinite(Number(estimatePart))) node.estimate_minutes = Math.max(0, Number(estimatePart));
+    const depth = Math.floor(indent / 2); const parts = raw.trim().split(/\s+\|\s+/);
+    const node = { title: parts[0].trim(), children: [] };
+    if (parts[1] !== undefined) node.estimate_minutes = Number(parts[1]);
+    if (parts[2] !== undefined && parts[2] !== "") node.offset_days = Number(parts[2]);
+    if (parts[3]?.toLowerCase() === "milestone") node.milestone = true;
     if (depth === 0 || !stack[depth - 1]) roots.push(node); else stack[depth - 1].children.push(node);
     stack[depth] = node; stack.length = depth + 1;
   }
-  const clean = (nodes) => nodes.map((n) => ({ ...n, ...(n.estimate_minutes == null ? {} : { estimate_minutes: n.estimate_minutes }), children: clean(n.children) }));
+  const clean = (nodes) => nodes.map((n) => ({ ...n, ...(n.estimate_minutes == null ? {} : { estimate_minutes: n.estimate_minutes }), ...(n.offset_days == null ? {} : { offset_days: n.offset_days }), children: clean(n.children) }));
   return clean(roots);
 }
 function validateTaskTreeText(value) {
@@ -298,13 +308,48 @@ function validateTaskTreeText(value) {
     const depth = prefix.length / 2;
     if (i === 0 && depth !== 0) return "ابدأ شجرة المهام بمهمة رئيسية دون مسافات في أول سطر.";
     if (i > 0 && depth > previousDepth + 1) return `السطر ${i + 1}: لا يمكن تخطي مستوى كامل؛ أضف المهمة الأب أولاً.`;
-    const [title, estimate] = text.split(/\s+\|\s+/);
-    if (!title || !title.trim()) return `السطر ${i + 1}: عنوان المهمة مطلوب.`;
-    if (estimate !== undefined && (!/^\d+(\.\d+)?$/.test(estimate.trim()) || Number(estimate) < 0)) return `السطر ${i + 1}: التقدير بعد | يجب أن يكون رقمًا موجبًا أو صفرًا.`;
+    const parts = text.split(/\s+\|\s+/);
+    if (!parts[0] || !parts[0].trim()) return `السطر ${i + 1}: عنوان المهمة مطلوب.`;
+    if (parts[1] !== undefined && (!/^\d+(\.\d+)?$/.test(parts[1].trim()) || Number(parts[1]) < 0)) return `السطر ${i + 1}: التقدير بالدقائق يجب أن يكون رقمًا موجبًا أو صفرًا.`;
+    if (parts[2] !== undefined && (!/^\d+$/.test(parts[2].trim()) || Number(parts[2]) < 0)) return `السطر ${i + 1}: إزاحة الموعد بالأيام يجب أن تكون عددًا صحيحًا غير سالب.`;
+    if (parts[3] !== undefined && parts[3].toLowerCase() !== "milestone") return `السطر ${i + 1}: القيمة الرابعة الوحيدة المتاحة هي milestone.`;
+    if (parts.length > 4) return `السطر ${i + 1}: الصيغة المدعومة هي العنوان | دقائق | أيام من البداية | milestone.`;
     previousDepth = depth;
   }
   return null;
 }
+const flattenPrdTemplates = (prds) => (prds || []).map((prd) => `${prd.title || ""}${prd.tldr ? " | " + prd.tldr : ""}`).join("\n");
+const flattenRequirements = (prds) => (prds || []).flatMap((prd) => (prd.requirements || []).map((req) => `${prd.title} :: ${req.title}${req.acceptance_criteria ? " | " + req.acceptance_criteria : ""}${req.task_title ? " | " + req.task_title : ""}`)).join("\n");
+const flattenOutputs = (outputs) => (outputs || []).map((output) => [output.name || "", output.type || "Other", output.task_title || "", output.prd_title || "", output.requirement_title || ""].join(" | ")).join("\n");
+function parsePrdDefinitions(value, requirementsText) {
+  const prds = String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => {
+    const [title, ...summary] = line.split(/\s+\|\s+/);
+    return { title: title.trim(), tldr: summary.join(" | ").trim(), requirements: [] };
+  });
+  const byTitle = new Map(prds.map((prd) => [prd.title, prd]));
+  if (byTitle.size !== prds.length) throw new Error("عنوان المواصفة مكرر في القالب.");
+  for (const [index, line] of String(requirementsText || "").split("\n").entries()) {
+    if (!line.trim()) continue;
+    const [ownerAndTitle, criteria = "", taskTitle = ""] = line.split(/\s+\|\s+/);
+    const separator = ownerAndTitle.indexOf("::");
+    if (separator < 0) throw new Error(`سطر المتطلب ${index + 1}: استخدم اسم المواصفة :: اسم المتطلب | معيار القبول | عنوان المهمة.`);
+    const prdTitle = ownerAndTitle.slice(0, separator).trim();
+    const title = ownerAndTitle.slice(separator + 2).trim();
+    const prd = byTitle.get(prdTitle);
+    if (!prd) throw new Error(`المتطلب «${title}» يشير إلى مواصفة غير موجودة: ${prdTitle}.`);
+    if (!title) throw new Error(`سطر المتطلب ${index + 1}: عنوان المتطلب مطلوب.`);
+    prd.requirements.push({ title, acceptance_criteria: criteria.trim(), task_title: taskTitle.trim() || null, priority: "Medium" });
+  }
+  return prds;
+}
+function parseOutputDefinitions(value) {
+  return String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line, index) => {
+    const [name = "", type = "Other", taskTitle = "", prdTitle = "", requirementTitle = ""] = line.split(/\s+\|\s+/);
+    if (!name.trim()) throw new Error(`سطر المخرج ${index + 1}: الاسم مطلوب.`);
+    return { name: name.trim(), type: type.trim() || "Other", task_title: taskTitle.trim() || null, prd_title: prdTitle.trim() || null, requirement_title: requirementTitle.trim() || null };
+  });
+}
+const linesOf = (value) => String(value || "").split("\n").map((line) => line.trim()).filter(Boolean);
 const flattenRisks = (risks) => (risks || []).map((r) => `${r.title || ""}${r.mitigation ? " — " + r.mitigation : ""}`).join("\n");
 function parseRiskText(value) { return String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [title, ...rest] = line.split(/\s[—-]\s/); return { title: title.trim(), probability: 3, impact: 3, status: "Open", mitigation: rest.join(" — ").trim() }; }); }
 export function Templates() {
