@@ -365,7 +365,8 @@ export function TaskSheet({ inline = false }) {
       approved_by: values.approval === "Final" ? me : null,
       approved_at: values.approval === "Final" ? new Date().toISOString() : null,
     };
-    await act.put("outputs", rec, project);
+    const needsPlaceholder = !existing && pendingFiles.length > 0;
+    if (!pendingFiles.length || needsPlaceholder) await act.put("outputs", rec, project);
     const uploaded = [];
     try {
       if (pendingFiles.length && !ws?.id) throw new Error("المساحة الحالية غير متاحة للرفع.");
