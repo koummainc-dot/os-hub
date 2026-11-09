@@ -6,6 +6,7 @@ import { uid, nowIso } from "../../core/records.jsx";
 import { useP, GENERAL_ID } from "./store.jsx";
 import * as D from "./domain.js";
 import { L, opts, DEFAULT_LOOKUPS, LOOKUP_LABEL, UPDATE_SECTIONS, MEETING_TEMPLATES, REVIEW_PROMPTS, PRD_TEMPLATE } from "./lookups.js";
+import { prepareTemplateSave, restoreTemplateVersion } from "./templateVersions.js";
 import { Who, ProjectName, mOpts, projOpts, HealthBadge, StatusChip, TaskForm } from "./parts.jsx";
 import { TemplatePicker } from "./screens_b.jsx";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
@@ -353,7 +354,7 @@ const linesOf = (value) => String(value || "").split("\n").map((line) => line.tr
 const flattenRisks = (risks) => (risks || []).map((r) => `${r.title || ""}${r.mitigation ? " — " + r.mitigation : ""}`).join("\n");
 function parseRiskText(value) { return String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [title, ...rest] = line.split(/\s[—-]\s/); return { title: title.trim(), probability: 3, impact: 3, status: "Open", mitigation: rest.join(" — ").trim() }; }); }
 export function Templates() {
-  const { templates, data, A: act, can, toast, role } = useP(); const [use, setUse] = useState(null); const [tab, setTab] = useState("projects"); const [templateForm, setTemplateForm] = useState(null); const [previewTpl, setPreviewTpl] = useState(null); const [showArchived, setShowArchived] = useState(false); const [sourceProjectForm, setSourceProjectForm] = useState(false); const canManage = can("project.create") && role !== "Viewer";
+  const { templates, data, A: act, can, toast, role } = useP(); const [use, setUse] = useState(null); const [tab, setTab] = useState("projects"); const [templateForm, setTemplateForm] = useState(null); const [previewTpl, setPreviewTpl] = useState(null); const [historyTpl, setHistoryTpl] = useState(null); const [showArchived, setShowArchived] = useState(false); const [sourceProjectForm, setSourceProjectForm] = useState(false); const canManage = can("project.create") && role !== "Viewer";
   const beginTemplateForm = (tpl = {}) => setTemplateForm({ id: tpl.id, name: tpl.name || "", description: tpl.description || "", final_goal: tpl.final_goal || "", project_type: tpl.project_type || "", duration_days: tpl.duration_days || "", task_tree_text: flattenTaskTree(tpl.task_tree || []).join("\n"), risks_text: flattenRisks(tpl.risks || []), prds_text: flattenPrdTemplates(tpl.prd_templates || []), requirements_text: flattenRequirements(tpl.prd_templates || []), outputs_text: flattenOutputs(tpl.output_templates || []), decision_prompts_text: (tpl.decision_prompts || []).join("\n"), team_roles_text: (tpl.team_roles || []).join("\n"), checklist_text: (tpl.checklist || []).join("\n") });
   const countN = (n) => n.reduce((a, x) => a + 1 + countN(x.children || []), 0);
   const show = (nodes, depth = 0) => nodes.map((n, i) => <div key={depth + "-" + i + n.title} style={{ paddingInlineStart: depth * 16, fontSize: 12, color: C.dim, lineHeight: 1.8 }}>{n.milestone ? "◆ " : depth ? "└ " : "• "}{n.title}{n.estimate_minutes ? ` (${fmtMinutes(n.estimate_minutes)})` : ""}{n.offset_days != null ? ` · يوم +${n.offset_days}` : ""}{n.children && show(n.children, depth + 1)}</div>);
@@ -368,13 +369,39 @@ export function Templates() {
           <Btn onClick={() => setShowArchived(!showArchived)}>{showArchived ? "عرض القوالب النشطة" : "عرض المؤرشفة"}</Btn>
           <span style={{ fontSize: 11.5, color: C.muted }}>القوالب المدمجة للنسخ والتخصيص؛ القوالب المرجعية للاجتماعات لا تنشئ اجتماعات.</span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 10 }}>{templates.filter((t) => !!t.archived_at === showArchived).map((t) => <div key={t.id} style={{ ...S.card, padding: "12px 14px", opacity: t.archived_at ? .72 : 1 }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 14 }}>🧩 {t.name}</b>{t.builtin && <Chip>مدمج — للنسخ</Chip>}{t.archived_at && <Chip color={C.muted}>مؤرشف</Chip>}</div><div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{t.description}</div><div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>{countN(t.task_tree || [])} مهمة · {(t.prd_templates || []).length} مواصفة · {(t.output_templates || []).length} مخرج متوقع · {(t.risks || []).length} مخاطر · {t.duration_days || "—"} يوم</div><div style={{ maxHeight: 130, overflowY: "auto", marginBottom: 8 }}>{show(t.task_tree || [])}</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{!t.archived_at && can("project.create") && <Btn kind="primary" small onClick={() => setPreviewTpl(t)}>معاينة</Btn>}{!t.archived_at && can("project.create") && <Btn small onClick={() => setUse(t)}>استخدام</Btn>}{canManage && t.builtin && <Btn small onClick={() => beginTemplateForm({ ...t, id: undefined, name: t.name + " — نسخة مخصصة", builtin: false })}>نسخ وتخصيص</Btn>}{canManage && !t.builtin && !t.archived_at && <Btn small onClick={() => beginTemplateForm(t)}>تعديل</Btn>}{canManage && !t.builtin && !t.archived_at && <Btn small onClick={() => act.put("templates", { ...t, archived_at: nowIso() }).then(() => toast("تمت أرشفة القالب"))}>أرشفة</Btn>}{canManage && !t.builtin && t.archived_at && <Btn small onClick={() => { const { archived_at, ...rest } = t; act.put("templates", rest).then(() => toast("تمت استعادة القالب")); }}>استعادة</Btn>}</div></div>)}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 10 }}>{templates.filter((t) => !!t.archived_at === showArchived).map((t) => <div key={t.id} style={{ ...S.card, padding: "12px 14px", opacity: t.archived_at ? .72 : 1 }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 14 }}>🧩 {t.name}</b>{t.builtin && <Chip>مدمج — للنسخ</Chip>}{!t.builtin && <Chip color={C.muted}>v{t.version || 1}</Chip>}{t.archived_at && <Chip color={C.muted}>مؤرشف</Chip>}</div><div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{t.description}</div><div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>{countN(t.task_tree || [])} مهمة · {(t.prd_templates || []).length} مواصفة · {(t.output_templates || []).length} مخرج متوقع · {(t.risks || []).length} مخاطر · {t.duration_days || "—"} يوم</div><div style={{ maxHeight: 130, overflowY: "auto", marginBottom: 8 }}>{show(t.task_tree || [])}</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{!t.archived_at && can("project.create") && <Btn kind="primary" small onClick={() => setPreviewTpl(t)}>معاينة</Btn>}{!t.archived_at && can("project.create") && <Btn small onClick={() => setUse(t)}>استخدام</Btn>}{canManage && t.builtin && <Btn small onClick={() => beginTemplateForm({ ...t, id: undefined, name: t.name + " — نسخة مخصصة", builtin: false })}>نسخ وتخصيص</Btn>}{canManage && !t.builtin && !t.archived_at && <Btn small onClick={() => beginTemplateForm(t)}>تعديل</Btn>}{canManage && !t.builtin && <Btn small onClick={() => setHistoryTpl(t)}>الإصدارات</Btn>}{canManage && !t.builtin && !t.archived_at && <Btn small onClick={() => act.put("templates", { ...t, archived_at: nowIso() }).then(() => toast("تمت أرشفة القالب"))}>أرشفة</Btn>}{canManage && !t.builtin && t.archived_at && <Btn small onClick={() => { const { archived_at, ...rest } = t; act.put("templates", rest).then(() => toast("تمت استعادة القالب")); }}>استعادة</Btn>}</div></div>)}</div>
         {!templates.some((t) => !!t.archived_at === showArchived) && <Empty icon="🧩" title={showArchived ? "لا توجد قوالب مؤرشفة" : "لا توجد قوالب هنا"} sub={canManage ? "أنشئ قالباً مخصصاً أو انسخ قالباً مدمجاً." : "قد لا تملك صلاحية إدارة القوالب."} />}
       </div>}
       {tab === "prd" && <div style={S.card}>{PRD_TEMPLATE.map((s) => <div key={s.key} style={{ padding: "6px 0", borderBottom: `1px solid ${C.line}` }}><b style={{ fontSize: 13 }}>{s.group} — {s.title}</b>{s.required && <Chip color={C.bad} style={{ marginInlineStart: 6 }}>مطلوب للاعتماد</Chip>}<div style={{ fontSize: 11.5, color: C.muted }}>{s.hint}</div></div>)}</div>}
       {tab === "update" && <div style={S.card}>{UPDATE_SECTIONS.map((s) => <div key={s.key} style={{ padding: "6px 0", fontSize: 13 }}>• {s.title}</div>)}<div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>يُولَّد المسودة من الإنجازات والمهام والمخاطر والأرقام الحية.</div></div>}
       {tab === "review" && <div style={S.card}>{REVIEW_PROMPTS.map(([, l]) => <div key={l} style={{ padding: "5px 0", fontSize: 13 }}>• {l}</div>)}<div style={{ padding: "5px 0", fontSize: 13 }}>• تركيز الأسبوع القادم · ⭐ التقييم · الطاقة</div><div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>أقسام حيّة (إنجازات، ساعات، متأخر…) تُجمَّد كلقطة عند إغلاق المراجعة. تُنشأ مسودة تلقائياً كل أسبوع.</div></div>}
       {tab === "meetings" && <div><div style={{ ...S.card, marginBottom: 10, fontSize: 12.5, lineHeight: 1.9 }}>📌 الاجتماعات يملكها <b>Knowledge OS</b> وتُنشأ وتُدار هناك؛ هذه القوالب للمرجع. عند بناء Knowledge OS ستظهر اجتماعات كل مشروع هنا (قراءة فقط) وتتحوّل بنود الإجراءات إلى مهام.</div><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: 10 }}>{MEETING_TEMPLATES.map((m) => <div key={m.name} style={{ ...S.card, padding: "10px 12px" }}><b>{m.name}</b>{m.sections.map((s) => <div key={s} style={{ fontSize: 12, color: C.dim }}>• {s}</div>)}</div>)}</div></div>}
+      {historyTpl && <Modal title={"سجل إصدارات القالب: " + historyTpl.name} wide onClose={() => setHistoryTpl(null)}>
+        <div style={{ display: "grid", gap: 9 }}>
+          <div style={{ ...S.card, padding: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <b style={{ flex: 1 }}>الإصدار الحالي · v{templates.find((item) => item.id === historyTpl.id)?.version || historyTpl.version || 1}</b>
+              <Chip color={C.ok}>الحالي</Chip>
+            </div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>آخر تحديث: {fmtShort((templates.find((item) => item.id === historyTpl.id)?.updated_at || historyTpl.updated_at || "").slice(0, 10))}</div>
+          </div>
+          {(historyTpl.version_history || []).length === 0 ? <Empty icon="🕘" title="لا توجد إصدارات سابقة" sub="سيظهر هنا كل إصدار سابق عند تعديل القالب أو استعادة نسخة." /> : [...historyTpl.version_history].sort((a, b) => Number(b.version) - Number(a.version)).map((version) => <div key={version.version} style={{ ...S.card, padding: 10, display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <b>الإصدار v{version.version} · {version.name}</b>
+              <div style={{ fontSize: 10.5, color: C.muted }}>{version.updated_at ? fmtShort(String(version.updated_at).slice(0, 10)) : "تاريخ غير مسجل"} · {(version.task_tree || []).length} مراحل · {(version.prd_templates || []).length} مواصفة · {(version.output_templates || []).length} مخرج</div>
+            </div>
+            {canManage && <Btn small onClick={async () => {
+              const current = templates.find((item) => item.id === historyTpl.id);
+              if (!current) throw new Error("القالب لم يعد متاحًا.");
+              const restored = restoreTemplateVersion(current, version, nowIso());
+              await act.put("templates", restored);
+              toast("تمت استعادة محتوى v" + version.version + " كإصدار جديد v" + restored.version + ".");
+              setHistoryTpl(null);
+            }}>استعادة هذه النسخة</Btn>}
+          </div>)}
+          <div style={{ fontSize: 10.5, color: C.muted }}>الاستعادة لا تستبدل التاريخ: تُنشئ إصدارًا جديدًا وتحفظ النسخة الحالية ضمن سجل الإصدارات. يحتفظ النظام بآخر 20 نسخة سابقة.</div>
+        </div>
+      </Modal>}
       {sourceProjectForm && <FormModal
         title="إنشاء قالب من مشروع قائم"
         initial={{ project_id: "" }}
@@ -423,7 +450,9 @@ export function Templates() {
           checklist: linesOf(v.checklist_text), builtin: false, updated_at: nowIso()
         };
         if (!rec.name) throw new Error("اسم القالب مطلوب");
-        await act.put("templates", rec); toast("✅ تم حفظ القالب المخصص؛ المشاريع السابقة لن تتغير."); setTemplateForm(null);
+        const previous = rec.id ? templates.find((item) => item.id === rec.id) : null;
+        const versioned = prepareTemplateSave(previous, rec, nowIso());
+        await act.put("templates", versioned); toast("✅ تم حفظ القالب v" + versioned.version + "؛ المشاريع السابقة لن تتغير."); setTemplateForm(null);
       }} fields={[
         { key: "name", label: "اسم القالب", required: true, span: 2 }, { key: "description", label: "وصف النطاق وما الذي يغطيه القالب", type: "textarea", rows: 2, span: 2 },
         { key: "project_type", label: "نوع المشروع" }, { key: "duration_days", label: "المدة الإرشادية (أيام)", type: "number", min: 1 },
