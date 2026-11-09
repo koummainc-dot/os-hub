@@ -740,6 +740,9 @@ export function projectToTemplateSeed(project, data = {}) {
     tldr: String(prd.tldr || "").trim(),
     requirements: (prd.requirements || []).filter((req) => req.status !== "Deprecated").map((req) => {
       const linked = tasks.filter((task) => task.prd_id === prd.id && task.prd_requirement_id === req.id);
+      if (linked.length > 0 && (linked.length !== 1 || !uniqueTaskTitle(linked[0].id))) {
+        conversionWarnings.push("لم يُنقل ربط المتطلب «" + req.title + "» بمهمة محددة لأن رابط المهمة مكرر أو ملتبس.");
+      }
       return {
         title: String(req.title || "").trim(),
         acceptance_criteria: String(req.acceptance_criteria || "").trim(),
@@ -757,6 +760,9 @@ export function projectToTemplateSeed(project, data = {}) {
       ? (prd.requirements || []).find((item) => item.id === output.prd_requirement_id)
       : null;
     const taskTitle = output.task_id ? uniqueTaskTitle(output.task_id) : null;
+    if (output.task_id && !taskTitle) {
+      conversionWarnings.push("لم يُنقل ربط المخرج «" + output.name + "» بمهمة محددة لأن عنوان المهمة المصدر مكرر أو غير متاح.");
+    }
     return {
       name: String(output.name || "").trim(),
       type: output.type || "Other",
