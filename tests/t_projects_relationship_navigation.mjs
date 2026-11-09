@@ -228,4 +228,20 @@ assert.ok(entities.includes('{ key: "due_date", label: "موعد التسليم"
   parts.includes('{ key: "due_date", label: "موعد التسليم", type: "date" }'),
   "Output due dates can be entered from both Outputs and Task Sheet forms");
 
+assert.ok(parts.includes("const timelineRows = []") &&
+  parts.includes('kind: "objective"') &&
+  parts.includes('kind: "phase"') &&
+  parts.includes('kind: "main"') &&
+  parts.includes('timelineRows.map((row) => {') &&
+  parts.includes('row.kind === "objective"'),
+  "Gantt rows are grouped as Objective → Phase → Main Task → Task using existing records");
+assert.ok(parts.includes("D.objectiveTaskExecution(objective, data.krs, idx)") &&
+  parts.includes('const ungroupedTimelineTasks = timelineTasks.filter((task) => !assignedTimelineTaskIds.has(task.id))') &&
+  parts.includes('مهام بلا هدف / نتيجة رئيسية مرتبطة'),
+  "KR-derived Objective grouping retains tasks without an Objective/KR link in an explicit ungrouped section");
+assert.ok(parts.includes("viewBox={\"0 0 940 \" + (44 + timelineRows.length * 38)}") &&
+  parts.includes("height: 44 + timelineRows.length * 38") &&
+  parts.includes("timelineRows.indexOf(row)"),
+  "Dependency connector coordinates and SVG height include Objective, Phase and Main Task rows");
+
 console.log("✓ Projects relationship navigation contracts passed");
