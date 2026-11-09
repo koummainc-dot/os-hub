@@ -93,7 +93,8 @@ function ProjectDetail() {
   const counts = { tasks: m.leafTotal, outputs: m.outputsCount, risks: m.openRisks, issues: m.openIssues, decisions: m.decisionsCount, prds: data.prds.filter((x) => x.project_id === p.id).length };
   const tabGroups = [
     { id: "overview", label: "نظرة عامة", defaultTab: "overview", tabs: [{ id: "overview", label: "نظرة عامة" }] },
-    { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "tasks", label: "المهام", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }, { id: "okr", label: "الأهداف" }] },
+    { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "tasks", label: "المهام", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }] },
+    { id: "goals", label: "الأهداف", defaultTab: "okr", tabs: [{ id: "okr", label: "الأهداف (OKR)" }] },
     { id: "delivery", label: "التسليم", defaultTab: "outputs", tabs: [{ id: "outputs", label: "المخرجات", count: counts.outputs }, { id: "work", label: "العمل والوقت" }, { id: "timeline", label: "الخط الزمني" }, { id: "related", label: "المراجع" }] },
     { id: "governance", label: "الحوكمة", defaultTab: "risks", tabs: [{ id: "risks", label: "المخاطر", count: counts.risks }, { id: "issues", label: "المشاكل", count: counts.issues }, { id: "decisions", label: "القرارات", count: counts.decisions }] },
     { id: "collaboration", label: "التعاون", defaultTab: "people", tabs: [{ id: "people", label: "الفريق" }, { id: "activity", label: "النشاط" }] },
