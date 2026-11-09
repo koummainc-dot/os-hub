@@ -577,11 +577,12 @@ export function Templates() {
 
 // ═════ Meetings (owned by Knowledge OS) ═════
 export function Meetings() {
-  const { data, setPage, ws, projectsById, A: act, toast, me, today, can } = useP();
+  const { data, setPage, setView, view, ws, projectsById, A: act, toast, me, today, can } = useP();
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [projectFilter, setProjectFilter] = useState("all");
+  const [projectFilter, setProjectFilter] = useState(view?.meetingsProjectId || "all");
+  const [focusMeetingId, setFocusMeetingId] = useState(view?.focusMeetingId || "");
   const [creatingFollowup, setCreatingFollowup] = useState("");
   const creatingFollowupsRef = useRef(new Set());
 
@@ -601,7 +602,7 @@ export function Meetings() {
   const visible = useMemo(() => meetings
     .filter((m) => !m.archived && m.status !== "archived")
     .filter((m) => projectFilter === "all" || (m.relatedSystem === "projects" && String(m.relatedId) === String(projectFilter)))
-    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))), [meetings, projectFilter]);
+    .sort((a, b) => (a.id === focusMeetingId ? -1 : b.id === focusMeetingId ? 1 : String(b.date || "").localeCompare(String(a.date || ""))), [meetings, projectFilter, focusMeetingId]);
   const linkedCount = meetings.filter((m) => m.relatedSystem === "projects" && projectsById[m.relatedId]).length;
   const orphanCount = meetings.filter((m) => m.relatedSystem === "projects" && m.relatedId && !projectsById[m.relatedId]).length;
   const archivedCount = meetings.filter((m) => {
@@ -658,7 +659,7 @@ export function Meetings() {
   }
 
   return <div>
-    <Head title="اجتماعات المشاريع" sub={`مصدر الاجتماعات: Knowledge OS · ${linkedCount} مرتبط · ${archivedCount} لمشروعات مؤرشفة · ${orphanCount} يحتاج مراجعة الارتباط`} right={<div style={{display:"flex",gap:7,flexWrap:"wrap"}}><select aria-label="تصفية الاجتماعات حسب المشروع" style={{...S.sel,width:220}} value={projectFilter} onChange={e=>setProjectFilter(e.target.value)}><option value="all">كل الاجتماعات</option>{data.projects.filter(p=>!p.is_system&&!p.archived_at&&p.status!=="Archived").map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><Btn onClick={refresh} disabled={loading}>تحديث</Btn><Btn kind="primary" onClick={() => setPage("templates")}>قوالب الاجتماعات</Btn></div>} />
+    <Head title="اجتماعات المشاريع" sub={`مصدر الاجتماعات: Knowledge OS · ${linkedCount} مرتبط · ${archivedCount} لمشروعات مؤرشفة · ${orphanCount} يحتاج مراجعة الارتباط`} right={<div style={{display:"flex",gap:7,flexWrap:"wrap"}}><select aria-label="تصفية الاجتماعات حسب المشروع" style={{...S.sel,width:220}} value={projectFilter} onChange={e=>{setProjectFilter(e.target.value);setFocusMeetingId("");setView({ ...view, meetingsProjectId: null, focusMeetingId: null });}}><option value="all">كل الاجتماعات</option>{data.projects.filter(p=>!p.is_system&&!p.archived_at&&p.status!=="Archived").map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><Btn onClick={refresh} disabled={loading}>تحديث</Btn><Btn kind="primary" onClick={() => setPage("templates")}>قوالب الاجتماعات</Btn></div>} />
     <div style={{...S.card,padding:12,marginBottom:12,fontSize:12,color:C.dim,lineHeight:1.8}}>الاجتماع محفوظ مرة واحدة في Knowledge OS. يمكن تحويل كل متابعة إلى مهمة فعلية في المشروع المرتبط. المشروعات المؤرشفة تظل ظاهرة كسجل تاريخي، أما مرجع المشروع غير الموجود فيحتاج مراجعة وإعادة ربط من Knowledge OS.</div>
     {loading ? <div style={{...S.card,padding:30,textAlign:"center",color:C.muted}}>جارٍ تحميل الاجتماعات…</div>
     : loadError ? <div role="alert" style={{...S.card,padding:24,textAlign:"center"}}><div style={{color:C.bad,marginBottom:10}}>{loadError}</div><Btn onClick={refresh}>إعادة المحاولة</Btn></div>
@@ -668,8 +669,8 @@ export function Meetings() {
       const orphan=m.relatedSystem==="projects"&&!!m.relatedId&&!project;
       const archived=!!project&&(!!project.archived_at||project.status==="Archived");
       const followups=Array.isArray(m.followups)?m.followups:[];
-      return <article key={m.id} style={{...S.card,padding:14}}>
-        <div style={{display:"flex",gap:8,alignItems:"flex-start"}}><div style={{fontSize:23}}>🗓️</div><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:14}}>{m.title}</div><div style={{fontSize:11,color:C.muted,marginTop:4}}>{m.date||"بدون تاريخ"}{m.startTime?" · "+m.startTime:""}{m.endTime?"–"+m.endTime:""}</div></div><Chip color={orphan?C.bad:archived?C.warn:project?C.ok:C.muted}>{orphan?"مرجع مشروع غير متاح":archived?"مشروع مؤرشف":project?"مرتبط بمشروع":"اجتماع عام"}</Chip></div>
+      return <article key={m.id} id={"project-meeting-" + m.id} style={{...S.card,padding:14,border:focusMeetingId===m.id?"2px solid "+C.info:undefined}}>
+        <div style={{display:"flex",gap:8,alignItems:"flex-start"}}><div style={{fontSize:23}}>🗓️</div><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:14}}>{m.title}{focusMeetingId===m.id&&<Chip color={C.info}>مفتوح من التقويم</Chip>}</div><div style={{fontSize:11,color:C.muted,marginTop:4}}>{m.date||"بدون تاريخ"}{m.startTime?" · "+m.startTime:""}{m.endTime?"–"+m.endTime:""}</div></div><Chip color={orphan?C.bad:archived?C.warn:project?C.ok:C.muted}>{orphan?"مرجع مشروع غير متاح":archived?"مشروع مؤرشف":project?"مرتبط بمشروع":"اجتماع عام"}</Chip></div>
         <div style={{marginTop:9,fontSize:12,color:orphan?C.bad:archived?C.warn:project?C.ink:C.muted}}>المشروع: <b>{project?.name||(orphan?"المشروع محذوف أو غير متاح":"اجتماع عام")}</b>{orphan&&<div style={{marginTop:4}}>راجع حقل المشروع المرتبط في Knowledge OS لإعادة ربط الاجتماع أو إزالة المرجع القديم.</div>}</div>
         {m.summary&&<p style={{fontSize:12,lineHeight:1.8,margin:"8px 0"}}>{m.summary}</p>}
         {Array.isArray(m.attendees)&&m.attendees.length>0&&<div style={{fontSize:11,color:C.dim,marginTop:5}}>المشاركون: {m.attendees.join("، ")}</div>}
