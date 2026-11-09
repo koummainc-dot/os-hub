@@ -53,6 +53,10 @@ assert.ok(portfolio.includes("const hasToday = today >= start && today <= end") 
   portfolio.includes("const pct = Math.max(0, Math.min(100, Number(metric.progress) || 0))"),
   "Portfolio timeline shows today, target-date markers and canonical progress");
 
+assert.ok(portfolio.includes('metric.progress == null ? null : Math.max(0, Math.min(100, Number(metric.progress) || 0))') &&
+  portfolio.includes('pct == null ? "—" : Math.round(pct) + "%"'),
+  "Portfolio timeline must not fabricate 0% when project progress is unknown");
+
 assert.ok(portfolio.includes("setPage(\"okrs\")"), "Portfolio links to OKR management");
 assert.ok(!portfolio.includes("localStorage"), "Portfolio does not persist duplicate local-only project state");
 
