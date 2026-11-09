@@ -283,7 +283,20 @@ function WorkTab({ p }) {
     <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>أكثر المهام استهلاكاً للوقت</div>{topTasks.map(([id, mn]) => <div key={id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "3px 0" }}><span>{(idx.byId[id] || {}).title}</span><b>{fmtMinutes(mn)}</b></div>)}</div>
   </div>;
 }
-function ProjectDecisions({ p }) {\n  const prompts = Array.isArray(p.decision_prompts) ? p.decision_prompts : [];\n  return <div style={{ display: "grid", gap: 10 }}>\n    {prompts.length > 0 && <section style={{ ...S.card, padding: 12 }}><div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 7 }}><b style={{ fontSize: 13 }}>أسئلة قرارات يجب حسمها</b><Chip>{prompts.length}</Chip><span style={{ flex: 1 }} /><span style={{ fontSize: 10.5, color: C.muted }}>تحضيرية — ليست قرارات معتمدة</span></div>{prompts.map((prompt, index) => <div key={index} style={{ fontSize: 12, padding: "6px 0", borderTop: "1px solid " + C.line }}>◦ {prompt}</div>)}</section>}\n    <DecisionsView projectId={p.id} />\n  </div>;\n}\nfunction PeopleTab({ p, canE }) {
+function ProjectDecisions({ p }) {
+  const prompts = Array.isArray(p.decision_prompts) ? p.decision_prompts : [];
+  return <div style={{ display: "grid", gap: 10 }}>
+    {prompts.length > 0 && <section style={{ ...S.card, padding: 12 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 7 }}>
+        <b style={{ fontSize: 13 }}>أسئلة قرارات يجب حسمها</b><Chip>{prompts.length}</Chip><span style={{ flex: 1 }} />
+        <span style={{ fontSize: 10.5, color: C.muted }}>تحضيرية — ليست قرارات معتمدة</span>
+      </div>
+      {prompts.map((prompt, index) => <div key={index} style={{ fontSize: 12, padding: "6px 0", borderTop: "1px solid " + C.line }}>◦ {prompt}</div>)}
+    </section>}
+    <DecisionsView projectId={p.id} />
+  </div>;
+}
+function PeopleTab({ p, canE }) {
   const { people, nameOf, A: act, toast, confirm, idx, today } = useP(); const [add, setAdd] = useState(false);
   const members = p.members || [];
   const save = async (list, lead) => { await act.saveProject({ ...p, members: list, lead_id: lead || p.lead_id }, false); };
