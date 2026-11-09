@@ -86,6 +86,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
   const [mode, setMode] = useState(initialMode);
   const [month, setMonth] = useState(today.slice(0, 7));
   const [calendarMode, setCalendarMode] = useState("month");
+  const [timelineZoom, setTimelineZoom] = useState("week");
   const [calendarDate, setCalendarDate] = useState(today);
   const [calendarMeetings, setCalendarMeetings] = useState([]);
   const [calendarMeetingState, setCalendarMeetingState] = useState("loading");
@@ -344,13 +345,21 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
         const end = shiftDate(maxDate, 7);
         const totalDays = Math.max(1, diffDays(end, start) + 1);
         const x = (date) => Math.max(0, Math.min(100, diffDays(date, start) / totalDays * 100));
+        const timelineStep = timelineZoom === "week" ? 7 : timelineZoom === "month" ? 30 : 90;
+        const timelineRangeLabel = timelineZoom === "week" ? "أسبوعي" : timelineZoom === "month" ? "شهري" : "ربع سنوي";
         const ticks = [];
-        for (let d = start, n = 0; d <= end && n < 80; d = shiftDate(d, 7), n++) ticks.push(d);
+        for (let d = start, n = 0; d <= end && n < 120; d = shiftDate(d, timelineStep), n++) ticks.push(d);
         const hasToday = today >= start && today <= end;
         return <div style={{ ...S.card, padding: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
             <b style={{ fontSize: 13 }}>الخط الزمني للمشروع</b>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 11, color: C.muted }}>النطاق: أسبوعي</span><Btn small onClick={() => { if (hasToday) return; setMonth(today.slice(0, 7)); }}>اليوم {today < start || today > end ? "· خارج النطاق" : ""}</Btn></div>
+            <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ display: "inline-flex", border: "1px solid " + C.line, borderRadius: 8, overflow: "hidden" }}>
+                {[["week", "أسبوع"], ["month", "شهر"], ["quarter", "ربع سنة"]].map(([value, label], index) => <button key={value} type="button" onClick={() => setTimelineZoom(value)} style={{ border: 0, borderInlineStart: index ? "1px solid " + C.line : 0, background: timelineZoom === value ? "rgba(59,130,246,.1)" : "transparent", color: timelineZoom === value ? C.info : C.dim, padding: "6px 9px", cursor: "pointer", font: "inherit", fontSize: 10.5 }}>{label}</button>)}
+              </div>
+              <span style={{ fontSize: 10.5, color: C.muted }}>النطاق: {timelineRangeLabel}</span>
+              <Btn small onClick={() => { if (!hasToday) setMonth(today.slice(0, 7)); }}>اليوم {hasToday ? "· ظاهر" : "· خارج المدى"}</Btn>
+            </div>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 9 }}>
             <Chip color={schedule.cyclic || schedule.conflicts.length ? C.bad : schedule.complete ? C.ok : C.warn}>{schedule.cyclic ? "اعتمادات دائرية" : schedule.conflicts.length ? schedule.conflicts.length + " تعارض جدولة" : schedule.complete ? "خريطة الاعتماد مكتملة" : "تحتاج تواريخ للمهام السابقة"}</Chip>
@@ -364,7 +373,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
               <div style={{ display: "grid", gridTemplateColumns: "220px 700px", gap: 10, alignItems: "end", borderBottom: "1px solid " + C.line, paddingBottom: 8, marginBottom: 6 }}>
                 <span style={{ fontSize: 10.5, color: C.muted }}>المهمة</span>
                 <div style={{ position: "relative", height: 30 }}>
-                  {ticks.map((date) => <span key={date} style={{ position: "absolute", insetInlineStart: x(date) + "%", transform: "translateX(50%)", fontSize: 10, color: date <= today && shiftDate(date, 6) >= today ? A : C.muted, whiteSpace: "nowrap" }}>{fmtShort(date)}{date <= today && shiftDate(date, 6) >= today ? " · هذا الأسبوع" : ""}</span>)}
+                  {ticks.map((date) => <span key={date} style={{ position: "absolute", insetInlineStart: x(date) + "%", transform: "translateX(50%)", fontSize: 10, color: date <= today && shiftDate(date, timelineStep - 1) >= today ? A : C.muted, whiteSpace: "nowrap" }}>{fmtShort(date)}{date <= today && shiftDate(date, timelineStep - 1) >= today ? " · اليوم" : ""}</span>)}
                 </div>
               </div>
               {timelineTasks.map((task) => {
