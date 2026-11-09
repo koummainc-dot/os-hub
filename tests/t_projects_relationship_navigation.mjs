@@ -8,6 +8,7 @@ const store = await readFile(new URL("../src/systems/projects/store.jsx", import
 const entities = await readFile(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
 const screens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
 const parts = await readFile(new URL("../src/systems/projects/parts.jsx", import.meta.url), "utf8");
+const domain = await readFile(new URL("../src/systems/projects/domain.js", import.meta.url), "utf8");
 
 assert.ok(entities.includes('onClick={() => openProject(o.project_id, "prds", { kind: "prd", id: o.prd_id })}') && entities.includes(">متطلب:"),
   "output requirement reference must navigate to the owning PRD section");
@@ -133,5 +134,19 @@ assert.ok(screens.includes('import { prepareTemplateSave, restoreTemplateVersion
   screens.includes("version_history") &&
   screens.includes("الإصدارات"),
   "Template editing creates versions and the history UI restores an old snapshot as a new version");
+
+assert.ok(domain.includes("export function validateTaskDependencies") &&
+  domain.includes("export function analyzeTaskSchedule") &&
+  domain.includes("dependency_task_ids"),
+  "Task dependency graph validation and critical-path analysis are part of the Projects domain");
+assert.ok(parts.includes('key: "dependency_task_ids"') &&
+  parts.includes("const taskDependencies = (t.dependency_task_ids || [])") &&
+  parts.includes("const taskDependents = idx.list.filter((task) => (task.dependency_task_ids || []).includes(t.id))"),
+  "TaskForm can set dependencies and Task Sheet exposes both predecessor and successor relations");
+assert.ok(parts.includes("D.analyzeTaskSchedule(projectTasks)") &&
+  parts.includes("dependencyPaths") &&
+  parts.includes("schedule.critical_task_ids.includes(task.id)") &&
+  parts.includes("markerEnd"),
+  "Project Timeline draws dependency connectors and highlights the calculated critical path");
 
 console.log("✓ Projects relationship navigation contracts passed");
