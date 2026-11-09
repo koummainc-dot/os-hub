@@ -297,6 +297,7 @@ export function Portfolio() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("active");
   const [tab, setTab] = useState("overview");
+  const [timelineZoom, setTimelineZoom] = useState("month");
   const projects = data.projects.filter((p) => !p.is_system && !p.deleted_at);
   const openProjects = projects.filter((p) => !p.archived_at && !["Completed", "Cancelled"].includes(p.status));
   const completed = projects.filter((p) => p.status === "Completed" && !p.archived_at);
@@ -325,6 +326,7 @@ export function Portfolio() {
       <Tabs value={tab} onChange={setTab} tabs={[
         { id: "overview", label: "نظرة عامة" }, { id: "goals", label: "الأهداف", count: objectives.length },
         { id: "governance", label: "المخاطر والمشاكل", count: risks.length + issues.length },
+        { id: "timeline", label: "الخط الزمني" },
         { id: "outputs", label: "المخرجات", count: outputs.length }, { id: "specs", label: "المواصفات", count: prds.length }
       ]} />
       {tab === "overview" && <>
@@ -387,6 +389,74 @@ export function Portfolio() {
         <section style={S.card}><div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><b style={{ flex: 1 }}>المخاطر المفتوحة</b><Chip>{risks.length}</Chip><Btn small onClick={() => setPage("risks")}>كل المخاطر</Btn></div>{!risks.length ? <Empty icon="⚠️" title="لا مخاطر مفتوحة" /> : risks.slice(0, 12).map((risk) => <div key={risk.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderTop: "1px solid " + C.line }}><b style={{ minWidth: 0, flex: 1, fontSize: 11.5 }}>{risk.title}</b><Chip color={D.riskLevel(risk, settings) === "High" ? C.bad : D.riskLevel(risk, settings) === "Medium" ? C.warn : C.ok}>{risk.probability}×{risk.impact}</Chip><Btn small onClick={() => openRisk(risk)}>فتح</Btn></div>)}</section>
         <section style={S.card}><div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><b style={{ flex: 1 }}>المشاكل المفتوحة</b><Chip>{issues.length}</Chip><Btn small onClick={() => setPage("issues")}>كل المشاكل</Btn></div>{!issues.length ? <Empty icon="⚠️" title="لا مشاكل مفتوحة" /> : issues.slice(0, 12).map((issue) => <div key={issue.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderTop: "1px solid " + C.line }}><b style={{ minWidth: 0, flex: 1, fontSize: 11.5 }}>{issue.title}</b><Chip color={SEV_COLOR[issue.severity]}>{L.severity[issue.severity]}</Chip><Btn small onClick={() => openIssue(issue)}>فتح</Btn></div>)}</section>
       </div>}
+      {tab === "timeline" && (() => {
+        const dated = visible.filter((project) => project.start_date || project.target_date);
+        const unscheduled = visible.filter((project) => !project.start_date && !project.target_date);
+        if (!dated.length) return <div style={{ marginTop: 12 }}><Empty icon="🗓️" title="لا توجد مشاريع مؤرخة" sub="أضف تاريخ بداية أو موعدًا مستهدفًا للمشروع لتظهره المحفظة على الخط الزمني." />{unscheduled.length > 0 && <div style={{ ...S.card, marginTop: 10 }}><b>مشاريع تحتاج تخطيطًا ({unscheduled.length})</b>{unscheduled.map((project) => <button key={project.id} type="button" onClick={() => openProject(project.id)} style={{ display: "block", width: "100%", textAlign: "start", padding: "8px 0", border: 0, borderTop: "1px solid " + C.line, background: "transparent", color: C.info, cursor: "pointer", font: "inherit" }}>{project.name}</button>)}</div>}</div>;
+        const dateValues = dated.flatMap((project) => [project.start_date || project.target_date, project.target_date || project.start_date]).filter(Boolean).sort();
+        const start = addDays(dateValues[0], -7);
+        const end = addDays(dateValues[dateValues.length - 1], 7);
+        const span = Math.max(1, diffDays(end, start) + 1);
+        const x = (date) => Math.max(0, Math.min(100, diffDays(date, start) / span * 100));
+        const step = timelineZoom === "week" ? 7 : 30;
+        const ticks = [];
+        for (let date = start, index = 0; date <= end && index < 120; date = addDays(date, step), index++) ticks.push(date);
+        const hasToday = today >= start && today <= end;
+        const sorted = [...dated].sort((a, b) => String(a.start_date || a.target_date).localeCompare(String(b.start_date || b.target_date)));
+        return <div style={{ ...S.card, marginTop: 12, padding: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            <b style={{ flex: 1 }}>Portfolio Timeline · {dated.length} مشروع</b>
+            <div style={{ display: "inline-flex", border: "1px solid " + C.line, borderRadius: 8, overflow: "hidden" }}>
+              <button type="button" onClick={() => setTimelineZoom("month")} style={{ border: 0, borderInlineEnd: "1px solid " + C.line, padding: "6px 10px", background: timelineZoom === "month" ? "rgba(59,130,246,.1)" : "transparent", color: timelineZoom === "month" ? C.info : C.dim, cursor: "pointer", font: "inherit", fontSize: 11.5 }}>شهر</button>
+              <button type="button" onClick={() => setTimelineZoom("week")} style={{ border: 0, padding: "6px 10px", background: timelineZoom === "week" ? "rgba(59,130,246,.1)" : "transparent", color: timelineZoom === "week" ? C.info : C.dim, cursor: "pointer", font: "inherit", fontSize: 11.5 }}>أسبوع</button>
+            </div>
+            <Btn small onClick={() => setStatus("all")}>عرض كل المشاريع</Btn>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: 980 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "250px minmax(700px,1fr)", gap: 10, alignItems: "end", borderBottom: "1px solid " + C.line, paddingBottom: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 10.5, color: C.muted }}>المشروع · الحالة · التقدم</span>
+                <div style={{ position: "relative", height: 28 }}>
+                  {ticks.map((date) => <span key={date} style={{ position: "absolute", insetInlineStart: x(date) + "%", fontSize: 9.5, color: date <= today && addDays(date, step - 1) >= today ? A : C.muted, whiteSpace: "nowrap", transform: "translateX(50%)" }}>{fmtShort(date)}</span>)}
+                </div>
+              </div>
+              {sorted.map((project) => {
+                let from = project.start_date || project.target_date;
+                let to = project.target_date || project.start_date;
+                if (to < from) [from, to] = [to, from];
+                const left = x(from), right = x(to);
+                const width = Math.max(1, right - left);
+                const metric = metrics[project.id] || {};
+                const healthColor = metric.health === "Red" ? C.bad : metric.health === "Orange" ? C.orange : metric.health === "Green" ? C.ok : C.info;
+                const pct = Math.max(0, Math.min(100, Number(metric.progress) || 0));
+                return <div key={project.id} style={{ display: "grid", gridTemplateColumns: "250px minmax(700px,1fr)", gap: 10, alignItems: "center", minHeight: 47, borderBottom: "1px solid " + C.line }}>
+                  <button type="button" onClick={() => openProject(project.id)} style={{ border: 0, background: "transparent", padding: "4px 0", textAlign: "start", color: C.text, cursor: "pointer", font: "inherit", minWidth: 0 }}>
+                    <b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11.5 }}>{project.name}</b>
+                    <span style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 9.5, color: C.muted }}><span>{L.projectStatus[project.status] || project.status}</span><span>·</span><span style={{ color: healthColor }}>{Math.round(pct)}%</span><span>·</span><span>{fmtShort(project.target_date || project.start_date)}</span></span>
+                  </button>
+                  <div style={{ position: "relative", height: 30, borderRadius: 5, background: "repeating-linear-gradient(to right, transparent 0, transparent calc(14.285% - 1px), rgba(0,0,0,.035) calc(14.285% - 1px), rgba(0,0,0,.035) 14.285%)" }}>
+                    {ticks.map((date) => <span key={date} style={{ position: "absolute", insetInlineStart: x(date) + "%", top: 0, bottom: 0, width: 1, background: "rgba(0,0,0,.07)" }} />)}
+                    {hasToday && <span style={{ position: "absolute", insetInlineStart: x(today) + "%", top: -5, bottom: -5, width: 2, background: A, zIndex: 2 }} />}
+                    <button type="button" aria-label={"فتح مشروع " + project.name + " على الخط الزمني"} title={project.name + " · " + fmtShort(from) + " → " + fmtShort(to)} onClick={() => openProject(project.id)} style={{ position: "absolute", insetInlineStart: left + "%", width: width + "%", minWidth: 8, top: 5, height: 20, border: "1px solid " + healthColor, borderRadius: 5, overflow: "hidden", padding: 0, background: "rgba(59,130,246,.12)", cursor: "pointer" }}>
+                      <span style={{ display: "block", width: pct + "%", height: "100%", background: healthColor + "55" }} />
+                    </button>
+                    {project.target_date && <span title={"الموعد المستهدف: " + fmtShort(project.target_date)} style={{ position: "absolute", insetInlineStart: x(project.target_date) + "%", top: 8, width: 14, height: 14, transform: "translateX(50%) rotate(45deg)", border: "1px solid " + healthColor, background: C.bg, borderRadius: 2, pointerEvents: "none", zIndex: 1 }} />}
+                  </div>
+                </div>;
+              })}
+            </div>
+          </div>
+          {unscheduled.length > 0 && <div style={{ borderTop: "1px solid " + C.line, marginTop: 12, paddingTop: 10 }}>
+            <b style={{ fontSize: 12.5 }}>غير مجدولة / تحتاج تخطيطًا ({unscheduled.length})</b>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 6, marginTop: 7 }}>
+              {unscheduled.map((project) => <button key={project.id} type="button" onClick={() => openProject(project.id)} style={{ textAlign: "start", border: "1px solid " + C.line, borderRadius: 7, padding: "7px 9px", background: "transparent", color: C.text, cursor: "pointer", font: "inherit", fontSize: 11.5 }}>{project.name}<span style={{ display: "block", color: C.muted, fontSize: 9.5 }}>غير مجدول · افتح لتخطيط المواعيد</span></button>)}
+            </div>
+          </div>}
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 10.5, color: C.muted, marginTop: 10 }}>
+            <span>● مؤشر اليوم</span><span>◆ الموعد المستهدف</span><span>نسبة الامتلاء = تقدم المشروع</span>
+          </div>
+        </div>;
+      })()}
       {tab === "outputs" && <div style={{ ...S.card, marginTop: 12, padding: 0, overflowX: "auto" }}>
         {!outputs.length ? <Empty icon="📦" title="لا توجد مخرجات" sub="عندما تُربط المخرجات بالمشاريع والمهام ستظهر في هذه المحفظة." /> : <table style={{ width: "100%", minWidth: 650, borderCollapse: "collapse", fontSize: 12 }}><thead><tr>{["المخرج","المشروع","النوع","الاعتماد","المصدر"].map((heading) => <th key={heading} style={{ padding: 9, textAlign: "start", color: C.muted, fontSize: 10.5 }}>{heading}</th>)}</tr></thead><tbody>{outputs.map((output) => <tr key={output.id} style={{ borderTop: "1px solid " + C.line }}><td style={{ padding: 9, fontWeight: 700 }}>{output.name}</td><td style={{ padding: 9 }}><Btn small onClick={() => openProject(output.project_id, "outputs", { kind: "output", id: output.id })}>{projectsById[output.project_id]?.name || "المشروع"}</Btn></td><td style={{ padding: 9 }}>{output.type || "—"}</td><td style={{ padding: 9 }}><Chip color={output.approval === "Final" ? C.ok : output.approval === "Review" ? C.warn : C.muted}>{output.approval || "Draft"}</Chip></td><td style={{ padding: 9 }}>{output.task_id && idx.byId[output.task_id] ? <Btn small onClick={() => openProject(output.project_id, "tasks")}>{idx.byId[output.task_id].title}</Btn> : "—"}</td></tr>)}</tbody></table>}
       </div>}
