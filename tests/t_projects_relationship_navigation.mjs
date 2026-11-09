@@ -10,6 +10,45 @@ const screens = await readFile(new URL("../src/systems/projects/screens_c.jsx", 
 const parts = await readFile(new URL("../src/systems/projects/parts.jsx", import.meta.url), "utf8");
 const domain = await readFile(new URL("../src/systems/projects/domain.js", import.meta.url), "utf8");
 
+const templateWrites = await readFile(new URL("../src/systems/projects/templateWrites.js", import.meta.url), "utf8");
+const records = await readFile(new URL("../src/core/records.jsx", import.meta.url), "utf8");
+const templateOkrMigration = await readFile(new URL("../supabase/migrations/20261109213700_projects_atomic_template_okr_batch.sql", import.meta.url), "utf8");
+const templateOkrSqlSmoke = await readFile(new URL("../supabase/tests/projects_template_okr_atomic_batch_smoke.sql", import.meta.url), "utf8");
+const projectsSqlWorkflow = await readFile(new URL("../.github/workflows/projects-sql-smoke.yml", import.meta.url), "utf8");
+
+assert.ok(screens.includes('import { parseObjectiveTemplates, flattenObjectiveTemplates, flattenKeyResultTemplates, objectiveTemplateSummary } from "./templateOkr.js"') &&
+  screens.includes("objectives_text: flattenObjectiveTemplates(tpl.objective_templates || [])") &&
+  screens.includes("key_results_text: flattenKeyResultTemplates(tpl.objective_templates || [])") &&
+  screens.includes("parseObjectiveTemplates(v.objectives_text, v.key_results_text, tree)") &&
+  screens.includes('key: "objectives_text"') && screens.includes('key: "key_results_text"') &&
+  screens.includes("objective_templates: objectiveTemplates"),
+  "Template editor parses, versions and stores Objective/KR definitions alongside the task tree");
+assert.ok(screens.includes("معاينة الأهداف والنتائج الرئيسية") &&
+  screens.includes("objectiveTemplateSummary(objectivePreview)") &&
+  screens.includes("objectiveError ?"),
+  "Template editor provides a live Objective/KR preview with parser errors and relation counts");
+assert.ok(projectScreens.includes("objective_templates || []") &&
+  projectScreens.includes('label="الأهداف / KRs"') &&
+  projectScreens.includes("الهدف والنتائج الرئيسية") &&
+  projectScreens.includes("objectiveCount && (!v.start_date"),
+  "Template picker previews Objectives/KRs and requires a real project date range before creating them");
+assert.ok(store.includes("objectives: (r.objectives || []).map") &&
+  store.includes("krs: (r.krs || []).map") &&
+  templateWrites.includes("[\"objectives\", objectives || []]") &&
+  templateWrites.includes("[\"krs\", krs || []]") &&
+  records.includes("\"objectives\", \"krs\""),
+  "The UI, provider, bundle writer and shared record store all include Objective/KR records in the template transaction");
+assert.ok(templateOkrMigration.includes("'objectives','krs'") &&
+  templateOkrMigration.includes("security invoker") &&
+  templateOkrMigration.includes("expected_updated_at") &&
+  templateOkrMigration.includes("ws_access_level"),
+  "Forward-only Projects batch migration permits Objective/KR while preserving caller RLS, collection permissions and optimistic concurrency");
+assert.ok(templateOkrSqlSmoke.includes("Objective/KR template batch") &&
+  templateOkrSqlSmoke.includes("Rejected Objective/KR template batch left partial records behind") &&
+  templateOkrSqlSmoke.includes("KR permission denial left a partial template package") &&
+  projectsSqlWorkflow.includes("projects_template_okr_atomic_batch_smoke.sql"),
+  "Projects SQL CI verifies atomic Objective/KR success, permission denial, rollback and migration execution");
+
 assert.ok(entities.includes('onClick={() => openProject(o.project_id, "prds", { kind: "prd", id: o.prd_id })}') && entities.includes(">متطلب:"),
   "output requirement reference must navigate to the owning PRD section");
 assert.ok(entities.includes('reqOutputs.map((o) => <button key={o.id} type="button" onClick={() => openProject(d.project_id, "outputs", { kind: "output", id: o.id })}'),
