@@ -156,6 +156,7 @@ export function OutputsView({ projectId }) {
         { key: "prd_id", label: "المواصفة التي يحقّقها", type: "select", emptyLabel: "— بلا —", options: (v) => data.prds.filter((p) => p.project_id === v.project_id).map((p) => ({ v: p.id, l: p.title })) },
         { key: "prd_requirement_id", label: "المتطلب الذي يحقّقه", type: "select", emptyLabel: "— بلا متطلب —", options: (v) => { const prd = data.prds.find((p) => p.id === v.prd_id); return (prd?.requirements || []).filter((r) => r.status !== "Deprecated").map((r) => ({ v: r.id, l: r.title })); } },
         { key: "approval", label: "الاعتماد", type: "select", allowEmpty: false, options: opts(L.approval) },
+        { key: "due_date", label: "موعد التسليم", type: "date" },
         { key: "url", label: "الرابط", type: "url" }, { key: "notes", label: "ملاحظات", type: "textarea", rows: 2 }
       ]} children={(values, set) => (
         <div style={{ gridColumn: "1 / -1", marginTop: 8, border: `1px solid ${C.line}`, borderRadius: 8, padding: 10 }}>
