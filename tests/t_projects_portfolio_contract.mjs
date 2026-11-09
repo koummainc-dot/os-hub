@@ -38,6 +38,21 @@ assert.ok(portfolio.includes("<table style={{ width: \"100%\", minWidth: 890"), 
 assert.ok(portfolio.includes("D.isOverdueLeaf(t, idx, today)"), "Portfolio overdue counts use the canonical task date/status rule");
 assert.ok(portfolio.includes("D.isOpenIssue(i)"), "Portfolio issue counts exclude closed issues");
 assert.ok(portfolio.includes("D.isOpenRisk(r)"), "Portfolio risk counts exclude closed risks");
+assert.ok(portfolio.includes('{ id: "timeline", label: "الخط الزمني" }') &&
+  portfolio.includes('const [timelineZoom, setTimelineZoom] = useState("month")') &&
+  portfolio.includes('setTimelineZoom("week")') &&
+  portfolio.includes('setTimelineZoom("month")'),
+  "Portfolio provides week/month zoom controls for a shared cross-project timeline");
+assert.ok(portfolio.includes("const dated = visible.filter((project) => project.start_date || project.target_date)") &&
+  portfolio.includes("const unscheduled = visible.filter((project) => !project.start_date && !project.target_date)") &&
+  portfolio.includes("Portfolio Timeline") &&
+  portfolio.includes('aria-label={"فتح مشروع " + project.name + " على الخط الزمني"}'),
+  "Portfolio timeline must distinguish unscheduled projects and navigate to the exact project record");
+assert.ok(portfolio.includes("const hasToday = today >= start && today <= end") &&
+  portfolio.includes('الموعد المستهدف: ') &&
+  portfolio.includes("const pct = Math.max(0, Math.min(100, Number(metric.progress) || 0))"),
+  "Portfolio timeline shows today, target-date markers and canonical progress");
+
 assert.ok(portfolio.includes("setPage(\"okrs\")"), "Portfolio links to OKR management");
 assert.ok(!portfolio.includes("localStorage"), "Portfolio does not persist duplicate local-only project state");
 
