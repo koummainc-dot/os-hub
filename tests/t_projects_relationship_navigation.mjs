@@ -203,6 +203,11 @@ assert.ok(parts.includes("const dayEvents = (date) => calendarEvents.filter((eve
   parts.includes('openProject(projectId, "outputs", { kind: "output", id: event.id })') &&
   parts.includes('setPage("meetings")'),
   "Calendar events navigate to their source record or owning system");
+assert.ok(parts.includes('setView({ ...view, meetingsProjectId: projectId, focusMeetingId: event.id })') &&
+  screens.includes("const [focusMeetingId, setFocusMeetingId] = useState(view?.focusMeetingId || \"\")") &&
+  screens.includes('id={"project-meeting-" + m.id}') &&
+  screens.includes("مفتوح من التقويم"),
+  "Clicking a calendar meeting opens the Meetings page with its project filter and the exact meeting highlighted");
 assert.ok(entities.includes('{ key: "due_date", label: "موعد التسليم", type: "date" }') &&
   parts.includes('{ key: "due_date", label: "موعد التسليم", type: "date" }'),
   "Output due dates can be entered from both Outputs and Task Sheet forms");
