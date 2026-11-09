@@ -508,7 +508,7 @@ export function PrdsView({ projectId }) {
       {form && <FormModal title="مواصفة جديدة" initial={{ status: "Not Started", ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { const rec = { ...v, id: uid(), version: 1, sections: PRD_TEMPLATE.map((s) => ({ key: s.key, title: s.title, group: s.group, content: "" })), approvals: [], reviewer_ids: [], lead_id: v.lead_id || me }; const saved = await act.put("prds", rec, projectsById[v.project_id]); setForm(null); if (saved) setSel(saved.id); }} fields={[
         { key: "title", label: "عنوان المواصفة", required: true }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) }, { key: "lead_id", label: "المسؤول", type: "select", options: mOpts(people) }]} />}
       {openPrd && <PrdEditor prd={openPrd} onClose={() => setEditorId(null)} onOpen={(id) => { setSel(id); setEditorId(id); }} />}
-      {taskForm && <TaskForm initial={taskForm} onClose={() => setTaskForm(null)} />}
+      {taskForm && <TaskForm initial={taskForm} allowedProjectIds={[taskForm.project_id]} onClose={() => setTaskForm(null)} />}
     </div>
   );
 }
