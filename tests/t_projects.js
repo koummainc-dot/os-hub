@@ -206,12 +206,12 @@ const {makeEnv,sleep,appJs}=require('./harness');
   
   await goSection('المشاريع'); ok(await click('من قالب'),'template picker opens');
   let picker=doc.querySelector('[role=dialog]');
-  const card=all('[role="dialog"] > div > div > div').find(d=>d.style.cursor==='pointer'&&d.textContent.includes('تطبيق'));
-  ok(!!card,'template picker exposes a selectable project template');
+  const card=all('[role="dialog"] button[type="button"]').find(button=>button.textContent.includes('تطبيق'));
+  ok(!!card,'template picker exposes a semantic button for the project template');
   if(card)card.click(); await sleep(180);
   picker=doc.querySelector('[role=dialog]');
-  ok(!!picker&&picker.textContent.includes('معاينة القالب'),'selecting a template opens its preview');
-  await click('متابعة الإعداد',picker,180);
+  ok(!!picker&&picker.textContent.includes('معاينة حزمة المشروع'),'selecting a template opens its full package preview');
+  await click('متابعة إعداد المشروع',picker,180);
   const setupDlg=doc.querySelector('[role=dialog]');
   const nameIn=all('input',setupDlg).find(i=>i.type==='text'||!i.type);
   ok(!!nameIn,'template setup exposes the project name input');
