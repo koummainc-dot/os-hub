@@ -221,7 +221,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
           if (event.kind === "decision") return openProject(projectId, "decisions", { kind: "decision", id: event.id });
           if (event.kind === "output") return openProject(projectId, "outputs", { kind: "output", id: event.id });
           if (event.kind === "project") return openProject(projectId, "overview");
-          if (event.kind === "meeting") return setPage("meetings");
+          if (event.kind === "meeting") { setView({ ...view, meetingsProjectId: projectId, focusMeetingId: event.id }); return setPage("meetings"); }
           if (event.kind === "review") return setPage("reviews");
         };
         const moveTask = async (task, date) => {
