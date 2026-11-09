@@ -247,7 +247,7 @@ function MoveTreeButton({ t, onDone }) {
 }
 
 // ── Task detail sheet ───────────────────────────────────────────────
-export function TaskSheet() {
+export function TaskSheet({ inline = false }) {
   const { view, closeTask, idx, data, A: act, can, projectsById, today, runningTimer, nameOf, toast, openProject, openDiscovery, setPage, settings, me } = useP();
   const t = view.taskId ? (idx.byId[view.taskId] || null) : null; const [tab, setTab] = useState("details"); const [edit, setEdit] = useState(false); const [sessForm, setSessForm] = useState(false); const [cancelReason, setCancelReason] = useState(null); const [outputForm, setOutputForm] = useState(null);
   useEffect(() => { setTab("details"); }, [view.taskId]);
@@ -273,7 +273,7 @@ export function TaskSheet() {
     setOutputForm(null);
   }
   return (
-    <SideSheet title={t.title} onClose={closeTask} footer={<>
+    <SideSheet title={t.title} onClose={closeTask} inline={inline} footer={<>
       {canW && <Btn onClick={() => setEdit(true)}>✎ تعديل</Btn>}
       {canW && leaf && (runningTimer && runningTimer.task_id === t.id ? <Btn onClick={() => act.stopTimer()}>⏹ أوقف المؤقّت</Btn> : <Btn onClick={() => act.startTimer(t.id)}>▶ ابدأ المؤقّت</Btn>)}
       {canW && leaf && D.cat(status) !== "done" && <Btn kind="primary" onClick={() => act.setTaskStatus(t, "Completed")}>✔ إكمال</Btn>}
