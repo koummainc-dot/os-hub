@@ -1,7 +1,7 @@
 // Domain acceptance tests for Projects OS (plan §18). Run: node tests/t_projects_domain.mjs
 import assert from "node:assert/strict";
 import * as D from "../src/systems/projects/domain.js";
-import { BUILTIN_TEMPLATES } from "../src/systems/projects/lookups.js";
+import { BUILTIN_TEMPLATES, activityEventText } from "../src/systems/projects/lookups.js";
 
 let pass = 0, fail = 0;
 const t = (name, fn) => { try { fn(); pass++; console.log("  ✓", name); } catch (e) { fail++; console.log("  ✗", name, "\n     ", e.message); } };
@@ -41,6 +41,13 @@ t("T-25 property: progress = done leaves / active leaves for random trees", () =
 });
 t("T-24 5,000-node tree builds fast", () => { const tasks = []; for (let i = 0; i < 5000; i++) tasks.push(task("t" + i, { parent_task_id: i ? "t" + Math.floor((i - 1) / 4) : null, status: i % 3 ? "Not Started" : "Completed" })); const t0 = Date.now(); const idx = D.buildTaskIndex(tasks); D.projectMetrics(P(), ctx(tasks)); assert.ok(Date.now() - t0 < 1500, "took " + (Date.now() - t0) + "ms"); assert.ok(idx.derived.t0.leafTotal > 0); });
 
+t("T-78 activity events use human-readable Arabic descriptions", () => {
+  assert.equal(activityEventText({ entity: "tasks", action: "created", summary: "تحليل المنافسين" }), "أنشأ المهمة «تحليل المنافسين»");
+  assert.equal(activityEventText({ entity: "projects", action: "created_from_template", summary: "تطبيق" }), "أنشأ مشروعًا من قالب «تطبيق»");
+  assert.equal(activityEventText({ entity: "risks", action: "materialized", summary: "تأخر الإطلاق" }), "حوّل خطرًا إلى مشكلة «تأخر الإطلاق»");
+  assert.equal(activityEventText({ entity: "prds", action: "version_created", summary: "Platform Architecture v2" }), "أنشأ إصدارًا جديدًا للمواصفة «Platform Architecture v2»");
+  assert.equal(activityEventText({ entity: "issues", action: "unknown_action", summary: "خطأ حفظ" }), "حدّث المشكلة «خطأ حفظ»");
+});
 console.log("Health, risks, issues, time, outputs");
 const H = (p, tasks, extra) => D.projectMetrics(P(p), ctx(tasks, extra));
 t("T-26 past deadline => Red PAST_DEADLINE", () => { const m = H({ target_date: "2026-10-01" }, [task("a")]); assert.equal(m.health, "Red"); assert.ok(m.healthReasons.some((r) => r.code === "PAST_DEADLINE")); });
