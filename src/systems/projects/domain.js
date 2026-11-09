@@ -340,7 +340,9 @@ export function objectiveTaskExecution(obj, krs, idx) {
   const linkedTasks = krTaskGroups.flatMap(({ tasks }) => tasks);
   const legacyKrTasks = krTaskGroups.filter(({ legacy }) => legacy).flatMap(({ tasks }) => tasks);
   const legacyTasks = [...directLegacyTasks, ...linkedTasks];
-  const legacyTaskCount = new Set([...directLegacyTasks, ...legacyKrTasks].map((task) => task.id)).size;
+  const linkedTaskIds = new Set(linkedTasks.map((task) => task.id));
+  const legacyDirectOnly = directLegacyTasks.filter((task) => !linkedTaskIds.has(task.id));
+  const legacyTaskCount = new Set([...legacyDirectOnly, ...legacyKrTasks].map((task) => task.id)).size;
   const result = taskExecutionSummary(legacyTasks, idx, {
     projectIds,
     legacyTaskCount,
