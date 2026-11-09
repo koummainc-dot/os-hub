@@ -500,6 +500,7 @@ export function Templates() {
         const treeError = validateTaskTreeText(v.task_tree_text); if (treeError) throw new Error(treeError);
         let tree = parseTaskTreeText(v.task_tree_text);
         tree = parseTaskDependenciesText(v.task_dependencies_text, tree);
+        const objectiveTemplates = parseObjectiveTemplates(v.objectives_text, v.key_results_text, tree);
         const risks = parseRiskText(v.risks_text);
         const prdTemplates = parsePrdDefinitions(v.prds_text, v.requirements_text);
         const outputTemplates = parseOutputDefinitions(v.outputs_text);
@@ -521,22 +522,22 @@ export function Templates() {
         }
         let validationId = 0;
         D.instantiateProjectTemplate(
-          { task_tree: tree, prd_templates: prdTemplates, output_templates: outputTemplates, risks },
-          { name: "قالب قيد التحقق" },
+          { task_tree: tree, objective_templates: objectiveTemplates, prd_templates: prdTemplates, output_templates: outputTemplates, risks },
+          { name: "قالب قيد التحقق", start_date: "2000-01-01", target_date: "2000-01-02" },
           () => "template_validation_" + (++validationId)
         );
         const rec = {
           id: v.id || uid(), name: String(v.name || "").trim(), description: v.description || "",
           final_goal: v.final_goal || "", project_type: v.project_type || "أخرى",
           duration_days: v.duration_days ? Number(v.duration_days) : null,
-          task_tree: tree, risks, prd_templates: prdTemplates, output_templates: outputTemplates,
+          task_tree: tree, objective_templates: objectiveTemplates, risks, prd_templates: prdTemplates, output_templates: outputTemplates,
           decision_prompts: linesOf(v.decision_prompts_text), team_roles: linesOf(v.team_roles_text),
           checklist: linesOf(v.checklist_text), builtin: false, updated_at: nowIso()
         };
         if (!rec.name) throw new Error("اسم القالب مطلوب");
         const previous = rec.id ? templates.find((item) => item.id === rec.id) : null;
         const versioned = prepareTemplateSave(previous, rec, nowIso());
-        await act.put("templates", versioned); toast("✅ تم حفظ القالب v" + versioned.version + "؛ المشاريع السابقة لن تتغير."); setTemplateForm(null);
+        await act.put("templates", versioned); toast("✅ تم حفظ القالب v" + versioned.version + "؛ " + objectiveTemplates.length + " هدف و" + objectiveTemplateSummary(objectiveTemplates).kr_count + " نتيجة رئيسية ضمن الحزمة. المشاريع السابقة لن تتغير."); setTemplateForm(null);
       }} fields={[
         { key: "name", label: "اسم القالب", required: true, span: 2 }, { key: "description", label: "وصف النطاق وما الذي يغطيه القالب", type: "textarea", rows: 2, span: 2 },
         { key: "project_type", label: "نوع المشروع" }, { key: "duration_days", label: "المدة الإرشادية (أيام)", type: "number", min: 1 },
