@@ -156,6 +156,7 @@ t("T-80 project-to-template conversion preserves reusable structure and strips r
     prd_title: "Platform Architecture", requirement_title: "ERD"
   });
   assert.equal(seed.output_templates[1].task_title, null, "ambiguous task links are not copied");
+  assert.ok(seed.conversion_warnings.length >= 2, "ambiguous PRD and output task links are reported for manual review");
   assert.deepEqual(seed.risks, [{ title: "Launch scope", probability: 4, impact: 5, mitigation: "Phase the rollout" }]);
   assert.equal(seed.lead_id, undefined);
   const instantiated = D.instantiateProjectTemplate(seed, { name: "Template copy", start_date: "2026-02-01" }, (() => { let sequence = 0; return () => "copy_" + (++sequence); })());
