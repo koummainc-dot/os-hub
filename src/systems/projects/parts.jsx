@@ -470,23 +470,42 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
           <div style={{ overflowX: "auto" }}>
             <div style={{ minWidth: 940, width: 940, position: "relative" }}>
               <div style={{ display: "grid", gridTemplateColumns: "220px 700px", gap: 10, alignItems: "end", borderBottom: "1px solid " + C.line, paddingBottom: 8, marginBottom: 6 }}>
-                <span style={{ fontSize: 10.5, color: C.muted }}>المهمة</span>
+                <span style={{ fontSize: 10.5, color: C.muted }}>الهدف / المرحلة / المهمة الرئيسية / المهمة</span>
                 <div style={{ position: "relative", height: 30 }}>
                   {ticks.map((date) => <span key={date} style={{ position: "absolute", insetInlineStart: x(date) + "%", transform: "translateX(50%)", fontSize: 10, color: date <= today && shiftDate(date, timelineStep - 1) >= today ? A : C.muted, whiteSpace: "nowrap" }}>{fmtShort(date)}{date <= today && shiftDate(date, timelineStep - 1) >= today ? " · اليوم" : ""}</span>)}
                 </div>
               </div>
-              {timelineTasks.map((task) => {
+              {timelineRows.map((row) => {
+                if (row.kind !== "task") {
+                  const objectiveRow = row.kind === "objective";
+                  const parentTask = row.task;
+                  const ratio = row.total ? row.completed / row.total : null;
+                  return <div key={row.kind + ":" + row.id} style={{ display: "grid", gridTemplateColumns: "220px 700px", gap: 10, alignItems: "center", minHeight: 38, borderBottom: "1px solid " + C.line, background: objectiveRow ? "rgba(59,130,246,.055)" : row.kind === "phase" ? "rgba(0,0,0,.025)" : "transparent" }}>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", minWidth: 0, paddingInlineStart: row.kind === "main" ? 12 : 0 }}>
+                      {objectiveRow ? <button type="button" onClick={() => setPage("okrs")} style={{ border: 0, padding: 0, background: "transparent", textAlign: "start", font: "inherit", fontSize: 11.5, fontWeight: 800, color: C.info, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>🎯 {row.title}</button> : <button type="button" onClick={() => openTask(parentTask.id)} style={{ border: 0, padding: 0, background: "transparent", textAlign: "start", font: "inherit", fontSize: row.kind === "phase" ? 11.5 : 10.8, fontWeight: row.kind === "phase" ? 750 : 650, color: C.text, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{row.kind === "phase" ? "▰ " : "└ "} {row.title}</button>}
+                      <Chip color={ratio != null && ratio === 1 ? C.ok : C.muted}>{row.completed}/{row.total}</Chip>
+                    </div>
+                    <div style={{ position: "relative", height: 26, borderRadius: 5, background: "repeating-linear-gradient(to right, transparent 0, transparent calc(14.285% - 1px), rgba(0,0,0,.025) calc(14.285% - 1px), rgba(0,0,0,.025) 14.285%)" }}>
+                      {ticks.map((date) => <span key={date} style={{ position: "absolute", insetInlineStart: x(date) + "%", top: 0, bottom: 0, width: 1, background: "rgba(0,0,0,.055)" }} />)}
+                      {hasToday && <span style={{ position: "absolute", insetInlineStart: x(today) + "%", top: -4, bottom: -4, width: 2, background: A, zIndex: 2 }} />}
+                      {ratio != null && <span title={row.completed + " / " + row.total + " مهمة مكتملة"} style={{ position: "absolute", insetInlineStart: "0%", width: (ratio * 100) + "%", maxWidth: "100%", top: 9, height: 8, borderRadius: 5, background: objectiveRow ? "rgba(59,130,246,.22)" : "rgba(16,185,129,.18)", border: "1px solid " + (ratio === 1 ? C.ok : C.line) }} />}
+                    </div>
+                  </div>;
+                }
+                const task = row.task;
                 let a = task.start_date || task.due_date;
                 let b = task.due_date || task.start_date;
                 if (b < a) [a, b] = [b, a];
                 const left = x(a), right = x(b);
                 const width = Math.max(1.1, right - left);
                 const done = D.cat(task.status) === "done";
-                return <div key={task.id} style={{ display: "grid", gridTemplateColumns: "220px 700px", gap: 10, alignItems: "center", minHeight: 38, borderBottom: "1px solid " + C.line }}>
-                  <div style={{ display: "flex", gap: 5, alignItems: "center", minWidth: 0, flexWrap: "nowrap", overflow: "hidden" }}>
+                return <div key={"task:" + task.id} style={{ display: "grid", gridTemplateColumns: "220px 700px", gap: 10, alignItems: "center", minHeight: 38, borderBottom: "1px solid " + C.line }}>
+                  <div style={{ display: "flex", gap: 5, alignItems: "center", minWidth: 0, paddingInlineStart: 20 + (row.depth || 1) * 7, flexWrap: "nowrap", overflow: "hidden" }}>
                     <button type="button" onClick={() => openTask(task.id)} style={{ border: 0, background: "transparent", padding: 0, textAlign: "start", font: "inherit", fontSize: 11.5, color: done ? C.muted : C.text, cursor: "pointer", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{task.title}</button>
+                    {task.milestone && <Chip color={C.warn}>◆ معلم</Chip>}
                     {schedule.critical_task_ids.includes(task.id) && <Chip color={C.warn}>حرجة</Chip>}
                     {(task.dependency_task_ids || []).length > 0 && <Chip color={C.violet}>← {(task.dependency_task_ids || []).length} اعتماد</Chip>}
+                    {(row.otherObjectives || []).length > 0 && <Chip color={C.muted}>هدف إضافي</Chip>}
                   </div>
                   <div style={{ position: "relative", height: 26, background: "repeating-linear-gradient(to right, transparent 0, transparent calc(14.285% - 1px), rgba(0,0,0,.035) calc(14.285% - 1px), rgba(0,0,0,.035) 14.285%)", borderRadius: 5 }}>
                     {ticks.map((date) => <span key={date} style={{ position: "absolute", insetInlineStart: x(date) + "%", top: 0, bottom: 0, width: 1, background: "rgba(0,0,0,.07)" }} />)}
@@ -495,7 +514,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, initialMode = "li
                   </div>
                 </div>;
               })}
-              {dependencyPaths.length > 0 && <svg aria-hidden="true" viewBox={"0 0 940 " + (44 + timelineTasks.length * 38)} preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: 44 + timelineTasks.length * 38, pointerEvents: "none", zIndex: 3, overflow: "visible" }}>
+              {dependencyPaths.length > 0 && <svg aria-hidden="true" viewBox={"0 0 940 " + (44 + timelineRows.length * 38)} preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: 44 + timelineRows.length * 38, pointerEvents: "none", zIndex: 3, overflow: "visible" }}>
                 <defs><marker id={timelineMarkerId} markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill={C.violet} /></marker></defs>
                 {dependencyPaths.map((edge) => <path key={edge.id} d={edge.path} fill="none" stroke={C.violet} strokeWidth="1.5" strokeDasharray="4 3" opacity=".82" markerEnd={"url(#" + timelineMarkerId + ")"} />)}
               </svg>}
