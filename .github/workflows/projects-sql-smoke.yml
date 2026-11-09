@@ -6,6 +6,7 @@ on:
       - "supabase/migrations/**"
       - "supabase/tests/projects_prd_requirement_traceability_smoke.sql"
       - "supabase/tests/projects_atomic_discovery_batch_smoke.sql"
+      - "supabase/tests/projects_template_okr_atomic_batch_smoke.sql"
       - "supabase/tests/projects_okr_v4_legacy_seed.sql"
       - "supabase/tests/projects_okr_v4_relationship_reconciliation_smoke.sql"
       - "supabase/tests/projects_two_identity_privacy_smoke.sql"
@@ -71,6 +72,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261107120000_projects_okr_v4_relationship_reconciliation.sql
       - name: Verify OKR v4 Objective and KR relationship reconciliation
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_okr_v4_relationship_reconciliation_smoke.sql
+      - name: Apply Objective/KR atomic template batch expansion
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261109213700_projects_atomic_template_okr_batch.sql
+      - name: Verify atomic Objective and KR template creation, authorization and rollback
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_template_okr_atomic_batch_smoke.sql
       - name: Apply PRD verified evidence guard migration
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031130000_projects_prd_verified_evidence_guard.sql
       - name: Verify project, task, PRD and output boundaries

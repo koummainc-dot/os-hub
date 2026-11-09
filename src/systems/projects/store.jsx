@@ -265,7 +265,10 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async createFromTemplate(tpl, opts) {
       const r = D.instantiateProjectTemplate(tpl, opts, uid); r.project.created_by = me; if (!r.project.members.length) r.project.members = [{ member_id: me, role: "Lead" }], r.project.lead_id = me;
       await persistTemplateBundle({
-        project: r.project, tasks: r.tasks, risks: r.risks, stamp, actorId: me,
+        project: r.project, tasks: r.tasks,
+        objectives: (r.objectives || []).map((objective) => ({ ...objective, created_by: me })),
+        krs: (r.krs || []).map((kr) => ({ ...kr, created_by: me })),
+        prds: r.prds, outputs: r.outputs, risks: r.risks, stamp, actorId: me,
         atomic: !isDemo,
         putAtomic: R.putAtomic,
         put: (collection, record) => R.put(collection, record),
@@ -559,15 +562,22 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       return task;
     },
     // tasks
-    async saveTask(v, isNew) {
+    async saveTask(v, isNew, linkedKrId) {
       const project = projectsById[v.project_id];
       const errs = D.validateTaskRefs({ ...v, id: v.id || "new" }, { projectsById, tasksById: idx.byId, prdsById }); if (errs.length) throw new Error(errs[0]);
-      if (v.objective_id && !(data.objectives || []).some((objective) => objective.id === v.objective_id && !objective.deleted_at)) throw new Error("الهدف المرتبط غير موجود أو تم حذفه.");
+      // New task writes never persist a direct Objective link; Objective is derived from KR membership.
+      const linkedKr = linkedKrId ? (data.krs || []).find((kr) => kr.id === linkedKrId && !kr.deleted_at && !kr.archived_at) : null;
+      if (linkedKrId && !linkedKr) throw new Error("النتيجة الرئيسية المرتبطة غير موجودة أو غير نشطة.");
+      if (linkedKr && !(linkedKr.project_ids || []).includes(v.project_id)) throw new Error("اربط مشروعًا بنتيجة رئيسية أولًا؛ ربط المهمة بالهدف يُشتق من المشروع والنتيجة الرئيسية.");
       if (v.prd_requirement_id) { const prd = data.prds.find((item) => item.id === v.prd_id); if (!prd || !(prd.requirements || []).some((requirement) => requirement.id === v.prd_requirement_id)) throw new Error("المتطلب المحدد يجب أن يكون ضمن المواصفة المرتبطة بالمهمة."); }
       for (const discoveryId of (v.discovery_ids || [])) { const discovery = data.discovery.find((d) => d.id === discoveryId); if (!discovery) throw new Error("عنصر اكتشاف مرتبط غير موجود"); if ((discovery.project_ids || []).length && !discovery.project_ids.includes(v.project_id)) throw new Error("عنصر الاكتشاف يجب أن يكون مرتبطاً بالمشروع نفسه"); }
       if (D.traceabilityBlocked(settings, project && project.type, project && project.is_system, v)) throw new Error("سياسة التتبع: هذا النوع من المشاريع يتطلب ربط المهمة بمواصفة أو اكتشاف");
       const rec = { ...v, id: v.id || uid(), planning_bucket: v.planning_bucket || "Inbox", status: v.status || "Not Started" };
       const prev = v.id ? idx.byId[v.id] || (recs.tasks || {})[v.id] : null;
+      // Preserve legacy direct Objective links on edits until they can be explicitly reconciled through a KR.
+      // New tasks never persist a direct Task→Objective relationship.
+      if (prev?.objective_id) rec.objective_id = prev.objective_id; else delete rec.objective_id;
+      if (rec.start_date && rec.due_date && rec.start_date > rec.due_date) throw new Error("تاريخ بداية المهمة يجب أن يسبق موعدها النهائي أو يساويه.");
       let firstChildParentPatch = null;
       if (isNew) {
         rec.created_by = me; rec.sort_order = rec.sort_order || Date.now();
@@ -584,6 +594,32 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (becameDone) { rec.completed_at = nowIso(); rec.completed_by = me; } else if (prev && D.cat(rec.status) !== "done") { rec.completed_at = null; }
       if (D.cat(rec.status) === "cancelled" && !rec.cancelled_reason) throw new Error("V-19: سبب الإلغاء مطلوب");
       if (prev && rec.assignee_id !== prev.assignee_id && rec.assignee_id && rec.assignee_id !== me) act("tasks", rec.id, "assigned", nameOf(rec.assignee_id));
+
+      // Objective execution is derived through Objective → KR → Project → explicit task group.
+      // When upgrading a legacy KR, preserve its former project-wide task set before making it explicit.
+      const linkedKrPatch = linkedKr ? {
+        ...linkedKr,
+        task_ids: [...new Set([
+          ...(Array.isArray(linkedKr.task_ids)
+            ? linkedKr.task_ids
+            : (idx.list || []).filter((task) => (linkedKr.project_ids || []).includes(task.project_id)).map((task) => task.id)),
+          rec.id,
+        ])],
+      } : null;
+
+      if (linkedKrPatch) {
+        const writes = [];
+        if (firstChildParentPatch) {
+          const parentProject = projectsById[firstChildParentPatch.project_id] || project;
+          writes.push({ coll: "tasks", rec: { ...stamp(firstChildParentPatch), _vis: visFor(parentProject) } });
+        }
+        writes.push({ coll: "tasks", rec: { ...stamp(rec), _vis: visFor(project) } });
+        writes.push({ coll: "krs", rec: stamp(linkedKrPatch) });
+        const saved = await R.putAtomic(writes);
+        const taskIndex = firstChildParentPatch ? 1 : 0;
+        if (!Array.isArray(saved) || !saved[taskIndex] || !saved[taskIndex + 1]) throw new Error("لم يتم حفظ المهمة وربطها بالنتيجة الرئيسية كعملية واحدة.");
+        return saved[taskIndex];
+      }
       if (firstChildParentPatch) {
         const parentProject = projectsById[firstChildParentPatch.project_id] || project;
         const saved = await R.putAtomic([
@@ -780,7 +816,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
   const value = { shell, ws, isDemo, me, role, access, people, nameOf, settings, lookups, today, weekStartStr, recs, data, trash, projectsById, prdsById, idx, metrics, projectProgress, can, projectRole, visFor, A, R, confirm, toast, alerts, runningTimer, view, setView, page, setPage, pending, online, ready, error, store,
     openProject: (id, tab, focusRecord = null) => { setView((v) => ({ ...v, projectId: id, tab: tab || "overview", taskId: null, focusRecord, ...(focusRecord?.kind === "issue" ? { issueStatusFilter: "all" } : {}) })); setPage("projects"); writeProjectHash({ projectId: id, tab: tab || "overview", taskId: null, focusRecord }); },
     openDiscovery: (id) => { setView((v) => ({ ...v, focusRecord: id ? { kind: "discovery", id } : null })); setPage("discovery"); },
-    openTask: (id) => setView((v) => { const next = { ...v, taskId: id }; writeProjectHash({ projectId: v.projectId, tab: v.tab || "overview", taskId: id, focusRecord: v.focusRecord }); return next; }),
-    closeTask: () => setView((v) => { const next = { ...v, taskId: null }; writeProjectHash(next, true); return next; }), templates: [...BUILTIN_TEMPLATES, ...data.templates], PRD_TEMPLATE };
+    openTask: (id) => setView((v) => { const inlineTask = !!(v.projectId && v.tab === "tasks"); const next = { ...v, taskId: id, inlineTask }; writeProjectHash({ projectId: v.projectId, tab: v.tab || "overview", taskId: id, focusRecord: v.focusRecord }); return next; }),
+    closeTask: () => setView((v) => { const next = { ...v, taskId: null, inlineTask: false }; writeProjectHash(next, true); return next; }), templates: [...BUILTIN_TEMPLATES, ...data.templates], PRD_TEMPLATE };
   return <Ctx.Provider value={value}>{children}{confirmNode}</Ctx.Provider>;
 }

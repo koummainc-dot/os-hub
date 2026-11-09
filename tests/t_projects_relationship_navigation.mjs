@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { activityEventText } from "../src/systems/projects/lookups.js";
 
 const projectScreens = await readFile(new URL("../src/systems/projects/screens_b.jsx", import.meta.url), "utf8");
 const projectIndex = await readFile(new URL("../src/systems/projects/index.jsx", import.meta.url), "utf8");
@@ -7,6 +8,46 @@ const store = await readFile(new URL("../src/systems/projects/store.jsx", import
 const entities = await readFile(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
 const screens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
 const parts = await readFile(new URL("../src/systems/projects/parts.jsx", import.meta.url), "utf8");
+const domain = await readFile(new URL("../src/systems/projects/domain.js", import.meta.url), "utf8");
+
+const templateWrites = await readFile(new URL("../src/systems/projects/templateWrites.js", import.meta.url), "utf8");
+const records = await readFile(new URL("../src/core/records.jsx", import.meta.url), "utf8");
+const templateOkrMigration = await readFile(new URL("../supabase/migrations/20261109213700_projects_atomic_template_okr_batch.sql", import.meta.url), "utf8");
+const templateOkrSqlSmoke = await readFile(new URL("../supabase/tests/projects_template_okr_atomic_batch_smoke.sql", import.meta.url), "utf8");
+const projectsSqlWorkflow = await readFile(new URL("../.github/workflows/projects-sql-smoke.yml", import.meta.url), "utf8");
+
+assert.ok(screens.includes('import { parseObjectiveTemplates, flattenObjectiveTemplates, flattenKeyResultTemplates, objectiveTemplateSummary } from "./templateOkr.js"') &&
+  screens.includes("objectives_text: flattenObjectiveTemplates(tpl.objective_templates || [])") &&
+  screens.includes("key_results_text: flattenKeyResultTemplates(tpl.objective_templates || [])") &&
+  screens.includes("parseObjectiveTemplates(v.objectives_text, v.key_results_text, tree)") &&
+  screens.includes('key: "objectives_text"') && screens.includes('key: "key_results_text"') &&
+  screens.includes("objective_templates: objectiveTemplates"),
+  "Template editor parses, versions and stores Objective/KR definitions alongside the task tree");
+assert.ok(screens.includes("معاينة الأهداف والنتائج الرئيسية") &&
+  screens.includes("objectiveTemplateSummary(objectivePreview)") &&
+  screens.includes("objectiveError ?"),
+  "Template editor provides a live Objective/KR preview with parser errors and relation counts");
+assert.ok(projectScreens.includes("objective_templates || []") &&
+  projectScreens.includes('label="الأهداف / KRs"') &&
+  projectScreens.includes("الأهداف والنتائج الرئيسية") &&
+  projectScreens.includes("objectiveCount && (!v.start_date"),
+  "Template picker previews Objectives/KRs and requires a real project date range before creating them");
+assert.ok(store.includes("objectives: (r.objectives || []).map") &&
+  store.includes("krs: (r.krs || []).map") &&
+  templateWrites.includes("[\"objectives\", objectives || []]") &&
+  templateWrites.includes("[\"krs\", krs || []]") &&
+  records.includes("\"objectives\", \"krs\""),
+  "The UI, provider, bundle writer and shared record store all include Objective/KR records in the template transaction");
+assert.ok(templateOkrMigration.includes("'objectives','krs'") &&
+  templateOkrMigration.includes("security invoker") &&
+  templateOkrMigration.includes("expected_updated_at") &&
+  templateOkrMigration.includes("ws_access_level"),
+  "Forward-only Projects batch migration permits Objective/KR while preserving caller RLS, collection permissions and optimistic concurrency");
+assert.ok(templateOkrSqlSmoke.includes("Objective/KR template batch") &&
+  templateOkrSqlSmoke.includes("Rejected Objective/KR template batch left partial records behind") &&
+  templateOkrSqlSmoke.includes("KR permission denial left a partial template package") &&
+  projectsSqlWorkflow.includes("projects_template_okr_atomic_batch_smoke.sql"),
+  "Projects SQL CI verifies atomic Objective/KR success, permission denial, rollback and migration execution");
 
 assert.ok(entities.includes('onClick={() => openProject(o.project_id, "prds", { kind: "prd", id: o.prd_id })}') && entities.includes(">متطلب:"),
   "output requirement reference must navigate to the owning PRD section");
@@ -46,8 +87,8 @@ assert.ok(entities.includes("function RecordDetailModal({ title, fields, onClose
 for (const label of ["تفاصيل المخرج:", "تفاصيل الخطر:", "تفاصيل المشكلة:", "تفاصيل القرار:", "تفاصيل المواصفة:", "تفاصيل الاكتشاف:"]) {
   assert.ok(entities.includes(label), `read-only details must include the ${label} view`);
 }
-assert.ok(entities.includes('onClick={(e) => { e.stopPropagation(); setDetail(p); }}'),
-  "opening PRD details must not trigger the editable PRD editor underneath");
+assert.ok(entities.includes('onClick={(e) => { e.stopPropagation(); setDetail(prd); }}'),
+  "opening PRD details from the selected specification must not bubble into its editor");
 assert.ok(entities.includes('onClick={(e) => { e.stopPropagation(); setDetail(d); }}'),
   "opening Discovery details must not trigger the editable discovery form underneath");
 
@@ -72,6 +113,46 @@ const decisionsView = entities.slice(entities.indexOf("export function Decisions
 assert.ok(decisionsView.indexOf("const list = data.decisions") < decisionsView.indexOf('useRecordFocus(view, "decision", projectId, list.length)'),
   "DecisionsView must derive its record list before passing its length to the focus hook");
 
+
+assert.ok(projectScreens.includes("function ProjectOkr") &&
+  projectScreens.includes("＋ ربط نتيجة رئيسية") &&
+  projectScreens.includes("linkKrToProject") &&
+  projectScreens.includes("objective_id") &&
+  projectScreens.includes("kr_id") &&
+  projectScreens.includes("project_ids: [...new Set") &&
+  projectScreens.includes("المشروع لا يرتبط مباشرة بالهدف"),
+  "Project OKR workspace must let the user link the project to an existing KR from the project screen; Objective remains derived through KR");
+
+assert.ok(entities.includes("ربط مواصفة موجودة") &&
+  entities.includes("linkExistingPrd") &&
+  entities.includes("لا يمكن نقل هذه المواصفة تلقائيًا") &&
+  entities.includes('prd_id: ""'),
+  "Project PRD workspace must provide a real existing-PRD link flow and block unsafe moves when execution records already depend on the PRD");
+
+assert.ok(parts.includes("لا توجد مواصفة لهذا المشروع بعد") &&
+  parts.includes("تبويب «المواصفات» داخل المشروع"),
+  "Task PRD picker must explain the project-scoped PRD constraint when no PRD exists");
+
+assert.ok(projectScreens.includes("function ProjectSubprojects") &&
+  projectScreens.includes('parent_project_id: p.id') &&
+  projectScreens.includes("المشاريع الفرعية"),
+  "Project Detail exposes real child projects under the current project and creates them with the current project as parent");
+assert.ok(projectScreens.includes("function ProjectAgenda") &&
+  projectScreens.includes("المواعيد القادمة للمهام") &&
+  projectScreens.includes("أجندة المشروع"),
+  "Project Detail exposes an Agenda section combining linked Knowledge OS meetings with upcoming project tasks");
+assert.ok(projectScreens.includes("function ProjectUpdates") &&
+  projectScreens.includes('act.put("updates", draft(), p)') &&
+  projectScreens.includes("تحديثات " + "{p.name}"),
+  "Project Detail exposes project-owned Updates with a real create flow");
+assert.ok(projectScreens.includes('{ id: "projects", label: "المشاريع"') &&
+  projectScreens.includes('{ id: "agenda", label: "الأجندة"') &&
+  projectScreens.includes('{ id: "updates", label: "التحديثات"') &&
+  projectScreens.includes('{ id: "tasks", label: "المهام والمهام الفرعية"'),
+  "Project Detail navigation explicitly contains the requested project workspace sections");
+assert.ok(parts.includes('key: "parent_project_id"') &&
+  parts.includes('اختياري: اجعل المشروع جزءًا من مشروع رئيسي'),
+  "Project creation/editing supports parent-project ownership without introducing a second project data source");
 
 assert.ok(projectScreens.includes('const tabGroups = [') &&
   projectScreens.includes('{ id: "plan", label: "التخطيط"') &&
@@ -109,5 +190,142 @@ assert.ok(okrScreens.includes('const target = view?.okrFocus') &&
 assert.ok(projectScreens.includes("activeGroup.tabs.length > 1") &&
   projectScreens.includes("setTab(group.defaultTab)"),
   "group navigation must reveal relevant subtabs and select a safe default destination");
+
+assert.equal(activityEventText({ entity: "tasks", action: "created", summary: "مهمة الاختبار" }), "أنشأ المهمة «مهمة الاختبار»");
+assert.ok(parts.includes("activityEventText(a)") && projectScreens.includes("activityEventText(event)"),
+  "Task Sheet and Project Activity Hub must share the localized human-readable event formatter");
+
+assert.ok(parts.includes("const newOutputDraft = (extra = {})") &&
+  parts.includes("D.defaultOutputRelationsForTask(t, data.prds)") &&
+  parts.includes("setOutputForm(newOutputDraft())") &&
+  parts.includes("setOutputForm(newOutputDraft({ url: /^https?:/.test(t.result_note)"),
+  "New outputs from Task Sheet and quick-result flow must inherit only valid task specification relationships");
+
+assert.ok(screens.includes("إنشاء قالب من مشروع") &&
+  screens.includes("D.projectToTemplateSeed(project, data)") &&
+  screens.includes("!project.is_system && !project.archived_at && !project.deleted_at") &&
+  screens.includes('can("project.read", project)'),
+  "Project-to-template conversion must be available to editors, scoped to readable active projects, and routed through the pure identity-stripping converter");
+
+assert.ok(screens.includes('import { prepareTemplateSave, restoreTemplateVersion } from "./templateVersions.js"') &&
+  screens.includes("prepareTemplateSave(previous, rec, nowIso())") &&
+  screens.includes("restoreTemplateVersion(current, version, nowIso())") &&
+  screens.includes("version_history") &&
+  screens.includes("الإصدارات"),
+  "Template editing creates versions and the history UI restores an old snapshot as a new version");
+
+assert.ok(domain.includes("const dependencyDefinitions = []") &&
+  domain.includes("definition.task.dependency_task_ids") &&
+  domain.includes("conversion_warnings"),
+  "Project-to-template conversion and template instantiation preserve predecessor links with fresh task IDs and report ambiguous links");
+
+assert.ok(domain.includes("export function validateTaskDependencies") &&
+  domain.includes("export function analyzeTaskSchedule") &&
+  domain.includes("dependency_task_ids"),
+  "Task dependency graph validation and critical-path analysis are part of the Projects domain");
+assert.ok(parts.includes('key: "dependency_task_ids"') &&
+  parts.includes("const taskDependencies = (t.dependency_task_ids || [])") &&
+  parts.includes("const taskDependents = idx.list.filter((task) => (task.dependency_task_ids || []).includes(t.id))"),
+  "TaskForm can set dependencies and Task Sheet exposes both predecessor and successor relations");
+assert.ok(parts.includes('D.cat(task.status) === "cancelled" ? " · ملغاة — استبدل الاعتماد" : ""') &&
+  parts.includes("المهام الملغاة تظهر بعلامة تحذير لتستبدل اعتمادها"),
+  "Existing cancelled predecessor links remain selectable so users can replace them safely");
+assert.ok(parts.includes('const [timelineZoom, setTimelineZoom] = useState("week")') &&
+  parts.includes('[["week", "أسبوع"], ["month", "شهر"], ["quarter", "ربع سنة"]]') &&
+  parts.includes('timelineStep = timelineZoom === "week" ? 7 : timelineZoom === "month" ? 30 : 90') &&
+  parts.includes('const rangeStart = minDate < today ? minDate : today') &&
+  parts.includes('● مؤشر اليوم داخل النطاق'),
+  "Task Gantt supports week/month/quarter zoom and keeps the real current-day marker in the visible range");
+assert.ok(parts.includes('/^\\d{4}-\\d{2}-\\d{2}/.test(String(meeting.date || ""))'),
+  "Project Calendar accepts ISO date prefixes from Knowledge OS meeting timestamps");
+assert.ok(parts.includes('review.status === "Closed" && review.visibility === "team"') &&
+  parts.includes('review.snapshot?.relatedProjects') &&
+  parts.includes('String(review.closed_at).slice(0, 10)'),
+  "Calendar shows only closed, team-shared reviews whose snapshots explicitly include the project");
+
+assert.ok(parts.includes("const x1 = 230 + 7 * x(fromDate)") &&
+  parts.includes("const x2 = 230 + 7 * x(toDate)"),
+  "Gantt dependency connectors convert percentage positions into the 700px grid coordinate system");
+assert.ok(parts.includes("D.analyzeTaskSchedule(projectTasks)") &&
+  parts.includes("dependencyPaths") &&
+  parts.includes("schedule.critical_task_ids.includes(task.id)") &&
+  parts.includes("markerEnd"),
+  "Project Timeline draws dependency connectors and highlights the calculated critical path");
+
+assert.ok(screens.includes("task_dependencies_text: flattenTaskDependencies(tpl.task_tree || [])") &&
+  screens.includes("parseTaskDependenciesText(v.task_dependencies_text, tree)") &&
+  screens.includes("علاقات الاعتماد بين المهام") &&
+  screens.includes("dependency_titles.join"),
+  "Template editor preserves, edits and previews predecessor links in a readable relation field");
+assert.ok(screens.includes("conversion_warnings: Array.isArray(tpl.conversion_warnings) ? tpl.conversion_warnings : []") &&
+  screens.includes("روابط لم تُنقل تلقائيًا — راجعها يدويًا") &&
+  screens.includes("v.conversion_warnings.map((warning, index)"),
+  "Project-to-template conversion warnings remain visible in the editable template review form");
+assert.ok(screens.includes("D.instantiateProjectTemplate(") &&
+  screens.includes("قالب قيد التحقق"),
+  "Template saves run an in-memory instantiation check to reject missing or cyclic dependency links");
+
+assert.ok(domain.includes("export function validateTaskDependencies") &&
+  domain.includes("export function analyzeTaskSchedule") &&
+  domain.includes("cancelled_predecessors"),
+  "Dependency validation and critical-path calculations account for cycles and cancelled or undated predecessors");
+assert.ok(parts.includes('key: "dependency_task_ids"') &&
+  parts.includes("const taskDependencies = (t.dependency_task_ids || [])") &&
+  parts.includes("const taskDependents = idx.list.filter((task) => (task.dependency_task_ids || []).includes(t.id))"),
+  "TaskForm sets prerequisite tasks and Task Sheet navigates to predecessors and dependent tasks from both ends");
+assert.ok(parts.includes("D.analyzeTaskSchedule(projectTasks)") &&
+  parts.includes("dependencyPaths") &&
+  parts.includes("schedule.critical_task_ids.includes(task.id)") &&
+  parts.includes("markerEnd") &&
+  parts.includes("اعتمادات دائرية"),
+  "Project Timeline draws dependency connectors and shows the calculated critical path and schedule warnings");
+assert.ok(parts.includes('task.dependency_task_ids || []') &&
+  parts.includes('openDependencies.length ? "ينتظر " + openDependencies.length + " مهمة" : "الاعتمادات مكتملة"'),
+  "Task Tree surfaces whether prerequisite tasks have been completed");
+
+assert.ok(parts.includes('import { listKnowledgeMeetings } from "../knowledge/repository.js"') &&
+  parts.includes("listKnowledgeMeetings(ws.id)") &&
+  parts.includes("meeting.relatedSystem === \"projects\"") &&
+  parts.includes("String(meeting.relatedId) === String(projectId)"),
+  "Project Calendar loads only active Knowledge OS meetings linked to the current project");
+assert.ok(parts.includes('kind: "decision", date: String(decision.decided_at).slice(0, 10)') &&
+  parts.includes('kind: "output", date: String(output.due_date).slice(0, 10)') &&
+  parts.includes('kind: "project", date: String(project.target_date).slice(0, 10)') &&
+  parts.includes('kind: "meeting", date: String(meeting.date).slice(0, 10)'),
+  "Project Calendar contains only source-backed dated decisions, output due dates, project target and linked meetings");
+assert.ok(parts.includes("const dayEvents = (date) => calendarEvents.filter((event) => event.date === date)") &&
+  parts.includes('openProject(projectId, "decisions", { kind: "decision", id: event.id })') &&
+  parts.includes('openProject(projectId, "outputs", { kind: "output", id: event.id })') &&
+  parts.includes('setPage("meetings")'),
+  "Calendar events navigate to their source record or owning system");
+assert.ok(parts.includes('setView({ ...view, meetingsProjectId: projectId, focusMeetingId: event.id })') &&
+  screens.includes("const [focusMeetingId, setFocusMeetingId] = useState(view?.focusMeetingId || \"\")") &&
+  screens.includes('id={"project-meeting-" + m.id}') &&
+  screens.includes("مفتوح من التقويم"),
+  "Clicking a calendar meeting opens the Meetings page with its project filter and the exact meeting highlighted");
+assert.ok(entities.includes('{ key: "due_date", label: "موعد التسليم", type: "date" }') &&
+  parts.includes('{ key: "due_date", label: "موعد التسليم", type: "date" }'),
+  "Output due dates can be entered from both Outputs and Task Sheet forms");
+
+assert.ok(parts.includes('rowKey: groupKey + ":phase:" + phase.id') &&
+  parts.includes('rowKey: groupKey + ":main:" + node.id') &&
+  parts.includes('rowKey: groupKey + ":task:" + task.id') &&
+  parts.includes("paddingInlineStart: (row.depth || 0) * 12"),
+  "Gantt grouping uses stable unique row keys for repeated Objective memberships and keeps nested Main Task indentation");
+assert.ok(parts.includes("const timelineRows = []") &&
+  parts.includes('kind: "objective"') &&
+  parts.includes('kind: "phase"') &&
+  parts.includes('kind: "main"') &&
+  parts.includes('timelineRows.map((row) => {') &&
+  parts.includes('row.kind === "objective"'),
+  "Gantt rows are grouped as Objective → Phase → Main Task → Task using existing records");
+assert.ok(parts.includes("D.objectiveTaskExecution(objective, data.krs, idx)") &&
+  parts.includes('const ungroupedTimelineTasks = timelineTasks.filter((task) => !assignedTimelineTaskIds.has(task.id))') &&
+  parts.includes('مهام بلا هدف / نتيجة رئيسية مرتبطة'),
+  "KR-derived Objective grouping retains tasks without an Objective/KR link in an explicit ungrouped section");
+assert.ok(parts.includes("viewBox={\"0 0 940 \" + (44 + timelineRows.length * 38)}") &&
+  parts.includes("height: 44 + timelineRows.length * 38") &&
+  parts.includes("timelineRows.indexOf(row)"),
+  "Dependency connector coordinates and SVG height include Objective, Phase and Main Task rows");
 
 console.log("✓ Projects relationship navigation contracts passed");

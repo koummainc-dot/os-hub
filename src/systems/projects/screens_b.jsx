@@ -5,8 +5,8 @@ import { fmt, fmtShort, fmtMinutes, addDays, diffDays, monthDays, MONTH_NAMES, d
 import { uid } from "../../core/records.jsx";
 import { useP } from "./store.jsx";
 import * as D from "./domain.js";
-import { L, opts, STATUS_COLOR } from "./lookups.js";
-import { HealthBadge, StatusChip, PriorityChip, Who, ProjectName, ProjectForm, TaskTree, mOpts } from "./parts.jsx";
+import { L, opts, STATUS_COLOR, activityEventText } from "./lookups.js";
+import { HealthBadge, StatusChip, PriorityChip, Who, ProjectName, ProjectForm, TaskTree, TaskSheet, mOpts } from "./parts.jsx";
 import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView } from "./entities.jsx";
 import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
@@ -76,16 +76,161 @@ export function Projects() {
 }
 export function TemplatePicker({ onClose, tpl }) {
   const { templates, A: act, people, today, openProject, toast, me } = useP(); const [sel, setSel] = useState(tpl || null); const [configure, setConfigure] = useState(false);
-  if (!sel) return <Modal title="اختر قالباً" onClose={onClose}><div style={{ display: "grid", gap: 8 }}>{templates.filter((t) => !t.archived_at).map((t) => <div key={t.id} onClick={() => setSel(t)} style={{ ...S.card, cursor: "pointer", padding: "10px 12px" }}><div style={{ fontWeight: 700, fontSize: 13.5 }}>🧩 {t.name}{t.builtin && <Chip style={{ marginInlineStart: 6 }}>مدمج</Chip>}</div><div style={{ fontSize: 12, color: C.dim }}>{t.description}</div><div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{countNodes(t.task_tree || [])} مهمة · {(t.risks || []).length} خطر · المدة التقديرية {t.duration_days || "—"} يوماً</div></div>)}</div></Modal>;
-  if (!configure) return <Modal title={"معاينة القالب: " + sel.name} onClose={onClose} footer={<><Btn onClick={() => setSel(null)}>اختيار قالب آخر</Btn><Btn kind="primary" onClick={() => setConfigure(true)}>متابعة الإعداد</Btn></>}><div style={{ fontSize: 12.5, lineHeight: 1.8 }}>{sel.description}<div style={{ margin: "8px 0", fontWeight: 700 }}>{countNodes(sel.task_tree || [])} مهمة · {(sel.risks || []).length} خطر · {sel.duration_days || "—"} يوم</div>{(sel.task_tree || []).map((n, i) => <div key={i}>• {n.title}</div>)}<div style={{ color: C.muted, marginTop: 8 }}>لن تُنشأ بيانات قبل تأكيد النموذج التالي.</div></div></Modal>;
-  return <FormModal title={"إعداد مشروع من قالب: " + sel.name} initial={{ name: "", start_date: today, lead_id: me }} onClose={onClose} fields={[
-    { key: "name", label: "اسم المشروع", required: true }, { key: "start_date", label: "تاريخ البدء (تُزاح المواعيد نسبةً إليه)", type: "date", required: true }, { key: "lead_id", label: "القائد", type: "select", options: mOpts(people), allowEmpty: false }, { key: "target_date", label: "الموعد المستهدف (اختياري)", type: "date" }]}
-    onSubmit={async (v) => { const p = await act.createFromTemplate(sel, v); toast(`✅ أُنشئ «${p.name}» بمهامه ومخاطره`); onClose(); openProject(p.id); }} />;
+  const countN = (nodes) => countNodes(nodes || []);
+  const previewTree = (nodes, depth = 0) => (nodes || []).map((node, index) => <div key={depth + "-" + index + "-" + node.title} style={{ paddingInlineStart: depth * 15, padding: "4px 6px", borderBottom: depth ? "0" : "1px solid " + C.line, fontSize: 11.5, display: "flex", alignItems: "center", gap: 7 }}>
+    <span style={{ color: node.milestone ? C.warn : C.muted }}>{node.milestone ? "◆" : depth ? "└" : "•"}</span>
+    <span style={{ flex: 1, minWidth: 0 }}>{node.title}</span>
+    {node.estimate_minutes != null && <Chip>{fmtMinutes(node.estimate_minutes)}</Chip>}
+    {node.offset_days != null && <span style={{ fontSize: 10, color: C.muted }}>اليوم +{node.offset_days}</span>}
+    {node.children?.length > 0 && <span style={{ fontSize: 10, color: C.muted }}>{countN(node.children)} فرعي</span>}
+  </div>).concat((nodes || []).flatMap((node, index) => previewTree(node.children || [], depth + 1)));
+  const objectiveCount = (sel?.objective_templates || []).length;
+  const keyResultCount = (sel?.objective_templates || []).reduce((sum, objective) => sum + (objective.key_results || []).length, 0);
+  const objectiveTaskLinkCount = (sel?.objective_templates || []).reduce((sum, objective) => sum + (objective.key_results || []).reduce((count, kr) => count + (kr.task_titles || []).length, 0), 0);
+  const prdCount = (sel?.prd_templates || []).length;
+  const requirementCount = (sel?.prd_templates || []).reduce((total, prd) => total + (prd.requirements || []).length, 0);
+  const outputCount = (sel?.output_templates || []).length;
+  const riskCount = (sel?.risks || []).length;
+  const roleCount = (sel?.team_roles || []).length;
+  const checklistCount = (sel?.checklist || []).length;
+  if (!sel) return <Modal title="اختر قالباً" wide onClose={onClose}><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 9 }}>{templates.filter((t) => !t.archived_at).map((t) => <button type="button" key={t.id} onClick={() => setSel(t)} style={{ ...S.card, cursor: "pointer", textAlign: "start", padding: 12, font: "inherit" }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 13.5 }}>🧩 {t.name}</b>{t.builtin && <Chip>مدمج</Chip>}</div><div style={{ fontSize: 11.5, color: C.dim, marginTop: 5 }}>{t.description}</div><div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 8 }}><Chip>{countN(t.task_tree)} مهمة</Chip><Chip>{(t.objective_templates || []).length} هدف</Chip><Chip>{(t.objective_templates || []).reduce((sum, objective) => sum + (objective.key_results || []).length, 0)} KR</Chip><Chip>{(t.prd_templates || []).length} مواصفة</Chip><Chip>{(t.output_templates || []).length} مخرج</Chip><Chip>{(t.risks || []).length} خطر</Chip><Chip>{(t.team_roles || []).length} دور</Chip></div></button>)}</div></Modal>;
+  if (!configure) return <Modal title={"معاينة حزمة المشروع: " + sel.name} wide onClose={onClose} footer={<><Btn onClick={() => setSel(null)}>اختيار قالب آخر</Btn><Btn kind="primary" onClick={() => setConfigure(true)}>متابعة إعداد المشروع</Btn></>}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(135px,1fr))", gap: 8, marginBottom: 12 }}>
+      <Stat label="المهام" value={countN(sel.task_tree)} color={C.info} />
+      <Stat label="الأهداف / KRs" value={objectiveCount + " / " + keyResultCount} color={C.violet} />
+      <Stat label="معالم" value={(function countMilestones(nodes){ return (nodes || []).reduce((n, x) => n + (x.milestone ? 1 : 0) + countMilestones(x.children || []), 0); })(sel.task_tree)} color={C.warn} />
+      <Stat label="المواصفات / المتطلبات" value={prdCount + " / " + requirementCount} color={C.violet} />
+      <Stat label="المخرجات" value={outputCount} color={C.ok} />
+      <Stat label="المخاطر المقترحة" value={riskCount} color={C.bad} />
+      <Stat label="الأدوار المطلوبة" value={roleCount} />
+    </div>
+    <div style={{ display: "grid", gap: 10 }}>
+      <section style={S.card}><b style={{ fontSize: 13 }}>هدف المشروع ونطاقه</b><div style={{ fontSize: 12, lineHeight: 1.8, marginTop: 5, whiteSpace: "pre-wrap" }}>{sel.final_goal || "لم يُحدّد هدف افتراضي."}</div><div style={{ fontSize: 11.5, color: C.dim, marginTop: 5, whiteSpace: "pre-wrap" }}>{sel.description || "لا يوجد وصف للنطاق."}</div><div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>المدة الإرشادية: {sel.duration_days || "غير محددة"} يومًا · نوع المشروع: {sel.project_type || "أخرى"}</div></section>
+      <section style={S.card}>
+        <b style={{ fontSize: 13 }}>الأهداف والنتائج الرئيسية (Objective → KR → Project → Task)</b>
+        {!objectiveCount ? <div style={{ fontSize: 11.5, color: C.muted, marginTop: 5 }}>لا توجد أهداف أو نتائج رئيسية في هذا القالب.</div> : (sel.objective_templates || []).map((objective) => <div key={objective.key} style={{ borderTop: "1px solid " + C.line, padding: "8px 0" }}>
+          <b style={{ fontSize: 12.5 }}>🎯 {objective.name}</b>{objective.why && <div style={{ fontSize: 11, color: C.dim }}>{objective.why}</div>}
+          {(objective.key_results || []).map((kr) => <div key={kr.name} style={{ paddingInlineStart: 12, marginTop: 6, fontSize: 11.5 }}>
+            <b>{kr.name}</b> <Chip>{kr.type === "Numeric" ? "رقمية" : "مبنية على مشاريع"}</Chip>
+            {kr.type === "Numeric" && <span style={{ color: C.muted }}> · {kr.initial_value} → {kr.target_value} {kr.unit || ""}</span>}
+            {(kr.task_titles || []).length > 0 ? <div style={{ color: C.info, fontSize: 10.5 }}>مجموعة المهام: {kr.task_titles.join("، ")}</div> : <div style={{ color: C.muted, fontSize: 10.5 }}>لا توجد مهام افتراضية مرتبطة؛ يمكن إسناد مجموعة تنفيذ لاحقًا من KR.</div>}
+          </div>)}
+        </div>)}
+        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>{objectiveCount} هدف · {keyResultCount} نتيجة رئيسية · {objectiveTaskLinkCount} ربط مهمة. الربط الفعلي بعد الإنشاء سيكون من KR.task_ids وKR.project_ids فقط.</div>
+      </section>
+      <section style={S.card}><b style={{ fontSize: 13 }}>مراحل التنفيذ والمهام</b>{countN(sel.task_tree) ? <div style={{ marginTop: 6 }}>{previewTree(sel.task_tree)}</div> : <div style={{ fontSize: 11.5, color: C.muted, marginTop: 5 }}>لا توجد مهام في هذا القالب.</div>}</section>
+      <section style={S.card}><b style={{ fontSize: 13 }}>المواصفات والمتطلبات ومعايير القبول</b>{!(sel.prd_templates || []).length ? <div style={{ fontSize: 11.5, color: C.muted }}>لا توجد مواصفات محددة.</div> : (sel.prd_templates || []).map((prd) => <div key={prd.title} style={{ borderTop: "1px solid " + C.line, padding: "7px 0" }}><b style={{ fontSize: 12 }}>{prd.title}</b>{prd.tldr && <div style={{ fontSize: 11.5, color: C.dim }}>{prd.tldr}</div>}{(prd.requirements || []).map((req) => <div key={req.title} style={{ paddingInlineStart: 12, marginTop: 4, fontSize: 11.5 }}>• {req.title}{req.acceptance_criteria && <div style={{ color: C.muted }}>معيار القبول: {req.acceptance_criteria}</div>}{req.task_title && <div style={{ color: C.info }}>مهمة التنفيذ: {req.task_title}</div>}</div>)}</div>)}</section>
+      <section style={S.card}><b style={{ fontSize: 13 }}>المخرجات المتوقعة</b>{!(sel.output_templates || []).length ? <div style={{ fontSize: 11.5, color: C.muted }}>لا توجد مخرجات محددة.</div> : (sel.output_templates || []).map((output) => <div key={output.name} style={{ borderTop: "1px solid " + C.line, padding: "6px 0", fontSize: 11.5 }}><b>{output.name}</b> · {output.type || "Other"}{output.task_title && <span> · مهمة: {output.task_title}</span>}{output.prd_title && <span> · مواصفة: {output.prd_title}</span>}{output.requirement_title && <span> · متطلب: {output.requirement_title}</span>}</div>)}</section>
+      <section style={S.card}><b style={{ fontSize: 13 }}>المخاطر المتوقعة</b><div style={{ fontSize: 10.5, color: C.warn, margin: "4px 0" }}>هذه مخاطر ابتدائية تحتاج تقييمًا وتأكيدًا بعد تطبيق القالب، وليست حقائق مؤكدة عن المشروع.</div>{(sel.risks || []).map((risk) => <div key={risk.title} style={{ fontSize: 11.5, borderTop: "1px solid " + C.line, padding: "5px 0" }}>⚠ {risk.title}{risk.mitigation && <div style={{ color: C.dim }}>خطة تخفيف مقترحة: {risk.mitigation}</div>}</div>)}</section>
+      <section style={S.card}><b style={{ fontSize: 13 }}>الأدوار وأسئلة القرارات وقائمة الجاهزية</b><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 8, marginTop: 6 }}><div><div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>الأدوار المطلوبة (دون تعيين أفراد)</div>{(sel.team_roles || []).map((role) => <div key={role} style={{ fontSize: 11.5 }}>• {role}</div>)}{!roleCount && <span style={{ fontSize: 11, color: C.muted }}>غير محددة</span>}</div><div><div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>قرارات مطلوب حسمها</div>{(sel.decision_prompts || []).map((item) => <div key={item} style={{ fontSize: 11.5 }}>• {item}</div>)}{!(sel.decision_prompts || []).length && <span style={{ fontSize: 11, color: C.muted }}>لا توجد أسئلة مبدئية</span>}</div><div><div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>قائمة الجاهزية</div>{(sel.checklist || []).map((item) => <div key={item} style={{ fontSize: 11.5 }}>□ {item}</div>)}{!checklistCount && <span style={{ fontSize: 11, color: C.muted }}>غير محددة</span>}</div></div></section>
+    </div>
+    <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8 }}>المعاينة لا تنشئ أي سجلات. عند التطبيق ستُنشأ المهام والمواصفات والمتطلبات والمخرجات والمخاطر المقترحة مع روابطها الداخلية، دون إنشاء أشخاص أو اختلاق بيانات فعلية.</div>
+  </Modal>;
+  return <FormModal title={"إعداد مشروع من حزمة القالب: " + sel.name} wide initial={{ name: "", description: sel.description || "", final_goal: sel.final_goal || "", start_date: today, lead_id: me }} onClose={onClose} fields={[
+    { key: "name", label: "اسم المشروع", required: true, span: 2 }, { key: "description", label: "وصف المشروع (تخصيص)", type: "textarea", rows: 2, span: 2 }, { key: "final_goal", label: "الهدف النهائي", type: "textarea", rows: 2, span: 2 },
+    { key: "start_date", label: "تاريخ البدء (تُزاح المواعيد نسبةً إليه)", type: "date", required: true }, { key: "lead_id", label: "القائد", type: "select", options: mOpts(people), allowEmpty: false }, { key: "target_date", label: "الموعد المستهدف (اختياري)", type: "date" }]}
+    onSubmit={async (v) => { if (objectiveCount && (!v.start_date || (!v.target_date && !(Number(sel.duration_days) > 0)))) throw new Error("القالب يحتوي على أهداف ونتائج رئيسية؛ حدد موعدًا مستهدفًا أو أضف مدة إرشادية للقالب حتى تُنشأ فترة الأهداف بصورة صحيحة."); const project = await act.createFromTemplate(sel, v); toast("✅ أُنشئ «" + project.name + "» مع " + objectiveCount + " هدف و" + keyResultCount + " KR ومجموعات المهام والمواصفات والمخرجات والمخاطر."); onClose(); openProject(project.id); }} />;
 }
 const countNodes = (nodes) => nodes.reduce((a, n) => a + 1 + countNodes(n.children || []), 0);
 
 // ═════ Project detail ═════
-function ProjectDetail() {
+function ProjectActivityHub({ p }) {
+  const { data, idx, ws, me, today, nameOf, can, A: act, toast, openTask, setPage } = useP();
+  const [tab, setTab] = useState("activity");
+  const [meetings, setMeetings] = useState([]);
+  const [meetingState, setMeetingState] = useState("loading");
+  const [creatingKey, setCreatingKey] = useState("");
+  const activity = data.activity.filter((event) => event.entity_id === p.id || (event.entity === "tasks" && idx.byId[event.entity_id]?.project_id === p.id)).sort((a, b) => String(b.at || "").localeCompare(String(a.at || ""))).slice(0, 60);
+  const updates = data.updates.filter((update) => update.project_id === p.id && !update.deleted_at).sort((a, b) => String(b.period_end || "").localeCompare(String(a.period_end || "")));
+  const wins = data.wins.filter((win) => win.project_id === p.id || (win.task_ids || (win.task_id ? [win.task_id] : [])).some((id) => idx.byId[id]?.project_id === p.id)).sort((a, b) => String(b.achieved_on || "").localeCompare(String(a.achieved_on || "")));
+  useEffect(() => {
+    let active = true;
+    if (!ws?.id) { setMeetings([]); setMeetingState("ready"); return () => { active = false; }; }
+    setMeetingState("loading");
+    listKnowledgeMeetings(ws.id).then((result) => {
+      if (!active) return;
+      if (!result.ok) throw result.error || new Error("تعذر تحميل الاجتماعات.");
+      setMeetings((result.meetings || []).filter((meeting) => !meeting.archived && meeting.status !== "archived" && meeting.relatedSystem === "projects" && String(meeting.relatedId) === String(p.id)).sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))));
+      setMeetingState("ready");
+    }).catch(() => { if (active) setMeetingState("error"); });
+    return () => { active = false; };
+  }, [ws?.id, p.id]);
+  async function makeFollowup(meeting, followup, index) {
+    const key = String(meeting.id) + ":" + index;
+    if (creatingKey || p.archived_at || !can("task.write", p)) return;
+    const existing = data.tasks.find((task) => task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index);
+    if (existing) { toast("هذه المتابعة مرتبطة بالفعل بالمهمة: " + existing.title); return; }
+    const title = String(followup || "").trim();
+    if (!title) return;
+    setCreatingKey(key);
+    try {
+      const saved = await act.saveTask({ title, project_id: p.id, assignee_id: me, status: "Not Started", planning_bucket: "Inbox", due_date: meeting.date && meeting.date >= today ? meeting.date : "", source_meeting_id: meeting.id, source_meeting_title: meeting.title || "", source_followup_index: index }, true);
+      if (saved) toast("✅ أُنشئت مهمة متابعة من الاجتماع.");
+    } catch (error) { toast("⛔ تعذّر إنشاء مهمة المتابعة: " + (error?.message || "فشل الحفظ")); }
+    finally { setCreatingKey(""); }
+  }
+  const tabs = [{ id: "activity", label: "النشاط", count: activity.length }, { id: "updates", label: "التحديثات", count: updates.length }, { id: "wins", label: "الإنجازات", count: wins.length }, { id: "meetings", label: "الاجتماعات", count: meetings.length }];
+  return <div style={{ display: "grid", gap: 10 }}>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><Tabs small value={tab} onChange={setTab} tabs={tabs} /><span style={{ flex: 1 }} />{tab === "updates" && <Btn small onClick={() => setPage("updates")}>فتح التحديثات</Btn>}{tab === "wins" && <Btn small onClick={() => setPage("wins")}>فتح الإنجازات</Btn>}{tab === "meetings" && <Btn small onClick={() => setPage("meetings")}>كل الاجتماعات</Btn>}</div>
+    {tab === "activity" && <section style={S.card}>{!activity.length ? <Empty icon="🕘" title="لا يوجد نشاط مسجّل لهذا المشروع" sub="سيظهر هنا إنشاء المهام وتعديلها وتغيّر الحالات والسجلات المرتبطة." /> : activity.map((event) => {
+      const task = event.entity === "tasks" ? idx.byId[event.entity_id] : null;
+      return <div key={event.id} style={{ display: "grid", gridTemplateColumns: "90px 28px minmax(0,1fr)", gap: 8, alignItems: "start", padding: "9px 0", borderTop: "1px solid " + C.line }}>
+        <span style={{ fontSize: 10.5, color: C.muted }}>{event.at ? dateOf(event.at) : "—"}</span><span style={{ color: C.info, textAlign: "center" }}>●</span>
+        <div style={{ minWidth: 0, fontSize: 12.5, lineHeight: 1.7 }}><b>{nameOf(event.actor_id)}</b> · {activityEventText(event)}{task && <div><Btn small onClick={() => openTask(task.id)}>{task.title}</Btn></div>}</div>
+      </div>;
+    })}</section>}
+    {tab === "updates" && <section style={S.card}>{!updates.length ? <Empty icon="📣" title="لا توجد تحديثات" sub="أنشئ تحديثًا من قسم التحديثات وسيظهر هنا مرتبطًا بالمشروع." /> : updates.map((update) => <div key={update.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "9px 0", borderTop: "1px solid " + C.line }}><div style={{ flex: 1, minWidth: 140 }}><b style={{ fontSize: 12.5 }}>{update.title || "تحديث المشروع"}</b><div style={{ fontSize: 10.5, color: C.muted }}>{fmtShort(update.period_start)} → {fmtShort(update.period_end)} · {update.status === "Published" ? "منشور" : "مسودة"}</div></div><Chip color={update.lead_assessment === "On Track" ? C.ok : update.lead_assessment === "At Risk" ? C.warn : C.bad}>{update.lead_assessment || "غير مقيّم"}</Chip></div>)}</section>}
+    {tab === "wins" && <section style={S.card}>{!wins.length ? <Empty icon="🏆" title="لا توجد إنجازات مرتبطة" sub="اربط الإنجاز بمهمة من هذا المشروع أو حدّد المشروع في سجل الإنجاز." /> : wins.map((win) => <div key={win.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "9px 0", borderTop: "1px solid " + C.line }}><span>🏆</span><div style={{ flex: 1, minWidth: 0 }}><b style={{ fontSize: 12.5 }}>{win.title}</b><div style={{ fontSize: 10.5, color: C.muted }}>{win.achieved_on || "—"} · {nameOf(win.member_id)}</div></div>{(win.task_ids || (win.task_id ? [win.task_id] : [])).filter((id) => idx.byId[id]?.project_id === p.id).map((id) => <Btn key={id} small onClick={() => openTask(id)}>فتح المهمة</Btn>)}</div>)}</section>}
+    {tab === "meetings" && <section style={S.card}>
+      {meetingState === "loading" ? <div style={{ fontSize: 12, color: C.muted }}>جارٍ تحميل اجتماعات Knowledge OS…</div> : meetingState === "error" ? <div role="alert" style={{ fontSize: 12, color: C.bad }}>تعذّر تحميل الاجتماعات من Knowledge OS. افتح صفحة الاجتماعات للتحقق من المصدر.</div> : !meetings.length ? <Empty icon="🗓️" title="لا اجتماعات مرتبطة بهذا المشروع" sub="اربط الاجتماع بالمشروع من Knowledge OS ليظهر هنا." /> : meetings.map((meeting) => {
+        const followups = Array.isArray(meeting.followups) ? meeting.followups : [];
+        return <article key={meeting.id} style={{ padding: "9px 0", borderTop: "1px solid " + C.line }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><b style={{ flex: 1, fontSize: 12.5 }}>🗓️ {meeting.title}</b><Chip>{meeting.date || "بدون تاريخ"}</Chip></div>
+          {meeting.summary && <div style={{ fontSize: 11.5, marginTop: 5, whiteSpace: "pre-wrap" }}>{meeting.summary}</div>}
+          {followups.map((followup, index) => {
+            const existing = data.tasks.find((task) => task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index);
+            return <div key={index} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6, fontSize: 11.5 }}><span style={{ flex: 1 }}>{String(followup)}</span>{existing ? <Chip color={C.ok}>مرتبطة: {existing.title}</Chip> : can("task.write", p) ? <Btn small disabled={creatingKey === String(meeting.id) + ":" + index} onClick={() => makeFollowup(meeting, followup, index)}>تحويل إلى مهمة</Btn> : <Chip color={C.muted}>لا توجد صلاحية</Chip>}</div>;
+          })}
+        </article>;
+      })}
+    </section>}
+  </div>;
+}
+
+function ProjectSubprojects({ p }) {
+  const { data, metrics, can, openProject } = useP();
+  const [form, setForm] = useState(null);
+  const children = data.projects.filter((project) => !project.is_system && !project.archived_at && String(project.parent_project_id || "") === String(p.id)).sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ar"));
+  const canCreate = can("project.create");
+  return <div style={{ display: "grid", gap: 12 }}><section style={S.card}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><b style={{ fontSize: 14 }}>المشاريع داخل {p.name}</b><Chip>{children.length}</Chip><span style={{ flex: 1 }} />{canCreate && <Btn kind="primary" onClick={() => setForm({ parent_project_id: p.id })}>＋ مشروع داخل هذا المشروع</Btn>}</div>
+    <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 10 }}>هذه مشاريع فرعية حقيقية مرتبطة بالمشروع الحالي، وليست نظامًا مستقلاً. يمكن فتح كل مشروع منها والعودة إلى المشروع الأب.</div>
+    {!children.length ? <Empty icon="📁" title="لا توجد مشاريع فرعية" sub="أنشئ أول مشروع فرعي من هنا؛ سيُحفظ مباشرة تحت المشروع الحالي." /> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 8 }}>{children.map((child) => { const m = metrics[child.id]; return <button key={child.id} type="button" onClick={() => openProject(child.id)} style={{ ...S.card, textAlign: "start", cursor: "pointer", font: "inherit", padding: 12 }}><div style={{ display: "flex", gap: 8, alignItems: "center" }}><b style={{ flex: 1 }}>{child.name}</b><StatusChip s={child.status} /></div><div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>{child.type || "مشروع"} · {m ? `${m.leafCompleted}/${m.leafTotal} مهمة` : "لا توجد مهام"}</div>{m && <div style={{ marginTop: 7 }}><Progress value={m.progress} /></div>}</button>; })}</div>}
+  </section>{form && <ProjectForm initial={form} onClose={() => setForm(null)} />}</div>;
+}
+
+function ProjectAgenda({ p }) {
+  const { ws, data, setPage, today, openTask } = useP();
+  const [meetings, setMeetings] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  useEffect(() => { let active = true; if (!ws?.id) { setMeetings([]); setLoading(false); return; } setLoading(true); setError(""); listKnowledgeMeetings(ws.id).then((result) => { if (!active) return; if (!result?.ok) { setError(result?.error?.message || "تعذر تحميل أجندة الاجتماعات."); setMeetings([]); } else setMeetings((result.meetings || []).filter((meeting) => !meeting.archived && meeting.status !== "archived" && meeting.relatedSystem === "projects" && String(meeting.relatedId) === String(p.id)).sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")))); setLoading(false); }).catch((e) => { if (active) { setError(e?.message || "تعذر تحميل أجندة الاجتماعات."); setLoading(false); } }); return () => { active = false; }; }, [ws?.id, p.id]);
+  const upcomingTasks = data.tasks.filter((task) => task.project_id === p.id && task.due_date && task.due_date >= today && D.cat(task.status) !== "done" && D.cat(task.status) !== "cancelled").sort((a, b) => String(a.due_date).localeCompare(String(b.due_date))).slice(0, 20);
+  return <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 12 }}><section style={S.card}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><b style={{ fontSize: 14 }}>أجندة المشروع</b><span style={{ flex: 1 }} /><Btn small onClick={() => setPage("meetings")}>كل الاجتماعات</Btn></div>
+    <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 9 }}>الاجتماعات مملوكة لـKnowledge OS وتظهر هنا لأنها مرتبطة بهذا المشروع.</div>
+    {loading ? <div style={{ color: C.muted, fontSize: 12 }}>جارٍ تحميل الاجتماعات…</div> : error ? <div role="alert" style={{ color: C.bad, fontSize: 12 }}>{error}</div> : !meetings.length ? <Empty icon="🗓️" title="لا توجد اجتماعات مرتبطة" sub="اربط الاجتماع بالمشروع من Knowledge OS ليظهر هنا." /> : meetings.map((meeting) => <article key={meeting.id} style={{ borderTop: "1px solid " + C.line, padding: "9px 0" }}><div style={{ display: "flex", gap: 8, alignItems: "center" }}><b style={{ flex: 1 }}>{meeting.title || "اجتماع"}</b><Chip color={C.info}>{meeting.date || "بدون تاريخ"}</Chip></div>{meeting.startTime && <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3 }}>{meeting.startTime}{meeting.endTime ? " → " + meeting.endTime : ""}</div>}{meeting.summary && <div style={{ fontSize: 11.5, lineHeight: 1.7, marginTop: 5, whiteSpace: "pre-wrap" }}>{meeting.summary}</div>}{Array.isArray(meeting.followups) && meeting.followups.length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>متابعات: {meeting.followups.length} · يمكن تحويلها إلى مهام من شاشة الاجتماعات.</div>}</article>)}</section>
+    <section style={S.card}><div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><b style={{ fontSize: 14 }}>المواعيد القادمة للمهام</b><Chip>{upcomingTasks.length}</Chip></div>{!upcomingTasks.length ? <Empty icon="✓" title="لا توجد مهام قادمة" sub="أضف موعدًا للمهام لتظهر في أجندة المشروع." /> : upcomingTasks.map((task) => <div key={task.id} style={{ display: "flex", gap: 8, alignItems: "center", borderTop: "1px solid " + C.line, padding: "7px 0" }}><Chip color={C.info}>{task.due_date}</Chip><button type="button" onClick={() => openTask(task.id)} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", font: "inherit", textAlign: "start", flex: 1 }}>{task.title}</button></div>)}</section>
+  </div>;
+}
+
+function ProjectUpdates({ p }) {
+  const { data, A: act, can, metrics, today, settings, idx } = useP();
+  const [form, setForm] = useState(false); const [sel, setSel] = useState(null);
+  const updates = data.updates.filter((u) => String(u.project_id) === String(p.id)).sort((a, b) => String(b.period_end || "").localeCompare(String(a.period_end || ""))); const writable = can("update.write", p);
+  function draft() { const m = metrics[p.id]; const ps = addDays(today, -14); const done = idx.list.filter((t) => t.project_id === p.id && idx.isLeaf(t.id) && D.cat(t.status) === "done"); const risks = data.risks.filter((r) => r.project_id === p.id && D.isOpenRisk(r)); const issues = data.issues.filter((i) => i.project_id === p.id && D.isOpenIssue(i)); const delayed = idx.list.filter((t) => t.project_id === p.id && idx.isLeaf(t.id) && D.isOverdueLeaf(t, idx, today)); return { id: uid(), project_id: p.id, period_start: ps, period_end: today, type: "Stakeholder", audience: "Management", status: "Draft", lead_assessment: "On Track", author_id: p.lead_id, completed_task_ids: done.map((t) => t.id), delayed_task_ids: delayed.map((t) => t.id), related_risk_ids: risks.map((r) => r.id), related_issue_ids: issues.map((i) => i.id), related_decision_ids: data.decisions.filter((d) => d.project_id === p.id && d.decided_at >= ps && d.decided_at <= today).map((d) => d.id), sections: { highlights: done.slice(0, 8).map((t) => "• أُنجز: " + t.title).join("\n"), lows: [...issues.map((i) => "• مشكلة: " + i.title), ...risks.filter((r) => D.riskScore(r) >= settings.riskHigh).map((r) => "• خطر عالٍ: " + r.title), ...delayed.slice(0, 8).map((t) => "• متأخرة: " + t.title)].join("\n"), metrics: "التقدم " + (m.progress == null ? "—" : Math.round(m.progress * 100) + "%") + " · الصحة: " + D.HEALTH_META[m.health].label + " · المهام " + m.leafCompleted + "/" + m.leafTotal, asks: "", next: "" } }; }
+  async function create() { if (!writable) return; const saved = await act.put("updates", draft(), p); if (saved) { setForm(false); setSel(saved.id); } }
+  const selected = sel ? data.updates.find((u) => u.id === sel) : null;
+  return <div style={{ display: "grid", gap: 12 }}><section style={S.card}><div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><b style={{ fontSize: 14 }}>تحديثات {p.name}</b><Chip>{updates.length}</Chip><span style={{ flex: 1 }} />{writable && <Btn kind="primary" onClick={() => setForm(true)}>＋ إنشاء تحديث</Btn>}</div><div style={{ fontSize: 11.5, color: C.muted, marginBottom: 9 }}>التحديثات مملوكة للمشروع وتُبنى من حالة المهام والمخاطر والمشاكل والقرارات الحالية.</div>{!updates.length ? <Empty icon="📣" title="لا توجد تحديثات" sub="أنشئ أول تحديث للمشروع؛ سيبدأ بمسودة مبنية على البيانات الحالية." /> : <div style={{ display: "grid", gap: 7 }}>{updates.map((u) => <button key={u.id} type="button" onClick={() => setSel(u.id)} style={{ ...S.card, cursor: "pointer", textAlign: "start", font: "inherit", padding: 10 }}><div style={{ display: "flex", gap: 8, alignItems: "center" }}><b style={{ flex: 1 }}>{u.title || "تحديث"}</b><Chip color={u.status === "Published" ? C.ok : C.muted}>{u.status === "Published" ? "منشور" : "مسودة"}</Chip></div><div style={{ fontSize: 10.5, color: C.muted, marginTop: 4 }}>{fmtShort(u.period_start)} → {fmtShort(u.period_end)}</div></button>)}</div>}</section>{form && <Modal title="إنشاء تحديث للمشروع" onClose={() => setForm(false)} footer={<><Btn onClick={() => setForm(false)}>إلغاء</Btn><Btn kind="primary" onClick={create}>إنشاء مسودة</Btn></>}><div style={{ fontSize: 12, lineHeight: 1.8 }}>سيتم إنشاء مسودة تلقائية من المهام المكتملة والمتأخرة والمخاطر والمشاكل والقرارات الحالية، مع الاحتفاظ بالمراجع الأصلية للسجلات.</div></Modal>}{selected && <UpdateEditor u={selected} onClose={() => setSel(null)} />}</div>;
+}function ProjectDetail() {
   const { view, setView, projectsById, metrics, data, can, A: act, idx, today, people, nameOf, toast, sessionsDummy, openTask } = useP();
   const p = projectsById[view.projectId]; const [edit, setEdit] = useState(false); const [wf, setWf] = useState(false); const [tm, setTm] = useState(false);
   if (!p) return <div><Btn onClick={() => setView({ projectId: null, tab: "overview" })}>← المشاريع</Btn><Empty icon="🔎" title="المشروع غير موجود أو محجوب" /></div>;
@@ -93,8 +238,11 @@ function ProjectDetail() {
   const counts = { tasks: m.leafTotal, outputs: m.outputsCount, risks: m.openRisks, issues: m.openIssues, decisions: m.decisionsCount, prds: data.prds.filter((x) => x.project_id === p.id).length };
   const tabGroups = [
     { id: "overview", label: "نظرة عامة", defaultTab: "overview", tabs: [{ id: "overview", label: "نظرة عامة" }] },
-    { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "tasks", label: "المهام", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }] },
+    { id: "projects", label: "المشاريع", defaultTab: "projects", tabs: [{ id: "projects", label: "المشاريع الفرعية" }] },
+    { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "tasks", label: "المهام والمهام الفرعية", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }] },
     { id: "goals", label: "الأهداف", defaultTab: "okr", tabs: [{ id: "okr", label: "الأهداف (OKR)" }] },
+    { id: "agenda", label: "الأجندة", defaultTab: "agenda", tabs: [{ id: "agenda", label: "الأجندة" }] },
+    { id: "updates", label: "التحديثات", defaultTab: "updates", tabs: [{ id: "updates", label: "التحديثات" }] },
     { id: "delivery", label: "التسليم", defaultTab: "outputs", tabs: [{ id: "outputs", label: "المخرجات", count: counts.outputs }, { id: "work", label: "العمل والوقت" }, { id: "timeline", label: "الخط الزمني" }, { id: "related", label: "المراجع" }] },
     { id: "governance", label: "الحوكمة", defaultTab: "risks", tabs: [{ id: "risks", label: "المخاطر", count: counts.risks }, { id: "issues", label: "المشاكل", count: counts.issues }, { id: "decisions", label: "القرارات", count: counts.decisions }] },
     { id: "collaboration", label: "التعاون", defaultTab: "people", tabs: [{ id: "people", label: "الفريق" }, { id: "activity", label: "النشاط" }] },
@@ -118,18 +266,21 @@ function ProjectDetail() {
       <Tabs tabs={tabGroups.map(({ id, label }) => ({ id, label }))} value={activeGroup.id} onChange={setGroup} small />
       {activeGroup.tabs.length > 1 && <Tabs tabs={activeGroup.tabs} value={tab} onChange={setTab} small />}
       {tab === "overview" && <Overview p={p} m={m} />}
-      {tab === "tasks" && <TaskTree projectId={p.id} />}
-      {tab === "timeline" && <ProjectTimeline p={p} />}
+      {tab === "projects" && <ProjectSubprojects p={p} />}
+      {tab === "tasks" && <div style={{ display: "grid", gridTemplateColumns: view.taskId && view.inlineTask ? "repeat(auto-fit,minmax(min(100%,340px),1fr))" : "minmax(0,1fr)", gap: 12, alignItems: "start" }}><div style={{ minWidth: 0 }}><TaskTree projectId={p.id} /></div>{view.taskId && view.inlineTask && <TaskSheet inline />}</div>}
+      {tab === "agenda" && <ProjectAgenda p={p} />}
+      {tab === "updates" && <ProjectUpdates p={p} />}
+      {tab === "timeline" && <TaskTree projectId={p.id} initialMode="timeline" />}
       {tab === "outputs" && <OutputsView projectId={p.id} />}
       {tab === "work" && <WorkTab p={p} />}
       {tab === "prds" && <PrdsView projectId={p.id} />}
       {tab === "risks" && <RisksView projectId={p.id} />}
       {tab === "issues" && <IssuesView projectId={p.id} />}
-      {tab === "decisions" && <DecisionsView projectId={p.id} />}
+      {tab === "decisions" && <ProjectDecisions p={p} />}
       {tab === "people" && <PeopleTab p={p} canE={can("project.members", p)} />}
       {tab === "okr" && <ProjectOkr p={p} />}
       {tab === "related" && <RelatedTab p={p} canE={canE} />}
-      {tab === "activity" && <div style={S.card}>{data.activity.filter((a) => a.entity_id === p.id || (a.entity === "tasks" && idx.byId[a.entity_id] && idx.byId[a.entity_id].project_id === p.id)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40).map((a) => <div key={a.id} style={{ fontSize: 12, padding: "4px 0", color: C.dim }}>{dateOf(a.at)} · {nameOf(a.actor_id)} · {a.action} {a.summary}</div>)}{!data.activity.some((a) => a.entity_id === p.id) && <span style={{ fontSize: 12, color: C.muted }}>لا نشاط مسجَّل</span>}</div>}
+      {tab === "activity" && <ProjectActivityHub p={p} />}
       {edit && <ProjectForm initial={p} onClose={() => setEdit(false)} />}
     </div>
   );
@@ -166,6 +317,30 @@ function Overview({ p, m }) {
       <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>التتبّع (Traceability)</div>
         {cov ? <><Progress value={cov.ratio} /><div style={{ fontSize: 12, color: C.dim, marginTop: 6 }}>{cov.unlinked.length} مهمة بلا مواصفة أو اكتشاف{settings.traceabilityPolicy !== "off" ? "" : " (السياسة مُعطّلة)"}</div></> : <span style={{ fontSize: 12, color: C.muted }}>لا مهام</span>}</div>
       <div style={{ ...S.card, gridColumn: "1 / -1" }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>الهدف والوصف</div><div style={{ fontSize: 13, lineHeight: 1.9, whiteSpace: "pre-wrap" }}>{p.final_goal || "—"}{p.description ? "\n\n" + p.description : ""}</div></div>
+      {(p.template_checklist || []).length > 0 && <div style={{ ...S.card, gridColumn: "1 / -1" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}><b style={{ fontSize: 13 }}>قائمة جاهزية المشروع من القالب</b><span style={{ flex: 1 }} /><Chip color={(p.template_checklist || []).every((item) => p.template_checklist_state?.[item]) ? C.ok : C.info}>{(p.template_checklist || []).filter((item) => p.template_checklist_state?.[item]).length}/{p.template_checklist.length} مكتمل</Chip></div>
+        <Progress value={p.template_checklist.length ? (p.template_checklist || []).filter((item) => p.template_checklist_state?.[item]).length / p.template_checklist.length : null} height={6} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 6, marginTop: 9 }}>
+          {(p.template_checklist || []).map((item, index) => <label key={index} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12, color: p.template_checklist_state?.[item] ? C.muted : C.text, padding: "5px 0" }}>
+            <input type="checkbox" checked={!!p.template_checklist_state?.[item]} disabled={!can("project.edit", p)} onChange={(event) => act.saveProject({ ...p, template_checklist_state: { ...(p.template_checklist_state || {}), [item]: event.target.checked } }, false)} />
+            <span style={{ textDecoration: p.template_checklist_state?.[item] ? "line-through" : "none" }}>{item}</span>
+          </label>)}
+        </div>
+      </div>}
+      {((p.template_roles || []).length > 0 || (p.decision_prompts || []).length > 0) && <div style={{ display: "grid", gridColumn: "1 / -1", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 12 }}>
+        {(p.template_roles || []).length > 0 && <section style={S.card}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 7 }}>الأدوار المطلوبة حسب القالب</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{p.template_roles.map((role, index) => <Chip key={index} color={C.info}>{role}</Chip>)}</div>
+          <div style={{ fontSize: 10.5, color: C.muted, marginTop: 7 }}>هذه احتياجات أدوار وليست أعضاء معيّنين. أضف عضوًا موجودًا من تبويب الفريق عند اختيار الشخص المناسب.</div>
+          <div style={{ marginTop: 7 }}><button type="button" onClick={() => setView({ ...view, tab: "people" })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", font: "inherit", fontSize: 11.5 }}>إدارة أعضاء المشروع ←</button></div>
+        </section>}
+        {(p.decision_prompts || []).length > 0 && <section style={S.card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}><b style={{ flex: 1, fontSize: 13 }}>أسئلة قرارات مطلوب حسمها</b><Chip>{p.decision_prompts.length}</Chip></div>
+          {(p.decision_prompts || []).map((prompt, index) => <div key={index} style={{ display: "flex", gap: 7, alignItems: "flex-start", padding: "5px 0", borderTop: index ? "1px solid " + C.line : 0, fontSize: 11.5 }}><span style={{ color: C.warn }}>؟</span><span>{prompt}</span></div>)}
+          <div style={{ marginTop: 7 }}><button type="button" onClick={() => setView({ ...view, tab: "decisions" })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", font: "inherit", fontSize: 11.5 }}>افتح مصفوفة القرارات لحسمها ←</button></div>
+          <div style={{ fontSize: 10.5, color: C.muted, marginTop: 5 }}>تبقى الأسئلة مقترحات من القالب حتى تسجّل قرارًا فعليًا بالمبرر والمالك والحالة.</div>
+        </section>}
+      </div>}
       {lateTasks.length > 0 && <div style={{ ...S.card, gridColumn: "1 / -1" }}><div style={{ fontSize: 13, fontWeight: 700, color: C.bad, marginBottom: 6 }}>مهام متأخرة ({lateTasks.length})</div>{lateTasks.slice(0, 8).map((t) => <div key={t.id} style={{ fontSize: 12.5, padding: "3px 0" }}>⏰ {t.title} — {fmtShort(t.due_date)} <Who id={t.assignee_id} size={15} /></div>)}</div>}
     </div>
   );
@@ -210,30 +385,72 @@ function WorkTab({ p }) {
     <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>أكثر المهام استهلاكاً للوقت</div>{topTasks.map(([id, mn]) => <div key={id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "3px 0" }}><span>{(idx.byId[id] || {}).title}</span><b>{fmtMinutes(mn)}</b></div>)}</div>
   </div>;
 }
+function ProjectDecisions({ p }) {
+  const prompts = Array.isArray(p.decision_prompts) ? p.decision_prompts : [];
+  return <div style={{ display: "grid", gap: 10 }}>
+    {prompts.length > 0 && <section style={{ ...S.card, padding: 12 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 7 }}>
+        <b style={{ fontSize: 13 }}>أسئلة قرارات يجب حسمها</b><Chip>{prompts.length}</Chip><span style={{ flex: 1 }} />
+        <span style={{ fontSize: 10.5, color: C.muted }}>تحضيرية — ليست قرارات معتمدة</span>
+      </div>
+      {prompts.map((prompt, index) => <div key={index} style={{ fontSize: 12, padding: "6px 0", borderTop: "1px solid " + C.line }}>◦ {prompt}</div>)}
+    </section>}
+    <DecisionsView projectId={p.id} />
+  </div>;
+}
 function PeopleTab({ p, canE }) {
-  const { people, nameOf, A: act, toast, confirm } = useP(); const [add, setAdd] = useState(false);
+  const { people, nameOf, A: act, toast, confirm, idx, today } = useP(); const [add, setAdd] = useState(false);
   const members = p.members || [];
   const save = async (list, lead) => { await act.saveProject({ ...p, members: list, lead_id: lead || p.lead_id }, false); };
   return <div style={S.card}>
-    {members.map((mm) => <div key={mm.member_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.line}` }}><Who id={mm.member_id} /><Chip color={mm.role === "Lead" ? A : C.info}>{L.memberRole[mm.role]}</Chip><span style={{ flex: 1 }} />
-      {canE && mm.role !== "Lead" && <select style={{ ...S.sel, width: 120, padding: "3px 6px" }} value={mm.role} onChange={(e) => save(members.map((x) => (x.member_id === mm.member_id ? { ...x, role: e.target.value } : x)))}>{["Contributor", "Reviewer", "Stakeholder"].map((r) => <option key={r} value={r}>{L.memberRole[r]}</option>)}</select>}
-      {canE && mm.role !== "Lead" && <Btn small danger onClick={async () => { if (await confirm(`إزالة ${nameOf(mm.member_id)} من المشروع؟`)) save(members.filter((x) => x.member_id !== mm.member_id)); }}>إزالة</Btn>}</div>)}
-    {canE && <div style={{ marginTop: 10 }}><Btn small kind="primary" onClick={() => setAdd(true)}>➕ إضافة عضو</Btn></div>}
-    <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>الأعضاء هم أعضاء الـ Workspace. لدعوة شخص جديد استخدم «الفريق والصلاحيات» في المنصة.</div>
-    {add && <FormModal title="إضافة عضو للمشروع" initial={{ role: "Contributor" }} onClose={() => setAdd(false)} fields={[{ key: "member_id", label: "العضو", type: "select", required: true, allowEmpty: false, options: people.filter((x) => !members.some((m) => m.member_id === x.id)).map((x) => ({ v: x.id, l: x.name })) }, { key: "role", label: "الدور", type: "select", allowEmpty: false, options: ["Contributor", "Reviewer", "Stakeholder", "Lead"].map((r) => ({ v: r, l: L.memberRole[r] })) }]} onSubmit={async (v) => { if (v.role === "Lead") { await save([...members.map((x) => (x.role === "Lead" ? { ...x, role: "Contributor" } : x)), { member_id: v.member_id, role: "Lead" }], v.member_id); } else await save([...members, { member_id: v.member_id, role: v.role }]); setAdd(false); }} />}
+    {p.lead_id && <div style={{ padding: "7px 0 10px", borderBottom: "1px solid " + C.line, marginBottom: 5 }}><div style={{ fontSize: 10.5, color: C.muted, marginBottom: 4 }}>قائد المشروع</div><Who id={p.lead_id} /></div>}
+    {(p.template_roles || []).length > 0 && <section style={{ border: "1px dashed " + C.line, borderRadius: 8, padding: 10, marginBottom: 10 }}><div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}><b style={{ fontSize: 12.5 }}>الأدوار المطلوبة من القالب</b><Chip>{p.template_roles.length}</Chip><span style={{ flex: 1 }} /><span style={{ fontSize: 10.5, color: C.muted }}>غير مسندة</span></div><div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{p.template_roles.map((role, index) => <Chip key={index} color={C.muted}>{role} · غير معين</Chip>)}</div></section>}
+    {!members.length ? <Empty icon="👥" title="لا يوجد أعضاء مضافون للمشروع" sub="أضف أعضاء من مساحة العمل وحدد دور كل عضو. لا تتم إضافة أشخاص غير مسجلين." /> : members.map((mm) => {
+      const assigned = idx.list.filter((task) => task.project_id === p.id && task.assignee_id === mm.member_id && idx.isLeaf(task.id));
+      const open = assigned.filter((task) => ["todo", "active"].includes(D.cat(task.status)));
+      const overdue = open.filter((task) => D.isOverdueLeaf(task, idx, today));
+      return <div key={mm.member_id} style={{ display: "grid", gridTemplateColumns: "minmax(130px,1.2fr) auto minmax(110px,1fr) auto", gap: 8, alignItems: "center", padding: "9px 0", borderBottom: "1px solid " + C.line }}>
+        <Who id={mm.member_id} />
+        {canE && mm.role !== "Lead" ? <select aria-label={"دور " + nameOf(mm.member_id)} style={{ ...S.sel, width: 120, padding: "4px 6px" }} value={mm.role} onChange={(e) => save(members.map((x) => x.member_id === mm.member_id ? { ...x, role: e.target.value } : x))}>{["Contributor", "Reviewer", "Stakeholder"].map((role) => <option key={role} value={role}>{L.memberRole[role]}</option>)}</select> : <Chip color={mm.role === "Lead" ? A : C.info}>{L.memberRole[mm.role]}</Chip>}
+        <span style={{ fontSize: 10.5, color: overdue.length ? C.bad : C.muted }}>{open.length} مفتوحة · {overdue.length} متأخرة · {assigned.length} إجمالي</span>
+        {canE && mm.role !== "Lead" && <Btn small danger onClick={async () => { if (await confirm("إزالة " + nameOf(mm.member_id) + " من المشروع؟")) await save(members.filter((x) => x.member_id !== mm.member_id)); }}>إزالة</Btn>}
+      </div>;
+    })}
+    {canE && <div style={{ marginTop: 10 }}><Btn small kind="primary" onClick={() => setAdd(true)}>＋ إضافة عضو</Btn></div>}
+    <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>حِمل العمل محسوب من المهام المسندة لهذا العضو داخل هذا المشروع فقط. الأعضاء هم أعضاء مساحة العمل، ولا تتم دعوة حسابات جديدة من هذه الشاشة.</div>
+    {add && <FormModal title="إضافة عضو للمشروع" initial={{ role: "Contributor" }} onClose={() => setAdd(false)} fields={[{ key: "member_id", label: "العضو", type: "select", required: true, allowEmpty: false, options: people.filter((x) => !members.some((m) => m.member_id === x.id)).map((x) => ({ v: x.id, l: x.name })) }, { key: "role", label: "الدور", type: "select", allowEmpty: false, options: ["Contributor", "Reviewer", "Stakeholder", "Lead"].map((role) => ({ v: role, l: L.memberRole[role] })) }]} onSubmit={async (v) => { if (v.role === "Lead") await save([...members.map((x) => x.role === "Lead" ? { ...x, role: "Contributor" } : x), { member_id: v.member_id, role: "Lead" }], v.member_id); else await save([...members, { member_id: v.member_id, role: v.role }]); setAdd(false); }} />}
   </div>;
 }
 function ProjectOkr({ p }) {
-  const { data, projectProgress, setPage, setView, view } = useP();
+  const { data, projectProgress, setPage, setView, view, A: act, can, toast } = useP();
+  const [linkForm, setLinkForm] = useState(null);
   const objectives = D.objectivesForProject(p.id, data.objectives, data.krs);
   const krs = data.krs.filter((k) => (k.project_ids || []).includes(p.id));
   const openOkrRecord = (kind, id) => {
     setView({ ...view, okrFocus: { kind, id } });
     setPage("okrs");
   };
+  const linkKrToProject = async (v) => {
+    const objective = data.objectives.find((o) => o.id === v.objective_id && !o.deleted_at && !o.archived_at);
+    const kr = data.krs.find((k) => k.id === v.kr_id && !k.deleted_at && !k.archived_at);
+    if (!objective || !kr || kr.objective_id !== objective.id) throw new Error("اختر نتيجة رئيسية صحيحة تحت الهدف المحدد.");
+    if (!can("okr.write", p)) throw new Error("لا تملك صلاحية ربط نتيجة رئيسية بهذا المشروع.");
+    if ((kr.project_ids || []).includes(p.id)) { toast("ℹ️ المشروع مرتبط بهذه النتيجة الرئيسية بالفعل."); setLinkForm(null); return; }
+    await act.put("krs", { ...kr, project_ids: [...new Set([...(kr.project_ids || []), p.id])] });
+    toast("✅ تم ربط المشروع بالنتيجة الرئيسية؛ والهدف أصبح مرتبطًا به تلقائيًا.");
+    setLinkForm(null);
+  };
   const linkStyle = { border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit", textAlign: "start" };
-  if (!krs.length && !objectives.length) return <Empty icon="🎯" title="غير مرتبط بأي هدف أو نتيجة رئيسية" sub="اربط المشروع بهدف أو نتيجة رئيسية من شاشة الأهداف (OKR)." action={<Btn onClick={() => setPage("okrs")}>الأهداف</Btn>} />;
+  const linkButton = <Btn small kind="primary" onClick={() => setLinkForm({})}>＋ ربط نتيجة رئيسية</Btn>;
+  if (!krs.length && !objectives.length) return <div>
+    <Empty icon="🎯" title="غير مرتبط بأي هدف أو نتيجة رئيسية" sub="المشروع لا يرتبط مباشرة بالهدف؛ اختر نتيجة رئيسية تحت الهدف من هنا، وسيُشتق ارتباط الهدف تلقائيًا." action={<div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>{linkButton}<Btn small onClick={() => setPage("okrs")}>فتح الأهداف</Btn></div>} />
+    {linkForm && <FormModal title="ربط المشروع بنتيجة رئيسية" initial={{ objective_id: "", kr_id: "" }} onClose={() => setLinkForm(null)} onSubmit={linkKrToProject} fields={[
+      { key: "objective_id", label: "الهدف", type: "select", required: true, allowEmpty: false, options: data.objectives.filter((o) => !o.deleted_at && !o.archived_at).map((o) => ({ v: o.id, l: o.name })) },
+      { key: "kr_id", label: "النتيجة الرئيسية", type: "select", required: true, allowEmpty: false, options: (v) => data.krs.filter((k) => !k.deleted_at && !k.archived_at && k.objective_id === v.objective_id).map((k) => ({ v: k.id, l: k.name + ((k.project_ids || []).includes(p.id) ? " · مرتبطة بالفعل" : "") })) }
+    ]} />}
+  </div>;
   return <div style={S.card}>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}><b style={{ flex: 1, fontSize: 13 }}>الأهداف والنتائج الرئيسية</b>{linkButton}</div>
     {objectives.map((o) => <div key={o.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13 }}>
       🎯 <b><button type="button" style={linkStyle} onClick={() => openOkrRecord("objective", o.id)}>{o.name} ↗</button></b>
       <div style={{ fontSize: 11, color: C.muted }}>{fmtShort(o.period_start)} → {fmtShort(o.period_end)}</div>
@@ -242,6 +459,10 @@ function ProjectOkr({ p }) {
       🎯 {ob && <span>{ob.name} ← </span>}<b><button type="button" style={linkStyle} onClick={() => openOkrRecord("kr", k.id)}>{k.name} ↗</button></b>
       <div style={{ marginTop: 4 }}><Progress value={D.krProgressValue(k, projectProgress)} /></div>
     </div>; })}
+    {linkForm && <FormModal title="ربط المشروع بنتيجة رئيسية" initial={{ objective_id: "", kr_id: "" }} onClose={() => setLinkForm(null)} onSubmit={linkKrToProject} fields={[
+      { key: "objective_id", label: "الهدف", type: "select", required: true, allowEmpty: false, options: data.objectives.filter((o) => !o.deleted_at && !o.archived_at).map((o) => ({ v: o.id, l: o.name })) },
+      { key: "kr_id", label: "النتيجة الرئيسية", type: "select", required: true, allowEmpty: false, options: (v) => data.krs.filter((k) => !k.deleted_at && !k.archived_at && k.objective_id === v.objective_id).map((k) => ({ v: k.id, l: k.name + ((k.project_ids || []).includes(p.id) ? " · مرتبطة بالفعل" : "") })) }
+    ]} />}
   </div>;
 }
 function RelatedTab({ p, canE }) {

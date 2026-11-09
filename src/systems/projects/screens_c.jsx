@@ -6,6 +6,8 @@ import { uid, nowIso } from "../../core/records.jsx";
 import { useP, GENERAL_ID } from "./store.jsx";
 import * as D from "./domain.js";
 import { L, opts, DEFAULT_LOOKUPS, LOOKUP_LABEL, UPDATE_SECTIONS, MEETING_TEMPLATES, REVIEW_PROMPTS, PRD_TEMPLATE } from "./lookups.js";
+import { prepareTemplateSave, restoreTemplateVersion } from "./templateVersions.js";
+import { parseObjectiveTemplates, flattenObjectiveTemplates, flattenKeyResultTemplates, objectiveTemplateSummary } from "./templateOkr.js";
 import { Who, ProjectName, mOpts, projOpts, HealthBadge, StatusChip, TaskForm } from "./parts.jsx";
 import { TemplatePicker } from "./screens_b.jsx";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
@@ -37,20 +39,21 @@ export function Okrs() {
     }, 2400);
     return () => { window.clearTimeout(scrollTimer); window.clearTimeout(clearTimer); };
   }, [view?.okrFocus, data.objectives, data.krs, setView, toast]);
-  const [oForm, setOForm] = useState(null); const [kForm, setKForm] = useState(null); const [ci, setCi] = useState(null); const [hist, setHist] = useState(null); const [taskForm, setTaskForm] = useState(null); const [taskAllowedProjectIds, setTaskAllowedProjectIds] = useState(null); const [taskProjectForm, setTaskProjectForm] = useState(null); const [filter, setFilter] = useState("Active");
+  const [oForm, setOForm] = useState(null); const [kForm, setKForm] = useState(null); const [ci, setCi] = useState(null); const [hist, setHist] = useState(null); const [taskForm, setTaskForm] = useState(null); const [taskAllowedProjectIds, setTaskAllowedProjectIds] = useState(null); const [taskProjectForm, setTaskProjectForm] = useState(null); const [taskKrId, setTaskKrId] = useState(null); const [filter, setFilter] = useState("Active");
   const objs = data.objectives.filter((o) => filter === "all" || o.status === filter);
   const canEditObj = (o) => role === "Owner" || role === "Admin" || !o || o.owner_id === me || o.created_by === me;
   const checkinsOf = (id) => data.checkins.filter((c) => c.kr_id === id).sort((a, b) => b.checked_at.localeCompare(a.checked_at));
-  const startObjectiveTask = (objective, linkedKrs) => {
-    const projectIds = [...new Set((linkedKrs || []).flatMap((kr) => Array.isArray(kr.project_ids) ? kr.project_ids : []))]
-      .filter((id) => data.projects.some((project) => project.id === id && !project.archived_at && !project.deleted_at));
+  const startObjectiveTask = (objective, kr) => {
+    const projectIds = [...new Set(Array.isArray(kr?.project_ids) ? kr.project_ids : [])]
+      .filter((id) => data.projects.some((project) => project.id === id && !project.is_system && !project.archived_at && !project.deleted_at));
     if (!projectIds.length) {
       toast("اربط مشروعًا بنتيجة رئيسية أولًا؛ ربط المهمة بالهدف يُشتق من المشروع والنتيجة الرئيسية.");
       return;
     }
+    setTaskKrId(kr.id);
     setTaskAllowedProjectIds(projectIds);
     if (projectIds.length === 1) setTaskForm({ project_id: projectIds[0] });
-    else setTaskProjectForm({ objectiveId: objective.id, projectIds });
+    else setTaskProjectForm({ objectiveId: objective.id, krId: kr.id, projectIds });
   };
   return (
     <div>
@@ -64,7 +67,7 @@ export function Okrs() {
               {canEditObj(o) && <><Btn small onClick={() => setOForm(o)}>✎</Btn><Btn small onClick={() => setKForm({ objective_id: o.id, type: "Numeric", owner_id: o.owner_id })}>➕ نتيجة</Btn><Btn small danger onClick={async () => { const linkedTasks = D.objectiveTaskExecution(o, krs, idx).tasks; const linkedWins = data.wins.filter((w) => w.objective_id === o.id); const linkedKrs = data.krs.filter((k) => k.objective_id === o.id); if (linkedTasks.length || linkedWins.length || linkedKrs.length) return toast("لا يمكن حذف هدف مرتبط بمهام أو نتائج رئيسية أو إنجازات. غيّر حالة الهدف إلى ملغى للاحتفاظ بالتاريخ."); if (await confirm("حذف الهدف؟ لا يمكن التراجع عن هذا الإجراء.")) await act.del("objectives", o.id, o.name); }}>🗑</Btn></>}</div>
             {o.why && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>لماذا؟ {o.why}</div>}
             {(() => { const linkedTasks = taskExecution.tasks; const done = linkedTasks.filter((t) => idx.isLeaf(t.id) && D.cat(t.status) === "done").length; return <div style={{ marginTop: 10, padding: "9px 10px", border: "1px solid " + C.line, borderRadius: 9 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}><b style={{ fontSize: 12.5 }}>المهام المرتبطة بالهدف</b><Chip>{done}/{linkedTasks.filter((t) => idx.isLeaf(t.id)).length} مكتملة</Chip><span style={{ flex: 1 }} />{canEditObj(o) && <Btn small onClick={() => startObjectiveTask(o, krs)}>＋ إضافة مهمة</Btn>}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}><b style={{ fontSize: 12.5 }}>المهام المرتبطة بالهدف</b><Chip>{done}/{linkedTasks.filter((t) => idx.isLeaf(t.id)).length} مكتملة</Chip><span style={{ flex: 1 }} /></div>
               {linkedTasks.length ? linkedTasks.map((t) => <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 0", borderTop: "1px solid " + C.line, fontSize: 12 }}>
                 <span style={{ flex: 1, cursor: "pointer" }} onClick={() => openTask(t.id)}>{D.cat(t.status) === "done" ? "✅ " : "▫️ "}{t.title}</span><ProjectName id={t.project_id} /><Btn small onClick={() => openTask(t.id)}>فتح</Btn>
               </div>) : <div style={{ fontSize: 11.5, color: C.muted }}>لا توجد مهام مرتبطة بعد. اربط مهامًا موجودة أو أنشئ مهمة من هنا.</div>}
@@ -75,24 +78,36 @@ export function Okrs() {
               <div key={k.id} id={okrFocusDomId("kr", k.id)} style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.5fr) minmax(110px,1fr) 100px auto", gap: 8, padding: "7px 0", borderTop: `1px solid ${C.line}`, alignItems: "center", fontSize: 12.5, ...(focusTarget?.kind === "kr" && focusTarget.id === k.id ? { outline: "2px solid " + C.info, outlineOffset: 2, borderRadius: 6 } : {}) }}>
                 <div><b>{k.name}</b><div style={{ fontSize: 10.5, color: C.muted }}>{k.type === "Numeric" ? `${k.initial_value ?? 0} → ${k.target_value} ${k.unit || ""} · الحالي ${k.current_value ?? k.initial_value ?? 0}${(k.project_ids || []).length ? ` · ${(k.project_ids || []).length} مشروع داعم` : ""}` : `${(k.project_ids || []).length} مشروع`}{raw != null && raw > 1 ? ` · تجاوز الهدف ${Math.round(raw * 100)}%` : ""}</div></div>
                 <div><Progress value={val} />{execution.progress != null && <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3 }}>تنفيذ المهام المرتبطة: {execution.leafDone}/{execution.leafTotal} ({Math.round(execution.progress * 100)}%)</div>}</div><Chip color={D.PACE_META[kp].color}>{D.PACE_META[kp].label}</Chip>
-                <span style={{ display: "inline-flex", gap: 4 }}>{k.type === "Numeric" && canEditObj(o) && <Btn small onClick={() => setCi({ kr: k, value: k.current_value ?? k.initial_value ?? 0 })}>📍 Check-in</Btn>}<Btn small onClick={() => setHist(k)}>سجل</Btn>{canEditObj(o) && <><Btn small onClick={() => setKForm(k)}>✎</Btn><Btn small danger onClick={() => act.del("krs", k.id, k.name)}>🗑</Btn></>}</span>
+                <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>{canEditObj(o) && <Btn small onClick={() => startObjectiveTask(o, k)}>＋ مهمة مرتبطة</Btn>}{k.type === "Numeric" && canEditObj(o) && <Btn small onClick={() => setCi({ kr: k, value: k.current_value ?? k.initial_value ?? 0 })}>📍 Check-in</Btn>}<Btn small onClick={() => setHist(k)}>سجل</Btn>{canEditObj(o) && <><Btn small onClick={() => setKForm(k)}>✎</Btn><Btn small danger onClick={() => act.del("krs", k.id, k.name)}>🗑</Btn></>}</span>
               </div>); })}{!krs.length && <div style={{ fontSize: 12, color: C.muted }}>لا نتائج رئيسية بعد</div>}</div>
           </div>);
       })}
-      {taskForm && <TaskForm initial={taskForm} allowedProjectIds={taskAllowedProjectIds} onClose={() => { setTaskForm(null); setTaskAllowedProjectIds(null); }} />}
-      {taskProjectForm && <FormModal title="اختر المشروع الذي ستُضاف إليه المهمة" initial={{ project_id: taskProjectForm.projectIds[0] }} onClose={() => setTaskProjectForm(null)} onSubmit={async (v) => { if (!taskProjectForm.projectIds.includes(v.project_id)) return false; setTaskForm({ project_id: v.project_id }); setTaskProjectForm(null); }} fields={[{ key: "project_id", label: "المشروع المرتبط بالنتيجة الرئيسية", type: "select", allowEmpty: false, required: true, options: taskProjectForm.projectIds.map((id) => data.projects.find((project) => project.id === id)).filter(Boolean).map((project) => ({ v: project.id, l: project.name })) }]} />}
+      {taskForm && <TaskForm key={taskKrId || "unlinked"} initial={taskForm} linkedKrId={taskKrId} allowedProjectIds={taskAllowedProjectIds} onClose={() => { setTaskForm(null); setTaskAllowedProjectIds(null); setTaskKrId(null); }} />}
+      {taskProjectForm && <FormModal title="اختر المشروع المرتبط بالنتيجة الرئيسية" initial={{ project_id: taskProjectForm.projectIds[0] }} onClose={() => { setTaskProjectForm(null); setTaskAllowedProjectIds(null); setTaskKrId(null); }} onSubmit={async (v) => { if (!taskProjectForm.projectIds.includes(v.project_id)) return false; setTaskKrId(taskProjectForm.krId); setTaskForm({ project_id: v.project_id }); setTaskProjectForm(null); }} fields={[{ key: "project_id", label: "المشروع الذي ستُضاف إليه المهمة", type: "select", allowEmpty: false, required: true, options: taskProjectForm.projectIds.map((id) => data.projects.find((project) => project.id === id)).filter(Boolean).map((project) => ({ v: project.id, l: project.name })) }]} />}
       {oForm && <FormModal title={oForm.id ? "تعديل الهدف" : "هدف جديد"} wide initial={{ status: "Active", owner_id: me, period_start: today, period_end: addDays(today, 90), ...oForm }} onClose={() => setOForm(null)} validate={(v) => (D.validateDates(v.period_start, v.period_end).length ? { period_end: "النهاية قبل البداية" } : null)} onSubmit={async (v) => { await act.put("objectives", { ...v, id: v.id || uid() }); setOForm(null); }} fields={[{ key: "name", label: "الهدف", required: true, span: 2 }, { key: "why", label: "لماذا؟", type: "textarea", rows: 2 }, { key: "period_start", label: "بداية الفترة", type: "date", required: true }, { key: "period_end", label: "نهاية الفترة", type: "date", required: true }, { key: "status", label: "الحالة", type: "select", allowEmpty: false, options: opts(L.objectiveStatus) }, { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people) }]} />}
       {kForm && <FormModal title={kForm.id ? "تعديل النتيجة الرئيسية" : "نتيجة رئيسية جديدة"} wide initial={kForm} onClose={() => setKForm(null)} validate={(v) => { const e = D.validateKR(v); return e.length ? { target_value: e[0] } : null; }} onSubmit={async (v) => {
-          const rec = { ...v, id: v.id || uid(), task_ids: Array.isArray(v.task_ids) ? v.task_ids : [] };
-          const allowedTaskIds = new Set(data.tasks.filter((t) => !t.deleted_at && (!rec.project_ids?.length || rec.project_ids.includes(t.project_id))).map((t) => t.id));
-          if (rec.task_ids.some((id) => !allowedTaskIds.has(id))) throw new Error("كل مهمة مرتبطة بالنتيجة يجب أن تتبع أحد المشاريع المرتبطة بها.");
+          const currentKr = kForm.id ? data.krs.find((item) => item.id === kForm.id) : null;
+          const legacyTaskIds = currentKr && !Array.isArray(currentKr.task_ids)
+            ? data.tasks.filter((task) => !task.deleted_at && !task.archived_at && (v.project_ids || []).includes(task.project_id)).map((task) => task.id)
+            : [];
+          const selectedTaskIds = Array.isArray(v.task_ids) && (Array.isArray(currentKr?.task_ids) || v.task_ids.length > 0)
+            ? v.task_ids
+            : (currentKr ? legacyTaskIds : (Array.isArray(v.task_ids) ? v.task_ids : []));
+          const rec = { ...v, id: v.id || uid(), task_ids: [...new Set(selectedTaskIds)] };
+          if (rec.task_ids.length && !(rec.project_ids || []).length) throw new Error("اربط مشروعًا بنتيجة رئيسية أولًا؛ ربط المهمة بالهدف يُشتق من المشروع والنتيجة الرئيسية.");
+          const taskById = new Map(data.tasks.map((task) => [task.id, task]));
+          const invalidTaskIds = rec.task_ids.filter((id) => {
+            const task = taskById.get(id);
+            return !task || task.deleted_at || task.archived_at || !(rec.project_ids || []).includes(task.project_id);
+          });
+          if (invalidTaskIds.length) throw new Error("كل مهمة مرتبطة بالنتيجة يجب أن تتبع مشروعًا مرتبطًا بهذه النتيجة الرئيسية.");
           if (rec.type === "Numeric" && rec.current_value == null) rec.current_value = rec.initial_value;
           await act.put("krs", rec); setKForm(null);
         }} fields={[
         { key: "name", label: "النتيجة الرئيسية", required: true, span: 2 }, { key: "type", label: "النوع", type: "select", allowEmpty: false, options: opts(L.krType) }, { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people) },
         { key: "unit", label: "الوحدة", show: (v) => v.type === "Numeric" }, { key: "initial_value", label: "القيمة الابتدائية", type: "number", show: (v) => v.type === "Numeric", required: (v) => v.type === "Numeric" }, { key: "target_value", label: "القيمة المستهدفة", type: "number", show: (v) => v.type === "Numeric", required: (v) => v.type === "Numeric" },
-        { key: "project_ids", label: "المشاريع المرتبطة", type: "multi", hint: "المشاريع التي تدعم هذه النتيجة، دون تغيير قياسها.", options: data.projects.filter((p) => !p.is_system && !p.archived_at).map((p) => ({ v: p.id, l: p.name })) },
-        { key: "task_ids", label: "مجموعة المهام التي تحقق النتيجة", type: "multi", hint: "اختياري. اختر المهام/الشجرة التي تمثل التنفيذ الفعلي لهذه النتيجة. لا تُحسب كل مهام المشروع تلقائياً للـKR الجديد.", options: (v) => data.tasks.filter((t) => !t.deleted_at && (!v.project_ids?.length || v.project_ids.includes(t.project_id))).map((t) => ({ v: t.id, l: t.title })) }]} />}
+        { key: "project_ids", label: "المشاريع المرتبطة", type: "multi", hint: "اربط مشروعًا واحدًا أو أكثر بالنتيجة الرئيسية أولًا؛ ثم اربط بها مجموعة المهام التي تنفذها. يظل قياس النتيجة الرقمية مستقلًا عن مهام التنفيذ، دون تغيير قياسها.", options: data.projects.filter((p) => !p.is_system && !p.archived_at).map((p) => ({ v: p.id, l: p.name })) },
+        { key: "task_ids", label: "مجموعة المهام التي تحقق النتيجة", type: "multi", hint: "تظهر مهام المشاريع المرتبطة فقط. يمكنك اختيار مجموعة تنفيذ، أو إضافة مهام مباشرة من بطاقة النتيجة الرئيسية.", options: (v) => data.tasks.filter((t) => !t.deleted_at && !t.archived_at && (v.project_ids || []).includes(t.project_id)).map((t) => ({ v: t.id, l: t.title })) }]} />}
       {ci && <FormModal title={"Check-in: " + ci.kr.name} initial={{ value: ci.value }} onClose={() => setCi(null)} onSubmit={async (v) => { await act.put("checkins", { id: uid(), kr_id: ci.kr.id, member_id: me, value: v.value, note: v.note || "", checked_at: nowIso() }); await act.put("krs", { ...ci.kr, current_value: v.value }); toast("✅ سُجّل الـ Check-in"); setCi(null); }} fields={[{ key: "value", label: "القيمة الحالية", type: "number", required: true }, { key: "note", label: "ملاحظة", type: "textarea", rows: 2 }]}><div style={{ fontSize: 11, color: C.muted }}>القيمة الحالية لا تتغير إلا عبر Check-in ليبقى السجل التاريخي سليماً.</div></FormModal>}
       {hist && <Modal title={"سجل Check-ins: " + hist.name} onClose={() => setHist(null)}>{!checkinsOf(hist.id).length ? <Empty icon="📍" title="لا Check-ins" /> : checkinsOf(hist.id).map((c) => <div key={c.id} style={{ display: "flex", gap: 10, fontSize: 12.5, padding: "5px 0", borderBottom: `1px solid ${C.line}` }}><b>{c.value}</b><span>{fmt(dateOf(c.checked_at, settings.timezone))}</span><Who id={c.member_id} size={16} /><span style={{ color: C.muted }}>{c.note}</span></div>)}</Modal>}
     </div>
@@ -260,19 +275,98 @@ export function Team() {
 }
 
 // ═════ Templates ═════
-const flattenTaskTree = (nodes, depth = 0) => (nodes || []).flatMap((n) => [`${"  ".repeat(depth)}${n.title || ""}${n.estimate_minutes ? " | " + n.estimate_minutes : ""}`, ...flattenTaskTree(n.children || [], depth + 1)]);
+const flattenTaskTree = (nodes, depth = 0) => (nodes || []).flatMap((n) => {
+  const suffix = [
+    n.estimate_minutes == null ? "" : String(n.estimate_minutes),
+    n.offset_days == null ? "" : String(n.offset_days),
+    n.milestone ? "milestone" : "",
+  ];
+  while (suffix.length && !suffix[suffix.length - 1]) suffix.pop();
+  return ["  ".repeat(depth) + (n.title || "") + (suffix.length ? " | " + suffix.join(" | ") : ""), ...flattenTaskTree(n.children || [], depth + 1)];
+});
+const flattenTaskDependencies = (nodes) => {
+  const lines = [];
+  const walk = (items) => (items || []).forEach((node) => {
+    (node.dependency_titles || []).forEach((title) => lines.push(String(node.title || "") + " <- " + String(title || "")));
+    walk(node.children || []);
+  });
+  walk(nodes || []);
+  return lines.join("\n");
+};
+function parseTaskDependenciesText(value, taskTree) {
+  const nodes = [];
+  const byTitle = new Map();
+  const walk = (items) => (items || []).forEach((node) => {
+    delete node.dependency_titles;
+    nodes.push(node);
+    const title = String(node.title || "").trim();
+    const matches = byTitle.get(title) || [];
+    matches.push(node);
+    byTitle.set(title, matches);
+    walk(node.children || []);
+  });
+  walk(taskTree || []);
+  for (const [index, raw] of String(value || "").split("\n").entries()) {
+    const line = raw.trim();
+    if (!line) continue;
+    const separator = line.indexOf(" <- ");
+    if (separator <= 0) throw new Error("سطر الاعتماد " + (index + 1) + ": استخدم «المهمة <- المهمة السابقة».");
+    const taskTitle = line.slice(0, separator).trim();
+    const predecessorTitle = line.slice(separator + 4).trim();
+    if (!taskTitle || !predecessorTitle) throw new Error("سطر الاعتماد " + (index + 1) + ": حدد المهمة والسابقة معًا.");
+    const taskMatches = byTitle.get(taskTitle) || [];
+    const predecessorMatches = byTitle.get(predecessorTitle) || [];
+    if (taskMatches.length !== 1) throw new Error("المهمة «" + taskTitle + "» في روابط الاعتماد غير موجودة أو عنوانها مكرر.");
+    if (predecessorMatches.length !== 1) throw new Error("المهمة السابقة «" + predecessorTitle + "» غير موجودة أو عنوانها مكرر.");
+    if (taskMatches[0] === predecessorMatches[0]) throw new Error("المهمة «" + taskTitle + "» لا يمكن أن تعتمد على نفسها.");
+    const current = taskMatches[0].dependency_titles || [];
+    if (!current.includes(predecessorTitle)) taskMatches[0].dependency_titles = [...current, predecessorTitle];
+  }
+  const visiting = new Set();
+  const visited = new Set();
+  const hasCycle = (node) => {
+    const title = String(node.title || "").trim();
+    if (visiting.has(title)) return true;
+    if (visited.has(title)) return false;
+    visiting.add(title);
+    for (const dependencyTitle of node.dependency_titles || []) {
+      const dependency = byTitle.get(dependencyTitle)?.[0];
+      if (dependency && hasCycle(dependency)) return true;
+    }
+    visiting.delete(title);
+    visited.add(title);
+    return false;
+  };
+  for (const node of nodes) if (hasCycle(node)) throw new Error("روابط الاعتماد في شجرة القالب تحتوي على دورة؛ راجع التسلسل.");
+  return taskTree;
+}
 function parseTaskTreeText(value) {
   const roots = []; const stack = [];
   for (const raw of String(value || "").split("\n")) {
     if (!raw.trim()) continue;
     const indent = (raw.match(/^[ \t]*/) || [""])[0].replace(/\t/g, "  ").length;
-    const depth = Math.floor(indent / 2); const [titlePart, estimatePart] = raw.trim().split(/\s+\|\s+/);
-    const node = { title: titlePart.trim(), children: [] };
-    if (estimatePart && Number.isFinite(Number(estimatePart))) node.estimate_minutes = Math.max(0, Number(estimatePart));
+    const depth = Math.floor(indent / 2); const parts = raw.trim().split(/\s+\|\s+/);
+    const node = { title: parts[0].trim(), children: [] };
+    if (parts[1]?.trim()) node.estimate_minutes = Number(parts[1]);
+    if (parts[2]?.trim()) node.offset_days = Number(parts[2]);
+    if (parts[3]?.toLowerCase() === "milestone") node.milestone = true;
+    if (parts[4]?.startsWith("deps=")) {
+      try {
+        const titles = JSON.parse(decodeURIComponent(parts[4].slice(5)));
+        if (!Array.isArray(titles) || titles.some((title) => typeof title !== "string" || !title.trim())) throw new Error("invalid dependency titles");
+        node.dependency_titles = [...new Set(titles.map((title) => title.trim()))];
+      } catch { throw new Error("قائمة اعتماد المهام في شجرة القالب غير صالحة."); }
+    }
     if (depth === 0 || !stack[depth - 1]) roots.push(node); else stack[depth - 1].children.push(node);
     stack[depth] = node; stack.length = depth + 1;
   }
-  const clean = (nodes) => nodes.map((n) => ({ ...n, ...(n.estimate_minutes == null ? {} : { estimate_minutes: n.estimate_minutes }), children: clean(n.children) }));
+  const clean = (nodes) => nodes.map((n) => ({
+    ...n,
+    ...(n.estimate_minutes == null ? {} : { estimate_minutes: n.estimate_minutes }),
+    ...(n.offset_days == null ? {} : { offset_days: n.offset_days }),
+    ...(n.dependency_titles?.length ? { dependency_titles: n.dependency_titles } : {}),
+    children: clean(n.children)
+  }));
   return clean(roots);
 }
 function validateTaskTreeText(value) {
@@ -281,64 +375,223 @@ function validateTaskTreeText(value) {
   for (let i = 0; i < lines.length; i++) {
     const { raw, text } = lines[i];
     const prefix = (raw.match(/^[ \t]*/) || [""])[0].replace(/\t/g, "  ");
-    if (prefix.length % 2 !== 0) return `السطر ${i + 1}: استخدم مسافتين لكل مستوى فرعي.`;
+    if (prefix.length % 2 !== 0) return "السطر " + (i + 1) + ": استخدم مسافتين لكل مستوى فرعي.";
     const depth = prefix.length / 2;
     if (i === 0 && depth !== 0) return "ابدأ شجرة المهام بمهمة رئيسية دون مسافات في أول سطر.";
-    if (i > 0 && depth > previousDepth + 1) return `السطر ${i + 1}: لا يمكن تخطي مستوى كامل؛ أضف المهمة الأب أولاً.`;
-    const [title, estimate] = text.split(/\s+\|\s+/);
-    if (!title || !title.trim()) return `السطر ${i + 1}: عنوان المهمة مطلوب.`;
-    if (estimate !== undefined && (!/^\d+(\.\d+)?$/.test(estimate.trim()) || Number(estimate) < 0)) return `السطر ${i + 1}: التقدير بعد | يجب أن يكون رقمًا موجبًا أو صفرًا.`;
+    if (i > 0 && depth > previousDepth + 1) return "السطر " + (i + 1) + ": لا يمكن تخطي مستوى كامل؛ أضف المهمة الأب أولاً.";
+    const parts = text.split(/\s+\|\s+/);
+    if (!parts[0] || !parts[0].trim()) return "السطر " + (i + 1) + ": عنوان المهمة مطلوب.";
+    if (parts[1] !== undefined && parts[1].trim() && (!/^\d+(\.\d+)?$/.test(parts[1].trim()) || Number(parts[1]) < 0)) return "السطر " + (i + 1) + ": التقدير بالدقائق يجب أن يكون رقمًا موجبًا أو صفرًا.";
+    if (parts[2] !== undefined && parts[2].trim() && (!/^\d+$/.test(parts[2].trim()) || Number(parts[2]) < 0)) return "السطر " + (i + 1) + ": إزاحة الموعد بالأيام يجب أن تكون عددًا صحيحًا غير سالب.";
+    if (parts[3]?.trim() && parts[3].toLowerCase() !== "milestone") return "السطر " + (i + 1) + ": القيمة الرابعة الوحيدة المتاحة هي milestone.";
+    if (parts[4] !== undefined) {
+      if (!parts[4].startsWith("deps=") || parts.length > 5) return "السطر " + (i + 1) + ": حقل الاعتماد غير صالح.";
+      try {
+        const titles = JSON.parse(decodeURIComponent(parts[4].slice(5)));
+        if (!Array.isArray(titles) || titles.some((title) => typeof title !== "string" || !title.trim()) || new Set(titles).size !== titles.length) return "السطر " + (i + 1) + ": قائمة المهام السابقة غير صالحة أو مكررة.";
+      } catch { return "السطر " + (i + 1) + ": قائمة المهام السابقة غير صالحة."; }
+    }
+    if (parts.length > 5) return "السطر " + (i + 1) + ": الصيغة المدعومة هي العنوان | دقائق | أيام من البداية | milestone | deps=...";
     previousDepth = depth;
   }
   return null;
 }
+const flattenPrdTemplates = (prds) => (prds || []).map((prd) => `${prd.title || ""}${prd.tldr ? " | " + prd.tldr : ""}`).join("\n");
+const flattenRequirements = (prds) => (prds || []).flatMap((prd) => (prd.requirements || []).map((req) => `${prd.title} :: ${req.title}${req.acceptance_criteria ? " | " + req.acceptance_criteria : ""}${req.task_title ? " | " + req.task_title : ""}`)).join("\n");
+const flattenOutputs = (outputs) => (outputs || []).map((output) => [output.name || "", output.type || "Other", output.task_title || "", output.prd_title || "", output.requirement_title || ""].join(" | ")).join("\n");
+function parsePrdDefinitions(value, requirementsText) {
+  const prds = String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => {
+    const [title, ...summary] = line.split(/\s+\|\s+/);
+    return { title: title.trim(), tldr: summary.join(" | ").trim(), requirements: [] };
+  });
+  const byTitle = new Map(prds.map((prd) => [prd.title, prd]));
+  if (byTitle.size !== prds.length) throw new Error("عنوان المواصفة مكرر في القالب.");
+  for (const [index, line] of String(requirementsText || "").split("\n").entries()) {
+    if (!line.trim()) continue;
+    const [ownerAndTitle, criteria = "", taskTitle = ""] = line.split(/\s+\|\s+/);
+    const separator = ownerAndTitle.indexOf("::");
+    if (separator < 0) throw new Error(`سطر المتطلب ${index + 1}: استخدم اسم المواصفة :: اسم المتطلب | معيار القبول | عنوان المهمة.`);
+    const prdTitle = ownerAndTitle.slice(0, separator).trim();
+    const title = ownerAndTitle.slice(separator + 2).trim();
+    const prd = byTitle.get(prdTitle);
+    if (!prd) throw new Error(`المتطلب «${title}» يشير إلى مواصفة غير موجودة: ${prdTitle}.`);
+    if (!title) throw new Error(`سطر المتطلب ${index + 1}: عنوان المتطلب مطلوب.`);
+    prd.requirements.push({ title, acceptance_criteria: criteria.trim(), task_title: taskTitle.trim() || null, priority: "Medium" });
+  }
+  return prds;
+}
+function parseOutputDefinitions(value) {
+  return String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line, index) => {
+    const [name = "", type = "Other", taskTitle = "", prdTitle = "", requirementTitle = ""] = line.split(/\s+\|\s+/);
+    if (!name.trim()) throw new Error(`سطر المخرج ${index + 1}: الاسم مطلوب.`);
+    return { name: name.trim(), type: type.trim() || "Other", task_title: taskTitle.trim() || null, prd_title: prdTitle.trim() || null, requirement_title: requirementTitle.trim() || null };
+  });
+}
+const linesOf = (value) => String(value || "").split("\n").map((line) => line.trim()).filter(Boolean);
 const flattenRisks = (risks) => (risks || []).map((r) => `${r.title || ""}${r.mitigation ? " — " + r.mitigation : ""}`).join("\n");
 function parseRiskText(value) { return String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [title, ...rest] = line.split(/\s[—-]\s/); return { title: title.trim(), probability: 3, impact: 3, status: "Open", mitigation: rest.join(" — ").trim() }; }); }
 export function Templates() {
-  const { templates, data, A: act, can, toast, role } = useP(); const [use, setUse] = useState(null); const [tab, setTab] = useState("projects"); const [templateForm, setTemplateForm] = useState(null); const [previewTpl, setPreviewTpl] = useState(null); const [showArchived, setShowArchived] = useState(false); const canManage = can("project.create") && role !== "Viewer";
-  const beginTemplateForm = (tpl = {}) => setTemplateForm({ id: tpl.id, name: tpl.name || "", description: tpl.description || "", project_type: tpl.project_type || "", duration_days: tpl.duration_days || "", task_tree_text: flattenTaskTree(tpl.task_tree || []).join("\n"), risks_text: flattenRisks(tpl.risks || []) });
+  const { templates, data, A: act, can, toast, role } = useP(); const [use, setUse] = useState(null); const [tab, setTab] = useState("projects"); const [templateForm, setTemplateForm] = useState(null); const [previewTpl, setPreviewTpl] = useState(null); const [historyTpl, setHistoryTpl] = useState(null); const [showArchived, setShowArchived] = useState(false); const [sourceProjectForm, setSourceProjectForm] = useState(false); const canManage = can("project.create") && role !== "Viewer";
+  const beginTemplateForm = (tpl = {}) => setTemplateForm({ id: tpl.id, name: tpl.name || "", description: tpl.description || "", final_goal: tpl.final_goal || "", project_type: tpl.project_type || "", duration_days: tpl.duration_days || "", task_tree_text: flattenTaskTree(tpl.task_tree || []).join("\n"), task_dependencies_text: flattenTaskDependencies(tpl.task_tree || []), objectives_text: flattenObjectiveTemplates(tpl.objective_templates || []), key_results_text: flattenKeyResultTemplates(tpl.objective_templates || []), conversion_warnings: Array.isArray(tpl.conversion_warnings) ? tpl.conversion_warnings : [], risks_text: flattenRisks(tpl.risks || []), prds_text: flattenPrdTemplates(tpl.prd_templates || []), requirements_text: flattenRequirements(tpl.prd_templates || []), outputs_text: flattenOutputs(tpl.output_templates || []), decision_prompts_text: (tpl.decision_prompts || []).join("\n"), team_roles_text: (tpl.team_roles || []).join("\n"), checklist_text: (tpl.checklist || []).join("\n") });
   const countN = (n) => n.reduce((a, x) => a + 1 + countN(x.children || []), 0);
-  const show = (nodes, depth = 0) => nodes.map((n, i) => <div key={depth + "-" + i + n.title} style={{ paddingInlineStart: depth * 16, fontSize: 12, color: C.dim, lineHeight: 1.8 }}>{depth ? "└ " : "• "}{n.title}{n.estimate_minutes ? ` (${fmtMinutes(n.estimate_minutes)})` : ""}{n.children && show(n.children, depth + 1)}</div>);
+  const show = (nodes, depth = 0) => nodes.map((n, i) => <div key={depth + "-" + i + n.title} style={{ paddingInlineStart: depth * 16, fontSize: 12, color: C.dim, lineHeight: 1.8 }}>{n.milestone ? "◆ " : depth ? "└ " : "• "}{n.title}{n.estimate_minutes ? ` (${fmtMinutes(n.estimate_minutes)})` : ""}{n.offset_days != null ? ` · يوم +${n.offset_days}` : ""}{n.dependency_titles?.length ? <span style={{ color: C.violet }}> · يعتمد على: {n.dependency_titles.join("، ")}</span> : null}{n.children && show(n.children, depth + 1)}</div>);
   return (
     <div>
-      <Head title="القوالب" sub="قوالب المشاريع بشجرة مهام ومخاطر · قوالب المواصفات والتحديثات والاجتماعات" />
+      <Head title="القوالب" sub="حزم مشاريع تجمع الأهداف والنتائج الرئيسية ومجموعات المهام والاعتمادات والمواصفات والمخرجات والمخاطر والأدوار وقائمة الجاهزية." />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: "projects", label: "قوالب المشاريع", count: templates.length }, { id: "prd", label: "قالب المواصفة" }, { id: "update", label: "قالب التحديث" }, { id: "review", label: "قالب المراجعة" }, { id: "meetings", label: "قوالب الاجتماعات" }]} />
       {tab === "projects" && <div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
           {canManage && <Btn kind="primary" onClick={() => beginTemplateForm()}>＋ إنشاء قالب مخصص</Btn>}
+          {canManage && <Btn onClick={() => setSourceProjectForm(true)}>إنشاء قالب من مشروع</Btn>}
           <Btn onClick={() => setShowArchived(!showArchived)}>{showArchived ? "عرض القوالب النشطة" : "عرض المؤرشفة"}</Btn>
           <span style={{ fontSize: 11.5, color: C.muted }}>القوالب المدمجة للنسخ والتخصيص؛ القوالب المرجعية للاجتماعات لا تنشئ اجتماعات.</span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 10 }}>{templates.filter((t) => !!t.archived_at === showArchived).map((t) => <div key={t.id} style={{ ...S.card, padding: "12px 14px", opacity: t.archived_at ? .72 : 1 }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 14 }}>🧩 {t.name}</b>{t.builtin && <Chip>مدمج — للنسخ</Chip>}{t.archived_at && <Chip color={C.muted}>مؤرشف</Chip>}</div><div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{t.description}</div><div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>{countN(t.task_tree || [])} مهمة · {(t.risks || []).length} خطر · {t.duration_days || "—"} يوم</div><div style={{ maxHeight: 130, overflowY: "auto", marginBottom: 8 }}>{show(t.task_tree || [])}</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{!t.archived_at && can("project.create") && <Btn kind="primary" small onClick={() => setPreviewTpl(t)}>معاينة</Btn>}{!t.archived_at && can("project.create") && <Btn small onClick={() => setUse(t)}>استخدام</Btn>}{canManage && t.builtin && <Btn small onClick={() => beginTemplateForm({ ...t, id: undefined, name: t.name + " — نسخة مخصصة", builtin: false })}>نسخ وتخصيص</Btn>}{canManage && !t.builtin && !t.archived_at && <Btn small onClick={() => beginTemplateForm(t)}>تعديل</Btn>}{canManage && !t.builtin && !t.archived_at && <Btn small onClick={() => act.put("templates", { ...t, archived_at: nowIso() }).then(() => toast("تمت أرشفة القالب"))}>أرشفة</Btn>}{canManage && !t.builtin && t.archived_at && <Btn small onClick={() => { const { archived_at, ...rest } = t; act.put("templates", rest).then(() => toast("تمت استعادة القالب")); }}>استعادة</Btn>}</div></div>)}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 10 }}>{templates.filter((t) => !!t.archived_at === showArchived).map((t) => <div key={t.id} style={{ ...S.card, padding: "12px 14px", opacity: t.archived_at ? .72 : 1 }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 14 }}>🧩 {t.name}</b>{t.builtin && <Chip>مدمج — للنسخ</Chip>}{!t.builtin && <Chip color={C.muted}>v{t.version || 1}</Chip>}{t.archived_at && <Chip color={C.muted}>مؤرشف</Chip>}</div><div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{t.description}</div><div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>{countN(t.task_tree || [])} مهمة · {(t.objective_templates || []).length} هدف · {(t.objective_templates || []).reduce((n, objective) => n + (objective.key_results || []).length, 0)} KR · {(t.prd_templates || []).length} مواصفة · {(t.output_templates || []).length} مخرج متوقع · {(t.risks || []).length} مخاطر · {t.duration_days || "—"} يوم</div><div style={{ maxHeight: 130, overflowY: "auto", marginBottom: 8 }}>{show(t.task_tree || [])}</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{!t.archived_at && can("project.create") && <Btn kind="primary" small onClick={() => setPreviewTpl(t)}>معاينة</Btn>}{!t.archived_at && can("project.create") && <Btn small onClick={() => setUse(t)}>استخدام</Btn>}{canManage && t.builtin && <Btn small onClick={() => beginTemplateForm({ ...t, id: undefined, name: t.name + " — نسخة مخصصة", builtin: false })}>نسخ وتخصيص</Btn>}{canManage && !t.builtin && !t.archived_at && <Btn small onClick={() => beginTemplateForm(t)}>تعديل</Btn>}{canManage && !t.builtin && <Btn small onClick={() => setHistoryTpl(t)}>الإصدارات</Btn>}{canManage && !t.builtin && !t.archived_at && <Btn small onClick={() => act.put("templates", { ...t, archived_at: nowIso() }).then(() => toast("تمت أرشفة القالب"))}>أرشفة</Btn>}{canManage && !t.builtin && t.archived_at && <Btn small onClick={() => { const { archived_at, ...rest } = t; act.put("templates", rest).then(() => toast("تمت استعادة القالب")); }}>استعادة</Btn>}</div></div>)}</div>
         {!templates.some((t) => !!t.archived_at === showArchived) && <Empty icon="🧩" title={showArchived ? "لا توجد قوالب مؤرشفة" : "لا توجد قوالب هنا"} sub={canManage ? "أنشئ قالباً مخصصاً أو انسخ قالباً مدمجاً." : "قد لا تملك صلاحية إدارة القوالب."} />}
       </div>}
       {tab === "prd" && <div style={S.card}>{PRD_TEMPLATE.map((s) => <div key={s.key} style={{ padding: "6px 0", borderBottom: `1px solid ${C.line}` }}><b style={{ fontSize: 13 }}>{s.group} — {s.title}</b>{s.required && <Chip color={C.bad} style={{ marginInlineStart: 6 }}>مطلوب للاعتماد</Chip>}<div style={{ fontSize: 11.5, color: C.muted }}>{s.hint}</div></div>)}</div>}
       {tab === "update" && <div style={S.card}>{UPDATE_SECTIONS.map((s) => <div key={s.key} style={{ padding: "6px 0", fontSize: 13 }}>• {s.title}</div>)}<div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>يُولَّد المسودة من الإنجازات والمهام والمخاطر والأرقام الحية.</div></div>}
       {tab === "review" && <div style={S.card}>{REVIEW_PROMPTS.map(([, l]) => <div key={l} style={{ padding: "5px 0", fontSize: 13 }}>• {l}</div>)}<div style={{ padding: "5px 0", fontSize: 13 }}>• تركيز الأسبوع القادم · ⭐ التقييم · الطاقة</div><div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>أقسام حيّة (إنجازات، ساعات، متأخر…) تُجمَّد كلقطة عند إغلاق المراجعة. تُنشأ مسودة تلقائياً كل أسبوع.</div></div>}
       {tab === "meetings" && <div><div style={{ ...S.card, marginBottom: 10, fontSize: 12.5, lineHeight: 1.9 }}>📌 الاجتماعات يملكها <b>Knowledge OS</b> وتُنشأ وتُدار هناك؛ هذه القوالب للمرجع. عند بناء Knowledge OS ستظهر اجتماعات كل مشروع هنا (قراءة فقط) وتتحوّل بنود الإجراءات إلى مهام.</div><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: 10 }}>{MEETING_TEMPLATES.map((m) => <div key={m.name} style={{ ...S.card, padding: "10px 12px" }}><b>{m.name}</b>{m.sections.map((s) => <div key={s} style={{ fontSize: 12, color: C.dim }}>• {s}</div>)}</div>)}</div></div>}
-      {previewTpl && <Modal title={`معاينة القالب: ${previewTpl.name}`} wide onClose={() => setPreviewTpl(null)} footer={<><Btn onClick={() => setPreviewTpl(null)}>رجوع</Btn><Btn kind="primary" onClick={() => { setUse(previewTpl); setPreviewTpl(null); }}>استخدام هذا القالب</Btn></>}><div style={{ lineHeight: 1.9 }}><p>{previewTpl.description || "لا يوجد وصف."}</p><b>{countN(previewTpl.task_tree || [])} مهمة · {(previewTpl.risks || []).length} خطر · المدة التقديرية {previewTpl.duration_days || "—"} يوماً</b><div style={{ marginTop: 8 }}>{show(previewTpl.task_tree || [])}</div><div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>المعاينة لا تنشئ أي سجلات. تواريخ التنفيذ وحالات المهام الفعلية لا تُنسخ من القالب.</div></div></Modal>}
+      {historyTpl && <Modal title={"سجل إصدارات القالب: " + historyTpl.name} wide onClose={() => setHistoryTpl(null)}>
+        <div style={{ display: "grid", gap: 9 }}>
+          <div style={{ ...S.card, padding: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <b style={{ flex: 1 }}>الإصدار الحالي · v{templates.find((item) => item.id === historyTpl.id)?.version || historyTpl.version || 1}</b>
+              <Chip color={C.ok}>الحالي</Chip>
+            </div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>آخر تحديث: {(templates.find((item) => item.id === historyTpl.id)?.updated_at || historyTpl.updated_at) ? fmtShort(String(templates.find((item) => item.id === historyTpl.id)?.updated_at || historyTpl.updated_at).slice(0, 10)) : "—"}</div>
+          </div>
+          {(historyTpl.version_history || []).length === 0 ? <Empty icon="🕘" title="لا توجد إصدارات سابقة" sub="سيظهر هنا كل إصدار سابق عند تعديل القالب أو استعادة نسخة." /> : [...historyTpl.version_history].sort((a, b) => Number(b.version) - Number(a.version)).map((version) => <div key={version.version} style={{ ...S.card, padding: 10, display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <b>الإصدار v{version.version} · {version.name}</b>
+              <div style={{ fontSize: 10.5, color: C.muted }}>{version.updated_at ? fmtShort(String(version.updated_at).slice(0, 10)) : "تاريخ غير مسجل"} · {(version.task_tree || []).length} مراحل · {(version.prd_templates || []).length} مواصفة · {(version.output_templates || []).length} مخرج</div>
+            </div>
+            {canManage && <Btn small onClick={async () => {
+              const current = templates.find((item) => item.id === historyTpl.id);
+              if (!current) throw new Error("القالب لم يعد متاحًا.");
+              const restored = restoreTemplateVersion(current, version, nowIso());
+              await act.put("templates", restored);
+              toast("تمت استعادة محتوى v" + version.version + " كإصدار جديد v" + restored.version + ".");
+              setHistoryTpl(null);
+            }}>استعادة هذه النسخة</Btn>}
+          </div>)}
+          <div style={{ fontSize: 10.5, color: C.muted }}>الاستعادة لا تستبدل التاريخ: تُنشئ إصدارًا جديدًا وتحفظ النسخة الحالية ضمن سجل الإصدارات. يحتفظ النظام بآخر 20 نسخة سابقة.</div>
+        </div>
+      </Modal>}
+      {sourceProjectForm && <FormModal
+        title="إنشاء قالب من مشروع قائم"
+        initial={{ project_id: "" }}
+        onClose={() => setSourceProjectForm(false)}
+        onSubmit={async (values) => {
+          const project = data.projects.find((item) => item.id === values.project_id);
+          if (!project || project.is_system || project.archived_at || project.deleted_at || !can("project.read", project)) {
+            throw new Error("المشروع غير متاح أو لا تملك صلاحية قراءته.");
+          }
+          const seed = D.projectToTemplateSeed(project, data);
+          beginTemplateForm(seed);
+          setSourceProjectForm(false);
+          toast(seed.conversion_warnings?.length ? "تم نسخ بنية «" + project.name + "». توجد " + seed.conversion_warnings.length + " روابط اعتماد لم تُنقل آليًا وتحتاج مراجعة: " + seed.conversion_warnings[0] : "تم نسخ بنية «" + project.name + "» إلى محرر قالب جديد. راجع الشجرة والعلاقات قبل الحفظ؛ بيانات التشغيل والأشخاص لم تُنسخ.");
+        }}
+        fields={[{ key: "project_id", label: "المشروع المصدر", type: "select", required: true, allowEmpty: false, options: data.projects.filter((project) => !project.is_system && !project.archived_at && !project.deleted_at && can("project.read", project)).map((project) => ({ v: project.id, l: project.name })) }]}
+      />}
+      {previewTpl && <Modal title={`معاينة القالب: ${previewTpl.name}`} wide onClose={() => setPreviewTpl(null)} footer={<><Btn onClick={() => setPreviewTpl(null)}>رجوع</Btn><Btn kind="primary" onClick={() => { setUse(previewTpl); setPreviewTpl(null); }}>استخدام هذا القالب</Btn></>}><div style={{ lineHeight: 1.9 }}><p>{previewTpl.description || "لا يوجد وصف."}</p><b>{countN(previewTpl.task_tree || [])} مهمة · {(previewTpl.prd_templates || []).length} مواصفة · {(previewTpl.output_templates || []).length} مخرج · {(previewTpl.risks || []).length} مخاطر · المدة التقديرية {previewTpl.duration_days || "—"} يوماً</b><div style={{ marginTop: 8 }}>{show(previewTpl.task_tree || [])}</div><div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>المعاينة لا تنشئ أي سجلات. تواريخ التنفيذ وحالات المهام الفعلية لا تُنسخ من القالب.</div></div></Modal>}
       {templateForm && <FormModal title={templateForm.id ? "تعديل قالب مخصص" : "إنشاء قالب مخصص"} wide initial={templateForm} onClose={() => setTemplateForm(null)} onSubmit={async (v) => {
         const treeError = validateTaskTreeText(v.task_tree_text); if (treeError) throw new Error(treeError);
-        const tree = parseTaskTreeText(v.task_tree_text);
+        let tree = parseTaskTreeText(v.task_tree_text);
+        tree = parseTaskDependenciesText(v.task_dependencies_text, tree);
+        const objectiveTemplates = parseObjectiveTemplates(v.objectives_text, v.key_results_text, tree);
         const risks = parseRiskText(v.risks_text);
-        const rec = { id: v.id || uid(), name: String(v.name || "").trim(), description: v.description || "", project_type: v.project_type || "أخرى", duration_days: v.duration_days ? Number(v.duration_days) : null, task_tree: tree, risks, builtin: false, updated_at: nowIso() };
+        const prdTemplates = parsePrdDefinitions(v.prds_text, v.requirements_text);
+        const outputTemplates = parseOutputDefinitions(v.outputs_text);
+        const titleList = [];
+        const collect = (nodes) => nodes.forEach((node) => { titleList.push(node.title); collect(node.children || []); });
+        collect(tree);
+        const uniqueTaskTitle = (title) => {
+          const count = titleList.filter((item) => item === title).length;
+          return count === 1 ? true : count === 0 ? "غير موجود" : "مكرر";
+        };
+        for (const prd of prdTemplates) for (const req of prd.requirements) if (req.task_title && uniqueTaskTitle(req.task_title) !== true) throw new Error("المهمة «" + req.task_title + "» المرتبطة بمتطلب «" + req.title + "» " + uniqueTaskTitle(req.task_title) + " في شجرة المهام.");
+        for (const output of outputTemplates) {
+          if (output.task_title && uniqueTaskTitle(output.task_title) !== true) throw new Error("المهمة المصدر للمخرج «" + output.name + "» " + uniqueTaskTitle(output.task_title) + " في شجرة المهام.");
+          if (output.prd_title) {
+            const prd = prdTemplates.find((item) => item.title === output.prd_title);
+            if (!prd) throw new Error("المواصفة المصدر للمخرج «" + output.name + "» غير موجودة في هذا القالب.");
+            if (output.requirement_title && !prd.requirements.some((req) => req.title === output.requirement_title)) throw new Error("المتطلب المصدر للمخرج «" + output.name + "» غير موجود في المواصفة «" + output.prd_title + "».");
+          } else if (output.requirement_title) throw new Error("حدد اسم المواصفة قبل ربط متطلب بالمخرج «" + output.name + "».");
+        }
+        let validationId = 0;
+        D.instantiateProjectTemplate(
+          { task_tree: tree, objective_templates: objectiveTemplates, prd_templates: prdTemplates, output_templates: outputTemplates, risks },
+          { name: "قالب قيد التحقق", start_date: "2000-01-01", target_date: "2000-01-02" },
+          () => "template_validation_" + (++validationId)
+        );
+        const rec = {
+          id: v.id || uid(), name: String(v.name || "").trim(), description: v.description || "",
+          final_goal: v.final_goal || "", project_type: v.project_type || "أخرى",
+          duration_days: v.duration_days ? Number(v.duration_days) : null,
+          task_tree: tree, objective_templates: objectiveTemplates, risks, prd_templates: prdTemplates, output_templates: outputTemplates,
+          decision_prompts: linesOf(v.decision_prompts_text), team_roles: linesOf(v.team_roles_text),
+          checklist: linesOf(v.checklist_text), builtin: false, updated_at: nowIso()
+        };
         if (!rec.name) throw new Error("اسم القالب مطلوب");
-        await act.put("templates", rec); toast("✅ تم حفظ القالب المخصص؛ المشاريع السابقة لن تتغير."); setTemplateForm(null);
+        const previous = rec.id ? templates.find((item) => item.id === rec.id) : null;
+        const versioned = prepareTemplateSave(previous, rec, nowIso());
+        await act.put("templates", versioned); toast("✅ تم حفظ القالب v" + versioned.version + "؛ " + objectiveTemplates.length + " هدف و" + objectiveTemplateSummary(objectiveTemplates).kr_count + " نتيجة رئيسية ضمن الحزمة. المشاريع السابقة لن تتغير."); setTemplateForm(null);
       }} fields={[
-        { key: "name", label: "اسم القالب", required: true, span: 2 }, { key: "description", label: "الوصف", type: "textarea", rows: 2 },
-        { key: "project_type", label: "نوع المشروع" }, { key: "duration_days", label: "المدة التقديرية (أيام)", type: "number", min: 1 },
-        { key: "task_tree_text", label: "شجرة المهام", type: "textarea", rows: 9, hint: "كل سطر مهمة. استخدم مسافتين لكل مستوى فرعي. مثال:\nالبحث\n  مقابلات المستخدمين | 120\n  تحليل المنافسين\nالتنفيذ\n  التطوير\n  الاختبار. الرقم بعد | هو تقدير بالدقائق." },
-        { key: "risks_text", label: "المخاطر الافتراضية", type: "textarea", rows: 4, hint: "سطر لكل خطر، ويمكن إضافة خطة التخفيف بعد — . الاحتمال والتأثير الافتراضيان 3 من 5." }
+        { key: "name", label: "اسم القالب", required: true, span: 2 }, { key: "description", label: "وصف النطاق وما الذي يغطيه القالب", type: "textarea", rows: 2, span: 2 },
+        { key: "project_type", label: "نوع المشروع" }, { key: "duration_days", label: "المدة الإرشادية (أيام)", type: "number", min: 1 },
+        { key: "final_goal", label: "صياغة الهدف النهائي للمشروع", type: "textarea", rows: 2, span: 2 },
+        { key: "task_tree_text", label: "1) مراحل المشروع وشجرة المهام", type: "textarea", rows: 10, span: 2, hint: "كل سطر مهمة. مسافتان لكل مستوى فرعي. الصيغة: المهمة | التقدير بالدقائق | اليوم من البداية | milestone (اختياري). مثال:\nالاكتشاف\n  مقابلات المستخدمين | 240 | 7\nالتصميم\n  اعتماد التصميم | 0 | 25 | milestone" },
+        { key: "task_dependencies_text", label: "علاقات الاعتماد بين المهام", type: "textarea", rows: 4, span: 2, hint: "سطر لكل علاقة: المهمة التالية <- المهمة السابقة. يجب أن يطابق كل عنوان مهمة واحدة فقط. مثال:\nبناء الواجهة <- اعتماد التصميم\nاختبار الإطلاق <- بناء الواجهة. سيتم رفض الروابط المفقودة أو الدائرية." },
+        { key: "objectives_text", label: "2) الأهداف (Objectives)", type: "textarea", rows: 4, span: 2, hint: "سطر لكل هدف: مفتاح فريد | اسم الهدف | لماذا؟ (اختياري). مثال:\nlaunch | إطلاق المنصة | توحيد تجربة العملاء\ngrowth | نمو الإيرادات | تحسين الاستدامة." },
+        { key: "key_results_text", label: "النتائج الرئيسية (KRs) ومجموعات التنفيذ", type: "textarea", rows: 6, span: 2, hint: "Project Based: مفتاح الهدف | اسم KR | Project Based | عناوين المهام مفصولة بـ ; (اختياري). Numeric: مفتاح الهدف | اسم KR | Numeric | الوحدة | القيمة الابتدائية | القيمة المستهدفة | عناوين المهام (اختياري). لا تُدخل قيمًا غير معروفة؛ كل مهمة يجب أن تطابق عنوانًا فريدًا في الشجرة." },
+        { key: "prds_text", label: "2) المواصفات المطلوبة", type: "textarea", rows: 4, span: 2, hint: "سطر لكل مواصفة: اسم المواصفة | ملخصها. اترك الملخص اختياريًا." },
+        { key: "requirements_text", label: "متطلبات المواصفات ومعايير القبول وربطها بالمهام", type: "textarea", rows: 6, span: 2, hint: "سطر لكل متطلب: اسم المواصفة :: اسم المتطلب | معيار القبول | عنوان المهمة. يجب أن يطابق عنوان المهمة سطرًا واحدًا فقط في شجرة المهام." },
+        { key: "outputs_text", label: "3) المخرجات المتوقعة وروابط المصدر", type: "textarea", rows: 5, span: 2, hint: "سطر لكل مخرج: اسم المخرج | النوع (Design/Code/Document/Sample/Video/Other) | عنوان المهمة | اسم المواصفة | اسم المتطلب. الحقول الأخيرة اختيارية لكن يجب أن تكون الروابط صحيحة." },
+        { key: "risks_text", label: "4) المخاطر المتوقعة (للمراجعة وليست حقائق مؤكدة)", type: "textarea", rows: 4, span: 2, hint: "سطر لكل خطر: العنوان — خطة التخفيف. ينشأ الخطر بعلامة «يحتاج مراجعة» قبل اعتباره خطرًا فعليًا." },
+        { key: "decision_prompts_text", label: "5) أسئلة القرارات التي يجب حسمها", type: "textarea", rows: 3, span: 2, hint: "سطر لكل سؤال أو قرار مطلوب حسمه؛ تُحفظ كقائمة تحضير على المشروع ولا تُنشئ قرارًا فعليًا." },
+        { key: "team_roles_text", label: "6) الأدوار المطلوبة (دون تعيين أشخاص)", type: "textarea", rows: 3, span: 2, hint: "سطر لكل دور مثل: قائد المنتج، مصمم، مطور، مراجع، مسؤول اختبار. الأدوار تظهر كاحتياجات غير مسندة ولا تنشئ حسابات." },
+        { key: "checklist_text", label: "7) قائمة جاهزية ومراجعة المشروع", type: "textarea", rows: 4, span: 2, hint: "سطر لكل بند مراجعة مثل: تحديد النطاق، اعتماد معايير القبول، مراجعة المخاطر، قبول المخرجات." }
       ]}>
         {(v) => {
           const treeError = validateTaskTreeText(v.task_tree_text);
           const tree = treeError ? [] : parseTaskTreeText(v.task_tree_text);
-          return <div style={{ gridColumn: "1 / -1", marginTop: 8, padding: 10, border: "1px solid " + C.line, borderRadius: 8 }}>
+          let objectivePreview = [];
+          let objectiveError = "";
+          try { objectivePreview = parseObjectiveTemplates(v.objectives_text, v.key_results_text, tree); }
+          catch (error) { objectiveError = error?.message || "راجع تعريفات الأهداف والنتائج الرئيسية."; }
+          const objectiveSummary = objectiveTemplateSummary(objectivePreview);
+          return <div style={{ gridColumn: "1 / -1", marginTop: 8, display: "grid", gap: 9 }}>
+            {(v.conversion_warnings || []).length > 0 && <section role="alert" style={{ padding: 10, border: "1px solid " + C.warn, borderRadius: 8, background: "rgba(239,159,39,.07)" }}>
+              <b style={{ fontSize: 12.5 }}>روابط لم تُنقل تلقائيًا — راجعها يدويًا ({v.conversion_warnings.length})</b>
+              <div style={{ display: "grid", gap: 4, marginTop: 6, fontSize: 11.5, color: C.dim }}>
+                {v.conversion_warnings.map((warning, index) => <div key={index}>• {warning}</div>)}
+              </div>
+            </section>}
+            <section style={{ padding: 10, border: "1px solid " + C.line, borderRadius: 8 }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
               <b style={{ fontSize: 12.5 }}>معاينة شجرة المهام قبل الحفظ</b>
               <Chip color={treeError ? C.bad : C.ok}>{treeError || (countN(tree) + " مهمة")}</Chip>
             </div>
             {treeError ? <div style={{ fontSize: 11.5, color: C.bad }}>صحّح تنسيق المستويات قبل الحفظ. استخدم مسافتين لكل مستوى فرعي.</div> : tree.length ? <div style={{ maxHeight: 220, overflowY: "auto" }}>{show(tree)}</div> : <Empty icon="🧩" title="أضف أول مهمة" sub="اكتب المهام بالترتيب، واستخدم مسافتين لكل مستوى فرعي." />}
+            </section>
+            <section style={{ padding: 10, border: "1px solid " + C.line, borderRadius: 8 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 7 }}>
+                <b style={{ fontSize: 12.5 }}>معاينة الأهداف والنتائج الرئيسية</b>
+                <Chip color={objectiveError ? C.bad : C.ok}>{objectiveError || (objectiveSummary.objective_count + " هدف · " + objectiveSummary.kr_count + " KR · " + objectiveSummary.task_link_count + " ربط مهمة")}</Chip>
+              </div>
+              {objectiveError ? <div style={{ fontSize: 11.5, color: C.bad }}>{objectiveError}</div> : objectivePreview.length ? objectivePreview.map((objective) => <div key={objective.key} style={{ borderTop: "1px solid " + C.line, padding: "7px 0" }}>
+                <b style={{ fontSize: 12.5 }}>🎯 {objective.name}</b><span style={{ fontSize: 10.5, color: C.muted }}> · {objective.key}</span>
+                {objective.why && <div style={{ fontSize: 10.5, color: C.muted }}>{objective.why}</div>}
+                {(objective.key_results || []).map((kr) => <div key={kr.name} style={{ paddingInlineStart: 13, marginTop: 5, fontSize: 11.5 }}>
+                  <b>{kr.name}</b> <Chip>{kr.type === "Numeric" ? "رقمية · " + (kr.unit || "بلا وحدة") : "مبنية على مشروع"}</Chip>
+                  {kr.type === "Numeric" && <span style={{ color: C.muted }}> · {kr.initial_value} → {kr.target_value}</span>}
+                  {(kr.task_titles || []).length > 0 && <div style={{ color: C.info, fontSize: 10.5 }}>المهام: {kr.task_titles.join("، ")}</div>}
+                  {!(kr.task_titles || []).length && <div style={{ color: C.muted, fontSize: 10.5 }}>لا توجد مجموعة مهام محددة؛ يمكن ربطها لاحقًا من بطاقة KR.</div>}
+                </div>)}
+              </div>) : <Empty icon="🎯" title="لا توجد أهداف في القالب" sub="اترك الحقلين فارغين لقالب بلا OKRs، أو أضف Objective واحدًا على الأقل وKR واحدًا لكل هدف." />}
+            </section>
           </div>;
         }}
       </FormModal>}
@@ -349,11 +602,12 @@ export function Templates() {
 
 // ═════ Meetings (owned by Knowledge OS) ═════
 export function Meetings() {
-  const { data, setPage, ws, projectsById, A: act, toast, me, today, can } = useP();
+  const { data, setPage, setView, view, ws, projectsById, A: act, toast, me, today, can } = useP();
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [projectFilter, setProjectFilter] = useState("all");
+  const [projectFilter, setProjectFilter] = useState(view?.meetingsProjectId || "all");
+  const [focusMeetingId, setFocusMeetingId] = useState(view?.focusMeetingId || "");
   const [creatingFollowup, setCreatingFollowup] = useState("");
   const creatingFollowupsRef = useRef(new Set());
 
@@ -373,7 +627,7 @@ export function Meetings() {
   const visible = useMemo(() => meetings
     .filter((m) => !m.archived && m.status !== "archived")
     .filter((m) => projectFilter === "all" || (m.relatedSystem === "projects" && String(m.relatedId) === String(projectFilter)))
-    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))), [meetings, projectFilter]);
+    .sort((a, b) => (a.id === focusMeetingId ? -1 : b.id === focusMeetingId ? 1 : String(b.date || "").localeCompare(String(a.date || "")))), [meetings, projectFilter, focusMeetingId]);
   const linkedCount = meetings.filter((m) => m.relatedSystem === "projects" && projectsById[m.relatedId]).length;
   const orphanCount = meetings.filter((m) => m.relatedSystem === "projects" && m.relatedId && !projectsById[m.relatedId]).length;
   const archivedCount = meetings.filter((m) => {
@@ -430,7 +684,7 @@ export function Meetings() {
   }
 
   return <div>
-    <Head title="اجتماعات المشاريع" sub={`مصدر الاجتماعات: Knowledge OS · ${linkedCount} مرتبط · ${archivedCount} لمشروعات مؤرشفة · ${orphanCount} يحتاج مراجعة الارتباط`} right={<div style={{display:"flex",gap:7,flexWrap:"wrap"}}><select aria-label="تصفية الاجتماعات حسب المشروع" style={{...S.sel,width:220}} value={projectFilter} onChange={e=>setProjectFilter(e.target.value)}><option value="all">كل الاجتماعات</option>{data.projects.filter(p=>!p.is_system&&!p.archived_at&&p.status!=="Archived").map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><Btn onClick={refresh} disabled={loading}>تحديث</Btn><Btn kind="primary" onClick={() => setPage("templates")}>قوالب الاجتماعات</Btn></div>} />
+    <Head title="اجتماعات المشاريع" sub={`مصدر الاجتماعات: Knowledge OS · ${linkedCount} مرتبط · ${archivedCount} لمشروعات مؤرشفة · ${orphanCount} يحتاج مراجعة الارتباط`} right={<div style={{display:"flex",gap:7,flexWrap:"wrap"}}><select aria-label="تصفية الاجتماعات حسب المشروع" style={{...S.sel,width:220}} value={projectFilter} onChange={e=>{setProjectFilter(e.target.value);setFocusMeetingId("");setView({ ...view, meetingsProjectId: null, focusMeetingId: null });}}><option value="all">كل الاجتماعات</option>{data.projects.filter(p=>!p.is_system&&!p.archived_at&&p.status!=="Archived").map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><Btn onClick={refresh} disabled={loading}>تحديث</Btn><Btn kind="primary" onClick={() => setPage("templates")}>قوالب الاجتماعات</Btn></div>} />
     <div style={{...S.card,padding:12,marginBottom:12,fontSize:12,color:C.dim,lineHeight:1.8}}>الاجتماع محفوظ مرة واحدة في Knowledge OS. يمكن تحويل كل متابعة إلى مهمة فعلية في المشروع المرتبط. المشروعات المؤرشفة تظل ظاهرة كسجل تاريخي، أما مرجع المشروع غير الموجود فيحتاج مراجعة وإعادة ربط من Knowledge OS.</div>
     {loading ? <div style={{...S.card,padding:30,textAlign:"center",color:C.muted}}>جارٍ تحميل الاجتماعات…</div>
     : loadError ? <div role="alert" style={{...S.card,padding:24,textAlign:"center"}}><div style={{color:C.bad,marginBottom:10}}>{loadError}</div><Btn onClick={refresh}>إعادة المحاولة</Btn></div>
@@ -440,8 +694,8 @@ export function Meetings() {
       const orphan=m.relatedSystem==="projects"&&!!m.relatedId&&!project;
       const archived=!!project&&(!!project.archived_at||project.status==="Archived");
       const followups=Array.isArray(m.followups)?m.followups:[];
-      return <article key={m.id} style={{...S.card,padding:14}}>
-        <div style={{display:"flex",gap:8,alignItems:"flex-start"}}><div style={{fontSize:23}}>🗓️</div><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:14}}>{m.title}</div><div style={{fontSize:11,color:C.muted,marginTop:4}}>{m.date||"بدون تاريخ"}{m.startTime?" · "+m.startTime:""}{m.endTime?"–"+m.endTime:""}</div></div><Chip color={orphan?C.bad:archived?C.warn:project?C.ok:C.muted}>{orphan?"مرجع مشروع غير متاح":archived?"مشروع مؤرشف":project?"مرتبط بمشروع":"اجتماع عام"}</Chip></div>
+      return <article key={m.id} id={"project-meeting-" + m.id} style={{...S.card,padding:14,border:focusMeetingId===m.id?"2px solid "+C.info:undefined}}>
+        <div style={{display:"flex",gap:8,alignItems:"flex-start"}}><div style={{fontSize:23}}>🗓️</div><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:14}}>{m.title}{focusMeetingId===m.id&&<Chip color={C.info}>مفتوح من التقويم</Chip>}</div><div style={{fontSize:11,color:C.muted,marginTop:4}}>{m.date||"بدون تاريخ"}{m.startTime?" · "+m.startTime:""}{m.endTime?"–"+m.endTime:""}</div></div><Chip color={orphan?C.bad:archived?C.warn:project?C.ok:C.muted}>{orphan?"مرجع مشروع غير متاح":archived?"مشروع مؤرشف":project?"مرتبط بمشروع":"اجتماع عام"}</Chip></div>
         <div style={{marginTop:9,fontSize:12,color:orphan?C.bad:archived?C.warn:project?C.ink:C.muted}}>المشروع: <b>{project?.name||(orphan?"المشروع محذوف أو غير متاح":"اجتماع عام")}</b>{orphan&&<div style={{marginTop:4}}>راجع حقل المشروع المرتبط في Knowledge OS لإعادة ربط الاجتماع أو إزالة المرجع القديم.</div>}</div>
         {m.summary&&<p style={{fontSize:12,lineHeight:1.8,margin:"8px 0"}}>{m.summary}</p>}
         {Array.isArray(m.attendees)&&m.attendees.length>0&&<div style={{fontSize:11,color:C.dim,marginTop:5}}>المشاركون: {m.attendees.join("، ")}</div>}

@@ -82,6 +82,7 @@ export function OutputsView({ projectId }) {
     let rec = { ...v, id: v.id || uid(), files: Array.isArray(v.files) ? v.files : (prev?.files || []) };
     const pendingFiles = Array.from(v.__pendingFiles || []);
     delete rec.__pendingFiles;
+    if (rec.url || rec.files.length || pendingFiles.length) rec.template_seed = false;
     if (!project || project.is_system) throw new Error("اختر مشروعًا صالحًا قبل حفظ المخرج.");
     if (rec.task_id) {
       const task = idx.byId[rec.task_id];
@@ -130,7 +131,7 @@ export function OutputsView({ projectId }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}>
           {list.map((o) => (
             <div key={o.id} id={recordDomId("output", o.id)} style={{ ...S.card, padding: "10px 12px", ...recordFocusStyle(view, "output", o.id) }}>
-              <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}><span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>📦 {o.name}</span><Chip color={o.approval === "Final" ? C.ok : o.approval === "Review" ? C.warn : C.muted}>{L.approval[o.approval]}</Chip></div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}><span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>📦 {o.name}</span>{o.template_seed && <Chip color={C.muted}>مخرج متوقع من القالب</Chip>}<Chip color={o.approval === "Final" ? C.ok : o.approval === "Review" ? C.warn : C.muted}>{L.approval[o.approval]}</Chip></div>
               <div style={{ fontSize: 11.5, color: C.dim, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><Chip>{o.type}</Chip>{!projectId && <ProjectName id={o.project_id} />}{o.task_id && idx.byId[o.task_id] && <button onClick={() => openTask(o.task_id)} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", padding: 0 }}>🔗 {idx.byId[o.task_id].title}</button>}{o.prd_requirement_id && <button type="button" onClick={() => openProject(o.project_id, "prds", { kind: "prd", id: o.prd_id })} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>متطلب: {(data.prds.find((p) => p.id === o.prd_id)?.requirements || []).find((r) => r.id === o.prd_requirement_id)?.title || "فتح المواصفة"} ↗</button>}{data.wins.some((w) => (w.output_ids || []).includes(o.id)) && <button type="button" onClick={() => setPage("wins")} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>🏆 إنجاز مرتبط</button>}</div>
               {o.url && <a href={o.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.info, display: "block", margin: "4px 0", wordBreak: "break-all" }}>🔗 {o.url}</a>}
               {o.notes && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{o.notes}</div>}
@@ -143,18 +144,19 @@ export function OutputsView({ projectId }) {
         { label: "المشروع", value: projectsById[detail.project_id]?.name }, { label: "النوع", value: detail.type },
         { label: "حالة الاعتماد", value: L.approval[detail.approval] || detail.approval }, { label: "الرابط", value: detail.url },
         { label: "المهمة المرتبطة", value: idx.byId[detail.task_id]?.title }, { label: "المواصفة", value: data.prds.find((x) => x.id === detail.prd_id)?.title },
-        { label: "الملاحظات", value: detail.notes }, { label: "اعتمده", value: people.find((x) => x.id === detail.approved_by)?.name },
+        { label: "حالة المخرج", value: detail.template_seed ? "متوقع من القالب — لم يتم تسليمه بعد" : "مخرج فعلي" }, { label: "الملاحظات", value: detail.notes }, { label: "اعتمده", value: people.find((x) => x.id === detail.approved_by)?.name },
         { label: "تاريخ الاعتماد", value: detail.approved_at ? fmt(detail.approved_at.slice(0, 10)) : "" },
         { label: "الملفات", value: (detail.files || []).map((file) => typeof file === "string" ? file : file.name || file.url || "ملف").join("، ") }
       ]} />}
       {form && <FormModal title={form.id ? "تعديل المخرج" : "مخرج جديد"} wide initial={{ approval: "Draft", type: lookups.output_type[0], ...form }} onClose={() => setForm(null)} onSubmit={submit} fields={[
         { key: "name", label: "الاسم", required: true, span: 2 },
-        { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(data.projects.filter((p) => !projectId || p.id === projectId)) },
+        { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, show: () => !projectId, options: projOpts(data.projects.filter((p) => !projectId || p.id === projectId)) },
         { key: "type", label: "النوع", type: "select", allowEmpty: false, options: lookups.output_type.map((x) => ({ v: x, l: x })) },
         { key: "task_id", label: "المهمة المرتبطة", type: "select", emptyLabel: "— بلا —", options: (v) => idx.list.filter((t) => t.project_id === v.project_id).map((t) => ({ v: t.id, l: t.title })) },
         { key: "prd_id", label: "المواصفة التي يحقّقها", type: "select", emptyLabel: "— بلا —", options: (v) => data.prds.filter((p) => p.project_id === v.project_id).map((p) => ({ v: p.id, l: p.title })) },
         { key: "prd_requirement_id", label: "المتطلب الذي يحقّقه", type: "select", emptyLabel: "— بلا متطلب —", options: (v) => { const prd = data.prds.find((p) => p.id === v.prd_id); return (prd?.requirements || []).filter((r) => r.status !== "Deprecated").map((r) => ({ v: r.id, l: r.title })); } },
         { key: "approval", label: "الاعتماد", type: "select", allowEmpty: false, options: opts(L.approval) },
+        { key: "due_date", label: "موعد التسليم", type: "date" },
         { key: "url", label: "الرابط", type: "url" }, { key: "notes", label: "ملاحظات", type: "textarea", rows: 2 }
       ]} children={(values, set) => (
         <div style={{ gridColumn: "1 / -1", marginTop: 8, border: `1px solid ${C.line}`, borderRadius: 8, padding: 10 }}>
@@ -175,7 +177,7 @@ export function OutputsView({ projectId }) {
 // ═════ Risks (+ 5×5 matrix) ═════
 export function RisksView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, settings, confirm, openProject, idx, openTask, view } = useP();
-  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState(view.focusRecord?.kind === "risk" ? "all" : "open"); const [closing, setClosing] = useState(null); const [reopening, setReopening] = useState(null); const [creatingMitigation, setCreatingMitigation] = useState({}); const convertingRiskIds = useRef(new Set());
+  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [mode, setMode] = useState(projectId ? "matrix" : "list"); const [st, setSt] = useState(view.focusRecord?.kind === "risk" ? "all" : "open"); const [closing, setClosing] = useState(null); const [reopening, setReopening] = useState(null); const [creatingMitigation, setCreatingMitigation] = useState({}); const convertingRiskIds = useRef(new Set());
   const base = data.risks.filter((r) => !projectId || r.project_id === projectId);
   const list = base.filter((r) => (st === "all" ? true : st === "open" ? D.isOpenRisk(r) : r.status === st)).sort((a, b) => D.riskScore(b) - D.riskScore(a));
   useEffect(() => { if (view.focusRecord?.kind === "risk") setSt("all"); }, [view.focusRecord?.kind, view.focusRecord?.id]);
@@ -216,10 +218,32 @@ export function RisksView({ projectId }) {
         <select style={{ ...S.sel, width: 130 }} value={st} onChange={(e) => setSt(e.target.value)}><option value="open">المفتوحة</option><option value="all">الكل</option>{opts(L.riskStatus).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select>
       </div>
       {mode === "matrix" ? (
-        <div style={S.card}><div style={{ display: "grid", gridTemplateColumns: "40px repeat(5,1fr)", gap: 4 }}>
-          {[5, 4, 3, 2, 1].map((p) => (<React.Fragment key={p}><div style={{ fontSize: 11, color: C.muted, alignSelf: "center", textAlign: "center" }}>احتمال {p}</div>{[1, 2, 3, 4, 5].map((i) => { const score = p * i; const cell = list.filter((r) => r.probability === p && r.impact === i); const bg = score >= settings.riskHigh ? "rgba(239,68,68,0.15)" : score >= settings.riskMedium ? "rgba(245,158,11,0.15)" : "rgba(16,185,129,0.1)"; return <div key={i} style={{ minHeight: 56, background: bg, borderRadius: 6, padding: 4, fontSize: 10.5 }}>{cell.map((r) => <div key={r.id} onClick={() => setForm(r)} style={{ background: "#fff", borderRadius: 4, padding: "1px 5px", marginBottom: 2, cursor: "pointer", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.title}</div>)}</div>; })}</React.Fragment>))}
-          <div /><>{[1, 2, 3, 4, 5].map((i) => <div key={i} style={{ fontSize: 11, color: C.muted, textAlign: "center" }}>تأثير {i}</div>)}</>
-        </div></div>
+        <div style={{ ...S.card, padding: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+            <div><b style={{ fontSize: 13 }}>مصفوفة المخاطر 5×5</b><div style={{ fontSize: 11, color: C.muted }}>الاحتمال × التأثير · اختر خلية لعرض المخاطر الموجودة بها</div></div>
+            <div style={{ display: "flex", gap: 8, fontSize: 10.5, color: C.muted, flexWrap: "wrap" }}><span>🟢 منخفض</span><span>🟠 متوسط</span><span>🔴 مرتفع</span></div>
+          </div>
+          <div style={{ overflowX: "auto" }}><div style={{ minWidth: 610 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "76px repeat(5,minmax(0,1fr))", gap: 5 }}>
+              {[5, 4, 3, 2, 1].map((p) => (<React.Fragment key={p}>
+                <div style={{ fontSize: 10.5, color: C.muted, alignSelf: "center", textAlign: "center" }}>احتمال {p}</div>
+                {[1, 2, 3, 4, 5].map((impact) => {
+                  const score = p * impact;
+                  const cell = list.filter((r) => Number(r.probability) === p && Number(r.impact) === impact);
+                  const bg = score >= settings.riskHigh ? "rgba(239,68,68,0.15)" : score >= settings.riskMedium ? "rgba(245,158,11,0.15)" : "rgba(16,185,129,0.1)";
+                  return <button key={impact} type="button" onClick={() => cell.length && setDetail(cell[0])} title={cell.length ? cell.map((r) => r.title).join("، ") : "لا توجد مخاطر في هذه الخلية"} style={{ minHeight: 74, display: "flex", flexDirection: "column", gap: 4, alignItems: "stretch", background: bg, border: "1px solid " + (cell.length ? "rgba(100,116,139,.35)" : "transparent"), borderRadius: 7, padding: 5, cursor: cell.length ? "pointer" : "default", textAlign: "start", font: "inherit" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, color: C.muted }}><span>{score}</span><b>{cell.length || "—"}</b></div>
+                    {cell.slice(0, 2).map((r) => <span key={r.id} style={{ background: "rgba(255,255,255,.88)", borderRadius: 4, padding: "3px 4px", color: C.text, fontSize: 10.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</span>)}
+                    {cell.length > 2 && <span style={{ fontSize: 9.5, color: C.muted }}>+{cell.length - 2} أخرى</span>}
+                  </button>;
+                })}
+              </React.Fragment>))}
+              <div style={{ fontSize: 10.5, color: C.muted, textAlign: "center" }}>التأثير</div>
+              {[1, 2, 3, 4, 5].map((impact) => <div key={impact} style={{ textAlign: "center", fontSize: 10.5, color: C.muted }}> {impact} </div>)}
+            </div>
+          </div></div>
+          {!list.length && <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>لا توجد مخاطر ضمن التصفية الحالية؛ غيّر الحالة إلى «الكل» أو أضف خطرًا لعرضه هنا.</div>}
+        </div>
       ) : !list.length ? <Empty icon="🛡" title="لا مخاطر" sub="سجّل المخاطر المحتملة قبل أن تتحول إلى مشاكل." /> : (
         <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((r) => (
           <div key={r.id} id={recordDomId("risk", r.id)} style={{ ...recordFocusStyle(view, "risk", r.id), display: "grid", gridTemplateColumns: "44px 1fr auto", gap: 10, padding: "9px 0", borderBottom: `1px solid ${C.line}`, alignItems: "center" }}>
@@ -242,7 +266,7 @@ export function RisksView({ projectId }) {
         { label: "المشكلة الناتجة", value: data.issues.find((x) => x.id === detail.converted_issue_id)?.title }
       ]} />}
       {form && <FormModal title={form.id ? "تعديل الخطر" : "خطر جديد"} wide initial={{ probability: 3, impact: 3, status: "Open", ...form }} onClose={() => setForm(null)} onSubmit={submit} fields={[
-        { key: "title", label: "عنوان الخطر", required: true, span: 2 }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) },
+        { key: "title", label: "عنوان الخطر", required: true, span: 2 }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, show: () => !projectId, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) },
         { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people) },
         { key: "probability", label: "الاحتمال (1–5)", type: "number", min: 1, max: 5, required: true }, { key: "impact", label: "التأثير (1–5)", type: "number", min: 1, max: 5, required: true },
         { key: "review_date", label: "تاريخ المراجعة", type: "date" }, { key: "prd_id", label: "نشأ من مواصفة", type: "select", emptyLabel: "— بلا —", options: (v) => data.prds.filter((p) => p.project_id === v.project_id).map((p) => ({ v: p.id, l: p.title })) },
@@ -257,7 +281,7 @@ export function RisksView({ projectId }) {
 // ═════ Issues ═════
 export function IssuesView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, openDiscovery, view, setView } = useP();
-  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [st, setSt] = useState(view.focusRecord?.kind === "issue" ? "all" : view.issueStatusFilter || "open"); const [sev, setSev] = useState(view.issueSeverityFilter || ""); const [resolving, setResolving] = useState(null); const [reopening, setReopening] = useState(null); const [repairing, setRepairing] = useState({});
+  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [mode, setMode] = useState(projectId ? "matrix" : "list"); const [st, setSt] = useState(view.focusRecord?.kind === "issue" ? "all" : view.issueStatusFilter || "open"); const [sev, setSev] = useState(view.issueSeverityFilter || ""); const [resolving, setResolving] = useState(null); const [reopening, setReopening] = useState(null); const [repairing, setRepairing] = useState({});
   const list = data.issues.filter((i) => (!projectId || i.project_id === projectId) && (st === "all" ? true : st === "open" ? D.isOpenIssue(i) : i.status === st) && (!sev || i.severity === sev)).sort((a, b) => ["Critical", "High", "Medium", "Low"].indexOf(a.severity) - ["Critical", "High", "Medium", "Low"].indexOf(b.severity));
   const canNew = projectId ? can("issue.write", projectsById[projectId]) : data.projects.some((p) => can("issue.write", p));
   useEffect(() => { if (view.focusRecord?.kind === "issue") { setSt("all"); setSev(""); setView((current) => ({ ...current, issueStatusFilter: "all", issueSeverityFilter: "" })); } }, [view.focusRecord?.kind, view.focusRecord?.id]);
@@ -282,8 +306,21 @@ export function IssuesView({ projectId }) {
   }
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>{canNew && <Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ مشكلة</Btn>}<select aria-label="حالة المشكلة" style={{ ...S.sel, width: 130 }} value={st} onChange={(e) => { setSt(e.target.value); setView((v) => ({ ...v, issueStatusFilter: e.target.value })); }}><option value="open">المفتوحة</option><option value="all">الكل</option>{opts(L.issueStatus).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select><select aria-label="شدة المشكلة" style={{ ...S.sel, width: 130 }} value={sev} onChange={(e) => { setSev(e.target.value); setView((v) => ({ ...v, issueSeverityFilter: e.target.value })); }}><option value="">كل الشدات</option>{opts(L.severity).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select>{(st !== "open" || sev) && <Btn small onClick={() => { setSt("open"); setSev(""); setView((v) => ({ ...v, issueStatusFilter: "open", issueSeverityFilter: "" })); }}>مسح الفلاتر</Btn>}</div>
-      {!list.length ? <Empty icon="✅" title="لا مشاكل" /> : <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((i) => (
+      <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>{canNew && <Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>＋ مشكلة</Btn>}<Seg small value={mode} onChange={setMode} options={[{ v: "matrix", l: "لوحة حسب الحالة" }, { v: "list", l: "قائمة" }]} /><select aria-label="حالة المشكلة" style={{ ...S.sel, width: 130 }} value={st} onChange={(e) => { setSt(e.target.value); setView((v) => ({ ...v, issueStatusFilter: e.target.value })); }}><option value="open">المفتوحة</option><option value="all">الكل</option>{opts(L.issueStatus).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select><select aria-label="شدة المشكلة" style={{ ...S.sel, width: 130 }} value={sev} onChange={(e) => { setSev(e.target.value); setView((v) => ({ ...v, issueSeverityFilter: e.target.value })); }}><option value="">كل الشدات</option>{opts(L.severity).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select>{(st !== "open" || sev) && <Btn small onClick={() => { setSt("open"); setSev(""); setView((v) => ({ ...v, issueStatusFilter: "open", issueSeverityFilter: "" })); }}>مسح الفلاتر</Btn>}</div>
+      {!list.length ? <Empty icon="✅" title="لا مشاكل" /> : mode === "matrix" ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(225px,1fr))", gap: 9, alignItems: "start" }}>
+        {["Open", "In Progress", "Resolved", "Closed"].map((status) => {
+          const items = list.filter((issue) => issue.status === status);
+          return <section key={status} style={{ ...S.card, padding: 9, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "3px 2px 8px", borderBottom: "1px solid " + C.line, marginBottom: 6 }}><b style={{ flex: 1, fontSize: 12.5 }}>{L.issueStatus[status]}</b><Chip>{items.length}</Chip></div>
+            {!items.length ? <div style={{ padding: "12px 4px", fontSize: 11, color: C.muted }}>لا توجد مشاكل في هذه الحالة</div> : items.map((issue) => <button key={issue.id} type="button" onClick={() => setDetail(issue)} style={{ display: "block", width: "100%", textAlign: "start", border: "1px solid " + C.line, borderRadius: 7, padding: 8, marginBottom: 6, background: "transparent", cursor: "pointer", font: "inherit" }}>
+              <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}><Chip color={SEV_COLOR[issue.severity]} solid>{L.severity[issue.severity]}</Chip><span style={{ fontSize: 11.5, fontWeight: 700, flex: 1, minWidth: 90 }}>{issue.title}</span></div>
+              <div style={{ fontSize: 10.5, color: C.muted, marginTop: 5 }}>{!projectId ? (projectsById[issue.project_id]?.name || "مشروع") + " · " : ""}{people.find((person) => person.id === issue.owner_id)?.name || "غير مسند"} · {fmtShort(issue.discovered_at)}</div>
+              <span style={{ display: "block", marginTop: 5, fontSize: 10.5, color: C.info, fontWeight: 700 }}>عرض التفاصيل ←</span>
+              {repairTasks(issue).length > 0 && <div style={{ fontSize: 10.5, color: C.info, marginTop: 5 }}>مهام الإصلاح: {repairTasks(issue).length}</div>}
+            </button>)}
+          </section>;
+        })}
+      </div> : <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((i) => (
         <div key={i.id} id={recordDomId("issue", i.id)} style={{ ...recordFocusStyle(view, "issue", i.id), display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "9px 0", borderBottom: `1px solid ${C.line}`, alignItems: "center" }}>
           <div><div style={{ fontSize: 13, fontWeight: 700 }}><Chip color={SEV_COLOR[i.severity]} solid>{L.severity[i.severity]}</Chip> {i.title} <Chip color={STATUS_COLOR[i.status]}>{L.issueStatus[i.status]}</Chip></div>
             {i.description && <div style={{ fontSize: 12, color: C.dim }}>{i.description}</div>}{i.resolution && <div style={{ fontSize: 12, color: C.ok }}>الحل: {i.resolution}</div>}<div style={{ fontSize: 11, marginTop: 4 }}>{data.decisions.filter((d) => (d.affected_issue_ids || []).includes(i.id)).map((d) => <button key={d.id} type="button" onClick={() => openProject(i.project_id, "decisions", { kind: "decision", id: d.id })} style={{ border: 0, padding: 0, marginInlineEnd: 7, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>⚖️ {d.title}</button>)}</div>
@@ -295,17 +332,20 @@ export function IssuesView({ projectId }) {
       {detail && <RecordDetailModal title={"تفاصيل المشكلة: " + detail.title} onClose={() => setDetail(null)} fields={[
         { label: "المشروع", value: projectsById[detail.project_id]?.name }, { label: "الحالة", value: L.issueStatus[detail.status] || detail.status },
         { label: "الشدة", value: L.severity[detail.severity] || detail.severity }, { label: "المسؤول", value: people.find((x) => x.id === detail.owner_id)?.name },
-        { label: "تاريخ الاكتشاف", value: detail.discovered_at }, { label: "الوصف", value: detail.description },
+        { label: "تاريخ الاكتشاف", value: detail.discovered_at }, { label: "الموعد المستهدف", value: detail.due_date }, { label: "الأثر على المشروع", value: detail.impact }, { label: "الوصف", value: detail.description },
+        { label: "السبب الجذري", value: detail.root_cause }, { label: "الإجراء التصحيحي", value: detail.corrective_action }, { label: "الإجراء الوقائي", value: detail.preventive_action },
         { label: "الحل", value: detail.resolution }, { label: "تاريخ الحل", value: detail.resolved_at },
         { label: "مهام الإصلاح", value: repairTasks(detail).map((task) => task.title).join("، ") },
         { label: "الخطر المصدر", value: data.risks.find((x) => x.id === detail.from_risk_id)?.title },
         { label: "الاكتشاف المصدر", value: data.discovery.find((x) => x.id === detail.from_discovery_id)?.title },
         { label: "القرارات المؤثرة", value: data.decisions.filter((x) => (x.affected_issue_ids || []).includes(detail.id)).map((x) => x.title).join("، ") }
       ]} />}
-      {form && <FormModal title={form.id ? "تعديل المشكلة" : "مشكلة جديدة"} wide initial={{ severity: "Medium", status: "Open", discovered_at: new Date().toISOString().slice(0, 10), ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { await act.put("issues", { ...v, id: v.id || uid() }, projectsById[v.project_id]); toast("✅ تم الحفظ"); setForm(null); }} fields={[
-        { key: "title", label: "العنوان", required: true, span: 2 }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) },
-        { key: "severity", label: "الشدة", type: "select", allowEmpty: false, options: opts(L.severity) }, { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people) }, { key: "discovered_at", label: "تاريخ الاكتشاف", type: "date" },
-        { key: "task_ids", label: "مهام الإصلاح", type: "multi", options: (v) => idx.list.filter((t) => t.project_id === v.project_id).map((t) => ({ v: t.id, l: t.title })) }, { key: "description", label: "الوصف", type: "textarea" }]} />}
+      {form && <FormModal title={form.id ? "تعديل المشكلة" : "مشكلة جديدة"} wide initial={{ severity: "Medium", status: "Open", discovered_at: new Date().toISOString().slice(0, 10), ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { const taskIds = [...new Set(v.task_ids || [])]; for (const taskId of taskIds) { const task = idx.byId[taskId]; if (!task || task.project_id !== v.project_id) throw new Error("مهام الإصلاح يجب أن تتبع المشروع نفسه. راجع المشروع والمهام المرتبطة قبل الحفظ."); } const project = projectsById[v.project_id]; if (!project || project.is_system || project.archived_at) throw new Error("اختر مشروعًا نشطًا صالحًا للمشكلة."); await act.put("issues", { ...v, task_ids: taskIds, id: v.id || uid() }, project); toast("✅ تم الحفظ"); setForm(null); }} fields={[
+        { key: "title", label: "العنوان", required: true, span: 2 }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, show: () => !projectId, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) },
+        { key: "severity", label: "الشدة", type: "select", allowEmpty: false, options: opts(L.severity) }, { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people) }, { key: "discovered_at", label: "تاريخ الاكتشاف", type: "date" }, { key: "due_date", label: "الموعد المستهدف للحل", type: "date" },
+        { key: "impact", label: "الأثر على المشروع", type: "textarea", rows: 2 }, { key: "description", label: "وصف المشكلة", type: "textarea", rows: 3 },
+        { key: "root_cause", label: "السبب الجذري (بعد التحقيق)", type: "textarea", rows: 2 }, { key: "corrective_action", label: "الإجراء التصحيحي", type: "textarea", rows: 2 }, { key: "preventive_action", label: "الإجراء الوقائي لمنع التكرار", type: "textarea", rows: 2 },
+        { key: "task_ids", label: "مهام الإصلاح", type: "multi", options: (v) => idx.list.filter((t) => t.project_id === v.project_id).map((t) => ({ v: t.id, l: t.title })) }]} />}
       {resolving && <FormModal title="حل المشكلة" initial={{ resolution: resolving.resolution || "" }} fields={[{ key: "resolution", label: "الحل (إلزامي)", type: "textarea", required: true }]} onClose={() => setResolving(null)} onSubmit={async (v) => { await act.put("issues", { ...resolving, status: "Resolved", resolution: v.resolution, resolved_at: nowIso() }, projectsById[resolving.project_id]); setResolving(null); }} />}
     </div>
   );
@@ -314,14 +354,30 @@ export function IssuesView({ projectId }) {
 // ═════ Decisions ═════
 export function DecisionsView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, openDiscovery, view } = useP();
-  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [creating, setCreating] = useState({});
+  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [creating, setCreating] = useState({}); const [mode, setMode] = useState("matrix");
   const list = data.decisions.filter((d) => !projectId || d.project_id === projectId).sort((a, b) => (b.decided_at || "").localeCompare(a.decided_at || ""));
   useRecordFocus(view, "decision", projectId, list.length);
   const canNew = projectId ? can("decision.write", projectsById[projectId]) : data.projects.some((p) => can("decision.write", p));
   return (
     <div>
-      {canNew && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ قرار</Btn></div>}
-      {!list.length ? <Empty icon="⚖️" title="لا قرارات مسجَّلة" sub="سجّل القرارات المهمة وأسبابها حتى لا تُنسى." /> : <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((d) => (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>{canNew && <Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>＋ قرار</Btn>}<Seg small value={mode} onChange={setMode} options={[{ v: "matrix", l: "مصفوفة القرارات" }, { v: "list", l: "سجل القرارات" }]} /></div>
+      {!list.length ? <Empty icon="⚖️" title="لا قرارات مسجَّلة" sub="سجّل القرارات المهمة وأسبابها حتى لا تُنسى." /> : mode === "matrix" ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 9, alignItems: "start" }}>
+        {["Proposed", "Approved", "Superseded", "Cancelled"].map((status) => {
+          const items = list.filter((decision) => decision.status === status);
+          return <section key={status} style={{ ...S.card, padding: 9, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "3px 2px 8px", borderBottom: "1px solid " + C.line, marginBottom: 6 }}><b style={{ flex: 1, fontSize: 12.5 }}>{L.decisionStatus[status]}</b><Chip>{items.length}</Chip></div>
+            {!items.length ? <div style={{ padding: "12px 4px", fontSize: 11, color: C.muted }}>لا توجد قرارات في هذه الحالة</div> : items.map((decision) => {
+              const relatedCount = (decision.related_task_ids || []).length + (decision.related_issue_ids || []).length + (decision.related_risk_ids || []).length + (decision.related_discovery_ids || []).length;
+              return <button key={decision.id} type="button" onClick={() => setDetail(decision)} style={{ display: "block", width: "100%", textAlign: "start", border: "1px solid " + C.line, borderRadius: 7, padding: 8, marginBottom: 6, background: "transparent", cursor: "pointer", font: "inherit" }}>
+                <div style={{ display: "flex", gap: 5, alignItems: "center" }}><b style={{ fontSize: 11.5, flex: 1 }}>{decision.title}</b><Chip color={status === "Approved" ? C.ok : status === "Superseded" ? C.warn : C.muted}>{L.decisionStatus[status]}</Chip></div>
+                {decision.rationale && <div style={{ fontSize: 10.5, color: C.dim, marginTop: 5, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{decision.rationale}</div>}
+                <div style={{ fontSize: 10, color: C.muted, marginTop: 5 }}>{!projectId ? (projectsById[decision.project_id]?.name || "مشروع") + " · " : ""}{fmt(decision.decided_at)} · {relatedCount} روابط</div>
+                <span style={{ display: "block", marginTop: 5, fontSize: 10.5, color: C.info, fontWeight: 700 }}>عرض التفاصيل ←</span>
+              </button>;
+            })}
+          </section>;
+        })}
+      </div> : <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((d) => (
         <div key={d.id} id={recordDomId("decision", d.id)} style={{ ...recordFocusStyle(view, "decision", d.id), padding: "10px 0", borderBottom: `1px solid ${C.line}` }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}><span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>⚖️ {d.title} <Chip color={d.status === "Approved" ? C.ok : d.status === "Superseded" ? C.warn : C.muted}>{L.decisionStatus[d.status]}</Chip></span><Btn small onClick={() => setDetail(d)}>عرض التفاصيل</Btn><RowActions canW={can("decision.write", projectsById[d.project_id])} onEdit={() => setForm(d)} onDelete={() => act.del("decisions", d.id, d.title)} /></div>
           {d.rationale && <div style={{ fontSize: 12, color: C.dim }}><b>لماذا؟</b> {d.rationale}</div>}{d.rejected_alternatives && <div style={{ fontSize: 12, color: C.dim }}><b>بدائل مرفوضة:</b> {d.rejected_alternatives}</div>}
@@ -350,14 +406,14 @@ export function DecisionsView({ projectId }) {
       {form && <FormModal title={form.id ? "تعديل القرار" : "قرار جديد"} wide initial={{ status: "Proposed", decided_at: new Date().toISOString().slice(0, 10), ...form }} onClose={() => setForm(null)}
         validate={(v) => D.validateDecisionStatus(v, v.status) ? { superseded_by_id: "إلزامي عند «حلّ محله قرار آخر»" } : null}
         onSubmit={async (v) => { if (v.prd_id && !data.prds.some((p) => p.id === v.prd_id && p.project_id === v.project_id)) throw new Error("المواصفة يجب أن تتبع المشروع نفسه."); for (const taskId of (v.related_task_ids || [])) if (!idx.byId[taskId] || idx.byId[taskId].project_id !== v.project_id) throw new Error("المهام المتأثرة يجب أن تتبع المشروع نفسه."); for (const issueId of (v.related_issue_ids || [])) if (!data.issues.some((i) => i.id === issueId && i.project_id === v.project_id)) throw new Error("المشاكل المتأثرة يجب أن تتبع المشروع نفسه."); for (const riskId of (v.related_risk_ids || [])) if (!data.risks.some((r) => r.id === riskId && r.project_id === v.project_id)) throw new Error("المخاطر المتأثرة يجب أن تتبع المشروع نفسه."); for (const discoveryId of (v.related_discovery_ids || [])) { const discovery = data.discovery.find((item) => item.id === discoveryId); if (!discovery) throw new Error("الاكتشاف المرتبط غير موجود أو تم حذفه."); if ((discovery.project_ids || []).length && !discovery.project_ids.includes(v.project_id)) throw new Error("الاكتشاف المرتبط يجب أن يكون مرتبطًا بالمشروع نفسه."); } if (v.superseded_by_id) { const successor = data.decisions.find((item) => item.id === v.superseded_by_id && item.project_id === v.project_id && item.id !== v.id); if (!successor) throw new Error("القرار البديل يجب أن يكون قرارًا آخر داخل المشروع نفسه."); const visited = new Set([v.id].filter(Boolean)); let nextId = v.superseded_by_id; while (nextId) { if (visited.has(nextId)) throw new Error("لا يمكن إنشاء حلقة بين القرارات المستبدلة."); visited.add(nextId); const next = data.decisions.find((item) => item.id === nextId && item.project_id === v.project_id); nextId = next?.superseded_by_id || null; } } await act.put("decisions", { ...v, id: v.id || uid() }, projectsById[v.project_id]); toast("✅ تم الحفظ"); setForm(null); }} fields={[
-          { key: "title", label: "القرار", required: true, span: 2 }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) },
+          { key: "title", label: "القرار", required: true, span: 2 }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, show: () => !projectId, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) },
           { key: "status", label: "الحالة", type: "select", allowEmpty: false, options: opts(L.decisionStatus) }, { key: "decided_at", label: "تاريخ القرار", type: "date" }, { key: "decision_maker_id", label: "صاحب القرار", type: "select", options: mOpts(people) },
           { key: "superseded_by_id", label: "القرار الذي حلّ محله", type: "select", show: (v) => v.status === "Superseded", required: true, options: (v) => data.decisions.filter((x) => x.id !== v.id && x.project_id === v.project_id).map((x) => ({ v: x.id, l: x.title })) },
           { key: "prd_id", label: "المواصفة", type: "select", emptyLabel: "— بلا —", options: (v) => data.prds.filter((p) => p.project_id === v.project_id).map((p) => ({ v: p.id, l: p.title })) },
            { key: "related_task_ids", label: "المهام المتأثرة", type: "multi", options: (v) => idx.list.filter((t) => t.project_id === v.project_id).map((t) => ({ v: t.id, l: t.title })) },
            { key: "related_issue_ids", label: "المشاكل المتأثرة", type: "multi", options: (v) => data.issues.filter((i) => i.project_id === v.project_id).map((i) => ({ v: i.id, l: i.title })) },
            { key: "related_risk_ids", label: "المخاطر المتأثرة", type: "multi", options: (v) => data.risks.filter((r) => r.project_id === v.project_id).map((r) => ({ v: r.id, l: r.title })) },
-           { key: "related_discovery_ids", label: "الاكتشافات التي أثرت في القرار", type: "multi", options: () => data.discovery.map((d) => ({ v: d.id, l: d.title })) },
+           { key: "related_discovery_ids", label: "الاكتشافات التي أثرت في القرار", type: "multi", options: (v) => data.discovery.filter((d) => !d.project_ids?.length || d.project_ids.includes(v.project_id)).map((d) => ({ v: d.id, l: d.title })) },
           { key: "rationale", label: "لماذا؟", type: "textarea" }, { key: "rejected_alternatives", label: "البدائل المرفوضة", type: "textarea", rows: 2 }, { key: "expected_impact", label: "الأثر المتوقع", type: "textarea", rows: 2 }]} />}
     </div>
   );
@@ -366,24 +422,101 @@ export function DecisionsView({ projectId }) {
 // ═════ PRDs ═════
 export function PrdsView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, me, PRD_TEMPLATE, idx, confirm, nameOf, view } = useP();
-  const [sel, setSel] = useState(null); const [form, setForm] = useState(null); const [detail, setDetail] = useState(null);
+  const [sel, setSel] = useState(null); const [form, setForm] = useState(null); const [linkForm, setLinkForm] = useState(null); const [detail, setDetail] = useState(null); const [editorId, setEditorId] = useState(null); const [taskForm, setTaskForm] = useState(null);
   const list = data.prds.filter((p) => !projectId || p.project_id === projectId);
+  const linkExistingPrd = async (v) => {
+    const targetProject = projectsById[projectId];
+    const prd = data.prds.find((item) => item.id === v.prd_id && !item.deleted_at && !item.archived_at);
+    if (!targetProject || !prd || prd.project_id === projectId) throw new Error("اختر مواصفة موجودة من مشروع آخر.");
+    if (!can("prd.write", targetProject)) throw new Error("لا تملك صلاحية ربط مواصفة بهذا المشروع.");
+    const activeTasks = data.tasks.filter((task) => task.prd_id === prd.id && D.isActiveRec(task));
+    const activeOutputs = data.outputs.filter((output) => output.prd_id === prd.id && D.isActiveRec(output));
+    const activeRisks = data.risks.filter((risk) => risk.prd_id === prd.id && D.isActiveRec(risk));
+    const activeDecisions = data.decisions.filter((decision) => D.isActiveRec(decision) && (decision.prd_id === prd.id || (decision.affected_prd_ids || []).includes(prd.id)));
+    if (activeTasks.length || activeOutputs.length || activeRisks.length || activeDecisions.length) {
+      throw new Error("لا يمكن نقل هذه المواصفة تلقائيًا لأنها مرتبطة بسجلات تنفيذية. افتح المشروع الأصلي أو أنشئ نسخة مواصفة داخل المشروع الحالي.");
+    }
+    await act.put("prds", { ...prd, project_id: projectId }, targetProject);
+    toast("✅ تم ربط المواصفة بالمشروع.");
+    setLinkForm(null);
+  };
   useEffect(() => { if (view.focusRecord?.kind === "prd") { const target = data.prds.find((p) => p.id === view.focusRecord.id); if (target && (!projectId || target.project_id === projectId)) setSel(target.id); } }, [view.focusRecord, data.prds, projectId]);
   const canNew = projectId ? can("prd.write", projectsById[projectId]) : data.projects.some((p) => can("prd.write", p) && !p.is_system);
-  const openPrd = sel ? data.prds.find((p) => p.id === sel) : null;
+  const selectedPrd = list.find((p) => p.id === sel) || list[0] || null;
+  const openPrd = editorId ? data.prds.find((p) => p.id === editorId) : null;
+  useEffect(() => { if (!sel && list.length) setSel(list[0].id); else if (sel && !list.some((p) => p.id === sel)) setSel(list[0]?.id || null); }, [sel, list]);
   return (
     <div>
       {!projectId && <Head title="المواصفات (PRDs)" sub={`${list.length} مواصفة`} right={canNew && <Btn kind="primary" onClick={() => setForm({})}>➕ مواصفة</Btn>} />}
-      {projectId && canNew && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ مواصفة</Btn></div>}
+      {projectId && canNew && <div style={{ marginBottom: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ مواصفة</Btn>
+        <Btn small onClick={() => setLinkForm({})}>🔗 ربط مواصفة موجودة</Btn>
+      </div>
       {!list.length ? <Empty icon="📝" title="لا مواصفات" sub="اكتب المواصفة قبل التنفيذ: المشكلة، الحل، مقاييس النجاح." /> : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 10 }}>{list.map((p) => {
-          const tasks = idx.list.filter((t) => t.prd_id === p.id && idx.isLeaf(t.id) && D.cat(t.status) !== "cancelled"); const done = tasks.filter((t) => D.cat(t.status) === "done").length;
-          return <div key={p.id} onClick={() => setSel(p.id)} style={{ ...S.card, cursor: "pointer", padding: "11px 13px" }}>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}><span style={{ fontSize: 13.5, fontWeight: 700, flex: 1 }}>📝 {p.title}</span><Chip color={p.status === "Approved" ? C.ok : p.status === "Ready for Review" ? C.warn : p.status === "Superseded" ? C.muted : C.info}>{L.prdStatus[p.status]}</Chip></div>
-            <div style={{ fontSize: 11, color: C.muted, margin: "3px 0" }}>v{p.version || 1}{!projectId && <> · <ProjectName id={p.project_id} /></>}</div>
-            <div style={{ fontSize: 12, color: C.dim, minHeight: 30 }}>{p.tldr || "—"}</div>
-            <div style={{ marginTop: 6 }}><Progress value={tasks.length ? done / tasks.length : null} /><div style={{ marginTop: 7 }}><Btn small onClick={(e) => { e.stopPropagation(); setDetail(p); }}>عرض التفاصيل</Btn></div></div>
-          </div>; })}</div>)}
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(230px,.72fr) minmax(0,1.65fr)", gap: 12, alignItems: "start" }}>
+          <div style={{ ...S.card, padding: 7 }}>
+            <div style={{ padding: "5px 7px 9px", fontSize: 11, fontWeight: 700, color: C.muted }}>مواصفات المشروع ({list.length})</div>
+            {list.map((prd) => {
+              const tasks = idx.list.filter((task) => task.prd_id === prd.id && idx.isLeaf(task.id) && D.cat(task.status) !== "cancelled");
+              const requirements = (prd.requirements || []).filter((req) => req.status !== "Deprecated");
+              const covered = requirements.filter((req) => tasks.some((task) => task.prd_requirement_id === req.id)).length;
+              const active = sel === prd.id;
+              return <button key={prd.id} type="button" onClick={() => setSel(prd.id)} style={{ display: "block", width: "100%", textAlign: "start", border: "1px solid " + (active ? A : "transparent"), borderRadius: 7, background: active ? "rgba(239,159,39,.08)" : "transparent", padding: "9px 8px", marginBottom: 4, cursor: "pointer", font: "inherit" }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, minWidth: 0, fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis" }}>{prd.title}</b><Chip color={prd.status === "Approved" ? C.ok : prd.status === "Ready for Review" ? C.warn : C.info}>{L.prdStatus[prd.status] || prd.status}</Chip></div>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 6, fontSize: 10.5, color: C.muted, marginTop: 5 }}><span>v{prd.version || 1} · {tasks.length} مهمة</span><span>{requirements.length ? covered + "/" + requirements.length + " متطلب مغطى" : "لا متطلبات بعد"}</span></div>
+                {requirements.length > 0 && <div style={{ marginTop: 6 }}><Progress value={covered / requirements.length} height={5} /></div>}
+                {!projectId && <div style={{ fontSize: 10.5, color: C.muted, marginTop: 4 }}><ProjectName id={prd.project_id} /></div>}
+              </button>;
+            })}
+          </div>
+          {selectedPrd ? (() => {
+            const prd = selectedPrd;
+            const tasks = idx.list.filter((task) => task.prd_id === prd.id && idx.isLeaf(task.id) && D.cat(task.status) !== "cancelled");
+            const outputs = data.outputs.filter((output) => output.prd_id === prd.id && D.isActiveRec(output));
+            const requirements = (prd.requirements || []).filter((req) => req.status !== "Deprecated");
+            const covered = requirements.filter((req) => tasks.some((task) => task.prd_requirement_id === req.id)).length;
+            const done = tasks.filter((task) => D.cat(task.status) === "done").length;
+            const canEdit = can("prd.write", projectsById[prd.project_id]);
+            return <div style={{ minWidth: 0 }}>
+              <div style={{ ...S.card, padding: 14, marginBottom: 10 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: 180 }}><div style={{ fontSize: 16, fontWeight: 800 }}>{prd.title}</div><div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>v{prd.version || 1} · {L.prdStatus[prd.status] || prd.status}{!projectId ? " · " + (projectsById[prd.project_id]?.name || "مشروع غير متاح") : ""}</div></div>
+                  <Chip color={prd.status === "Approved" ? C.ok : prd.status === "Ready for Review" ? C.warn : C.info}>{L.prdStatus[prd.status] || prd.status}</Chip>
+                  {canEdit && <Btn kind="primary" small onClick={() => setEditorId(prd.id)}>فتح المواصفة وتحريرها</Btn>}
+                  <Btn small onClick={(e) => { e.stopPropagation(); setDetail(prd); }}>عرض التفاصيل</Btn>
+                </div>
+                {prd.tldr && <p style={{ fontSize: 12.5, lineHeight: 1.8, color: C.dim, margin: "10px 0" }}>{prd.tldr}</p>}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(115px,1fr))", gap: 8, marginTop: 10 }}>
+                  <div><b style={{ fontSize: 18 }}>{done}/{tasks.length}</b><div style={{ fontSize: 10.5, color: C.muted }}>مهام مكتملة</div></div>
+                  <div><b style={{ fontSize: 18 }}>{covered}/{requirements.length}</b><div style={{ fontSize: 10.5, color: C.muted }}>متطلبات لها مهمة</div></div>
+                  <div><b style={{ fontSize: 18 }}>{outputs.length}</b><div style={{ fontSize: 10.5, color: C.muted }}>مخرجات مرتبطة</div></div>
+                  <div><b style={{ fontSize: 18 }}>{data.risks.filter((risk) => risk.prd_id === prd.id && D.isActiveRec(risk)).length}</b><div style={{ fontSize: 10.5, color: C.muted }}>مخاطر مرتبطة</div></div>
+                </div>
+                {requirements.length > 0 && <div style={{ marginTop: 10 }}><div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.muted, marginBottom: 4 }}><span>تغطية المتطلبات بالمهام</span><b>{Math.round(covered / requirements.length * 100)}%</b></div><Progress value={covered / requirements.length} height={7} /></div>}
+              </div>
+              <div style={{ ...S.card, padding: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><b style={{ flex: 1, fontSize: 13 }}>المتطلبات والتنفيذ</b><span style={{ fontSize: 10.5, color: C.muted }}>{requirements.length} متطلب</span></div>
+                {!requirements.length ? <Empty icon="🧩" title="لم تُقسّم المواصفة إلى متطلبات" sub="افتح المواصفة وأضف متطلبات بمعايير قبول حتى يمكن تتبع التنفيذ." /> : requirements.map((req) => {
+                  const reqTasks = tasks.filter((task) => task.prd_requirement_id === req.id);
+                  const reqOutputs = outputs.filter((output) => output.prd_requirement_id === req.id);
+                  return <div key={req.id} style={{ padding: "9px 0", borderTop: "1px solid " + C.line }}>
+                    <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" }}>
+                      <b style={{ flex: 1, minWidth: 120, fontSize: 12.5 }}>{req.title}</b>
+                      <Chip color={req.status === "Accepted" || req.status === "Verified" ? C.ok : C.info}>{req.status === "Verified" ? "متحقق" : req.status === "Accepted" ? "مقبول" : "نشط"}</Chip>
+                      <Chip>{req.priority || "Medium"}</Chip>
+                      {canEdit && <Btn small onClick={() => setEditorId(prd.id)}>فتح المتطلب</Btn>}
+                      {can("task.write", projectsById[prd.project_id]) && <Btn small kind={reqTasks.length ? "secondary" : "primary"} onClick={() => setTaskForm({ project_id: prd.project_id, prd_id: prd.id, prd_requirement_id: req.id })}>{reqTasks.length ? "＋ مهمة إضافية" : "＋ إنشاء مهمة تنفيذ"}</Btn>}
+                    </div>
+                    {req.acceptance_criteria && <div style={{ fontSize: 11.5, color: C.dim, whiteSpace: "pre-wrap", marginTop: 4 }}>معايير القبول: {req.acceptance_criteria}</div>}
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}><span style={{ fontSize: 10.5, color: C.muted }}>المهام:</span>{reqTasks.length ? reqTasks.map((task) => <span key={task.id} style={{ display: "inline-flex", alignItems: "center" }}><Btn small onClick={() => openTask(task.id)}>{D.cat(task.status) === "done" ? "✓ " : "▫ "}{task.title}</Btn></span>) : <span style={{ fontSize: 11, color: C.warn }}>لا توجد مهمة تنفذ هذا المتطلب</span>}</div>
+                    {reqOutputs.length > 0 && <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 5 }}><span style={{ fontSize: 10.5, color: C.muted }}>المخرجات:</span>{reqOutputs.map((output) => <Btn key={output.id} small onClick={() => openProject(prd.project_id, "outputs", { kind: "output", id: output.id })}>📦 {output.name}</Btn>)}</div>}
+                  </div>;
+                })}
+                {canEdit && <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}><Btn kind="primary" small onClick={() => setEditorId(prd.id)}>إدارة المتطلبات والمراجعة</Btn></div>}
+              </div>
+            </div>;
+          })() : <Empty icon="📝" title="اختر مواصفة" sub="اختر مواصفة من القائمة لعرض المتطلبات وروابط التنفيذ." />}
+        </div>)}
       {detail && <RecordDetailModal title={"تفاصيل المواصفة: " + detail.title} onClose={() => setDetail(null)} fields={[
         { label: "المشروع", value: projectsById[detail.project_id]?.name }, { label: "الحالة", value: L.prdStatus[detail.status] || detail.status },
         { label: "الإصدار", value: detail.version || 1 }, { label: "المسؤول", value: people.find((x) => x.id === detail.lead_id)?.name },
@@ -397,9 +530,14 @@ export function PrdsView({ projectId }) {
         { label: "المراجعون", value: (detail.reviewer_ids || []).map((id) => people.find((person) => person.id === id)?.name).filter(Boolean).join("، ") },
         { label: "الموافقات", value: (detail.approvals || []).map((approval) => (people.find((person) => person.id === approval.reviewer_id)?.name || "مراجع") + ": " + (approval.decision === "approve" ? "موافقة" : "رفض") + (approval.comment ? " — " + approval.comment : "")).join("\\n") }
       ]} />}
-      {form && <FormModal title="مواصفة جديدة" initial={{ status: "Not Started", ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { const rec = { ...v, id: uid(), version: 1, sections: PRD_TEMPLATE.map((s) => ({ key: s.key, title: s.title, group: s.group, content: "" })), approvals: [], reviewer_ids: [], lead_id: v.lead_id || me }; const saved = await act.put("prds", rec, projectsById[v.project_id]); setForm(null); if (saved) setSel(saved.id); }} fields={[
-        { key: "title", label: "عنوان المواصفة", required: true }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) }, { key: "lead_id", label: "المسؤول", type: "select", options: mOpts(people) }]} />}
-      {openPrd && <PrdEditor prd={openPrd} onClose={() => setSel(null)} onOpen={(id) => setSel(id)} />}
+      {linkForm && <FormModal title="ربط مواصفة موجودة بالمشروع" initial={{ prd_id: "" }} onClose={() => setLinkForm(null)} onSubmit={linkExistingPrd} fields={[
+        { key: "prd_id", label: "المواصفة", type: "select", required: true, allowEmpty: false,
+          options: data.prds.filter((prd) => !prd.deleted_at && !prd.archived_at && prd.project_id !== projectId).map((prd) => ({ v: prd.id, l: (projectsById[prd.project_id]?.name || "مشروع غير متاح") + " — " + prd.title })) }
+      ]} />}
+      {form && <FormModal title="مواصفة جديدة" initial={{ status: "Not Started", ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { const project = projectsById[v.project_id]; if (!project || project.is_system || project.archived_at || project.deleted_at) throw new Error("اختر مشروعًا نشطًا وصالحًا لإنشاء المواصفة."); const rec = { ...v, id: uid(), version: 1, sections: PRD_TEMPLATE.map((s) => ({ key: s.key, title: s.title, group: s.group, content: "" })), approvals: [], reviewer_ids: [], lead_id: v.lead_id || me }; const saved = await act.put("prds", rec, project); setForm(null); if (saved) setSel(saved.id); }} fields={[
+        { key: "title", label: "عنوان المواصفة", required: true }, { key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, show: () => !projectId, options: projOpts(data.projects.filter((p) => !p.is_system && (!projectId || p.id === projectId))) }, { key: "lead_id", label: "المسؤول", type: "select", options: mOpts(people) }]} />}
+      {openPrd && <PrdEditor prd={openPrd} onClose={() => setEditorId(null)} onOpen={(id) => { setSel(id); setEditorId(id); }} />}
+      {taskForm && <TaskForm initial={taskForm} allowedProjectIds={[taskForm.project_id]} onClose={() => setTaskForm(null)} />}
     </div>
   );
 }
@@ -490,7 +628,7 @@ function PrdEditor({ prd, onClose, onOpen }) {
       {tab === "tasks" && (!linkedTasks.length ? <Empty icon="✅" title="لا مهام مرتبطة" sub="اربط المهام بهذه المواصفة من نموذج المهمة (حقل المواصفة)." /> : linkedTasks.map((t) => { const req = requirements.find((x) => x.id === t.prd_requirement_id); return <div key={t.id} onClick={() => openTask(t.id)} style={{ padding: "6px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13, cursor: "pointer" }}>{D.cat(t.status) === "done" ? "✅" : "⬜"} {t.title}{req && <span style={{ color: C.muted }}> · {req.title}</span>}</div>; }))}
       {rejectForm && <FormModal title="رفض المواصفة" initial={{ comment: "" }} onClose={() => setRejectForm(false)} onSubmit={async (v) => { if (!String(v.comment || "").trim()) throw new Error("اكتب سبب الرفض أو ملاحظات المراجعة."); await review("reject", v.comment.trim()); }} fields={[{ key: "comment", label: "سبب الرفض / الملاحظات", type: "textarea", required: true, rows: 3 }]} />}
     </Modal>
-    {taskForm && <TaskForm initial={taskForm} onClose={() => setTaskForm(null)} />}
+    {taskForm && <TaskForm initial={taskForm} allowedProjectIds={[taskForm.project_id]} onClose={() => setTaskForm(null)} />}
     </>
   );
 }

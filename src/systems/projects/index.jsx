@@ -47,11 +47,14 @@ function ProjectsDurableEventBridge({ ws, isDemo, children }) {
 }
 
 function Router({ sourceWriteRequest }) {
-  const ctx = useP(); const { page, ready, error, store, access, role, shell, ws, A, data } = ctx; const lvl = osSectionLevel(access, page);
+  const ctx = useP(); const { page, ready, error, store, access, role, shell, ws, A, data } = ctx;
+  // My Work is a workflow view of the legacy Tasks section; keep its existing access key.
+  const sectionKey = (id) => id === "myWork" ? "tasks" : id;
+  const lvl = osSectionLevel(access, sectionKey(page));
   // sections hidden for Viewers (plan §13.2) are removed from the shell menu
   useEffect(() => {
     if (!shell || !shell.publish) return;
-    const visible = Object.keys(SCREENS).filter((k) => k !== "masterplanImport" && !(role === "Viewer" && ["reviews", "contacts"].includes(k)));
+    const visible = Object.keys(SCREENS).filter((k) => k !== "masterplanImport" && !(role === "Viewer" && ["reviews", "contacts"].includes(k)) && osSectionLevel(access, sectionKey(k)) !== "none");
     const groups = [
       { id: "work", label: "العمل", items: [
         { id: "dashboard", label: "الرئيسية", icon: "⌂" },
@@ -89,7 +92,7 @@ function Router({ sourceWriteRequest }) {
       ]},
     ].map(group => ({ ...group, items: group.items.filter(item => visible.includes(item.id)) })).filter(group => group.items.length);
     shell.publish("projects", { visible, navGroups: groups });
-  }, [role]);
+  }, [role, access]);
   const processedVenturesRiskWrites = useRef(new Set());
   const handleVenturesRisk = useCallback(async (d) => {
     if (!(d?.source === "ventures" && d.systemId === "projects" && d.action === "create_risk")) return;
@@ -172,7 +175,7 @@ function Router({ sourceWriteRequest }) {
   const Screen = SCREENS[page] || Dashboard;
   const readOnlyScope = lvl === "view" && access.level === "edit";
   const body = readOnlyScope ? <Ctx.Provider value={{ ...ctx, can: () => false, role: "Viewer" }}><div style={{ marginBottom: 10 }}><Chip color="#3B82F6">👁 هذا القسم للعرض فقط</Chip></div><Screen /></Ctx.Provider> : <Screen />;
-  return <div className="projects-system" style={{ animation: "fadeIn 0.25s ease-out" }}>{ctx.pending > 0 && <div style={{ position: "fixed", top: 8, insetInlineEnd: 12, fontSize: 10.5, color: "#6E7781", zIndex: 3000 }}>⟳ جارٍ الحفظ…</div>}{ctx.online === false && !ctx.isDemo && <div style={{ fontSize: 11, color: "#B7791F", marginBottom: 8 }}>⚠ التحديث اللحظي غير متصل — تُحمَّل التغييرات عند العودة للنافذة.</div>}{body}<TaskSheet /><TimerBar /></div>;
+  return <div className="projects-system" style={{ animation: "fadeIn 0.25s ease-out" }}>{ctx.pending > 0 && <div style={{ position: "fixed", top: 8, insetInlineEnd: 12, fontSize: 10.5, color: "#6E7781", zIndex: 3000 }}>⟳ جارٍ الحفظ…</div>}{ctx.online === false && !ctx.isDemo && <div style={{ fontSize: 11, color: "#B7791F", marginBottom: 8 }}>⚠ التحديث اللحظي غير متصل — تُحمَّل التغييرات عند العودة للنافذة.</div>}{body}{!ctx.view?.inlineTask && <TaskSheet />}<TimerBar /></div>;
 }
 
 export default function ProjectsSystem(props) {

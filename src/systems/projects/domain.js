@@ -143,9 +143,175 @@ export function canChangeProjectStatus(project, to, idx) {
   return { ok: true };
 }
 
+export function validateTaskDependencies(task, tasksById = {}) {
+  const errors = [];
+  const raw = task?.dependency_task_ids;
+  if (raw != null && !Array.isArray(raw)) return ["قائمة المهام السابقة يجب أن تكون قائمة صالحة."];
+  const ids = Array.isArray(raw) ? raw : [];
+  if (new Set(ids).size !== ids.length) errors.push("لا يمكن تكرار المهمة السابقة في قائمة الاعتماد.");
+  for (const dependencyId of ids) {
+    if (!dependencyId) { errors.push("توجد علاقة اعتماد بلا مهمة محددة."); continue; }
+    if (dependencyId === task.id) { errors.push("لا يمكن أن تعتمد المهمة على نفسها."); continue; }
+    const dependency = tasksById[dependencyId];
+    if (!dependency || dependency.deleted_at || dependency.archived_at) {
+      errors.push("إحدى المهام السابقة غير موجودة أو مؤرشفة.");
+      continue;
+    }
+    if (dependency.project_id !== task.project_id) {
+      errors.push("المهمة السابقة يجب أن تكون من المشروع نفسه.");
+      continue;
+    }
+    let parentId = task.parent_task_id;
+    const ancestorIds = new Set();
+    while (parentId && !ancestorIds.has(parentId)) {
+      ancestorIds.add(parentId);
+      if (parentId === dependencyId) break;
+      parentId = tasksById[parentId]?.parent_task_id || null;
+    }
+    if (ancestorIds.has(dependencyId)) {
+      errors.push("لا يمكن ربط المهمة بمهمة أب لها داخل شجرة المهام؛ استخدم مهمة تنفيذ مستقلة من نفس المستوى.");
+      continue;
+    }
+    let dependencyParentId = dependency.parent_task_id;
+    const hierarchySeen = new Set();
+    let isDescendant = false;
+    while (dependencyParentId && !hierarchySeen.has(dependencyParentId)) {
+      if (dependencyParentId === task.id) { isDescendant = true; break; }
+      hierarchySeen.add(dependencyParentId);
+      dependencyParentId = tasksById[dependencyParentId]?.parent_task_id || null;
+    }
+    if (isDescendant) {
+      errors.push("لا يمكن ربط المهمة بمهمة فرعية تابعة لها؛ استخدم مهمة تنفيذ مستقلة.");
+      continue;
+    }
+    // A dependency edge is task → predecessor. Adding it is cyclic when
+    // the predecessor already reaches this task through its own predecessors.
+    const stack = [dependencyId];
+    const seen = new Set();
+    let cycle = false;
+    while (stack.length && !cycle) {
+      const currentId = stack.pop();
+      if (currentId === task.id) { cycle = true; break; }
+      if (seen.has(currentId)) continue;
+      seen.add(currentId);
+      const current = tasksById[currentId];
+      (Array.isArray(current?.dependency_task_ids) ? current.dependency_task_ids : []).forEach((id) => {
+        if (tasksById[id] && !tasksById[id].deleted_at && !tasksById[id].archived_at) stack.push(id);
+      });
+    }
+    if (cycle) errors.push("علاقة الاعتماد ستنشئ دورة بين المهام؛ راجع ترتيب المهام السابقة.");
+  }
+  return [...new Set(errors)];
+}
+
+export function analyzeTaskSchedule(tasks = []) {
+  const list = (tasks || []).filter((task) => task && !task.deleted_at && !task.archived_at);
+  const byId = Object.fromEntries(list.map((task) => [task.id, task]));
+  const dated = list.filter((task) => task.start_date || task.due_date);
+  const datedById = Object.fromEntries(dated.map((task) => [task.id, task]));
+  const ids = dated.map((task) => task.id);
+  const predecessors = {};
+  const successors = {};
+  const durations = {};
+  const missingPredecessors = [];
+  const cancelledPredecessors = [];
+  for (const task of dated) {
+    const allDeps = [...new Set(Array.isArray(task.dependency_task_ids) ? task.dependency_task_ids : [])];
+    predecessors[task.id] = allDeps.filter((id) => !!datedById[id]);
+    successors[task.id] = [];
+    const missing = allDeps.filter((id) => !byId[id] || !datedById[id]);
+    missing.forEach((id) => missingPredecessors.push({ task_id: task.id, dependency_task_id: id }));
+    allDeps.filter((id) => byId[id] && cat(byId[id].status) === "cancelled")
+      .forEach((id) => cancelledPredecessors.push({ task_id: task.id, dependency_task_id: id }));
+    const from = task.start_date || task.due_date;
+    const to = task.due_date || task.start_date;
+    durations[task.id] = Math.max(1, diffDays(to < from ? from : to, to < from ? to : from) + 1);
+  }
+  for (const task of dated) {
+    for (const predecessorId of predecessors[task.id]) successors[predecessorId].push(task.id);
+  }
+  const indegree = Object.fromEntries(ids.map((id) => [id, predecessors[id].length]));
+  const queue = ids.filter((id) => indegree[id] === 0);
+  const order = [];
+  while (queue.length) {
+    const id = queue.shift();
+    order.push(id);
+    for (const nextId of successors[id]) {
+      indegree[nextId] -= 1;
+      if (indegree[nextId] === 0) queue.push(nextId);
+    }
+  }
+  const cyclic = order.length !== ids.length;
+  const conflicts = [];
+  for (const task of dated) {
+    const start = task.start_date || task.due_date;
+    for (const predecessorId of predecessors[task.id]) {
+      const predecessor = datedById[predecessorId];
+      const predecessorEnd = predecessor.due_date || predecessor.start_date;
+      if (start <= predecessorEnd) conflicts.push({
+        task_id: task.id,
+        dependency_task_id: predecessorId,
+        start_date: start,
+        predecessor_end: predecessorEnd,
+      });
+    }
+  }
+  if (!dated.length || cyclic) {
+    return {
+      task_count: dated.length,
+      project_duration_days: null,
+      critical_task_ids: [],
+      earliest_start: {},
+      earliest_finish: {},
+      latest_start: {},
+      total_float: {},
+      edges: dated.flatMap((task) => predecessors[task.id].map((id) => ({ from: id, to: task.id }))),
+      missing_predecessors: missingPredecessors,
+      cancelled_predecessors: cancelledPredecessors,
+      conflicts,
+      cyclic,
+      complete: dated.length > 0 && !cyclic && !missingPredecessors.length && !cancelledPredecessors.length,
+    };
+  }
+  const earliestStart = {};
+  const earliestFinish = {};
+  for (const id of order) {
+    earliestStart[id] = predecessors[id].reduce((max, previousId) => Math.max(max, earliestFinish[previousId] || 0), 0);
+    earliestFinish[id] = earliestStart[id] + durations[id];
+  }
+  const projectDuration = Math.max(0, ...ids.map((id) => earliestFinish[id] || 0));
+  const latestStart = {};
+  const latestFinish = {};
+  for (const id of [...order].reverse()) {
+    latestFinish[id] = successors[id].length
+      ? Math.min(...successors[id].map((nextId) => latestStart[nextId]))
+      : projectDuration;
+    latestStart[id] = latestFinish[id] - durations[id];
+  }
+  const totalFloat = {};
+  for (const id of ids) totalFloat[id] = latestStart[id] - earliestStart[id];
+  const criticalTaskIds = ids.filter((id) => totalFloat[id] === 0);
+  return {
+    task_count: dated.length,
+    project_duration_days: missingPredecessors.length || cancelledPredecessors.length ? null : projectDuration,
+    critical_task_ids: missingPredecessors.length || cancelledPredecessors.length ? [] : criticalTaskIds,
+    earliest_start: earliestStart,
+    earliest_finish: earliestFinish,
+    latest_start: latestStart,
+    total_float: totalFloat,
+    edges: dated.flatMap((task) => predecessors[task.id].map((id) => ({ from: id, to: task.id }))),
+    missing_predecessors: missingPredecessors,
+    cancelled_predecessors: cancelledPredecessors,
+    conflicts,
+    cyclic: false,
+    complete: missingPredecessors.length === 0 && cancelledPredecessors.length === 0,
+  };
+}
+
 // ── validation (V-xx) ───────────────────────────────────────────────
 export function validateTaskRefs(task, ctx) {
   const errors = []; const { projectsById, tasksById, prdsById } = ctx;
+  errors.push(...validateTaskDependencies(task, tasksById));
   if (!task.project_id) errors.push("V-01: المهمة تحتاج مشروعاً صريحاً");
   else if (projectsById && !projectsById[task.project_id]) errors.push("V-22: المشروع غير موجود");
   if (task.parent_task_id) {
@@ -158,6 +324,20 @@ export function validateTaskRefs(task, ctx) {
   else if (task.prd_requirement_id) errors.push("V-23: لا يمكن ربط متطلب دون ربط المواصفة");
   if (cat(task.status) === "cancelled" && !task.cancelled_reason) errors.push("V-19: سبب الإلغاء مطلوب");
   return errors;
+}
+// Prefill a new output with only the still-valid specification relations of its source task.
+export function defaultOutputRelationsForTask(task, prds) {
+  const prd = task?.prd_id ? (prds || []).find((item) =>
+    item.id === task.prd_id && item.project_id === task.project_id && !item.deleted_at && !item.archived_at
+  ) : null;
+  if (!prd) return { prd_id: "", prd_requirement_id: "" };
+  const requirement = task.prd_requirement_id
+    ? (prd.requirements || []).find((item) => item.id === task.prd_requirement_id && item.status !== "Deprecated")
+    : null;
+  return {
+    prd_id: prd.id,
+    prd_requirement_id: requirement?.id || "",
+  };
 }
 export function canReparent(taskId, newParentId, idx) {
   const t = idx.byId[taskId]; if (!t) return { ok: false, error: "المهمة غير موجودة" };
@@ -441,18 +621,399 @@ export function computeAlerts(memberId, ctx) {
 }
 
 // ── templates ───────────────────────────────────────────────────────
+// Build a reusable, identity-free template draft from a live project.
+// Runtime state (people, sessions, approvals, completion and absolute dates) is deliberately omitted.
+export function projectToTemplateSeed(project, data = {}) {
+  if (!project?.id) throw new Error("اختر مشروعًا صالحًا لتحويله إلى قالب.");
+  const tasks = (data.tasks || []).filter((task) =>
+    task.project_id === project.id && !task.deleted_at && !task.archived_at
+  );
+  const taskById = Object.fromEntries(tasks.map((task) => [task.id, task]));
+  const dependencyTitleCounts = new Map();
+  for (const task of tasks) {
+    const title = String(task.title || "").trim();
+    dependencyTitleCounts.set(title, (dependencyTitleCounts.get(title) || 0) + 1);
+  }
+  const conversionWarnings = [];
+  const ordered = (items) => [...items].sort((a, b) =>
+    (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) ||
+    String(a.created_at || "").localeCompare(String(b.created_at || "")) ||
+    String(a.title || "").localeCompare(String(b.title || ""))
+  );
+  const children = new Map();
+  const roots = [];
+  for (const task of ordered(tasks)) {
+    const parent = task.parent_task_id && taskById[task.parent_task_id];
+    if (parent && parent.id !== task.id) {
+      const list = children.get(parent.id) || [];
+      list.push(task);
+      children.set(parent.id, list);
+    } else {
+      roots.push(task);
+    }
+  }
+  // An invalid cycle or orphan must not disappear from the converted structure.
+  const treeIds = new Set();
+  const toNode = (task, ancestry = new Set()) => {
+    if (treeIds.has(task.id) || ancestry.has(task.id)) return null;
+    treeIds.add(task.id);
+    const nextAncestry = new Set(ancestry);
+    nextAncestry.add(task.id);
+    const dependencyTitles = [];
+    const sourceTitle = String(task.title || "").trim();
+    if ((task.dependency_task_ids || []).length && dependencyTitleCounts.get(sourceTitle) !== 1) {
+      conversionWarnings.push("لم تُنقل روابط الاعتماد من «" + sourceTitle + "» لأن عنوان المهمة المصدر مكرر.");
+    }
+    for (const dependencyId of (dependencyTitleCounts.get(sourceTitle) === 1 ? (task.dependency_task_ids || []) : [])) {
+      const dependency = taskById[dependencyId];
+      if (!dependency) {
+        conversionWarnings.push("تعذر نقل اعتماد غير متاح من المهمة «" + task.title + "».");
+        continue;
+      }
+      const dependencyTitle = String(dependency.title || "").trim();
+      if (!dependencyTitle || dependencyTitleCounts.get(dependencyTitle) !== 1) {
+        conversionWarnings.push("لم يُنقل اعتماد «" + task.title + "» إلى «" + dependencyTitle + "» لأن عنوان المهمة السابقة مكرر أو فارغ.");
+        continue;
+      }
+      if (dependency.id === task.id) {
+        conversionWarnings.push("أُزيل اعتماد ذاتي من المهمة «" + task.title + "» أثناء تحويلها إلى قالب.");
+        continue;
+      }
+      dependencyTitles.push(dependencyTitle);
+    }
+    const node = {
+      title: String(task.title || "").trim(),
+      ...(Number(task.estimated_minutes) > 0 ? { estimate_minutes: Number(task.estimated_minutes) } : {}),
+      ...(!!(task.milestone || task.template_kind === "Milestone") ? { milestone: true } : {}),
+      ...(dependencyTitles.length ? { dependency_titles: [...new Set(dependencyTitles)] } : {}),
+    };
+    const date = task.start_date || task.due_date || null;
+    if (date) node.__template_date = String(date).slice(0, 10);
+    const nested = ordered(children.get(task.id) || []).map((child) => toNode(child, nextAncestry)).filter(Boolean);
+    if (nested.length) node.children = nested;
+    return node;
+  };
+  let taskTree = ordered(roots).map((task) => toNode(task)).filter(Boolean);
+  // Recover any nodes left unvisited by cyclic parent references as independent roots.
+  for (const task of ordered(tasks)) {
+    if (!treeIds.has(task.id)) {
+      const node = toNode(task);
+      if (node) taskTree.push(node);
+    }
+  }
+
+  const dateValues = [
+    project.start_date,
+    ...tasks.flatMap((task) => [task.start_date, task.due_date]),
+  ].filter(Boolean).map((value) => String(value).slice(0, 10)).filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value)).sort();
+  const baseline = dateValues[0] || null;
+  const utcDay = (value) => Date.parse(value + "T00:00:00Z");
+  const toOffsets = (nodes) => nodes.forEach((node) => {
+    if (node.__template_date && baseline) {
+      const offset = Math.round((utcDay(node.__template_date) - utcDay(baseline)) / 86400000);
+      if (Number.isFinite(offset) && offset >= 0) node.offset_days = offset;
+    }
+    delete node.__template_date;
+    toOffsets(node.children || []);
+  });
+  toOffsets(taskTree);
+  const durationDays = baseline && project.target_date
+    ? Math.round((utcDay(String(project.target_date).slice(0, 10)) - utcDay(baseline)) / 86400000)
+    : null;
+
+  const prds = (data.prds || []).filter((prd) =>
+    prd.project_id === project.id && !prd.deleted_at && !prd.archived_at
+  );
+  const taskCountsByTitle = new Map();
+  for (const task of tasks) {
+    const title = String(task.title || "").trim();
+    taskCountsByTitle.set(title, (taskCountsByTitle.get(title) || 0) + 1);
+  }
+  const uniqueTaskTitle = (taskId) => {
+    const task = taskById[taskId];
+    if (!task) return null;
+    const title = String(task.title || "").trim();
+    return title && taskCountsByTitle.get(title) === 1 ? title : null;
+  };
+  const prdTemplates = prds.map((prd) => ({
+    title: String(prd.title || "").trim(),
+    tldr: String(prd.tldr || "").trim(),
+    requirements: (prd.requirements || []).filter((req) => req.status !== "Deprecated").map((req) => {
+      const linked = tasks.filter((task) => task.prd_id === prd.id && task.prd_requirement_id === req.id);
+      if (linked.length > 0 && (linked.length !== 1 || !uniqueTaskTitle(linked[0].id))) {
+        conversionWarnings.push("لم يُنقل ربط المتطلب «" + req.title + "» بمهمة محددة لأن رابط المهمة مكرر أو ملتبس.");
+      }
+      return {
+        title: String(req.title || "").trim(),
+        acceptance_criteria: String(req.acceptance_criteria || "").trim(),
+        priority: req.priority || "Medium",
+        task_title: linked.length === 1 ? uniqueTaskTitle(linked[0].id) : null,
+      };
+    }),
+  })).filter((prd) => prd.title);
+  const prdById = Object.fromEntries(prds.map((prd) => [prd.id, prd]));
+  const outputs = (data.outputs || []).filter((output) =>
+    output.project_id === project.id && !output.deleted_at && !output.archived_at
+  ).map((output) => {
+    const prd = output.prd_id ? prdById[output.prd_id] : null;
+    const requirement = prd && output.prd_requirement_id
+      ? (prd.requirements || []).find((item) => item.id === output.prd_requirement_id)
+      : null;
+    const taskTitle = output.task_id ? uniqueTaskTitle(output.task_id) : null;
+    if (output.task_id && !taskTitle) {
+      conversionWarnings.push("لم يُنقل ربط المخرج «" + output.name + "» بمهمة محددة لأن عنوان المهمة المصدر مكرر أو غير متاح.");
+    }
+    return {
+      name: String(output.name || "").trim(),
+      type: output.type || "Other",
+      task_title: taskTitle,
+      prd_title: prd?.title || null,
+      requirement_title: requirement?.status === "Deprecated" ? null : (requirement?.title || null),
+    };
+  }).filter((output) => output.name);
+
+  const sourceObjectives = (data.objectives || []).filter((objective) => isActiveRec(objective));
+  const sourceKrs = (data.krs || []).filter((kr) =>
+    isActiveRec(kr) && kr.objective_id &&
+    Array.isArray(kr.project_ids) && kr.project_ids.includes(project.id)
+  );
+  const sourceObjectiveIds = new Set(sourceKrs.map((kr) => kr.objective_id));
+  const sourceObjectiveMap = new Map(sourceObjectives.map((objective) => [objective.id, objective]));
+  const objectiveTemplates = [];
+  for (const kr of sourceKrs) {
+    if (!sourceObjectiveMap.has(kr.objective_id)) {
+      conversionWarnings.push("تعذر نقل النتيجة «" + kr.name + "» لأن الهدف المصدر غير متاح.");
+    }
+  }
+  const selectedObjectives = sourceObjectives
+    .filter((objective) => sourceObjectiveIds.has(objective.id))
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  selectedObjectives.forEach((objective, objectiveIndex) => {
+    const key = "objective_" + (objectiveIndex + 1);
+    const keyResults = sourceKrs.filter((kr) => kr.objective_id === objective.id).map((kr) => {
+      const sourceTaskIds = Array.isArray(kr.task_ids) ? kr.task_ids : tasks.map((task) => task.id);
+      const linkedTasks = sourceTaskIds.map((id) => taskById[id]).filter((task) => task && task.project_id === project.id);
+      const taskTitles = [];
+      for (const task of linkedTasks) {
+        const title = String(task.title || "").trim();
+        if (!title || dependencyTitleCounts.get(title) !== 1) {
+          conversionWarnings.push("لم تُنقل مهمة مرتبطة بنتيجة «" + kr.name + "» لأن عنوانها مكرر أو فارغ.");
+          continue;
+        }
+        if (!taskTitles.includes(title)) taskTitles.push(title);
+      }
+      if (kr.type === "Numeric") {
+        const initialValue = Number(kr.initial_value);
+        const targetValue = Number(kr.target_value);
+        if (!Number.isFinite(initialValue) || !Number.isFinite(targetValue) || initialValue === targetValue) {
+          conversionWarnings.push("لم تُنقل القيم الرقمية للنتيجة «" + kr.name + "» لأنها لا تحتوي على خط أساس وهدف صالحين.");
+          return null;
+        }
+        return { name: String(kr.name || "").trim(), type: "Numeric", unit: String(kr.unit || ""), initial_value: initialValue, target_value: targetValue, task_titles: taskTitles };
+      }
+      if (kr.type !== "Project Based") {
+        conversionWarnings.push("لم تُنقل النتيجة «" + kr.name + "» لأن نوعها غير مدعوم في قوالب المشاريع.");
+        return null;
+      }
+      return { name: String(kr.name || "").trim(), type: "Project Based", task_titles: taskTitles };
+    }).filter(Boolean);
+    objectiveTemplates.push({ key, name: String(objective.name || "").trim(), why: String(objective.why || "").trim(), key_results: keyResults });
+  });
+  for (const objective of objectiveTemplates) {
+    if (!objective.key_results.length) conversionWarnings.push("الهدف «" + objective.name + "» لا يحتوي على نتائج رئيسية قابلة للنقل إلى القالب.");
+  }
+  const risks = (data.risks || []).filter((risk) =>
+    risk.project_id === project.id && !risk.deleted_at && !risk.archived_at
+  ).map((risk) => ({
+    title: String(risk.title || "").trim(),
+    probability: Math.max(1, Math.min(5, Number(risk.probability) || 3)),
+    impact: Math.max(1, Math.min(5, Number(risk.impact) || 3)),
+    mitigation: String(risk.mitigation || "").trim(),
+  })).filter((risk) => risk.title);
+
+  return {
+    name: String(project.name || "مشروع").trim() + " — قالب",
+    description: String(project.description || "").trim(),
+    final_goal: String(project.final_goal || "").trim(),
+    project_type: project.type || "أخرى",
+    duration_days: Number.isFinite(durationDays) && durationDays >= 0 ? durationDays : "",
+    task_tree: taskTree,
+    objective_templates: objectiveTemplates.filter((objective) => objective.key_results.length > 0),
+    conversion_warnings: conversionWarnings,
+    prd_templates: prdTemplates,
+    output_templates: outputs,
+    risks,
+    decision_prompts: [...new Set((project.decision_prompts || []).map((value) => String(value || "").trim()).filter(Boolean))],
+    team_roles: [...new Set((project.template_roles || []).map((value) => String(value || "").trim()).filter(Boolean))],
+    checklist: [...new Set((project.template_checklist || []).map((value) => String(value || "").trim()).filter(Boolean))],
+  };
+}
+
 export function instantiateProjectTemplate(tpl, opts, newId) {
   const start = opts.start_date || null; const projectId = newId();
-  const project = { id: projectId, name: opts.name, type: opts.type || tpl.project_type || "أخرى", status: "Planned", priority: opts.priority || "Medium", start_date: start, target_date: opts.target_date || (start && tpl.duration_days ? addDays(start, tpl.duration_days) : null), description: tpl.description || "", final_goal: opts.final_goal || tpl.final_goal || "", lead_id: opts.lead_id || null, visibility: "workspace", template_id: tpl.id, members: opts.lead_id ? [{ member_id: opts.lead_id, role: "Lead" }] : [], links: [] };
-  const tasks = []; let order = 0;
-  const walk = (nodes, parentId) => nodes.forEach((n) => {
+  const project = {
+    id: projectId, name: opts.name, type: opts.type || tpl.project_type || "أخرى", status: "Planned",
+    priority: opts.priority || "Medium", start_date: start,
+    target_date: opts.target_date || (start && tpl.duration_days ? addDays(start, tpl.duration_days) : null),
+    description: opts.description || tpl.description || "", final_goal: opts.final_goal || tpl.final_goal || "",
+    lead_id: opts.lead_id || null, visibility: "workspace", template_id: tpl.id,
+    members: opts.lead_id ? [{ member_id: opts.lead_id, role: "Lead" }] : [], links: [],
+    template_roles: [...new Set((tpl.team_roles || []).map((role) => String(role || "").trim()).filter(Boolean))],
+    decision_prompts: (tpl.decision_prompts || []).map((prompt) => String(prompt || "").trim()).filter(Boolean),
+    template_checklist: (tpl.checklist || []).map((item) => String(item || "").trim()).filter(Boolean),
+    template_checklist_state: {},
+    template_seed: true,
+  };
+  const tasks = []; let order = 0; const taskByTitle = new Map(); const dependencyDefinitions = [];
+  const walk = (nodes, parentId) => (nodes || []).forEach((n) => {
     const id = newId(); order += 1;
-    tasks.push({ id, project_id: projectId, parent_task_id: parentId, title: n.title, description: n.description || "", status: "Not Started", priority: n.priority || "Medium", planning_bucket: "Inbox", due_date: start && n.offset_days != null ? addDays(start, n.offset_days) : null, estimated_minutes: n.estimate_minutes || null, sort_order: order });
+    const task = {
+      id, project_id: projectId, parent_task_id: parentId, title: n.title, description: n.description || "",
+      status: "Not Started", priority: n.priority || "Medium", planning_bucket: "Inbox",
+      due_date: start && n.offset_days != null ? addDays(start, n.offset_days) : null,
+      estimated_minutes: n.estimate_minutes || null, sort_order: order,
+      ...(n.milestone ? { milestone: true, template_kind: "Milestone" } : {}),
+    };
+    tasks.push(task);
+    const sameTitle = taskByTitle.get(String(n.title || "")) || [];
+    sameTitle.push(task); taskByTitle.set(String(n.title || ""), sameTitle);
+    if (Array.isArray(n.dependency_titles) && n.dependency_titles.length) dependencyDefinitions.push({ task, titles: n.dependency_titles });
     if (n.children && n.children.length) walk(n.children, id);
   });
   walk(tpl.task_tree || [], null);
-  const risks = (tpl.risks || []).map((r) => ({ id: newId(), project_id: projectId, title: r.title, probability: r.probability || 2, impact: r.impact || 3, status: "Open", mitigation: r.mitigation || "" }));
-  return { project, tasks, risks };
+  for (const definition of dependencyDefinitions) {
+    const dependencies = [];
+    for (const title of definition.titles) {
+      const matches = taskByTitle.get(String(title || "").trim()) || [];
+      if (matches.length !== 1) throw new Error("المهمة السابقة «" + title + "» المرتبطة بالمهمة «" + definition.task.title + "» يجب أن تطابق مهمة واحدة بالضبط.");
+      if (matches[0].id === definition.task.id) throw new Error("المهمة «" + title + "» لا يمكن أن تعتمد على نفسها.");
+      dependencies.push(matches[0].id);
+    }
+    definition.task.dependency_task_ids = [...new Set(dependencies)];
+  }
+  const tasksById = Object.fromEntries(tasks.map((task) => [task.id, task]));
+  for (const task of tasks) {
+    const dependencyErrors = validateTaskDependencies(task, tasksById);
+    if (dependencyErrors.length) throw new Error(dependencyErrors[0]);
+  }
+
+  const objectives = [];
+  const krs = [];
+  const objectiveDefinitions = Array.isArray(tpl.objective_templates) ? tpl.objective_templates : [];
+  if (objectiveDefinitions.length && (!project.start_date || !project.target_date || project.start_date > project.target_date)) {
+    throw new Error("هذا القالب يحتوي على أهداف ونتائج رئيسية؛ حدد تاريخ بدء وموعدًا مستهدفًا للمشروع أو مدة إرشادية حتى تُنشأ فترة الهدف بصورة صحيحة.");
+  }
+  const objectiveNames = new Set();
+  for (const definition of objectiveDefinitions) {
+    const objectiveName = String(definition.name || "").trim();
+    if (!objectiveName) throw new Error("كل هدف داخل القالب يجب أن يحتوي على اسم.");
+    if (objectiveNames.has(objectiveName)) throw new Error("اسم الهدف مكرر داخل القالب: " + objectiveName);
+    objectiveNames.add(objectiveName);
+    const objectiveId = newId();
+    const objective = {
+      id: objectiveId, name: objectiveName, why: String(definition.why || "").trim(),
+      period_start: project.start_date, period_end: project.target_date,
+      status: "Active", owner_id: opts.lead_id || null, template_seed: true,
+    };
+    const definitions = Array.isArray(definition.key_results) ? definition.key_results : [];
+    if (!definitions.length) throw new Error("الهدف «" + objectiveName + "» لا يحتوي على نتائج رئيسية.");
+    const krNames = new Set();
+    for (const krDefinition of definitions) {
+      const krName = String(krDefinition.name || "").trim();
+      if (!krName) throw new Error("كل نتيجة رئيسية داخل الهدف «" + objectiveName + "» يجب أن تحتوي على اسم.");
+      if (krNames.has(krName)) throw new Error("اسم النتيجة الرئيسية مكرر ضمن الهدف «" + objectiveName + "»: " + krName);
+      krNames.add(krName);
+      const taskIds = [];
+      for (const title of (krDefinition.task_titles || [])) {
+        const matches = taskByTitle.get(String(title || "").trim()) || [];
+        if (matches.length !== 1) throw new Error("المهمة «" + title + "» المرتبطة بالنتيجة «" + krName + "» يجب أن تطابق مهمة واحدة بالضبط.");
+        if (matches[0].project_id !== projectId) throw new Error("كل مهمة مرتبطة بالنتيجة «" + krName + "» يجب أن تتبع المشروع الجديد.");
+        if (!taskIds.includes(matches[0].id)) taskIds.push(matches[0].id);
+      }
+      const kr = {
+        id: newId(), name: krName, objective_id: objectiveId,
+        type: krDefinition.type, owner_id: opts.lead_id || null,
+        project_ids: [projectId], task_ids: taskIds, template_seed: true,
+        ...(krDefinition.type === "Numeric" ? {
+          unit: String(krDefinition.unit || ""),
+          initial_value: Number(krDefinition.initial_value),
+          target_value: Number(krDefinition.target_value),
+          current_value: Number(krDefinition.initial_value),
+        } : {}),
+      };
+      const krErrors = validateKR(kr, { tasksById });
+      if (krErrors.length) throw new Error("النتيجة الرئيسية «" + krName + "»: " + krErrors[0]);
+      krs.push(kr);
+    }
+    objectives.push(objective);
+  }
+  const prds = [];
+  const outputs = [];
+  const prdByTitle = new Map();
+  for (const definition of (tpl.prd_templates || [])) {
+    const prdId = newId();
+    const requirements = (definition.requirements || []).map((req) => ({
+      ...req, id: newId(), title: String(req.title || "").trim(),
+      status: "Active", priority: req.priority || "Medium",
+      acceptance_criteria: req.acceptance_criteria || "",
+    }));
+    const prd = {
+      id: prdId, project_id: projectId, title: String(definition.title || "").trim(),
+      tldr: definition.tldr || "", status: "Not Started", version: 1,
+      sections: (definition.sections || []).map((section) => ({ ...section, content: "" })),
+      requirements, approvals: [], reviewer_ids: [], lead_id: opts.lead_id || null,
+      template_seed: true,
+    };
+    if (!prd.title) throw new Error("كل مواصفة داخل القالب يجب أن تحتوي على عنوان.");
+    if (prdByTitle.has(prd.title)) throw new Error("اسم المواصفة مكرر داخل القالب: " + prd.title);
+    prdByTitle.set(prd.title, prd); prds.push(prd);
+
+    for (const req of requirements) {
+      if (!req.task_title) continue;
+      const matches = taskByTitle.get(String(req.task_title).trim()) || [];
+      if (matches.length > 1) throw new Error("عنوان المهمة «" + req.task_title + "» مكرر؛ استخدم عنوانًا فريدًا لربط متطلب القالب.");
+      if (matches.length === 1) {
+        matches[0].prd_id = prd.id;
+        matches[0].prd_requirement_id = req.id;
+      }
+    }
+  }
+
+  for (const definition of (tpl.output_templates || [])) {
+    const name = String(definition.name || "").trim();
+    if (!name) throw new Error("كل مخرج متوقع داخل القالب يجب أن يحتوي على اسم.");
+    let taskId = null, prdId = null, requirementId = null;
+    if (definition.task_title) {
+      const matches = taskByTitle.get(String(definition.task_title).trim()) || [];
+      if (matches.length !== 1) throw new Error("المهمة المصدر للمخرج «" + name + "» يجب أن تطابق مهمة واحدة بالضبط.");
+      taskId = matches[0].id;
+    }
+    if (definition.prd_title) {
+      const prd = prdByTitle.get(String(definition.prd_title).trim());
+      if (!prd) throw new Error("المواصفة المصدر للمخرج «" + name + "» غير موجودة داخل القالب.");
+      prdId = prd.id;
+      if (definition.requirement_title) {
+        const req = prd.requirements.find((item) => item.title === String(definition.requirement_title).trim());
+        if (!req) throw new Error("متطلب المخرج «" + name + "» غير موجود ضمن المواصفة المحددة.");
+        requirementId = req.id;
+      }
+    } else if (definition.requirement_title) {
+      throw new Error("لا يمكن ربط مخرج بمتطلب دون تحديد المواصفة.");
+    }
+    outputs.push({
+      id: newId(), project_id: projectId, name, type: definition.type || "Other",
+      task_id: taskId, prd_id: prdId, prd_requirement_id: requirementId,
+      approval: "Draft", url: "", files: [], notes: definition.notes || "مخرج متوقع من قالب المشروع — أضف الملف أو الرابط عند توفره.",
+      template_seed: true,
+    });
+  }
+
+  const risks = (tpl.risks || []).map((r) => ({
+    id: newId(), project_id: projectId, title: r.title, probability: r.probability || 2,
+    impact: r.impact || 3, status: "Open", mitigation: r.mitigation || "",
+    template_seed: true, needs_review: true,
+  }));
+  return { project, tasks, objectives, krs, risks, prds, outputs };
 }
 
 // ── weekly review live metrics ──────────────────────────────────────

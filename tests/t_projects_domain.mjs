@@ -1,6 +1,7 @@
 // Domain acceptance tests for Projects OS (plan §18). Run: node tests/t_projects_domain.mjs
 import assert from "node:assert/strict";
 import * as D from "../src/systems/projects/domain.js";
+import { BUILTIN_TEMPLATES, activityEventText } from "../src/systems/projects/lookups.js";
 
 let pass = 0, fail = 0;
 const t = (name, fn) => { try { fn(); pass++; console.log("  ✓", name); } catch (e) { fail++; console.log("  ✗", name, "\n     ", e.message); } };
@@ -40,6 +41,148 @@ t("T-25 property: progress = done leaves / active leaves for random trees", () =
 });
 t("T-24 5,000-node tree builds fast", () => { const tasks = []; for (let i = 0; i < 5000; i++) tasks.push(task("t" + i, { parent_task_id: i ? "t" + Math.floor((i - 1) / 4) : null, status: i % 3 ? "Not Started" : "Completed" })); const t0 = Date.now(); const idx = D.buildTaskIndex(tasks); D.projectMetrics(P(), ctx(tasks)); assert.ok(Date.now() - t0 < 1500, "took " + (Date.now() - t0) + "ms"); assert.ok(idx.derived.t0.leafTotal > 0); });
 
+t("T-81 task dependencies reject cross-project, missing, self and cyclic links", () => {
+  const a = task("dep_a", { dependency_task_ids: [] });
+  const b = task("dep_b", { dependency_task_ids: ["dep_a"] });
+  const tasksById = { dep_a: a, dep_b: b };
+  assert.deepEqual(D.validateTaskDependencies(b, tasksById), []);
+  assert.match(D.validateTaskDependencies({ ...b, dependency_task_ids: ["dep_b"] }, tasksById)[0], /نفسها/);
+  assert.match(D.validateTaskDependencies({ ...b, dependency_task_ids: ["missing"] }, tasksById)[0], /غير موجود/);
+  assert.match(D.validateTaskDependencies({ ...b, dependency_task_ids: ["other"] }, { ...tasksById, other: { id: "other", project_id: "p2" } })[0], /المشروع نفسه/);
+  assert.match(D.validateTaskDependencies({ ...a, dependency_task_ids: ["dep_b"] }, tasksById)[0], /دورة/);
+  assert.match(D.validateTaskDependencies({ ...b, dependency_task_ids: ["dep_a", "dep_a"] }, tasksById)[0], /تكرار/);
+  const parent = { id: "parent", project_id: "p1", parent_task_id: null, dependency_task_ids: [] };
+  const child = { id: "child", project_id: "p1", parent_task_id: "parent", dependency_task_ids: [] };
+  const hierarchy = { parent, child };
+  assert.match(D.validateTaskDependencies({ ...child, dependency_task_ids: ["parent"] }, hierarchy)[0], /مهمة أب/);
+  assert.match(D.validateTaskDependencies({ ...parent, dependency_task_ids: ["child"] }, hierarchy)[0], /مهمة فرعية/);
+});
+t("T-82 project task schedule calculates a deterministic critical path and reports planning gaps", () => {
+  const tasks = [
+    task("a", { start_date: "2026-01-01", due_date: "2026-01-02", dependency_task_ids: [] }),
+    task("b", { start_date: "2026-01-03", due_date: "2026-01-04", dependency_task_ids: ["a"] }),
+    task("c", { start_date: "2026-01-05", due_date: "2026-01-05", dependency_task_ids: ["b"] }),
+    task("d", { start_date: "2026-01-01", due_date: "2026-01-01", dependency_task_ids: [] }),
+  ];
+  const result = D.analyzeTaskSchedule(tasks);
+  assert.equal(result.cyclic, false);
+  assert.equal(result.complete, true);
+  assert.equal(result.project_duration_days, 5);
+  assert.deepEqual(result.critical_task_ids, ["a", "b", "c"]);
+  assert.equal(result.edges.length, 2);
+  const conflict = D.analyzeTaskSchedule([
+    tasks[0],
+    { ...tasks[1], start_date: "2026-01-02" },
+  ]);
+  assert.equal(conflict.conflicts.length, 1, "successor starting on the predecessor's final planned day is reported as an overlap");
+  const missing = D.analyzeTaskSchedule([
+    task("x", { start_date: "2026-02-01", due_date: "2026-02-02", dependency_task_ids: ["unplanned"] })
+  ]);
+  assert.equal(missing.complete, false, "undated or unresolved predecessors block a complete schedule");
+  assert.equal(missing.missing_predecessors.length, 1);
+  const cancelled = D.analyzeTaskSchedule([
+    task("cancelled_predecessor", { status: "Cancelled", start_date: "2026-03-01", due_date: "2026-03-02" }),
+    task("successor", { start_date: "2026-03-03", due_date: "2026-03-04", dependency_task_ids: ["cancelled_predecessor"] }),
+  ]);
+  assert.equal(cancelled.complete, false, "a cancelled predecessor does not count as a satisfied dependency");
+  assert.equal(cancelled.cancelled_predecessors.length, 1);
+  assert.deepEqual(cancelled.critical_task_ids, [], "critical path is not reported while a predecessor is cancelled");
+  const cyclic = D.analyzeTaskSchedule([
+    task("x", { start_date: "2026-02-01", due_date: "2026-02-02", dependency_task_ids: ["y"] }),
+    task("y", { start_date: "2026-02-03", due_date: "2026-02-04", dependency_task_ids: ["x"] })
+  ]);
+  assert.equal(cyclic.cyclic, true);
+  assert.deepEqual(cyclic.critical_task_ids, []);
+});
+t("T-80 project-to-template conversion preserves reusable structure and strips runtime state", () => {
+  const project = {
+    id: "source_project", name: "Koumma Source", type: "business", status: "In Progress",
+    description: "Project description", final_goal: "Final goal",
+    start_date: "2026-01-10", target_date: "2026-02-09",
+    lead_id: "real_person_1", members: [{ member_id: "real_person_1", role: "Lead" }],
+    template_roles: ["Product", "QA"], decision_prompts: ["حسم سياسة الإطلاق"],
+    template_checklist: ["اعتماد النطاق"], archived_at: null
+  };
+  const tasks = [
+    { id: "root", project_id: "source_project", title: "مرحلة البحث", sort_order: 1, status: "Completed", assignee_id: "real_person_1", completed_at: "2026-01-20", start_date: "2026-01-11", due_date: "2026-01-12", estimated_minutes: 90 },
+    { id: "child", project_id: "source_project", parent_task_id: "root", title: "مقابلات المستخدمين", sort_order: 2, status: "Cancelled", assignee_id: "real_person_2", start_date: "2026-01-15", due_date: "2026-01-17", estimated_minutes: 45, prd_id: "prd1", prd_requirement_id: "req1", dependency_task_ids: ["orphan"] },
+    { id: "orphan", project_id: "source_project", parent_task_id: "missing_parent", title: "مهمة يتيمة", sort_order: 3, status: "In Progress" },
+    { id: "duplicate_a", project_id: "source_project", title: "مهمة مكررة", sort_order: 4, prd_id: "prd1", prd_requirement_id: "req2" },
+    { id: "duplicate_b", project_id: "source_project", title: "مهمة مكررة", sort_order: 5 },
+    { id: "archived_task", project_id: "source_project", title: "مهمة مؤرشفة", archived_at: "2026-02-01", sort_order: 6 },
+    { id: "other_project", project_id: "another_project", title: "لا تنقلني", sort_order: 1 }
+  ];
+  const prds = [{
+    id: "prd1", project_id: "source_project", title: "Platform Architecture", tldr: "Architecture brief",
+    status: "Approved", version: 3, lead_id: "real_person_1", approvals: [{ id: "approval1" }],
+    requirements: [
+      { id: "req1", title: "ERD", status: "Active", acceptance_criteria: "ERD documented", priority: "High" },
+      { id: "req2", title: "Duplicate title task", status: "Active" },
+      { id: "req3", title: "Old requirement", status: "Deprecated" }
+    ]
+  }];
+  const outputs = [
+    { id: "output1", project_id: "source_project", name: "ERD", type: "Document", task_id: "child", prd_id: "prd1", prd_requirement_id: "req1", approval: "Final", approved_by: "real_person_1", approved_at: "2026-01-20", url: "https://example.com", files: [{ object_path: "secret/path" }] },
+    { id: "output2", project_id: "source_project", name: "Ambiguous output", type: "Document", task_id: "duplicate_a", prd_id: "prd1", prd_requirement_id: "req2", approval: "Draft" }
+  ];
+  const seed = D.projectToTemplateSeed(project, {
+    tasks, prds, outputs,
+    risks: [{ id: "risk1", project_id: "source_project", title: "Launch scope", probability: 4, impact: 5, status: "Closed", owner_id: "real_person_1", mitigation: "Phase the rollout", created_at: "2026-01-20" }],
+    sessions: [{ id: "session1", task_id: "child", minutes: 90, member_id: "real_person_1" }]
+  });
+  assert.equal(seed.name, "Koumma Source — قالب");
+  assert.equal(seed.project_type, "business");
+  assert.equal(seed.duration_days, 30);
+  assert.deepEqual(seed.team_roles, ["Product", "QA"]);
+  assert.deepEqual(seed.decision_prompts, ["حسم سياسة الإطلاق"]);
+  assert.deepEqual(seed.checklist, ["اعتماد النطاق"]);
+  assert.equal(seed.task_tree.length, 4, "roots and recovered orphan tasks are all retained");
+  assert.ok(!JSON.stringify(seed.task_tree).includes("مهمة مؤرشفة"), "archived tasks are excluded from a reusable project template");
+  assert.equal(seed.task_tree[0].title, "مرحلة البحث");
+  assert.equal(seed.task_tree[0].children[0].title, "مقابلات المستخدمين");
+  assert.equal(seed.task_tree[0].offset_days, 1);
+  assert.equal(seed.task_tree[0].children[0].offset_days, 5);
+  assert.deepEqual(seed.task_tree[0].children[0].dependency_titles, ["مهمة يتيمة"], "unique prerequisite links are converted to title references for a new template");
+  assert.equal(seed.task_tree[0].status, undefined);
+  assert.equal(seed.task_tree[0].assignee_id, undefined);
+  assert.equal(seed.task_tree[0].completed_at, undefined);
+  assert.equal(seed.prd_templates.length, 1);
+  assert.equal(seed.prd_templates[0].requirements.length, 2, "deprecated requirements are excluded");
+  assert.equal(seed.prd_templates[0].requirements[0].task_title, "مقابلات المستخدمين");
+  assert.equal(seed.prd_templates[0].requirements[1].task_title, null, "ambiguous duplicate task titles are not linked");
+  assert.equal(seed.output_templates.length, 2);
+  assert.deepEqual(seed.output_templates[0], {
+    name: "ERD", type: "Document", task_title: "مقابلات المستخدمين",
+    prd_title: "Platform Architecture", requirement_title: "ERD"
+  });
+  assert.equal(seed.output_templates[1].task_title, null, "ambiguous task links are not copied");
+  assert.ok(seed.conversion_warnings.length >= 2, "ambiguous PRD and output task links are reported for manual review");
+  assert.deepEqual(seed.risks, [{ title: "Launch scope", probability: 4, impact: 5, mitigation: "Phase the rollout" }]);
+  assert.equal(seed.lead_id, undefined);
+  const instantiated = D.instantiateProjectTemplate(seed, { name: "Template copy", start_date: "2026-02-01" }, (() => { let sequence = 0; return () => "copy_" + (++sequence); })());
+  const copiedChild = instantiated.tasks.find((candidate) => candidate.title === "مقابلات المستخدمين");
+  const copiedPredecessor = instantiated.tasks.find((candidate) => candidate.title === "مهمة يتيمة");
+  assert.deepEqual(copiedChild.dependency_task_ids, [copiedPredecessor.id], "template instantiation resolves predecessor titles to fresh task IDs");
+  assert.equal(seed.members, undefined);
+  assert.equal(seed.sessions, undefined);
+  assert.equal(seed.id, undefined, "template gets a new id only when saved");
+});
+t("T-79 output defaults inherit only valid task PRD and requirement links", () => {
+  const task = { id: "task_1", project_id: "project_1", prd_id: "prd_1", prd_requirement_id: "req_1" };
+  const validPrds = [{ id: "prd_1", project_id: "project_1", requirements: [{ id: "req_1", status: "Active" }] }];
+  assert.deepEqual(D.defaultOutputRelationsForTask(task, validPrds), { prd_id: "prd_1", prd_requirement_id: "req_1" });
+  assert.deepEqual(D.defaultOutputRelationsForTask({ ...task, project_id: "project_2" }, validPrds), { prd_id: "", prd_requirement_id: "" });
+  assert.deepEqual(D.defaultOutputRelationsForTask({ ...task, prd_requirement_id: "req_missing" }, validPrds), { prd_id: "prd_1", prd_requirement_id: "" });
+  assert.deepEqual(D.defaultOutputRelationsForTask(task, [{ ...validPrds[0], archived_at: "2026-11-01" }]), { prd_id: "", prd_requirement_id: "" });
+  assert.deepEqual(D.defaultOutputRelationsForTask(task, [{ ...validPrds[0], requirements: [{ id: "req_1", status: "Deprecated" }] }]), { prd_id: "prd_1", prd_requirement_id: "" });
+});
+t("T-78 activity events use human-readable Arabic descriptions", () => {
+  assert.equal(activityEventText({ entity: "tasks", action: "created", summary: "تحليل المنافسين" }), "أنشأ المهمة «تحليل المنافسين»");
+  assert.equal(activityEventText({ entity: "projects", action: "created_from_template", summary: "تطبيق" }), "أنشأ مشروعًا من قالب «تطبيق»");
+  assert.equal(activityEventText({ entity: "risks", action: "materialized", summary: "تأخر الإطلاق" }), "حوّل خطرًا إلى مشكلة «تأخر الإطلاق»");
+  assert.equal(activityEventText({ entity: "prds", action: "version_created", summary: "Platform Architecture v2" }), "أنشأ إصدارًا جديدًا للمواصفة «Platform Architecture v2»");
+  assert.equal(activityEventText({ entity: "issues", action: "unknown_action", summary: "خطأ حفظ" }), "حدّث المشكلة «خطأ حفظ»");
+});
 console.log("Health, risks, issues, time, outputs");
 const H = (p, tasks, extra) => D.projectMetrics(P(p), ctx(tasks, extra));
 t("T-26 past deadline => Red PAST_DEADLINE", () => { const m = H({ target_date: "2026-10-01" }, [task("a")]); assert.equal(m.health, "Red"); assert.ok(m.healthReasons.some((r) => r.code === "PAST_DEADLINE")); });
@@ -74,6 +217,38 @@ t("T-49a task requirement must belong to linked PRD", () => { const prd = { proj
 t("T-55 PRD needs 4 sections + all reviewers", () => { const prd = { tldr: "x", reviewer_ids: ["r1"], version: 1 }; const secs = [{ key: "problem_overview", content: "a" }, { key: "proposed_solution", content: "b" }, { key: "success_metrics", content: "c" }]; assert.equal(D.prdApprovalReady(prd, secs, []).ok, false); assert.equal(D.prdApprovalReady(prd, secs, [{ reviewer_id: "r1", decision: "approve", version: 1 }]).ok, true); assert.equal(D.prdApprovalReady({ ...prd, tldr: "" }, secs, [{ reviewer_id: "r1", decision: "approve", version: 1 }]).ok, false); });
 t("T-58 coverage index + traceability policy", () => { const idx = D.buildTaskIndex([task("a", { prd_id: "x" }), task("b"), task("c", { discovery_ids: ["d"] }), task("d")]); const c = D.coverageOf(P(), idx); assert.equal(c.ratio, 0.5); assert.equal(D.traceabilityBlocked({ traceabilityPolicy: "require", traceabilityTypes: ["تطبيق"] }, "تطبيق", false, task("z")), true); assert.equal(D.traceabilityBlocked({ traceabilityPolicy: "require", traceabilityTypes: ["تطبيق"] }, "تطبيق", false, task("issue-linked", { issue_ids: ["i1"] })), false); assert.equal(D.traceabilityBlocked({ traceabilityPolicy: "warn", traceabilityTypes: ["تطبيق"] }, "تطبيق", false, task("z")), false); assert.equal(D.traceabilityBlocked({ traceabilityPolicy: "require", traceabilityTypes: ["تطبيق"] }, "تطبيق", true, task("z")), false); });
 t("T-59 project template copies tree with explicit project_id and shifts dates", () => { let n = 0; const id = () => "id" + ++n; const tpl = { id: "tpl", task_tree: [{ title: "A", offset_days: 5, children: [{ title: "A1", offset_days: 7, estimate_minutes: 60 }] }, { title: "B", offset_days: 20 }], risks: [{ title: "r", probability: 3, impact: 4 }] }; const r = D.instantiateProjectTemplate(tpl, { name: "N", start_date: "2026-11-01" }, id); assert.equal(r.tasks.length, 3); assert.ok(r.tasks.every((x) => x.project_id === r.project.id)); assert.equal(r.tasks[0].due_date, "2026-11-06"); assert.equal(r.tasks[1].parent_task_id, r.tasks[0].id); assert.equal(r.tasks[1].due_date, "2026-11-08"); assert.equal(r.risks[0].project_id, r.project.id); });
+t("T-59b full project template seeds linked PRD requirements and planned outputs", () => {
+  let n = 0; const id = () => "seed" + ++n;
+  const tpl = {
+    id: "tpl_full", name: "قالب متكامل",
+    task_tree: [{ title: "تصميم الواجهة", offset_days: 4 }, { title: "تسليم النسخة", offset_days: 10, milestone: true }],
+    prd_templates: [{ title: "مواصفة الواجهة", tldr: "مواصفة أولية", requirements: [{ title: "تجربة الدخول", acceptance_criteria: "يدخل المستخدم بنجاح", task_title: "تصميم الواجهة" }] }],
+    output_templates: [{ name: "تصميم معتمد", type: "Design", task_title: "تصميم الواجهة", prd_title: "مواصفة الواجهة", requirement_title: "تجربة الدخول" }],
+    risks: [{ title: "تأخر الاعتماد", probability: 3, impact: 4, mitigation: "مراجعة مبكرة" }],
+    team_roles: ["مصمم", "مطور"], decision_prompts: ["ما معيار الإطلاق؟"], checklist: ["راجع النطاق"]
+  };
+  const result = D.instantiateProjectTemplate(tpl, { name: "K", start_date: "2026-11-01", lead_id: "owner" }, id);
+  assert.equal(result.prds.length, 1);
+  assert.equal(result.prds[0].project_id, result.project.id);
+  assert.equal(result.prds[0].requirements.length, 1);
+  assert.equal(result.tasks[0].prd_id, result.prds[0].id);
+  assert.equal(result.tasks[0].prd_requirement_id, result.prds[0].requirements[0].id);
+  assert.equal(result.outputs[0].task_id, result.tasks[0].id);
+  assert.equal(result.outputs[0].prd_id, result.prds[0].id);
+  assert.equal(result.outputs[0].prd_requirement_id, result.prds[0].requirements[0].id);
+  assert.equal(result.outputs[0].approval, "Draft");
+  assert.equal(result.risks[0].needs_review, true);
+  assert.deepEqual(result.project.template_roles, ["مصمم", "مطور"]);
+  assert.deepEqual(result.project.decision_prompts, ["ما معيار الإطلاق؟"]);
+  assert.deepEqual(result.project.template_checklist, ["راجع النطاق"]);
+  assert.equal(result.tasks[1].milestone, true);
+});
+t("T-59c template output rejects ambiguous or broken source links", () => {
+  let n = 0; const id = () => "bad" + ++n;
+  const ambiguous = { task_tree: [{ title: "مهمة" }, { title: "مهمة" }], output_templates: [{ name: "مخرج", task_title: "مهمة" }] };
+  assert.throws(() => D.instantiateProjectTemplate(ambiguous, { name: "A" }, id), /تطابق مهمة واحدة بالضبط/);
+});
+
 
 console.log("OKR, pace, contacts, feeds, alerts");
 t("T-65a Project detail derives Objectives through linked KRs (v4)", () => {
@@ -138,5 +313,39 @@ t("T-73 contact status thresholds incl. last meeting", () => { assert.equal(D.co
 t("week start (Saturday default)", () => { assert.equal(D.weekStart("2026-10-25", 6), "2026-10-24"); assert.equal(D.weekStart("2026-10-24", 6), "2026-10-24"); assert.equal(D.weekStart("2026-10-23", 6), "2026-10-17"); assert.equal(D.weekStart("2026-10-25", 0), "2026-10-25"); });
 t("T-76 today feed reflects overdue/due/this-week/assignment", () => { const tasks = [task("a", { assignee_id: "m", due_date: "2026-10-01" }), task("b", { assignee_id: "m", due_date: TODAY }), task("c", { assignee_id: "m", planning_bucket: "This Week" }), task("d", { assignee_id: "other", due_date: TODAY })]; const f = D.todayFeed("m", { ...ctx(tasks), projects: [], contacts: [] }); assert.deepEqual(f.overdue.map((x) => x.id), ["a"]); assert.deepEqual(f.dueToday.map((x) => x.id), ["b"]); assert.deepEqual(f.thisWeek.map((x) => x.id), ["c"]); });
 t("T-60 alerts: stale inbox once (dedupe key stable), overdue digest", () => { const c = { ...ctx([task("a", { assignee_id: "m", due_date: "2026-10-01" })]), projects: [], contacts: [], krs: [], checkins: [], timers: [], issues: [], discovery: [{ id: "d", status: "Inbox", logged_at: "2026-09-01" }], metrics: {} }; const a1 = D.computeAlerts("m", c), a2 = D.computeAlerts("m", c); assert.ok(a1.some((x) => x.kind === "inbox")); assert.ok(a1.some((x) => x.kind === "overdue")); assert.deepEqual(a1.map((x) => x.key), a2.map((x) => x.key)); });
+
+t("T-77 built-in template PRD/output task links resolve uniquely", () => {
+  let sequence = 0;
+  for (const template of BUILTIN_TEMPLATES) {
+    const titles = [];
+    const walk = (nodes) => (nodes || []).forEach((node) => { titles.push(node.title); walk(node.children || []); });
+    walk(template.task_tree || []);
+    const references = [
+      ...(template.prd_templates || []).flatMap((prd) => (prd.requirements || []).map((req) => req.task_title).filter(Boolean)),
+      ...(template.output_templates || []).map((output) => output.task_title).filter(Boolean),
+    ];
+    for (const title of references) {
+      assert.equal(titles.filter((candidate) => candidate === title).length, 1,
+        template.name + ": linked task title must resolve exactly once: " + title);
+    }
+    const instance = D.instantiateProjectTemplate(
+      template,
+      { name: "Template test — " + template.name, start_date: "2026-01-01", lead_id: "member_1" },
+      () => "template_test_" + (++sequence)
+    );
+    for (const prd of instance.prds) for (const req of prd.requirements || []) if (req.task_title) {
+      const linkedTask = instance.tasks.find((candidate) => candidate.title === req.task_title);
+      assert.ok(linkedTask, template.name + ": requirement task exists: " + req.task_title);
+      assert.equal(linkedTask.prd_id, prd.id, template.name + ": requirement task links to its PRD");
+      assert.equal(linkedTask.prd_requirement_id, req.id, template.name + ": requirement task links to the exact requirement");
+    }
+    for (const outputDefinition of template.output_templates || []) if (outputDefinition.task_title) {
+      const linkedTask = instance.tasks.find((candidate) => candidate.title === outputDefinition.task_title);
+      const output = instance.outputs.find((candidate) => candidate.name === outputDefinition.name);
+      assert.ok(output, template.name + ": output was instantiated: " + outputDefinition.name);
+      assert.equal(output.task_id, linkedTask.id, template.name + ": output links to its unique source task: " + outputDefinition.name);
+    }
+  }
+});
 
 console.log(`\nPASS ${pass} · FAIL ${fail}`); process.exit(fail ? 1 : 0);

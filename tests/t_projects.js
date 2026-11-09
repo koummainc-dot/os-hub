@@ -8,8 +8,8 @@ const {makeEnv,sleep,appJs}=require('./harness');
   const click=async(label,sc,ms)=>{const b=btn(label,sc);if(!b)return false;b.click();await sleep(ms||150);return true;};
   const setVal=async(el,v)=>{if(!el)throw new Error('Acceptance harness could not find the expected form control');const proto=el.tagName==='SELECT'?w.HTMLSelectElement.prototype:el.tagName==='TEXTAREA'?w.HTMLTextAreaElement.prototype:w.HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,v);el.dispatchEvent(new w.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));await sleep(60);};
   const nav=()=>all('aside button');
-  const isSectionButton=(button,label)=>{const spans=button.querySelectorAll('span');return spans.length>=2&&spans[spans.length-1].textContent.trim()===label;};
-  const goSection=async(label)=>{const b=nav().find(x=>isSectionButton(x,label));if(!b)return false;b.click();await sleep(450);return true;};
+  const isSectionButton=(button,label)=>[...button.querySelectorAll('span')].some(span=>span.textContent.trim().startsWith(label));
+  const goSection=async(label)=>{const b=nav().find(x=>x.getAttribute('aria-label')===label)||nav().find(x=>isSectionButton(x,label));if(!b)return false;b.click();await sleep(450);return true;};
   const toToday=async()=>{const c=all('aside button').find(x=>x.textContent.includes('▾'));c&&c.click();await sleep(60);const t=all('aside button').find(x=>x.textContent.includes('اليوم (كل الأنظمة)'));t&&t.click();await sleep(80);};
   const openProjects=async()=>{
     await toToday();
@@ -27,7 +27,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
 
   await click('جرّب الوضع التجريبي'); await sleep(200); ok(await openProjects(),'Projects OS opens before section acceptance');
   console.log('— sections render real content');
-  const markers={ 'الرئيسية':'صحة المشاريع','اليوم':'مستحقة اليوم','هذا الأسبوع':'اكتشافات قيد العمل','المشاريع':'تطبيق إدارة الوقت','مهامي':'مهمة ورقية','الاكتشاف':'ظهور التطبيق في نتائج المتجر','المواصفات':'مواصفة تطبيق إدارة الوقت','الأهداف (OKR)':'إطلاق منتج ناجح','المخرجات':'Wireframes','المخاطر والمشاكل والقرارات':'تعقيد المزامنة','الاجتماعات':'Knowledge OS','التحديثات':'تحديث الإدارة','الإنجازات':'اعتماد المواصفة','المراجعات الأسبوعية':'المراجعات الأسبوعية','جهات الاتصال':'ليلى المنصور','الفريق':'حِمل الأسبوع','القوالب':'قوالب المشاريع','الإعدادات':'المنطقة الزمنية' };
+  const markers={ 'الرئيسية':'صحة المشاريع','اليوم':'مستحقة اليوم','هذا الأسبوع':'اكتشافات قيد العمل','المشاريع':'تطبيق إدارة الوقت','مهامي':'كل المهام','الاكتشاف':'ظهور التطبيق في نتائج المتجر','المواصفات':'مواصفة تطبيق إدارة الوقت','الأهداف (OKR)':'إطلاق منتج ناجح','المخرجات':'Wireframes','المخاطر والمشاكل والقرارات':'تعقيد المزامنة','الاجتماعات':'Knowledge OS','التحديثات':'تحديث الإدارة','الإنجازات':'اعتماد المواصفة','المراجعات الأسبوعية':'المراجعات الأسبوعية','جهات الاتصال':'ليلى المنصور','الفريق':'حِمل الأسبوع','القوالب':'قوالب المشاريع','الإعدادات':'المنطقة الزمنية' };
   for(const [label,marker] of Object.entries(markers)){
     const good=await goSection(label); const has=txt().includes(marker);
     ok(good&&has,`section «${label}» shows «${marker}»`+(good?'':' (nav missing)'));
@@ -107,7 +107,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   if(tdlg){
     await click('حفظ',tdlg,200);
     ok(tdlg.textContent.includes('لا يمكن تخطي مستوى كامل'),'invalid task-tree indentation is rejected with a useful message');
-    await click('إلغاء',tdlg,100);
+    w.confirm=()=>true; await click('إلغاء',tdlg,100);
   }
 
   console.log('— Phase A task UX: quick add, inline edit, bulk actions, custom fields');
@@ -189,8 +189,11 @@ const {makeEnv,sleep,appJs}=require('./harness');
   ok(errors.length===0,'no console errors in Phase A task UX flow ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
 
   console.log('— task search recovery');
-  await goSection('مهامي');
+  const myWorkOpened = await goSection('مهامي');
+  const allTasksOpened = await click('كل المهام',null,120);
+  ok(myWorkOpened && allTasksOpened,'My Work opens its all-tasks view before search recovery');
   const taskSearch=all('input').find(i=>i.placeholder==='بحث في المهام…');
+  if(!myWorkOpened || !allTasksOpened || !taskSearch) console.log('DEBUG My Work navigation',{myWorkOpened,allTasksOpened,nav:nav().map(b=>({label:b.getAttribute('aria-label'),id:b.getAttribute('data-section-id'),text:b.textContent.trim()})),main:all('main').map(m=>m.textContent.slice(0,1500)),inputs:all('input').map(x=>({placeholder:x.placeholder,type:x.type}))});
   await setVal(taskSearch,'no-task-will-match-xyz');
   ok(!!btn('مسح الفلاتر'),'clear-filters action appears after narrowing task search');
   await click('مسح الفلاتر',null,150);
@@ -203,26 +206,37 @@ const {makeEnv,sleep,appJs}=require('./harness');
   
   await goSection('المشاريع'); ok(await click('من قالب'),'template picker opens');
   let picker=doc.querySelector('[role=dialog]');
-  const card=all('[role="dialog"] > div > div > div').find(d=>d.style.cursor==='pointer'&&d.textContent.includes('تطبيق'));
-  ok(!!card,'template picker exposes a selectable project template');
+  const card=all('[role="dialog"] button[type="button"]').find(button=>button.textContent.includes('تطبيق'));
+  ok(!!card,'template picker exposes a semantic button for the project template');
   if(card)card.click(); await sleep(180);
   picker=doc.querySelector('[role=dialog]');
-  ok(!!picker&&picker.textContent.includes('معاينة القالب'),'selecting a template opens its preview');
-  await click('متابعة الإعداد',picker,180);
+  ok(!!picker&&picker.textContent.includes('معاينة حزمة المشروع'),'selecting a template opens its full package preview');
+  await click('متابعة إعداد المشروع',picker,180);
   const setupDlg=doc.querySelector('[role=dialog]');
   const nameIn=all('input',setupDlg).find(i=>i.type==='text'||!i.type);
   ok(!!nameIn,'template setup exposes the project name input');
   if(nameIn) await setVal(nameIn,'مشروع اختبار القالب');
-  await click('حفظ',doc.querySelector('[role=dialog]'),400);
-  ok(txt().includes('مشروع اختبار القالب'),'project created and opened'); 
-  await click('التخطيط'); await sleep(100); await click('المهام'); await sleep(200); ok(txt().includes('الاكتشاف')&&txt().includes('كتابة المواصفة'),'template task tree copied (parents + children)');
-  ok(!!btn('＋ فرعية'),'child-task action is visible without opening the overflow menu');
-  const checks=all('input[type=checkbox]'); ok(checks.length>10,'leaf checkboxes rendered ('+checks.length+')');
+  ok(!!nameIn&&nameIn.value==='مشروع اختبار القالب','template setup retains the entered project name');
+  const submitted=await click('حفظ',doc.querySelector('[role=dialog]'),800);
+  ok(submitted,'template setup exposes an active save action');
+  if(!txt().includes('مشروع اختبار القالب')){
+    const failedDialog=doc.querySelector('[role=dialog]');
+    console.log('  DEBUG template creation',{dialog:failedDialog?.textContent?.slice(-1400),buttons:all('button',failedDialog).map(b=>({label:b.textContent.trim(),disabled:b.disabled})),page:txt().slice(-900)});
+  }
+  ok(txt().includes('مشروع اختبار القالب'),'project created and opened');
+  const clickProjectTab=async(label,ms=150)=>{
+    const button=all('main button').find(x=>x.textContent.trim()===label||x.textContent.trim().startsWith(label+' '));
+    if(!button)return false; button.click(); await sleep(ms); return true;
+  };
+  await clickProjectTab('التخطيط'); await clickProjectTab('المهام',200);
+  ok(txt().includes('الاكتشاف')&&txt().includes('كتابة المواصفة'),'template task tree copied (parents + children)');
+  ok(!!all('button[aria-label^="إضافة مهمة فرعية إلى"]').length,'child-task action is available through its contextual accessible control');
+  const checks=all('main input[type=checkbox]'); ok(checks.length>10,'leaf checkboxes rendered ('+checks.length+')');
   console.log('— complete a task & progress');
-  if(checks[0]){ checks[0].click(); await sleep(250); await click('نظرة عامة'); await sleep(150); ok(/\d+\/\d+ مهمة/.test(txt()),'overview shows leaf counts after completing'); }
+  if(checks[0]){ checks[0].click(); await sleep(250); await clickProjectTab('نظرة عامة'); ok(/\d+\/\d+ مهمة/.test(txt()),'overview shows leaf counts after completing'); }
   else ok(false,'a leaf checkbox is available for completion acceptance');
   console.log('— new task form');
-  await click('التخطيط'); await sleep(100); await click('المهام'); await sleep(150); await click('مهمة جديدة'); await sleep(150);
+  await clickProjectTab('التخطيط'); await clickProjectTab('المهام',150); await clickProjectTab('تفاصيل متقدمة',150);
   const dlg=doc.querySelector('[role=dialog]');
   ok(!!dlg&& !dlg.textContent.includes('المواصفة (PRD)'),'advanced task fields start collapsed');
   if(dlg){
@@ -235,7 +249,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
 
   console.log('— task sheet + timer');
   const taskSpan=all('span').find(s=>s.textContent==='مهمة يدوية جديدة'); taskSpan&&taskSpan.click(); await sleep(250);
-  ok(!!doc.querySelector('[role=dialog]'),'task sheet opens'); await click('ابدأ المؤقّت'); await sleep(250); ok(txt().includes('إيقاف'),'timer bar visible'); await click('أوقف المؤقّت',doc.querySelector('[role=dialog]'),250);
+  ok(!!doc.querySelector('aside[aria-label="مهمة يدوية جديدة"]')||!!doc.querySelector('[role=dialog][aria-label="مهمة يدوية جديدة"]'),'task sheet opens in the project inline side panel'); await click('ابدأ المؤقّت'); await sleep(250); ok(txt().includes('إيقاف'),'timer bar visible'); await click('أوقف المؤقّت',doc.querySelector('[role=dialog]'),250);
   ok(errors.length===0,'no errors in project/task flows ('+errors.length+')'); if(errors.length){console.log(errors.slice(0,4));errors.length=0;}
   const x=doc.querySelector('[role=dialog] button[aria-label="إغلاق"]'); x&&x.click(); await sleep(100);
 
