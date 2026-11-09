@@ -353,7 +353,7 @@ const linesOf = (value) => String(value || "").split("\n").map((line) => line.tr
 const flattenRisks = (risks) => (risks || []).map((r) => `${r.title || ""}${r.mitigation ? " — " + r.mitigation : ""}`).join("\n");
 function parseRiskText(value) { return String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [title, ...rest] = line.split(/\s[—-]\s/); return { title: title.trim(), probability: 3, impact: 3, status: "Open", mitigation: rest.join(" — ").trim() }; }); }
 export function Templates() {
-  const { templates, data, A: act, can, toast, role } = useP(); const [use, setUse] = useState(null); const [tab, setTab] = useState("projects"); const [templateForm, setTemplateForm] = useState(null); const [previewTpl, setPreviewTpl] = useState(null); const [showArchived, setShowArchived] = useState(false); const canManage = can("project.create") && role !== "Viewer";
+  const { templates, data, A: act, can, toast, role } = useP(); const [use, setUse] = useState(null); const [tab, setTab] = useState("projects"); const [templateForm, setTemplateForm] = useState(null); const [previewTpl, setPreviewTpl] = useState(null); const [showArchived, setShowArchived] = useState(false); const [sourceProjectForm, setSourceProjectForm] = useState(false); const canManage = can("project.create") && role !== "Viewer";
   const beginTemplateForm = (tpl = {}) => setTemplateForm({ id: tpl.id, name: tpl.name || "", description: tpl.description || "", final_goal: tpl.final_goal || "", project_type: tpl.project_type || "", duration_days: tpl.duration_days || "", task_tree_text: flattenTaskTree(tpl.task_tree || []).join("\n"), risks_text: flattenRisks(tpl.risks || []), prds_text: flattenPrdTemplates(tpl.prd_templates || []), requirements_text: flattenRequirements(tpl.prd_templates || []), outputs_text: flattenOutputs(tpl.output_templates || []), decision_prompts_text: (tpl.decision_prompts || []).join("\n"), team_roles_text: (tpl.team_roles || []).join("\n"), checklist_text: (tpl.checklist || []).join("\n") });
   const countN = (n) => n.reduce((a, x) => a + 1 + countN(x.children || []), 0);
   const show = (nodes, depth = 0) => nodes.map((n, i) => <div key={depth + "-" + i + n.title} style={{ paddingInlineStart: depth * 16, fontSize: 12, color: C.dim, lineHeight: 1.8 }}>{n.milestone ? "◆ " : depth ? "└ " : "• "}{n.title}{n.estimate_minutes ? ` (${fmtMinutes(n.estimate_minutes)})` : ""}{n.offset_days != null ? ` · يوم +${n.offset_days}` : ""}{n.children && show(n.children, depth + 1)}</div>);
@@ -364,6 +364,7 @@ export function Templates() {
       {tab === "projects" && <div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
           {canManage && <Btn kind="primary" onClick={() => beginTemplateForm()}>＋ إنشاء قالب مخصص</Btn>}
+          {canManage && <Btn onClick={() => setSourceProjectForm(true)}>إنشاء قالب من مشروع</Btn>}
           <Btn onClick={() => setShowArchived(!showArchived)}>{showArchived ? "عرض القوالب النشطة" : "عرض المؤرشفة"}</Btn>
           <span style={{ fontSize: 11.5, color: C.muted }}>القوالب المدمجة للنسخ والتخصيص؛ القوالب المرجعية للاجتماعات لا تنشئ اجتماعات.</span>
         </div>
@@ -374,6 +375,22 @@ export function Templates() {
       {tab === "update" && <div style={S.card}>{UPDATE_SECTIONS.map((s) => <div key={s.key} style={{ padding: "6px 0", fontSize: 13 }}>• {s.title}</div>)}<div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>يُولَّد المسودة من الإنجازات والمهام والمخاطر والأرقام الحية.</div></div>}
       {tab === "review" && <div style={S.card}>{REVIEW_PROMPTS.map(([, l]) => <div key={l} style={{ padding: "5px 0", fontSize: 13 }}>• {l}</div>)}<div style={{ padding: "5px 0", fontSize: 13 }}>• تركيز الأسبوع القادم · ⭐ التقييم · الطاقة</div><div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>أقسام حيّة (إنجازات، ساعات، متأخر…) تُجمَّد كلقطة عند إغلاق المراجعة. تُنشأ مسودة تلقائياً كل أسبوع.</div></div>}
       {tab === "meetings" && <div><div style={{ ...S.card, marginBottom: 10, fontSize: 12.5, lineHeight: 1.9 }}>📌 الاجتماعات يملكها <b>Knowledge OS</b> وتُنشأ وتُدار هناك؛ هذه القوالب للمرجع. عند بناء Knowledge OS ستظهر اجتماعات كل مشروع هنا (قراءة فقط) وتتحوّل بنود الإجراءات إلى مهام.</div><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: 10 }}>{MEETING_TEMPLATES.map((m) => <div key={m.name} style={{ ...S.card, padding: "10px 12px" }}><b>{m.name}</b>{m.sections.map((s) => <div key={s} style={{ fontSize: 12, color: C.dim }}>• {s}</div>)}</div>)}</div></div>}
+      {sourceProjectForm && <FormModal
+        title="إنشاء قالب من مشروع قائم"
+        initial={{ project_id: "" }}
+        onClose={() => setSourceProjectForm(false)}
+        onSubmit={async (values) => {
+          const project = data.projects.find((item) => item.id === values.project_id);
+          if (!project || project.is_system || project.archived_at || project.deleted_at || !can("project.read", project)) {
+            throw new Error("المشروع غير متاح أو لا تملك صلاحية قراءته.");
+          }
+          const seed = D.projectToTemplateSeed(project, data);
+          beginTemplateForm(seed);
+          setSourceProjectForm(false);
+          toast("تم نسخ بنية «" + project.name + "» إلى محرر قالب جديد. راجع الشجرة والعلاقات قبل الحفظ؛ بيانات التشغيل والأشخاص لم تُنسخ.");
+        }}
+        fields={[{ key: "project_id", label: "المشروع المصدر", type: "select", required: true, allowEmpty: false, options: data.projects.filter((project) => !project.is_system && !project.archived_at && !project.deleted_at && can("project.read", project)).map((project) => ({ v: project.id, l: project.name })) }]}
+      />}
       {previewTpl && <Modal title={`معاينة القالب: ${previewTpl.name}`} wide onClose={() => setPreviewTpl(null)} footer={<><Btn onClick={() => setPreviewTpl(null)}>رجوع</Btn><Btn kind="primary" onClick={() => { setUse(previewTpl); setPreviewTpl(null); }}>استخدام هذا القالب</Btn></>}><div style={{ lineHeight: 1.9 }}><p>{previewTpl.description || "لا يوجد وصف."}</p><b>{countN(previewTpl.task_tree || [])} مهمة · {(previewTpl.prd_templates || []).length} مواصفة · {(previewTpl.output_templates || []).length} مخرج · {(previewTpl.risks || []).length} مخاطر · المدة التقديرية {previewTpl.duration_days || "—"} يوماً</b><div style={{ marginTop: 8 }}>{show(previewTpl.task_tree || [])}</div><div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>المعاينة لا تنشئ أي سجلات. تواريخ التنفيذ وحالات المهام الفعلية لا تُنسخ من القالب.</div></div></Modal>}
       {templateForm && <FormModal title={templateForm.id ? "تعديل قالب مخصص" : "إنشاء قالب مخصص"} wide initial={templateForm} onClose={() => setTemplateForm(null)} onSubmit={async (v) => {
         const treeError = validateTaskTreeText(v.task_tree_text); if (treeError) throw new Error(treeError);
