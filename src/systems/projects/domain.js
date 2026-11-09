@@ -637,7 +637,11 @@ export function projectToTemplateSeed(project, data = {}) {
     const nextAncestry = new Set(ancestry);
     nextAncestry.add(task.id);
     const dependencyTitles = [];
-    for (const dependencyId of (task.dependency_task_ids || [])) {
+    const sourceTitle = String(task.title || "").trim();
+    if ((task.dependency_task_ids || []).length && dependencyTitleCounts.get(sourceTitle) !== 1) {
+      conversionWarnings.push("لم تُنقل روابط الاعتماد من «" + sourceTitle + "» لأن عنوان المهمة المصدر مكرر.");
+    }
+    for (const dependencyId of (dependencyTitleCounts.get(sourceTitle) === 1 ? (task.dependency_task_ids || []) : [])) {
       const dependency = taskById[dependencyId];
       if (!dependency) {
         conversionWarnings.push("تعذر نقل اعتماد غير متاح من المهمة «" + task.title + "».");
