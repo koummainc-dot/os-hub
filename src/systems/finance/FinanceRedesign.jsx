@@ -553,10 +553,10 @@ export default function FinanceRedesign({
       />
       <Segmented items={[["budgets","الميزانيات"],["goals","الأهداف"],["reports","التقارير"]]} value={planningTab} onChange={setPlanningTab}/>
       {planningTab==="budgets" && budgetsPage()}
-      {planningTab==="goals" && <Card style={{marginTop:12}}>
+      {planningTab==="goals" && (legacyGoals || <Card style={{marginTop:12}}>
         <h2 style={{marginTop:0,fontSize:15}}>الأهداف المالية</h2>
         <Table columns={[["name","الهدف"],["type","النوع"],["progress","التقدم"],["target","المستهدف"],["status","الحالة"]]} rows={goals.map((g,i)=>({id:g.id||i,name:g.name,type:g.goal_type||"ادخار",progress:<div style={{minWidth:130}}><Progress value={g.current_amount||g.progress||0} max={g.target_amount||g.target||1}/></div>,target:displayMoney(g.target_amount||g.target||0,g.currency||baseCurrency),status:<Pill tone="positive">في المسار</Pill>}))}/>
-      </Card>}
+      </Card>)}
       {planningTab==="reports" && (legacyReports || <Card style={{marginTop:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><h2 style={{margin:0,fontSize:15}}>مركز التقارير</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>دخل مقابل مصروف · الأداء · التنوع · الدخل المستقبلي</div></div>
@@ -588,7 +588,8 @@ export default function FinanceRedesign({
 
   const pageNode = page==="dashboard" ? dashboard()
     : page==="transactions" || page==="inbox" ? transactionsPage()
-    : page==="planning" || page==="budgets" || page==="goals" || page==="reports" || page==="projects" ? planningPage()
+    : page==="projects" ? (legacyProjects || fallback())
+    : page==="planning" || page==="budgets" || page==="goals" || page==="reports" ? planningPage()
     : page==="settings" ? settingsPage()
     : page==="accounts" ? accountsPage()
     : page==="categories" ? categoriesPage()
@@ -596,7 +597,8 @@ export default function FinanceRedesign({
     : page==="recurring" ? (legacyRecurring || recurringPage())
     : page==="context-tags" ? contextTagsPage()
     : page==="wealth" || page==="assets" || page==="debts" || page==="networth" ? wealthPage()
-    : page==="family" || page==="family-cash" ? (legacyFamily || familyPage())
+    : page==="family-cash" ? (legacyFamilyCash || familyPage())
+    : page==="family" ? (legacyFamily || familyPage())
     : page==="projects" ? (legacyProjects || fallback())
     : fallback();
 
