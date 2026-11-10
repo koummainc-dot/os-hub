@@ -679,7 +679,7 @@ function transactionsPage() {
             ? <Button secondary onClick={actions.onExport}>تصدير</Button>
              : <Button onClick={()=>setAutoOpenAddType("goal")}>＋ إضافة هدف</Button>}
       />
-      <Segmented items={[["budgets","الميزانيات"],["goals","الأهداف"],["reports","التقارير"]]} value={planningTab} onChange={setPlanningTab}/>
+      <Segmented items={[["budgets","الميزانيات"],["goals","الأهداف"],["reports","التقارير"]]} value={planningTab} onChange={value=>{setPlanningTab(value);if(value==="budgets")navigate("budgets");else if(value==="goals")navigate("goals");else navigate("reports");}}/>
       {planningTab==="budgets" && budgetsPage()}
       {planningTab==="goals" && (legacyGoals ? React.cloneElement(legacyGoals,{openCreate:autoOpenAddType==="goal",onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("goal")}) : <Card style={{marginTop:12}}>
         <h2 style={{marginTop:0,fontSize:15}}>الأهداف المالية</h2>
