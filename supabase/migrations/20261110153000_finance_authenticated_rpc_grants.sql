@@ -20,3 +20,28 @@ BEGIN
   END LOOP;
 END
 $$;
+
+-- Explicit regression guard for the Finance flows reported in the UI:
+-- currency/rates, asset valuation, net worth and goal progress. These functions
+-- are SECURITY DEFINER but enforce workspace/action access through fin__need.
+REVOKE ALL ON FUNCTION
+  public.fin_net_worth(uuid, date),
+  public.fin_goal_progress(uuid),
+  public.fin_currencies_get(uuid),
+  public.fin_add_rate(jsonb),
+  public.fin_currency_save(jsonb),
+  public.fin_update_settings(jsonb),
+  public.fin_asset_upsert(jsonb),
+  public.fin_asset_confirm_valuation(jsonb)
+FROM PUBLIC, anon;
+
+GRANT EXECUTE ON FUNCTION
+  public.fin_net_worth(uuid, date),
+  public.fin_goal_progress(uuid),
+  public.fin_currencies_get(uuid),
+  public.fin_add_rate(jsonb),
+  public.fin_currency_save(jsonb),
+  public.fin_update_settings(jsonb),
+  public.fin_asset_upsert(jsonb),
+  public.fin_asset_confirm_valuation(jsonb)
+TO authenticated;
