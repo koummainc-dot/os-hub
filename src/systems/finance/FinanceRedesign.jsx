@@ -498,7 +498,6 @@ export default function FinanceRedesign({
     const planned=rows.reduce((s,b)=>s+Number(b.budget_amount||0),0);
     const spent=rows.reduce((s,b)=>s+Number(b.spent||0),0);
     return <>
-      <PageHead eyebrow="الماليات · التخطيط" title="الميزانيات · نوفمبر 2026" subtitle="الخطة تقيس أين يجب أن تكون اليوم، لا مجرد رقم نهاية الشهر." actions={<><Button secondary onClick={actions.onRollover}>نسخ من الشهر السابق</Button><Button onClick={actions.onAdd}>＋ حركة</Button></>} />
       <div className="finance-v2-grid">
         <Stat label="المتبقي للتخصيص" value={displayMoney(Math.max(0,planned-spent))} note="بعد المصروف المسجل" tone="positive"/>
         <Stat label="وتيرة الشهر" value="23%" note="اليوم 7 من 30"/>
@@ -525,12 +524,36 @@ export default function FinanceRedesign({
   }
 
   function planningPage() {
+    const title = planningTab === "budgets" ? "الميزانيات" : planningTab === "goals" ? "الأهداف المالية" : "التقارير";
+    const subtitle = planningTab === "budgets" ? "راقب حدود الإنفاق والمصروف الفعلي من نفس مصدر الحركات." : planningTab === "goals" ? "اربط الادخار والتقدم المالي بأهدافك دون إنشاء دفتر منفصل." : "تقارير الماليات تُقرأ من نفس الحركات والأرصدة، ولا تنشئ مصدر حقيقة آخر.";
     return <>
-      <PageHead eyebrow="الماليات · التخطيط" title="التخطيط" subtitle="الميزانيات والأهداف والتقارير في مكان واحد." />
+      <PageHead
+        eyebrow="الماليات · التخطيط"
+        title={title}
+        subtitle={subtitle}
+        actions={planningTab === "budgets"
+          ? <><Button secondary onClick={actions.onRollover}>نسخ من الشهر السابق</Button><Button onClick={actions.onAdd}>＋ حركة</Button></>
+          : planningTab === "reports"
+            ? <Button secondary onClick={actions.onExport}>تصدير</Button>
+            : <Button onClick={actions.onAdd}>＋ حركة</Button>}
+      />
       <Segmented items={[["budgets","الميزانيات"],["goals","الأهداف"],["reports","التقارير"]]} value={planningTab} onChange={setPlanningTab}/>
       {planningTab==="budgets" && budgetsPage()}
-      {planningTab==="goals" && <Card style={{marginTop:12}}><h2 style={{marginTop:0,fontSize:15}}>الأهداف المالية</h2><Table columns={[["name","الهدف"],["type","النوع"],["progress","التقدم"],["target","المستهدف"],["status","الحالة"]]} rows={goals.map((g,i)=>({id:g.id||i,name:g.name,type:g.goal_type||"ادخار",progress:<div style={{minWidth:130}}><Progress value={g.current_amount||g.progress||0} max={g.target_amount||g.target||1}/></div>,target:displayMoney(g.target_amount||g.target||0,g.currency||baseCurrency),status:<Pill tone="positive">في المسار</Pill>}))}/></Card>}
-      {planningTab==="reports" && <Card style={{marginTop:12}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><h2 style={{margin:0,fontSize:15}}>مركز التقارير</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>دخل مقابل مصروف · الأداء · التنوع · الدخل المستقبلي</div></div><Button secondary onClick={actions.onExport}>تصدير</Button></div><div className="finance-v2-three" style={{marginTop:14}}><Stat label="الدخل" value={displayMoney(income)} tone="positive"/><Stat label="المصروف" value={displayMoney(expense)} tone="negative"/><Stat label="صافي التدفق" value={displayMoney(net)} tone={net>=0?"positive":"negative"}/></div></Card>}
+      {planningTab==="goals" && <Card style={{marginTop:12}}>
+        <h2 style={{marginTop:0,fontSize:15}}>الأهداف المالية</h2>
+        <Table columns={[["name","الهدف"],["type","النوع"],["progress","التقدم"],["target","المستهدف"],["status","الحالة"]]} rows={goals.map((g,i)=>({id:g.id||i,name:g.name,type:g.goal_type||"ادخار",progress:<div style={{minWidth:130}}><Progress value={g.current_amount||g.progress||0} max={g.target_amount||g.target||1}/></div>,target:displayMoney(g.target_amount||g.target||0,g.currency||baseCurrency),status:<Pill tone="positive">في المسار</Pill>}))}/>
+      </Card>}
+      {planningTab==="reports" && <Card style={{marginTop:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div><h2 style={{margin:0,fontSize:15}}>مركز التقارير</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>دخل مقابل مصروف · الأداء · التنوع · الدخل المستقبلي</div></div>
+          <Pill tone="positive">من نفس دفتر الحركات</Pill>
+        </div>
+        <div className="finance-v2-three" style={{marginTop:14}}>
+          <Stat label="الدخل" value={displayMoney(income)} tone="positive"/>
+          <Stat label="المصروف" value={displayMoney(expense)} tone="negative"/>
+          <Stat label="صافي التدفق" value={displayMoney(net)} tone={net>=0?"positive":"negative"}/>
+        </div>
+      </Card>}
     </>;
   }
 
