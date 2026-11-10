@@ -115,7 +115,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         supabase.from("finance_goals").select("id,name,currency,status").eq("workspace_id", ws.id).in("status", ["Active","Paused"]).order("name"),
         supabase.rpc("fin_currencies_get", { p_ws: ws.id }),
         supabase.rpc("fin_budget_insights_get", { p_ws: ws.id, p_period: budgetPeriod }),
-        supabase.from("finance_projects").select("id,name,status").eq("workspace_id",ws.id).order("name"),
+        supabase.rpc("fin_projects_get",{p_ws:ws.id}),
         supabase.from("finance_family_members").select("id,display_name,status").eq("workspace_id",ws.id).eq("status","Active").order("display_name"),
         supabase.rpc("fin_transaction_context_get",{p_ws:ws.id})
       ]);
