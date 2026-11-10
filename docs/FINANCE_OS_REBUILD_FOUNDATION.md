@@ -396,7 +396,101 @@ Project:
 5. Finance aggregates.
 6. Project P&L reads Finance result.
 
-## 14. Non-goals for this phase
+## 14. Reconciliation with current main
+
+تم فحص قائمة Finance migrations الحالية وملفات Finance الأساسية. الموجود الحالي ليس Foundation جديدًا؛ هو Finance OS قائم بالفعل على workspace_id وطبقة RPC/ledger.
+
+### موجود ويجب الحفاظ على جوهره
+- finance_settings
+- finance_accounts
+- finance_categories
+- finance_transactions
+- finance_ledger_entries
+- finance_audit_log
+- finance_idempotency
+- finance_outbox_events
+- budgets
+- recurring
+- assets
+- debts/installments/movements
+- reconciliation
+- FX rates
+- reports
+- net-worth history
+- transaction splits
+
+المحرك الحالي بالفعل يفرض RLS، وRPC-only ledger writes، وimmutability للـ posted transaction/ledger/audit، وidempotency، وreconciliation workflow، وsplit transactions.
+
+### موجود لكنه لا يطابق Foundation الجديد
+
+#### A. finance_accounts
+الحالي مملوك للـ workspace فقط، ولا يوجد owner_user_id أو book_id. لذلك لا يحقق عزل الحسابات المالية لكل مستخدم بالشكل المطلوب.
+
+**الحل:** إعادة تصميم ownership/context داخل نفس الجدول كمصدر حقيقة، دون إنشاء finance_accounts_v2.
+
+#### B. finance_transactions
+الحالي workspace-scoped ولا يوجد owner/book isolation، والحسابات نفسها workspace-scoped.
+
+**الحل:** إضافة السياق/المالك إلى نفس النموذج مع الحفاظ على IDs والحركات التاريخية.
+
+#### C. Family Center
+الموجود بالفعل:
+- finance_family_members
+- linked_user_id اختياري
+- finance_family_allocations
+- finance_family_allowances
+- family budgets
+- transaction attribution
+- family spending report
+
+لكن linked_user_id حاليًا مجرد profile link، وليس ownership لنظام مالي مستقل.
+
+**الحل:** تحويل الربط إلى user_id إلزامي للأفراد النشطين، وربط حسابات العضو وحركاته بملكيته المالية. مجرد profile link لا يمنح صلاحية.
+
+#### D. Family Cash Tracking
+الموجود:
+- finance_family_cash_advances
+- finance_family_cash_entries
+
+وهو مصمم لربط حركة صرف موجودة بالفرد وتوثيق ما أنفقه مع منع double-counting.
+
+هذا لا يساوي النموذج الجديد الذي قررناه: Owner expense → Member income → Member personal expense.
+
+**الحل:** الاحتفاظ به كسجل توثيقي إذا ظل مفيدًا، لكن لا نجعله مصدر الحقيقة البديل ولا ننشئ ledger ثانيًا لمصروفات العضو.
+
+#### E. Project Finance
+الموجود يحتوي على finance_projects وRPC باسم fin_project_save، والـ RPC يشترط project_ref إلى مشروع موجود في Projects OS، وهذا جيد لأنه يمنع Finance من إنشاء Project.
+
+لكن النموذج الحالي لا يعبّر بوضوح عن financial_scope = finance | none ولا عن علاقة 0..1 financial context.
+
+**الحل:** إعادة استخدام/تطويع finance_projects وإضافة financial scope/context صريح، دون إنشاء نظام مشاريع مالية ثانٍ. Koumma لا يحصل على special-case.
+
+#### F. Permissions
+الحالي يعتمد بدرجة كبيرة على ws_access_level(workspace_id, finance, section). هذا مناسب للوصول العام، لكنه لا يكفي وحده لـ accountant permissions per Book ولا ownership للحسابات المالية ولا action-level permissions.
+
+**الحل:** إضافة طبقة permissions دقيقة فوق/بجانب access الحالي، دون كسر workspace-level security ودون تحويل كل شيء إلى roles ثابتة.
+
+## 15. قرار إعادة الاستخدام
+
+لن ننشئ:
+- finance_accounts_v2
+- finance_transactions_v2
+- finance_family_v2
+- finance_projects_v2
+
+سنحافظ على IDs والجداول الأساسية حيث يمكن.
+
+وسنستخدم migrations انتقالية:
+1. Additive schema changes.
+2. Backfill ownership/context.
+3. Contract tests.
+4. Permission/RLS tests.
+5. Data-cycle tests.
+6. Only then cleanup/deprecation of obsolete columns/paths.
+
+لا يوجد production migration في هذه المرحلة.
+
+## 16. Non-goals for this phase
 
 - لا Company entity مستقل.
 - لا PM role جديد.
