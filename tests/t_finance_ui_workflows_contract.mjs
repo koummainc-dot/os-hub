@@ -62,6 +62,13 @@ assert.ok(assets.includes("role=\"dialog\""), "asset forms must render accessibl
 // Goals and budgets must remain reachable through Planning and use the same
 // Finance workspace rather than a local-only store.
 assert.ok(goals.includes("fin_goal_progress"), "goals must read server-calculated progress");
+assert.ok(goals.includes("fin_post_transaction_with_splits"), "goal contributions must post through the shared Finance ledger RPC");
+assert.ok(goals.includes('purpose:"GoalContribution"') && goals.includes("goal_id:goal.id"), "goal contributions must be linked to their goal and use the canonical contribution purpose");
+assert.ok(goals.includes("idempotency_key") && goals.includes("client_generated_id"), "goal contribution retries must be idempotent");
+assert.ok(goals.includes("＋ إضافة مساهمة") && goals.includes("حفظ المساهمة"), "active goals must expose a contribution workflow");
+assert.ok(goals.includes("goalTransactions") && goals.includes("سجل المساهمات والحركات المرتبطة"), "goal contribution history must be visible on the goal");
+assert.ok(goals.includes("linked_account_id") && goals.includes("حساب الإيداع المرتبط بالهدف"), "account-balance goals must receive contributions into their linked account");
+
 assert.ok(goals.includes("openCreate") && goals.includes("onRequestAdd"),
   "goal creation must support the Planning and global Add flows");
 assert.ok(finance.includes("fin_budgets_get") && finance.includes("fin_budget_upsert"),
