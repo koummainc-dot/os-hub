@@ -477,7 +477,7 @@ export default function FinanceRedesign({
 
   function recurringPage() {
     return <>
-      <PageHead eyebrow="الماليات · الإعدادات" title="المتكرر والاشتراكات" subtitle="إعداد الحركات المتكررة من مكان واحد؛ التسجيل اليومي يظل داخل الحركات." actions={<Button onClick={actions.onAdd}>＋ حركة</Button>} />
+      <PageHead eyebrow="الماليات · الإعدادات" title="المتكرر والاشتراكات" subtitle="إعداد الحركات المتكررة من مكان واحد؛ التسجيل اليومي يظل داخل الحركات." actions={<Button onClick={()=>setShowAddChooser(true)}>＋ إضافة</Button>} />
       <Card style={{marginTop:12}}>
         <div className="finance-v2-three">
           <Stat label="المتكرر" value={String((data?.recurring||[]).length)} note="عناصر محمّلة حاليًا" />
@@ -577,10 +577,10 @@ export default function FinanceRedesign({
         title={title}
         subtitle={subtitle}
         actions={planningTab === "budgets"
-          ? <><Button secondary onClick={actions.onRollover}>نسخ من الشهر السابق</Button><Button onClick={actions.onAdd}>＋ حركة</Button></>
+          ? <><Button secondary onClick={actions.onRollover}>نسخ من الشهر السابق</Button><Button onClick={()=>setShowAddChooser(true)}>＋ إضافة</Button></>
           : planningTab === "reports"
             ? <Button secondary onClick={actions.onExport}>تصدير</Button>
-            : <Button onClick={actions.onAdd}>＋ حركة</Button>}
+            : <Button onClick={()=>setShowAddChooser(true)}>＋ إضافة</Button>}
       />
       <Segmented items={[["budgets","الميزانيات"],["goals","الأهداف"],["reports","التقارير"]]} value={planningTab} onChange={setPlanningTab}/>
       {planningTab==="budgets" && budgetsPage()}
