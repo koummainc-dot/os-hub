@@ -119,7 +119,9 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         supabase.rpc("fin_budget_insights_get", { p_ws: ws.id, p_period: budgetPeriod }),
         supabase.rpc("fin_projects_get",{p_ws:ws.id}),
         supabase.from("finance_family_members").select("id,display_name,status").eq("workspace_id",ws.id).eq("status","Active").order("display_name"),
-        supabase.rpc("fin_transaction_context_get",{p_ws:ws.id})
+        supabase.rpc("fin_transaction_context_get",{p_ws:ws.id}),
+        supabase.rpc("fin_net_worth_snapshots_get",{p_ws:ws.id}),
+        supabase.from("finance_recurring_items").select("id,name,amount,currency,type,frequency,next_payment_date,auto_renew,active").eq("workspace_id",ws.id).order("next_payment_date",{ascending:true})
       ]);
       for (const r of [ar, cr, tr]) if (r.error) throw r.error;
       setAccounts(ar.data || []); setCurrencies(Array.isArray(cu.data) ? cu.data.filter(c => c.is_active) : []); setAllCategories(cr.data || []); setCategories((cr.data || []).filter(c => !c.archived)); setTransactions(tr.data || []);
