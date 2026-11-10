@@ -133,7 +133,7 @@ function Segmented({ items, value, onChange }) {
   );
 }
 
-function Table({ columns, rows, empty = "لا توجد بيانات" }) {
+function Table({ columns, rows, empty = "لا توجد بيانات", onRowClick }) {
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 650 }}>
@@ -146,7 +146,7 @@ function Table({ columns, rows, empty = "لا توجد بيانات" }) {
         </thead>
         <tbody>
           {rows.length ? rows.map((row, i) => (
-            <tr key={row.id || i}>
+            <tr key={row.id || i} onClick={() => onRowClick?.(row.raw || row)} style={{ cursor: onRowClick ? "pointer" : "default" }}>
               {columns.map(([key]) => (
                 <td key={key} style={{ padding: "12px 8px", borderBottom: "1px solid #EFF1EE", color: C.ink, fontSize: 11, whiteSpace: "nowrap" }}>{row[key]}</td>
               ))}
@@ -243,6 +243,52 @@ function Shell({ page, setPage, children, onAdd, onRefresh, hideBalances, setHid
   );
 }
 
+function TransactionSheet({ transaction, categories, accounts, baseCurrency, onClose }) {
+  if (!transaction) return null;
+  const category = categories.find(c => c.id === transaction.category_id)?.name || "بدون تصنيف";
+  const account = accounts.find(a => a.id === transaction.from_account_id)?.name || accounts.find(a => a.id === transaction.to_account_id)?.name || "—";
+  const typeLabel = transaction.type === "Income" ? "دخل" : transaction.type === "Transfer" ? "تحويل" : "مصروف";
+  const statusLabel = transaction.status === "Posted" ? "تمت المراجعة" : transaction.status || "غير محددة";
+  return (
+    <div role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position:"fixed", inset:0, zIndex:1000, background:"rgba(20,37,29,.72)", display:"grid", placeItems:"center", padding:16, overflowY:"auto" }}>
+      <div role="dialog" aria-modal="true" aria-label="تفاصيل الحركة المالية" style={{ background:C.surface, width:"min(620px,100%)", maxHeight:"calc(100vh - 32px)", overflowY:"auto", borderRadius:18, padding:22, boxSizing:"border-box", boxShadow:"0 18px 60px rgba(0,0,0,.18)" }}>
+        <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}>
+          <div>
+            <div style={{color:C.green,fontSize:10,fontWeight:900}}>تفاصيل الحركة</div>
+            <h2 style={{margin:"5px 0 0",fontSize:20}}>{transaction.merchant || transaction.name || "حركة مالية"}</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="إغلاق" style={{border:0,background:"transparent",fontSize:24,cursor:"pointer",color:C.muted}}>×</button>
+        </div>
+        <div style={{marginTop:18,padding:16,borderRadius:14,background:C.bg,border:"1px solid "+C.line}}>
+          <div style={{fontSize:12,color:C.muted}}>المبلغ</div>
+          <div style={{fontSize:30,fontWeight:950,marginTop:5,color:transaction.type==="Income"?C.green:C.ink}}>{money(transaction.amount, transaction.currency || baseCurrency)}</div>
+          <div style={{marginTop:8,display:"flex",gap:7,flexWrap:"wrap"}}>
+            <Pill tone={transaction.type==="Income"?"positive":"neutral"}>{typeLabel}</Pill>
+            <Pill tone={transaction.status==="Posted"?"positive":"warning"}>{statusLabel}</Pill>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10,marginTop:14}}>
+          {[
+            ["التاريخ", transaction.local_date || "—"],
+            ["الحساب", account],
+            ["التصنيف", category],
+            ["التاجر / المستفيد", transaction.merchant || "—"],
+            ["الغرض", transaction.purpose || "—"],
+            ["العملة", transaction.currency || baseCurrency],
+          ].map(([label,value]) => (
+            <div key={label} style={{border:"1px solid "+C.line,borderRadius:12,padding:12}}>
+              <div style={{fontSize:10,color:C.muted}}>{label}</div>
+              <div style={{fontSize:12,fontWeight:800,marginTop:5,overflowWrap:"anywhere"}}>{value}</div>
+            </div>
+          ))}
+        </div>
+        {transaction.notes && <div style={{marginTop:12,border:"1px solid "+C.line,borderRadius:12,padding:13}}><div style={{fontSize:10,color:C.muted}}>ملاحظات</div><div style={{fontSize:12,lineHeight:1.8,marginTop:5,whiteSpace:"pre-wrap"}}>{transaction.notes}</div></div>}
+        <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}><Button secondary onClick={onClose}>إغلاق</Button></div>
+      </div>
+    </div>
+  );
+}
+
 export default function FinanceRedesign({
   page = "dashboard",
   setPage,
@@ -255,6 +301,7 @@ export default function FinanceRedesign({
   const [wealthTab, setWealthTab] = React.useState(page === "assets" ? "investments" : page === "debts" ? "debts" : "overview");
   const [familyTab, setFamilyTab] = React.useState(page === "family-cash" ? "allocations" : "overview");
   const [txTab, setTxTab] = React.useState("all");
+  const [selectedTransaction, setSelectedTransaction] = React.useState(null);
 
   const {
     accounts = [], transactions = [], categories = [], balances = [], summary = null,
@@ -330,7 +377,7 @@ export default function FinanceRedesign({
 
       <Card style={{marginTop:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div><h2 style={{margin:0,fontSize:15}}>آخر الحركات</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>نفس مصدر الحقيقة الذي يظهر في دفتر الحركات</div></div><Button secondary onClick={()=>setPage("transactions")}>فتح الحركات ←</Button></div>
-        <Table columns={[["date","التاريخ"],["name","الحركة"],["category","التصنيف"],["account","الحساب"],["amount","المبلغ"],["status","الحالة"]]} rows={posted.slice(0,7).map(t=>({id:t.id,date:t.local_date,name:t.merchant||t.name||"حركة",category:categories.find(c=>c.id===t.category_id)?.name||"—",account:accounts.find(a=>a.id===t.from_account_id)?.name||"—",amount:displayMoney(t.amount,t.currency),status:<Pill tone={t.status==="Posted"?"positive":"warning"}>{t.status==="Posted"?"تمت المراجعة":"تحتاج مراجعة"}</Pill>}))}/>
+        <Table columns={[["date","التاريخ"],["name","الحركة"],["category","التصنيف"],["account","الحساب"],["amount","المبلغ"],["status","الحالة"]]} rows={posted.slice(0,7).map(t=>({id:t.id,raw:t,date:t.local_date,name:t.merchant||t.name||"حركة",category:categories.find(c=>c.id===t.category_id)?.name||"—",account:accounts.find(a=>a.id===t.from_account_id)?.name||"—",amount:displayMoney(t.amount,t.currency),status:<Pill tone={t.status==="Posted"?"positive":"warning"}>{t.status==="Posted"?"تمت المراجعة":"تحتاج مراجعة"}</Pill>}))} onRowClick={setSelectedTransaction}/>
       </Card>
     </>;
   }
@@ -344,7 +391,7 @@ export default function FinanceRedesign({
           <Segmented items={[["all","الكل"],["expense","مصروف"],["income","دخل"],["review","تحتاج مراجعة"]]} value={txTab} onChange={setTxTab}/>
           <div style={{display:"flex",gap:6}}><Pill>هذا الشهر</Pill><Pill>بلا تحويلات</Pill><Pill>بإيصال · 3</Pill></div>
         </div>
-        <Table columns={[["date","التاريخ"],["name","الحركة"],["category","التصنيف"],["account","الحساب"],["amount","المبلغ"],["status","الحالة"]]} rows={rows.map(t=>({id:t.id,date:t.local_date,name:t.merchant||t.name||"حركة",category:categories.find(c=>c.id===t.category_id)?.name||"—",account:accounts.find(a=>a.id===t.from_account_id)?.name||accounts.find(a=>a.id===t.to_account_id)?.name||"—",amount:<b style={{color:t.type==="Income"?C.green:t.type==="Expense"?C.ink:C.muted}}>{displayMoney(t.amount,t.currency)}</b>,status:<Pill tone={t.status==="Posted"?"positive":"warning"}>{t.status==="Posted"?"تمت المراجعة":"تحتاج مراجعة"}</Pill>}))}/>
+        <Table columns={[["date","التاريخ"],["name","الحركة"],["category","التصنيف"],["account","الحساب"],["amount","المبلغ"],["status","الحالة"]]} rows={rows.map(t=>({id:t.id,raw:t,date:t.local_date,name:t.merchant||t.name||"حركة",category:categories.find(c=>c.id===t.category_id)?.name||"—",account:accounts.find(a=>a.id===t.from_account_id)?.name||accounts.find(a=>a.id===t.to_account_id)?.name||"—",amount:<b style={{color:t.type==="Income"?C.green:t.type==="Expense"?C.ink:C.muted}}>{displayMoney(t.amount,t.currency)}</b>,status:<Pill tone={t.status==="Posted"?"positive":"warning"}>{t.status==="Posted"?"تمت المراجعة":"تحتاج مراجعة"}</Pill>}))} onRowClick={setSelectedTransaction}/>
         <div style={{display:"flex",justifyContent:"flex-end",gap:16,paddingTop:12,fontSize:11,fontWeight:800}}><span>مصروف {displayMoney(rows.filter(t=>t.type==="Expense").reduce((s,t)=>s+Number(t.amount||0),0))}</span><span>دخل {displayMoney(rows.filter(t=>t.type==="Income").reduce((s,t)=>s+Number(t.amount||0),0))}</span></div>
       </Card>
     </>;
@@ -526,6 +573,7 @@ export default function FinanceRedesign({
       isDemo={isDemo}
     >
       {pageNode}
+      <TransactionSheet transaction={selectedTransaction} categories={categories} accounts={accounts} baseCurrency={baseCurrency} onClose={() => setSelectedTransaction(null)} />
     </Shell>
   );
 }
