@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../../core/supabase.js";
 
 const GREEN="#059669",INK="#17211D",MUTED="#718078",LINE="#E4EBE6",BG="#F5F8F5";
@@ -11,6 +11,8 @@ function Card({children,style={}}){return <div style={{background:"#fff",border:
 
 export default function FinanceFXRates({ws,access,isDemo=false,baseCurrency="EGP"}){
  const [rates,setRates]=useState([]),[currencies,setCurrencies]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
+ const [autoUpdating,setAutoUpdating]=useState(false),[autoNotice,setAutoNotice]=useState("");
+ const autoRefreshAttempted=useRef(false);
  const [currencyForm,setCurrencyForm]=useState({currency:"USD",display_name:"US Dollar",symbol:"$",minor_units:"2"}),[editingCurrency,setEditingCurrency]=useState("");
  const [error,setError]=useState(""),[notice,setNotice]=useState(""),[form,setForm]=useState({currency:"USD",rate_to_base:"",effective_on:today(),source:"manual"});
  const [previewAmount,setPreviewAmount]=useState("1"),[previewCurrency,setPreviewCurrency]=useState("USD");
@@ -24,6 +26,38 @@ export default function FinanceFXRates({ws,access,isDemo=false,baseCurrency="EGP
   setRates(ratesRes.data||[]);setCurrencies(Array.isArray(currenciesRes.data)?currenciesRes.data:[]);
  }catch(e){setError(e?.message||"تعذّر تحميل العملات وأسعار الصرف.");}finally{setLoading(false);}},[ws?.id,isDemo]);
  useEffect(()=>{load();},[load]);
+ async function refreshAutomaticRates(){
+  if(isDemo||!ws?.id||autoUpdating)return;
+  setAutoUpdating(true);setAutoNotice("");
+  try{
+   const response=await fetch("https://open.er-api.com/v6/latest/USD",{headers:{Accept:"application/json"}});
+   if(!response.ok)throw new Error("تعذّر الوصول إلى مزود أسعار الصرف ("+response.status+").");
+   const feed=await response.json();
+   const basePerUsd=Number(feed?.rates?.[baseCurrency]);
+   if(feed?.result!=="success"||!(basePerUsd>0))throw new Error("لم يوفر المصدر سعر العملة الأساسية "+baseCurrency+".");
+   const effectiveOn=new Date(Number(feed.time_last_update_unix)*1000).toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"});
+   const pending=currencies.filter(c=>c.is_active&&c.currency!==baseCurrency&&!rates.some(r=>r.currency===c.currency&&r.effective_on>=effectiveOn));
+   const saved=[];
+   for(const currency of pending){
+    const quotePerUsd=Number(feed.rates[currency.currency]);
+    if(!(quotePerUsd>0))continue;
+    const rateToBase=basePerUsd/quotePerUsd;
+    const {error:err}=await supabase.rpc("fin_add_rate",{p:{workspace_id:ws.id,currency:currency.currency,rate_to_base:String(rateToBase),effective_on:effectiveOn,source:"open-er-api"}});
+    if(err)throw err;
+    saved.push({currency:currency.currency,rate_to_base:String(rateToBase),effective_on:effectiveOn,source:"open-er-api"});
+   }
+   if(saved.length)setRates(prev=>[...saved,...prev]);
+   setAutoNotice(saved.length?"تم تحديث "+saved.length+" سعر صرف تلقائيًا بتاريخ "+effectiveOn+".":"أسعار الصرف الحالية محدثة بالفعل حتى "+effectiveOn+".");
+  }catch(e){setAutoNotice(e?.message||"تعذّر تحديث أسعار الصرف تلقائيًا.");}
+  finally{setAutoUpdating(false);}
+ }
+ useEffect(()=>{
+  if(loading||isDemo||!ws?.id||!currencies.length||autoRefreshAttempted.current)return;
+  autoRefreshAttempted.current=true;
+  const stale=currencies.some(c=>c.is_active&&c.currency!==baseCurrency&&!rates.some(r=>r.currency===c.currency&&r.effective_on>=today()));
+  if(stale)refreshAutomaticRates();
+ },[loading,isDemo,ws?.id,currencies,rates,baseCurrency]);
+
  const currentRates=useMemo(()=>{const map=new Map([[baseCurrency,{currency:baseCurrency,rate_to_base:"1",effective_on:today(),source:"base"}]]);for(const r of rates){if(!map.has(r.currency))map.set(r.currency,r);}return [...map.values()].sort((a,b)=>a.currency.localeCompare(b.currency));},[rates,baseCurrency]);
  const rateMap=useMemo(()=>new Map(currentRates.map(r=>[r.currency,Number(r.rate_to_base)])),[currentRates]);
  async function save(e){e.preventDefault();if(!canEdit||saving)return;const c=form.currency.trim().toUpperCase();if(!/^[A-Z]{3}$/.test(c)||!currencies.some(x=>x.currency===c&&x.is_active)||!(Number(form.rate_to_base)>0)||!form.effective_on){setError("اختر عملة مفعّلة من إدارة العملات وأدخل سعرًا وتاريخ سريان صحيحين.");return;}if(c===baseCurrency){setError("عملة الأساس سعرها ثابت 1 ولا تحتاج إلى سجل.");return;}if(form.effective_on>today()){setError("لا يمكن إدخال سعر بتاريخ مستقبلي.");return;}
@@ -57,6 +91,7 @@ export default function FinanceFXRates({ws,access,isDemo=false,baseCurrency="EGP
  if(isDemo)return <Card><h3 style={{marginTop:0}}>أسعار الصرف</h3><p style={{color:"#92400E",fontSize:13}}>وضع العرض التجريبي للقراءة فقط.</p></Card>;
  return <div style={{display:"grid",gap:14,direction:"rtl"}}>
   {notice&&<div role="status" style={{background:"#ECFDF3",color:"#067647",padding:11,borderRadius:10,fontSize:12}}>{notice}</div>}
+  <Card><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><h3 style={{margin:0}}>أسعار الصرف التلقائية</h3><p style={{margin:"6px 0 0",fontSize:11,color:MUTED,lineHeight:1.7}}>تحديث يومي مجاني من مصدر خارجي، مع حفظ السعر وتاريخه داخل سجل Finance. الأسعار مرجعية وليست أسعار تداول لحظية.</p></div><Btn onClick={refreshAutomaticRates} disabled={autoUpdating||loading}>{autoUpdating?"جارٍ التحديث…":"↻ تحديث تلقائي"}</Btn></div>{autoNotice&&<div role="status" style={{marginTop:10,background:"#EFF8FF",color:"#175CD3",padding:10,borderRadius:9,fontSize:11}}>{autoNotice} <a href="https://www.exchangerate-api.com" target="_blank" rel="noreferrer" style={{color:"#175CD3",textDecoration:"underline"}}>Rates By Exchange Rate API</a></div>}</Card>
   {error&&<div role="alert" style={{background:"#FEF3F2",color:"#B42318",padding:11,borderRadius:10,fontSize:12}}>{error}<button onClick={()=>setError("")} style={{float:"left",border:0,background:"transparent",cursor:"pointer"}}>×</button></div>}
   {canEdit&&<Card><div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}><div><h3 style={{margin:0}}>إدارة العملات</h3><p style={{margin:"6px 0 0",fontSize:12,color:MUTED,lineHeight:1.8}}>أضف العملات التي تحتاجها وعدّل الاسم والرمز. إزالة العملة تخفيها من الاختيارات الجديدة ولا تحذف السجلات التاريخية.</p></div></div>
    <form onSubmit={saveCurrency} style={{display:"grid",gap:10,marginTop:13}}><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10}}>
