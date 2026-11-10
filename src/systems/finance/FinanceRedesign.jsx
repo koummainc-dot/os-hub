@@ -183,7 +183,7 @@ function Shell({ page, setPage, children, onAdd, onRefresh, hideBalances, setHid
   const current = page === "dashboard" ? "dashboard"
     : ["transactions", "recurring", "inbox"].includes(page) ? "transactions"
     : ["budgets", "goals", "reports", "projects"].includes(page) ? "planning"
-    : ["settings", "accounts", "categories", "currencies", "context-tags"].includes(page) ? "settings" : page;
+    : ["settings", "accounts", "categories", "currencies", "recurring", "context-tags"].includes(page) ? "settings" : page;
 
   return (
     <div dir="rtl" style={{ minHeight: "100%", background: C.bg, color: C.ink, fontFamily: "inherit" }}>
@@ -234,7 +234,7 @@ function Shell({ page, setPage, children, onAdd, onRefresh, hideBalances, setHid
       <nav className="finance-v2-mobile-nav">
         {primary.map(([id,label]) => (
           <button key={id} type="button" className={current === id ? "active" : ""} onClick={() => setPage(id)}>
-            <div style={{fontSize:15,marginBottom:2}}>{id==="dashboard"?"⌂":id==="transactions"?"≡":id==="accounts"?"▣":id==="wealth"?"◆":"◉"}</div>
+            <div style={{fontSize:15,marginBottom:2}}>{id==="dashboard"?"⌂":id==="transactions"?"≡":id==="planning"?"◫":"⚙"}</div>
             {label}
           </button>
         ))}
@@ -503,7 +503,7 @@ export default function FinanceRedesign({
   }
 
   const pageNode = page==="dashboard" ? dashboard()
-    : page==="transactions" || page==="inbox" || page==="recurring" ? transactionsPage()
+    : page==="transactions" || page==="inbox" ? transactionsPage()
     : page==="planning" || page==="budgets" || page==="goals" || page==="reports" || page==="projects" ? planningPage()
     : page==="settings" ? settingsPage()
     : page==="accounts" ? accountsPage()
