@@ -59,13 +59,13 @@ export default function FinanceDebts({ ws, access, isDemo = false, currencies = 
  useEffect(()=>{if(openCreate){setShowCreate(true);setCreateStep(1);onCreateHandled?.();}},[openCreate]);
 
   const filteredDebts=debts.filter(d=>(debtStatusFilter==="all"||d.lifecycle===debtStatusFilter)&&(!debtSearch||[d.name,d.counterparty,d.lender_name,d.borrower_name].filter(Boolean).join(" ").toLowerCase().includes(debtSearch.trim().toLowerCase())));
-  const debtChartRows=debts.map(d=>{const m=metrics(d);return {id:d.id,label:d.name,value:Number(d.principal_amount)>0?Math.max(0,Math.min(100,m.paid/Number(d.principal_amount)*100)):0};});
   const metrics = (d) => {
     const ms = movements.filter(m => m.debt_id === d.id);
     const principalPaid = ms.reduce((s,m) => s + (m.kind === "Payment" ? Number(m.principal || 0) : 0), 0);
     const interestFees = ms.reduce((s,m) => s + (m.kind === "Payment" ? Number(m.interest || 0) + Number(m.fees || 0) : m.kind === "InterestCharge" || m.kind === "LateFee" ? Number(m.interest || 0) + Number(m.fees || 0) : 0), 0);
     return { paid: principalPaid, remaining: Math.max(0, Number(d.principal_amount || 0) - principalPaid), interestFees };
   };
+  const debtChartRows=debts.map(d=>{const m=metrics(d);return {id:d.id,label:d.name,value:Number(d.principal_amount)>0?Math.max(0,Math.min(100,m.paid/Number(d.principal_amount)*100)):0};});
   async function createDebt(e) {
     e.preventDefault(); if (!canEdit || saving) return;
     if (!(Number(form.principal) > 0) || !/^[A-Z]{3}$/.test(form.currency) || !form.start_date || (form.end_date && form.end_date < form.start_date) || Number(form.interest_rate || 0) < 0 || (form.interest_method === "None" && Number(form.interest_rate || 0) !== 0)) { setError("راجع مبلغ الدين والعملة والتواريخ ومعدل الفائدة."); return; }
