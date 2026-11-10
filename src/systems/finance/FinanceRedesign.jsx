@@ -378,6 +378,58 @@ export default function FinanceRedesign({
     </>;
   }
 
+  function categoriesPage() {
+    return <>
+      <PageHead eyebrow="الماليات · الإعدادات" title="التصنيفات" subtitle="تصنيفات الحركة تُستخدم يوميًا من Quick Add، وهنا تتم إدارتها نادرًا." actions={<Button onClick={actions.onAddCategory}>＋ تصنيف</Button>} />
+      <Card style={{marginTop:12}}>
+        <Table columns={[["name","التصنيف"],["kind","النوع"],["parent","الرئيسي"],["status","الحالة"],["action",""]]} rows={categories.map(c=>({id:c.id,name:c.name,kind:c.kind==="Expense"?"مصروف":c.kind==="Income"?"دخل":"مشترك",parent:c.parent_id?(categories.find(p=>p.id===c.parent_id)?.name||"—"):"—",status:<Pill tone={c.archived?"neutral":"positive"}>{c.archived?"مؤرشف":"نشط"}</Pill>,action:<div style={{display:"flex",gap:6}}><Button secondary onClick={()=>actions.onEditCategory?.(c)}>تعديل</Button><Button secondary onClick={()=>actions.onToggleCategory?.(c)}>{c.archived?"إعادة تفعيل":"أرشفة"}</Button></div>}))}/>
+      </Card>
+    </>;
+  }
+
+  function currenciesPage() {
+    return <>
+      <PageHead eyebrow="الماليات · الإعدادات" title="العملات وأسعار الصرف" subtitle="العملة الأساسية والأسعار المستخدمة عند تجميع الأرصدة والتقارير." />
+      <div className="finance-v2-grid">
+        <Stat label="العملة الأساسية" value={baseCurrency} note="عملة التقارير والملخصات" />
+        <Stat label="العملات المتاحة" value={String((data?.currencies||[]).length)} note="المصدر الحالي من Finance" />
+        <Stat label="تحديث الأسعار" value="تلقائي" note="حسب مصدر أسعار الصرف المتاح" />
+        <Stat label="تأثير التحويل" value="محاسبي" note="لا يغيّر أصل الحركة" />
+      </div>
+      <Card style={{marginTop:12}}>
+        <Table columns={[["currency","العملة"],["name","الاسم"],["rate","سعر الصرف"],["status","الحالة"]]} rows={(data?.currencies||[]).map((c,i)=>({id:c.currency||i,currency:c.currency,name:c.display_name||c.name||"—",rate:c.rate==null?"—":String(c.rate),status:<Pill tone="positive">متاحة</Pill>}))}/>
+      </Card>
+    </>;
+  }
+
+  function recurringPage() {
+    return <>
+      <PageHead eyebrow="الماليات · الإعدادات" title="المتكرر والاشتراكات" subtitle="إعداد الحركات المتكررة من مكان واحد؛ التسجيل اليومي يظل داخل الحركات." actions={<Button onClick={actions.onAdd}>＋ حركة</Button>} />
+      <Card style={{marginTop:12}}>
+        <div className="finance-v2-three">
+          <Stat label="المتكرر" value={String((data?.recurring||[]).length)} note="عناصر محمّلة حاليًا" />
+          <Stat label="الاشتراكات" value={String((data?.recurring||[]).filter(r=>r.subscription).length)} note="بحسب بيانات السجل" />
+          <Stat label="الحالة" value="مراجعة" note="لا يتم إنشاء حركة دون قواعد الدفتر" />
+        </div>
+        <div style={{marginTop:12}}>
+          <Table columns={[["name","العنصر"],["amount","المبلغ"],["frequency","التكرار"],["next","القادم"],["status","الحالة"]]} rows={(data?.recurring||[]).map((r,i)=>({id:r.id||i,name:r.name||r.merchant||"متكرر",amount:displayMoney(r.amount||0,r.currency),frequency:r.frequency||r.cadence||"—",next:r.next_date||r.next_run_at||"—",status:<Pill tone={r.active===false?"neutral":"positive"}>{r.active===false?"متوقف":"نشط"}</Pill>}))}/>
+        </div>
+      </Card>
+    </>;
+  }
+
+  function contextTagsPage() {
+    return <>
+      <PageHead eyebrow="الماليات · الإعدادات" title="وسوم السياق" subtitle="وسم واحد يوضح سياق الحركة: شخصي، مشروع، أو أسرة، بدل إنشاء أنظمة منفصلة." />
+      <Card style={{marginTop:12}}>
+        <div className="finance-v2-three">
+          {[["شخصي","الحركات الشخصية اليومية"],["مشروع","حركة مرتبطة بمشروع مالي"],["أسرة","حركة مرتبطة بالأسرة أو أحد أفرادها"]].map(([name,desc])=><div key={name} style={{border:"1px solid "+C.line,borderRadius:14,padding:15}}><Pill tone="positive">{name}</Pill><div style={{fontSize:11,color:C.muted,lineHeight:1.8,marginTop:8}}>{desc}</div></div>)}
+        </div>
+        <div style={{marginTop:14,padding:12,borderRadius:12,background:C.bg,color:C.muted,fontSize:11,lineHeight:1.8}}>السياق ليس دفترًا جديدًا؛ هو فلتر وربط على نفس الحركات ومصدر الحقيقة المالي.</div>
+      </Card>
+    </>;
+  }
+
   function accountsPage() {
     return <>
       <PageHead eyebrow="الماليات · الحسابات" title="الحسابات" subtitle="كل حساب مالي مستقل، مع رصيد وتسوية واضحة." actions={<Button onClick={actions.onAddAccount}>＋ حساب</Button>} />
@@ -453,7 +505,12 @@ export default function FinanceRedesign({
   const pageNode = page==="dashboard" ? dashboard()
     : page==="transactions" || page==="inbox" || page==="recurring" ? transactionsPage()
     : page==="planning" || page==="budgets" || page==="goals" || page==="reports" || page==="projects" ? planningPage()
-    : page==="settings" || page==="accounts" || page==="categories" || page==="currencies" || page==="context-tags" ? settingsPage()
+    : page==="settings" ? settingsPage()
+    : page==="accounts" ? accountsPage()
+    : page==="categories" ? categoriesPage()
+    : page==="currencies" ? currenciesPage()
+    : page==="recurring" ? recurringPage()
+    : page==="context-tags" ? contextTagsPage()
     : page==="wealth" || page==="assets" || page==="debts" || page==="networth" ? wealthPage()
     : page==="family" || page==="family-cash" ? familyPage()
     : fallback();
