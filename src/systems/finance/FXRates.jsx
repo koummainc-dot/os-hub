@@ -12,7 +12,10 @@ function Card({children,style={}}){return <div style={{background:"#fff",border:
 export default function FinanceFXRates({ws,access,isDemo=false,baseCurrency="EGP"}){
  const [rates,setRates]=useState([]),[currencies,setCurrencies]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
  const [autoUpdating,setAutoUpdating]=useState(false),[autoNotice,setAutoNotice]=useState("");
+ const [baseCurrencyDraft,setBaseCurrencyDraft]=useState(baseCurrency);
+ const [savingBaseCurrency,setSavingBaseCurrency]=useState(false);
  const autoRefreshAttempted=useRef(false);
+ useEffect(()=>setBaseCurrencyDraft(baseCurrency),[baseCurrency]);
  const [currencyForm,setCurrencyForm]=useState({currency:"USD",display_name:"US Dollar",symbol:"$",minor_units:"2"}),[editingCurrency,setEditingCurrency]=useState("");
  const [error,setError]=useState(""),[notice,setNotice]=useState(""),[form,setForm]=useState({currency:"USD",rate_to_base:"",effective_on:today(),source:"manual"});
  const [previewAmount,setPreviewAmount]=useState("1"),[previewCurrency,setPreviewCurrency]=useState("USD");
@@ -26,6 +29,17 @@ export default function FinanceFXRates({ws,access,isDemo=false,baseCurrency="EGP
   setRates(ratesRes.data||[]);setCurrencies(Array.isArray(currenciesRes.data)?currenciesRes.data:[]);
  }catch(e){setError(e?.message||"تعذّر تحميل العملات وأسعار الصرف.");}finally{setLoading(false);}},[ws?.id,isDemo]);
  useEffect(()=>{load();},[load]);
+ async function saveBaseCurrency(){
+  if(!canEdit||savingBaseCurrency||!baseCurrencyDraft||baseCurrencyDraft===baseCurrency)return;
+  setSavingBaseCurrency(true);setError("");setNotice("");
+  try{
+   const {error:err}=await supabase.rpc("fin_update_settings",{p:{workspace_id:ws.id,base_currency:baseCurrencyDraft}});
+   if(err)throw err;
+   setNotice("تم تحديث العملة الأساسية. ستُستخدم العملة الجديدة في التقارير والتجميعات القادمة.");
+   await load();
+  }catch(e){setError(e?.message||"تعذّر تغيير العملة الأساسية. إذا كانت هناك حركات مسجلة فقد تكون العملة مقفلة لحماية الدفتر.");}
+  finally{setSavingBaseCurrency(false);}
+ }
  async function refreshAutomaticRates(){
   if(isDemo||!ws?.id||autoUpdating)return;
   setAutoUpdating(true);setAutoNotice("");
@@ -93,6 +107,7 @@ export default function FinanceFXRates({ws,access,isDemo=false,baseCurrency="EGP
   {notice&&<div role="status" style={{background:"#ECFDF3",color:"#067647",padding:11,borderRadius:10,fontSize:12}}>{notice}</div>}
   <Card><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><h3 style={{margin:0}}>أسعار الصرف التلقائية</h3><p style={{margin:"6px 0 0",fontSize:11,color:MUTED,lineHeight:1.7}}>تحديث يومي مجاني من مصدر خارجي، مع حفظ السعر وتاريخه داخل سجل Finance. الأسعار مرجعية وليست أسعار تداول لحظية.</p></div><Btn onClick={refreshAutomaticRates} disabled={autoUpdating||loading}>{autoUpdating?"جارٍ التحديث…":"↻ تحديث تلقائي"}</Btn></div>{autoNotice&&<div role="status" style={{marginTop:10,background:"#EFF8FF",color:"#175CD3",padding:10,borderRadius:9,fontSize:11}}>{autoNotice} <a href="https://www.exchangerate-api.com" target="_blank" rel="noreferrer" style={{color:"#175CD3",textDecoration:"underline"}}>Rates By Exchange Rate API</a></div>}</Card>
   {error&&<div role="alert" style={{background:"#FEF3F2",color:"#B42318",padding:11,borderRadius:10,fontSize:12}}>{error}<button onClick={()=>setError("")} style={{float:"left",border:0,background:"transparent",cursor:"pointer"}}>×</button></div>}
+  <Card><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",flexWrap:"wrap"}}><div><h3 style={{margin:0}}>العملة الأساسية</h3><p style={{margin:"6px 0 0",fontSize:11,color:MUTED,lineHeight:1.7}}>تُستخدم لتجميع الأرصدة وصافي الثروة والتقارير. بعد تسجيل أول حركة، يتطلب تغييرها عملية إعادة تأسيس محاسبية منفصلة لحماية السجل.</p></div><div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><select value={baseCurrencyDraft} onChange={e=>setBaseCurrencyDraft(e.target.value)} disabled={!canEdit||savingBaseCurrency} style={{...input,width:140}}>{currencies.filter(c=>c.is_active).map(c=><option key={c.currency} value={c.currency}>{c.currency} · {c.display_name}</option>)}</select><Btn onClick={saveBaseCurrency} disabled={!canEdit||savingBaseCurrency||baseCurrencyDraft===baseCurrency}>{savingBaseCurrency?"جارٍ الحفظ…":"حفظ العملة الأساسية"}</Btn></div></div></Card>
   {canEdit&&<Card><div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}><div><h3 style={{margin:0}}>إدارة العملات</h3><p style={{margin:"6px 0 0",fontSize:12,color:MUTED,lineHeight:1.8}}>أضف العملات التي تحتاجها وعدّل الاسم والرمز. إزالة العملة تخفيها من الاختيارات الجديدة ولا تحذف السجلات التاريخية.</p></div></div>
    <form onSubmit={saveCurrency} style={{display:"grid",gap:10,marginTop:13}}><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10}}>
     <Field label="رمز العملة *"><input required maxLength={3} disabled={!!editingCurrency} style={input} value={currencyForm.currency} onChange={e=>setCurrencyForm({...currencyForm,currency:e.target.value.toUpperCase()})} placeholder="USD"/></Field>
