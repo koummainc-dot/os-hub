@@ -338,6 +338,7 @@ export default function FinanceRedesign({
   const [txSubTab, setTxSubTab] = React.useState(page === "recurring" ? "recurring" : "ledger");
   const [showAddChooser, setShowAddChooser] = React.useState(false);
   const [showBudgetForm, setShowBudgetForm] = React.useState(false);
+  const [budgetSaveError, setBudgetSaveError] = React.useState("");
   const [autoOpenAddType, setAutoOpenAddType] = React.useState("");
   const [budgetPeriod, setBudgetPeriod] = React.useState(new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}).slice(0,7));
   const [budgetDraft, setBudgetDraft] = React.useState({category_id:"",budget_amount:"",notes:""});
@@ -598,7 +599,7 @@ export default function FinanceRedesign({
         title={title}
         subtitle={subtitle}
         actions={planningTab === "budgets"
-          ? <><Button secondary onClick={actions.onRollover}>نسخ من الشهر السابق</Button><Button onClick={()=>setShowBudgetForm(true)}>＋ إضافة ميزانية</Button></>
+          ? <><Button secondary onClick={actions.onRollover}>نسخ من الشهر السابق</Button><Button onClick={()=>setBudgetSaveError("");setShowBudgetForm(true)}>＋ إضافة ميزانية</Button></>
           : planningTab === "reports"
             ? <Button secondary onClick={actions.onExport}>تصدير</Button>
              : <Button onClick={()=>setAutoOpenAddType("goal")}>＋ إضافة هدف</Button>}
@@ -668,7 +669,7 @@ export default function FinanceRedesign({
     >
       {pageNode}
       <div role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setShowBudgetForm(false);}} style={{position:"fixed",inset:0,zIndex:1300,background:"rgba(20,37,29,.72)",display:showBudgetForm?"grid":"none",placeItems:"center",padding:16}}><div role="dialog" aria-modal="true" aria-label="إضافة ميزانية" style={{background:C.surface,width:"min(620px,100%)",maxHeight:"calc(100vh - 32px)",overflowY:"auto",borderRadius:18,padding:20,boxShadow:"0 18px 60px rgba(0,0,0,.18)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><h2 style={{margin:0,fontSize:17}}>إعداد ميزانية الفترة</h2><button type="button" onClick={()=>setShowBudgetForm(false)} style={{border:0,background:"transparent",fontSize:24,cursor:"pointer"}}>×</button></div>
-        <form onSubmit={e=>{e.preventDefault();actions.onSaveBudget?.({period:budgetPeriod,category_id:budgetDraft.category_id,budget_amount:budgetDraft.budget_amount,notes:budgetDraft.notes});setShowBudgetForm(false);}} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,alignItems:"end"}}>
+        {budgetSaveError&&<div role="alert" style={{background:C.redSoft,color:C.red,padding:10,borderRadius:9,fontSize:11,marginBottom:10}}>{budgetSaveError}</div>}<form onSubmit={async e=>{e.preventDefault();setBudgetSaveError("");const result=await actions.onSaveBudget?.({period:budgetPeriod,category_id:budgetDraft.category_id,budget_amount:budgetDraft.budget_amount,notes:budgetDraft.notes});if(result?.ok){setShowBudgetForm(false);setBudgetDraft({category_id:"",budget_amount:"",notes:""});}else setBudgetSaveError(result?.error||"تعذّر حفظ الميزانية.");}} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,alignItems:"end"}}>
           <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>الشهر<input type="month" value={budgetPeriod} onChange={e=>setBudgetPeriod(e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}/></label>
           <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>التصنيف<select required value={budgetDraft.category_id} onChange={e=>setBudgetDraft(v=>({...v,category_id:e.target.value}))} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}><option value="">اختر فئة المصروف</option>{categories.filter(c=>c.kind==="Expense"||c.kind==="Both").map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
           <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>الحد المالي<input required type="number" min="0" step="0.01" value={budgetDraft.budget_amount} onChange={e=>setBudgetDraft(v=>({...v,budget_amount:e.target.value}))} placeholder="0.00" style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}/></label>
@@ -685,7 +686,7 @@ export default function FinanceRedesign({
               ["budget","ميزانية","حد إنفاق لفئة وفترة"],
               ["asset","أصل","أصل أو استثمار جديد"],
               ["recurring","متكرر / اشتراك","دفعة دورية وتنبيهاتها"]
-            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){actions.onAdd?.();return;}setAutoOpenAddType(kind);if(kind==="budget"){setPage("planning");setPlanningTab("budgets");setShowBudgetForm(true);return;}if(kind==="recurring"){setPage("recurring");setTxSubTab("recurring");return;}setPage(kind==="debt"?"debts":"assets");}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
+            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){actions.onAdd?.();return;}setAutoOpenAddType(kind);if(kind==="budget"){setPage("planning");setPlanningTab("budgets");setBudgetSaveError("");setShowBudgetForm(true);return;}if(kind==="recurring"){setPage("recurring");setTxSubTab("recurring");return;}setPage(kind==="debt"?"debts":"assets");}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
               <div style={{fontSize:13,fontWeight:900,color:C.ink}}>{label}</div><div style={{fontSize:10,color:C.muted,lineHeight:1.7,marginTop:6}}>{desc}</div>
             </button>)}
           </div>
