@@ -52,7 +52,7 @@ function Button({ children, onClick, secondary = false, danger = false, disabled
   );
 }
 
-function Card({ children, style = {} }) {
+function Card({ children, style = {}, onClick }) {
   return (
     <section
       style={{
@@ -62,7 +62,12 @@ function Card({ children, style = {} }) {
         padding: 18,
         minWidth: 0,
         ...style,
+        ...(onClick ? { cursor: "pointer" } : {}),
       }}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") onClick(e); } : undefined}
     >
       {children}
     </section>
@@ -295,6 +300,14 @@ export default function FinanceRedesign({
   data,
   actions = {},
   legacyDebt = null,
+  legacyAssets = null,
+  legacyGoals = null,
+  legacyRecurring = null,
+  legacyProjects = null,
+  legacyFamily = null,
+  legacyFamilyCash = null,
+  legacyReports = null,
+  legacyCurrencies = null,
   isDemo = false,
 }) {
   const [hideBalances, setHideBalances] = React.useState(false);
@@ -518,7 +531,7 @@ export default function FinanceRedesign({
       <PageHead eyebrow="الماليات · الثروة" title="الثروة" subtitle="الأصول والاستثمارات والديون وصافي الثروة في مسار واحد." />
       <Segmented items={[["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"],["networth","صافي الثروة"]]} value={tab} onChange={setWealthTab}/>
       {tab==="overview" && <div className="finance-v2-grid" style={{marginTop:12}}><Stat label="صافي الثروة" value={displayMoney(netValue)} tone="positive"/><Stat label="الأصول" value={displayMoney(netWorth?.assets||0)}/><Stat label="الديون" value={displayMoney(netWorth?.liabilities||0)} tone="negative"/><Stat label="السيولة" value={displayMoney(balanceTotal)} /></div>}
-      {tab==="investments" && <Card style={{marginTop:12}}><h2 style={{marginTop:0,fontSize:15}}>المراكز</h2><Table columns={[["name","المركز"],["type","النوع"],["qty","الكمية"],["value","القيمة"],["return","العائد"]]} rows={assets.map((a,i)=>({id:a.id||i,name:a.name||a.asset_name||"أصل",type:a.asset_type||"استثمار",qty:a.quantity||"—",value:displayMoney(a.current_value||a.value||0,a.currency),return:<Pill tone="positive">+{a.return_pct||"—"}%</Pill>}))}/></Card>}
+      {tab==="investments" && (legacyAssets || <Card style={{marginTop:12}}><h2 style={{marginTop:0,fontSize:15}}>المراكز</h2><Table columns={[["name","المركز"],["type","النوع"],["qty","الكمية"],["value","القيمة"],["return","العائد"]]} rows={assets.map((a,i)=>({id:a.id||i,name:a.name||a.asset_name||"أصل",type:a.asset_type||"استثمار",qty:a.quantity||"—",value:displayMoney(a.current_value||a.value||0,a.currency),return:<Pill tone="positive">+{a.return_pct||"—"}%</Pill>}))}/></Card>)}
       {tab==="debts" && (legacyDebt || <Card style={{marginTop:12}}><h2 style={{marginTop:0,fontSize:15}}>الديون والأقساط</h2><Table columns={[["name","الدين"],["balance","الرصيد"],["installment","القسط"],["due","الاستحقاق"],["status","الحالة"]]} rows={debts.map((d,i)=>({id:d.id||i,name:d.name||"دين",balance:displayMoney(d.remaining_balance||d.balance||0,d.currency),installment:displayMoney(d.installment_amount||0,d.currency),due:d.next_due_date||"—",status:<Pill tone="warning">قائم</Pill>}))}/></Card>)}
       {tab==="networth" && <Card style={{marginTop:12}}><div style={{fontSize:11,color:C.muted}}>صافي الثروة الحالي</div><div style={{fontSize:34,fontWeight:950,marginTop:6}}>{displayMoney(netValue)}</div><div style={{height:170,marginTop:16,display:"flex",alignItems:"flex-end",gap:7}}>{[35,42,39,48,55,58,62,68,71,76,82,90].map((h,i)=><div key={i} style={{flex:1,height:h+"%",background:i===11?C.green:"#D7E5DC",borderRadius:"6px 6px 0 0"}}/>)}</div></Card>}
     </>;
@@ -544,7 +557,7 @@ export default function FinanceRedesign({
         <h2 style={{marginTop:0,fontSize:15}}>الأهداف المالية</h2>
         <Table columns={[["name","الهدف"],["type","النوع"],["progress","التقدم"],["target","المستهدف"],["status","الحالة"]]} rows={goals.map((g,i)=>({id:g.id||i,name:g.name,type:g.goal_type||"ادخار",progress:<div style={{minWidth:130}}><Progress value={g.current_amount||g.progress||0} max={g.target_amount||g.target||1}/></div>,target:displayMoney(g.target_amount||g.target||0,g.currency||baseCurrency),status:<Pill tone="positive">في المسار</Pill>}))}/>
       </Card>}
-      {planningTab==="reports" && <Card style={{marginTop:12}}>
+      {planningTab==="reports" && (legacyReports || <Card style={{marginTop:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><h2 style={{margin:0,fontSize:15}}>مركز التقارير</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>دخل مقابل مصروف · الأداء · التنوع · الدخل المستقبلي</div></div>
           <Pill tone="positive">من نفس دفتر الحركات</Pill>
@@ -579,11 +592,12 @@ export default function FinanceRedesign({
     : page==="settings" ? settingsPage()
     : page==="accounts" ? accountsPage()
     : page==="categories" ? categoriesPage()
-    : page==="currencies" ? currenciesPage()
-    : page==="recurring" ? recurringPage()
+    : page==="currencies" ? (legacyCurrencies || currenciesPage())
+    : page==="recurring" ? (legacyRecurring || recurringPage())
     : page==="context-tags" ? contextTagsPage()
     : page==="wealth" || page==="assets" || page==="debts" || page==="networth" ? wealthPage()
-    : page==="family" || page==="family-cash" ? familyPage()
+    : page==="family" || page==="family-cash" ? (legacyFamily || familyPage())
+    : page==="projects" ? (legacyProjects || fallback())
     : fallback();
 
   return (
