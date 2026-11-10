@@ -66,7 +66,5 @@ assert.ok(redesign.includes('setPage("budgets")'),
 assert.match(redesign, /planningTab\s*===\s*"budgets"/);
 assert.match(redesign, /planningTab\s*===\s*"goals"/);
 assert.match(redesign, /planningTab\s*===\s*"reports"/);
-assert.ok(
-  "all three Planning tabs must have explicit render branches");
 
 console.log("Finance UI workflow contract tests passed.");
