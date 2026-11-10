@@ -59,13 +59,14 @@ assert.ok(goals.includes("openCreate") && goals.includes("onRequestAdd"),
   "goal creation must support the Planning and global Add flows");
 assert.ok(finance.includes("fin_budgets_get") && finance.includes("fin_budget_upsert"),
   "budget read/write must use Finance RPCs");
-assert.ok(redesign.includes('["budgets","goals","reports"]'),
+assert.match(redesign, /\[\s*"budgets"\s*,\s*"goals"\s*,\s*"reports"\s*\]/,
   "Planning must expose Budgets, Goals, and Reports tabs");
 assert.ok(redesign.includes('setPage("budgets")'),
   "the Planning entry point must resolve to the registered Budgets page");
-assert.ok(redesign.includes('planningTab==="budgets"') &&
-  redesign.includes('planningTab==="goals"') &&
-  redesign.includes('planningTab==="reports"'),
+assert.match(redesign, /planningTab\s*===\s*"budgets"/);
+assert.match(redesign, /planningTab\s*===\s*"goals"/);
+assert.match(redesign, /planningTab\s*===\s*"reports"/);
+assert.ok(
   "all three Planning tabs must have explicit render branches");
 
 console.log("Finance UI workflow contract tests passed.");
