@@ -85,7 +85,7 @@ assert.ok(redesign.includes("internalPage") && redesign.includes("activePage"),
   "nested Finance navigation must have a local fallback state when the host shell does not immediately update");
 assert.ok(redesign.includes('navigate(target)'),
   "settings cards must navigate through the shared Finance navigation handler");
-assert.ok(redesign.includes('["ربط الأسرة بالحركات"'),
+assert.ok(redesign.includes('["وسوم السياق"'),
   "settings must expose the context-tags section");
 assert.ok(redesign.includes('page==="context-tags"') || redesign.includes('activePage==="context-tags"'),
   "the context-tags settings page must be reachable by navigation");
