@@ -177,17 +177,13 @@ function Shell({ page, setPage, children, onAdd, onRefresh, hideBalances, setHid
   const primary = [
     ["dashboard", "نظرة عامة"],
     ["transactions", "الحركات"],
-    ["accounts", "الحسابات"],
-    ["wealth", "الثروة"],
     ["planning", "التخطيط"],
-    ["family", "الأسرة والتقارير"],
+    ["settings", "الإعدادات المالية"],
   ];
   const current = page === "dashboard" ? "dashboard"
     : ["transactions", "recurring", "inbox"].includes(page) ? "transactions"
-    : ["accounts", "reconciliation"].includes(page) ? "accounts"
-    : ["assets", "debts", "networth"].includes(page) ? "wealth"
     : ["budgets", "goals", "reports", "projects"].includes(page) ? "planning"
-    : ["family", "family-cash"].includes(page) ? "family" : page;
+    : ["settings", "accounts", "categories", "currencies", "context-tags"].includes(page) ? "settings" : page;
 
   return (
     <div dir="rtl" style={{ minHeight: "100%", background: C.bg, color: C.ink, fontFamily: "inherit" }}>
@@ -226,9 +222,9 @@ function Shell({ page, setPage, children, onAdd, onRefresh, hideBalances, setHid
         </nav>
 
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 18, flexWrap: "wrap" }}>
-          <Pill tone="positive">شخصي</Pill>
-          <Pill>مشاريع</Pill>
-          <Pill>الكل</Pill>
+          <Pill tone="positive">الدفتر: شخصي</Pill>
+          <button type="button" onClick={() => setPage("dashboard")} style={{border:"1px solid "+C.line,background:C.surface,borderRadius:999,padding:"5px 10px",fontFamily:"inherit",fontSize:10,fontWeight:800,color:C.muted,cursor:"pointer"}}>مشاريع</button>
+          <button type="button" onClick={() => setPage("dashboard")} style={{border:"1px solid "+C.line,background:C.surface,borderRadius:999,padding:"5px 10px",fontFamily:"inherit",fontSize:10,fontWeight:800,color:C.muted,cursor:"pointer"}}>الكل</button>
           {isDemo && <Pill tone="warning">وضع تجريبي</Pill>}
         </div>
 
@@ -236,7 +232,7 @@ function Shell({ page, setPage, children, onAdd, onRefresh, hideBalances, setHid
       </div>
 
       <nav className="finance-v2-mobile-nav">
-        {primary.slice(0,5).map(([id,label]) => (
+        {primary.map(([id,label]) => (
           <button key={id} type="button" className={current === id ? "active" : ""} onClick={() => setPage(id)}>
             <div style={{fontSize:15,marginBottom:2}}>{id==="dashboard"?"⌂":id==="transactions"?"≡":id==="accounts"?"▣":id==="wealth"?"◆":"◉"}</div>
             {label}
@@ -354,6 +350,34 @@ export default function FinanceRedesign({
     </>;
   }
 
+  function settingsPage() {
+    const settingsItems = [
+      ["الحسابات والأصول","إضافة وتعديل الحسابات والأصول والرصيد الافتتاحي","accounts"],
+      ["التصنيفات","إدارة التصنيفات وقواعد الربط المحاسبي","categories"],
+      ["العملات وأسعار الصرف","العملة الأساسية والأسعار التلقائية","currencies"],
+      ["المتكرر والاشتراكات","الحركات المتكررة والاشتراكات والتنبيهات","recurring"],
+      ["وسوم السياق","وسوم شخصي / مشروع / أسرة وربطها بالحركة","context-tags"],
+    ];
+    return <>
+      <PageHead eyebrow="الماليات · الإعدادات" title="الإعدادات المالية" subtitle="إعداد نادر الاستخدام؛ كل شيء هنا يغيّر طريقة عمل الدفتر، وليس تسجيل حركة يومية." />
+      <div className="finance-v2-three" style={{marginTop:12}}>
+        {settingsItems.map(([title,desc,target])=><Card key={target} style={{cursor:"pointer"}} onClick={()=>setPage(target)}>
+          <div style={{fontSize:14,fontWeight:900}}>{title}</div>
+          <div style={{marginTop:7,color:C.muted,fontSize:11,lineHeight:1.7}}>{desc}</div>
+          <div style={{marginTop:12,color:C.green,fontSize:11,fontWeight:900}}>فتح الإعداد ←</div>
+        </Card>)}
+      </div>
+      <Card style={{marginTop:12}}>
+        <h2 style={{margin:"0 0 10px",fontSize:15}}>صلاحيات الماليات</h2>
+        <div style={{display:"grid",gap:9}}>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"11px 0",borderTop:"1px solid "+C.line,fontSize:11}}><span><b>أنا · Owner</b><div style={{color:C.muted,marginTop:3}}>صلاحية كاملة على الدفتر</div></span><Pill tone="positive">كاملة</Pill></div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"11px 0",borderTop:"1px solid "+C.line,fontSize:11}}><span><b>أفراد الأسرة</b><div style={{color:C.muted,marginTop:3}}>كل فرد بحسابه وبياناته وفق الصلاحية</div></span><Pill>حسب الصلاحية</Pill></div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"11px 0",borderTop:"1px solid "+C.line,fontSize:11}}><span><b>المحاسبين</b><div style={{color:C.muted,marginTop:3}}>تُمنح الصلاحيات لكل Book / Action بشكل صريح</div></span><Pill tone="warning">مقيدة</Pill></div>
+        </div>
+      </Card>
+    </>;
+  }
+
   function accountsPage() {
     return <>
       <PageHead eyebrow="الماليات · الحسابات" title="الحسابات" subtitle="كل حساب مالي مستقل، مع رصيد وتسوية واضحة." actions={<Button onClick={actions.onAddAccount}>＋ حساب</Button>} />
@@ -428,9 +452,9 @@ export default function FinanceRedesign({
 
   const pageNode = page==="dashboard" ? dashboard()
     : page==="transactions" || page==="inbox" || page==="recurring" ? transactionsPage()
-    : page==="accounts" ? accountsPage()
-    : page==="wealth" || page==="assets" || page==="debts" || page==="networth" ? wealthPage()
     : page==="planning" || page==="budgets" || page==="goals" || page==="reports" || page==="projects" ? planningPage()
+    : page==="settings" || page==="accounts" || page==="categories" || page==="currencies" || page==="context-tags" ? settingsPage()
+    : page==="wealth" || page==="assets" || page==="debts" || page==="networth" ? wealthPage()
     : page==="family" || page==="family-cash" ? familyPage()
     : fallback();
 
