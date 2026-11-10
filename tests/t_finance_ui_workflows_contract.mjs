@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [fx, debts, recurring, assets, goals, redesign, finance, family] = await Promise.all([
+const [fx, debts, recurring, assets, goals, redesign, finance, family, familyCash, netWorthHistory, financeChart] = await Promise.all([
   read("../src/systems/finance/FXRates.jsx"),
   read("../src/systems/finance/Debts.jsx"),
   read("../src/systems/finance/Recurring.jsx"),
@@ -11,6 +11,9 @@ const [fx, debts, recurring, assets, goals, redesign, finance, family] = await P
   read("../src/systems/finance/FinanceRedesign.jsx"),
   read("../src/systems/finance/index.jsx"),
   read("../src/systems/finance/Family.jsx"),
+  read("../src/systems/finance/FamilyCash.jsx"),
+  read("../src/systems/finance/NetWorthHistory.jsx"),
+  read("../src/systems/finance/FinanceChart.jsx"),
 ]);
 
 // Currency and exchange-rate workflows must use authenticated Finance RPCs,
@@ -97,6 +100,15 @@ assert.ok(redesign.includes("performancePeriod") && redesign.includes("txFromDat
 assert.ok(family.includes("finance_family_members") && family.includes("finance_family_budgets") && family.includes("finance_family_allowances"), "Family must manage members, budgets, and allowances from persisted records");
 assert.ok(family.includes("filteredMembers") && family.includes("filteredBudgets") && family.includes("filteredExpenses") && family.includes("filteredAllowances"), "Family record sections must expose working filters");
 assert.ok(family.includes("renderBars") && family.includes("توزيع الحركات حسب حالة الإسناد"), "Family sections must include charts based on actual records");
+assert.ok(goals.includes("FinanceChart") && goals.includes("filteredGoals") && goals.includes("goalStatusFilter"), "Goals must have a progress chart and searchable status-filtered records");
+assert.ok(debts.includes("FinanceChart") && debts.includes("filteredDebts") && debts.includes("debtStatusFilter"), "Debts must have a payoff chart and record filters");
+assert.ok(assets.includes("FinanceChart") && assets.includes("filteredAssets") && assets.includes("assetStatusFilter"), "Assets must have a valuation chart and record filters");
+assert.ok(recurring.includes("FinanceChart") && recurring.includes("filteredItems") && recurring.includes("recurringStatusFilter"), "Recurring must have a chart and searchable status/type filters");
+assert.ok(fx.includes("FinanceChart") && fx.includes("filteredRates") && fx.includes("rateFromDate") && fx.includes("rateToDate"), "FX history must have a chart and date/currency filters");
+assert.ok(netWorthHistory.includes("FinanceChart") && netWorthHistory.includes("filteredSnapshots") && netWorthHistory.includes("snapshotFrom"), "Net-worth history must have a chart and snapshot date filters");
+assert.ok(familyCash.includes("FinanceChart") && familyCash.includes("filteredAdvances") && familyCash.includes("filteredEntries"), "Family cash advances and entries must have charts and record filters");
+assert.ok(financeChart.includes("role=\"img\"") && financeChart.includes("rows"), "Shared Finance chart must render accessible data-driven bars");
+assert.ok(redesign.includes("FinanceChart") && redesign.includes("filteredRows") && redesign.includes("filteredAccounts") && redesign.includes("filteredCategories"), "Finance budgets, accounts, categories, and transactions must expose charts/filters");
 assert.match(redesign, /planningTab\s*===\s*"budgets"/);
 assert.match(redesign, /planningTab\s*===\s*"goals"/);
 assert.match(redesign, /planningTab\s*===\s*"reports"/);
