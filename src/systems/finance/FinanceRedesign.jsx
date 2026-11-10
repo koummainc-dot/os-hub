@@ -307,14 +307,19 @@ export default function FinanceRedesign({
   legacyFamily = null,
   legacyFamilyCash = null,
   legacyReports = null,
+  legacyNetWorth = null,
   legacyCurrencies = null,
   isDemo = false,
 }) {
   const [hideBalances, setHideBalances] = React.useState(false);
-  const [planningTab, setPlanningTab] = React.useState(page === "reports" ? "reports" : page === "goals" ? "goals" : "budgets");
+  const [planningTab, setPlanningTab] = React.useState(page === "reports" || page === "networth" ? "reports" : page === "goals" ? "goals" : "budgets");
   const [wealthTab, setWealthTab] = React.useState(page === "assets" ? "investments" : page === "debts" ? "debts" : "overview");
   const [familyTab, setFamilyTab] = React.useState(page === "family-cash" ? "allocations" : "overview");
   const [txTab, setTxTab] = React.useState("all");
+  const [txSubTab, setTxSubTab] = React.useState(page === "recurring" ? "recurring" : "ledger");
+  const [showAddChooser, setShowAddChooser] = React.useState(false);
+  const [budgetPeriod, setBudgetPeriod] = React.useState(new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}).slice(0,7));
+  const [budgetDraft, setBudgetDraft] = React.useState({category_id:"",budget_amount:"",notes:""});
   const [selectedTransaction, setSelectedTransaction] = React.useState(null);
 
   const {
@@ -336,7 +341,7 @@ export default function FinanceRedesign({
   function dashboard() {
     const budgetRows = (budgetInsights?.categories || budgets.filter(b=>b.category_id)).slice(0,4);
     return <>
-      <PageHead eyebrow="الماليات · نظرة عامة" title="لوحة القيادة" subtitle="صورة واحدة لما يحدث في أموالك الآن، بدون فتح كل قسم على حدة." actions={<Button onClick={actions.onAdd}>＋ حركة</Button>} />
+      <PageHead eyebrow="الماليات · نظرة عامة" title="لوحة القيادة" subtitle="صورة واحدة لما يحدث في أموالك الآن، بدون فتح كل قسم على حدة." actions={<Button onClick={()=>setShowAddChooser(true)}>＋ إضافة</Button>} />
       <div className="finance-v2-grid">
         <Stat label="صافي الثروة" value={displayMoney(netValue)} note="هذا الشهر · افتح الثروة" tone="positive" />
         <Stat label={"الدخل · " + month} value={displayMoney(income)} note="من الحركات المنشورة" tone="positive" />
@@ -397,17 +402,24 @@ export default function FinanceRedesign({
   }
 
   function transactionsPage() {
-    const rows = transactions.filter(t=>txTab==="all" || (txTab==="expense"&&t.type==="Expense") || (txTab==="income"&&t.type==="Income") || (txTab==="review"&&t.status!=="Posted"));
     return <>
-      <PageHead eyebrow="الماليات · الحركات" title="دفتر الحركات" subtitle="تسجيل يومي سريع، ثم مراجعة وتدقيق من نفس الشاشة." actions={<Button onClick={actions.onAdd}>＋ حركة</Button>} />
-      <Card>
-        <div style={{display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",marginBottom:14}}>
-          <Segmented items={[["all","الكل"],["expense","مصروف"],["income","دخل"],["review","تحتاج مراجعة"]]} value={txTab} onChange={setTxTab}/>
-          <div style={{display:"flex",gap:6}}><Pill>هذا الشهر</Pill><Pill>بلا تحويلات</Pill><Pill>بإيصال · 3</Pill></div>
-        </div>
-        <Table columns={[["date","التاريخ"],["name","الحركة"],["category","التصنيف"],["account","الحساب"],["amount","المبلغ"],["status","الحالة"]]} rows={rows.map(t=>({id:t.id,raw:t,date:t.local_date,name:t.merchant||t.name||"حركة",category:categories.find(c=>c.id===t.category_id)?.name||"—",account:accounts.find(a=>a.id===t.from_account_id)?.name||accounts.find(a=>a.id===t.to_account_id)?.name||"—",amount:<b style={{color:t.type==="Income"?C.green:t.type==="Expense"?C.ink:C.muted}}>{displayMoney(t.amount,t.currency)}</b>,status:<Pill tone={t.status==="Posted"?"positive":"warning"}>{t.status==="Posted"?"تمت المراجعة":"تحتاج مراجعة"}</Pill>}))} onRowClick={setSelectedTransaction}/>
-        <div style={{display:"flex",justifyContent:"flex-end",gap:16,paddingTop:12,fontSize:11,fontWeight:800}}><span>مصروف {displayMoney(rows.filter(t=>t.type==="Expense").reduce((s,t)=>s+Number(t.amount||0),0))}</span><span>دخل {displayMoney(rows.filter(t=>t.type==="Income").reduce((s,t)=>s+Number(t.amount||0),0))}</span></div>
-      </Card>
+      <PageHead eyebrow="الماليات · الحركات" title="الحركات والمدفوعات" subtitle="الحركات اليومية والمتكررة والاشتراكات في مساحة واحدة، مع نفس دفتر الحسابات." actions={<Button onClick={()=>setShowAddChooser(true)}>＋ إضافة</Button>} />
+      <Segmented items={[["ledger","الحركات"],["recurring","المتكرر والاشتراكات"]]} value={txSubTab} onChange={setTxSubTab}/>
+      {txSubTab === "recurring" ? (legacyRecurring || <Card style={{marginTop:12}}>قسم المتكرر غير متصل حاليًا.</Card>) : <>
+        <Card style={{marginTop:12}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",marginBottom:14}}>
+            <Segmented items={[["all","الكل"],["expense","مصروف"],["income","دخل"],["review","تحتاج مراجعة"]]} value={txTab} onChange={setTxTab}/>
+            <div style={{display:"flex",gap:6}}><Pill>هذا الشهر</Pill><Pill>بلا تحويلات</Pill></div>
+          </div>
+          {(() => {
+            const rows = transactions.filter(t=>txTab==="all" || (txTab==="expense"&&t.type==="Expense") || (txTab==="income"&&t.type==="Income") || (txTab==="review"&&t.status!=="Posted"));
+            return <>
+              <Table columns={[["date","التاريخ"],["name","الحركة"],["category","التصنيف"],["account","الحساب"],["amount","المبلغ"],["status","الحالة"]]} rows={rows.map(t=>({id:t.id,raw:t,date:t.local_date,name:t.merchant||t.name||"حركة",category:categories.find(c=>c.id===t.category_id)?.name||"—",account:accounts.find(a=>a.id===t.from_account_id)?.name||accounts.find(a=>a.id===t.to_account_id)?.name||"—",amount:<b style={{color:t.type==="Income"?C.green:t.type==="Expense"?C.ink:C.muted}}>{displayMoney(t.amount,t.currency)}</b>,status:<Pill tone={t.status==="Posted"?"positive":"warning"}>{t.status==="Posted"?"تمت المراجعة":"تحتاج مراجعة"}</Pill>}))} onRowClick={setSelectedTransaction}/>
+              <div style={{display:"flex",justifyContent:"flex-end",gap:16,paddingTop:12,fontSize:11,fontWeight:800}}><span>مصروف {displayMoney(rows.filter(t=>t.type==="Expense").reduce((s,t)=>s+Number(t.amount||0),0))}</span><span>دخل {displayMoney(rows.filter(t=>t.type==="Income").reduce((s,t)=>s+Number(t.amount||0),0))}</span></div>
+            </>;
+          })()}
+        </Card>
+      </>}
     </>;
   }
 
@@ -416,7 +428,6 @@ export default function FinanceRedesign({
       ["الحسابات والأصول","إضافة وتعديل الحسابات والأصول والرصيد الافتتاحي","accounts"],
       ["التصنيفات","إدارة التصنيفات وقواعد الربط المحاسبي","categories"],
       ["العملات وأسعار الصرف","العملة الأساسية والأسعار التلقائية","currencies"],
-      ["المتكرر والاشتراكات","الحركات المتكررة والاشتراكات والتنبيهات","recurring"],
       ["وسوم السياق","وسوم شخصي / مشروع / أسرة وربطها بالحركة","context-tags"],
     ];
     return <>
@@ -519,6 +530,16 @@ export default function FinanceRedesign({
         <Stat label="المصروف" value={displayMoney(spent)} note={"من "+displayMoney(planned)} tone="negative"/>
       </div>
       <Card style={{marginTop:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:12}}><h2 style={{margin:0,fontSize:15}}>إعداد ميزانية الفترة</h2><Pill>تُحفظ في دفتر Finance</Pill></div>
+        <form onSubmit={e=>{e.preventDefault();actions.onSaveBudget?.({period:budgetPeriod,category_id:budgetDraft.category_id,budget_amount:budgetDraft.budget_amount,notes:budgetDraft.notes});}} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,alignItems:"end"}}>
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>الشهر<input type="month" value={budgetPeriod} onChange={e=>setBudgetPeriod(e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}/></label>
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>التصنيف<select required value={budgetDraft.category_id} onChange={e=>setBudgetDraft(v=>({...v,category_id:e.target.value}))} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}><option value="">اختر فئة المصروف</option>{categories.filter(c=>c.kind==="Expense"||c.kind==="Both").map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>الحد المالي<input required type="number" min="0" step="0.01" value={budgetDraft.budget_amount} onChange={e=>setBudgetDraft(v=>({...v,budget_amount:e.target.value}))} placeholder="0.00" style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}/></label>
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>ملاحظات<input value={budgetDraft.notes} onChange={e=>setBudgetDraft(v=>({...v,notes:e.target.value}))} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}/></label>
+          <div><Button disabled={!budgetDraft.category_id||budgetDraft.budget_amount===""}>＋ حفظ الميزانية</Button></div>
+        </form>
+      </Card>
+      <Card style={{marginTop:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><h2 style={{margin:0,fontSize:15}}>الفئات</h2><Pill>وضع التحرير</Pill></div>
         <Table columns={[["name","الفئة"],["planned","المحدد"],["spent","المصروف"],["remaining","المتبقي"],["progress","التقدم"],["status","الحالة"]]} rows={rows.map((b,i)=>{const planned=Number(b.budget_amount||0),spent=Number(b.spent||0),remaining=planned-spent,over=remaining<0;return{id:b.id||i,name:b.category_name||"فئة",planned:displayMoney(planned),spent:displayMoney(spent),remaining:displayMoney(remaining),progress:<div style={{minWidth:130}}><Progress value={spent} max={planned} tone={over?"red":"green"}/></div>,status:<Pill tone={over?"negative":spent/planned>.8?"warning":"positive"}>{over?"تجاوز ✕":spent/planned>.8?"قريب من الحد ▲":"ضمن الحد ●"}</Pill>}})}/>
       </Card>
@@ -557,17 +578,20 @@ export default function FinanceRedesign({
         <h2 style={{marginTop:0,fontSize:15}}>الأهداف المالية</h2>
         <Table columns={[["name","الهدف"],["type","النوع"],["progress","التقدم"],["target","المستهدف"],["status","الحالة"]]} rows={goals.map((g,i)=>({id:g.id||i,name:g.name,type:g.goal_type||"ادخار",progress:<div style={{minWidth:130}}><Progress value={g.current_amount||g.progress||0} max={g.target_amount||g.target||1}/></div>,target:displayMoney(g.target_amount||g.target||0,g.currency||baseCurrency),status:<Pill tone="positive">في المسار</Pill>}))}/>
       </Card>)}
-      {planningTab==="reports" && (legacyReports || <Card style={{marginTop:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div><h2 style={{margin:0,fontSize:15}}>مركز التقارير</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>دخل مقابل مصروف · الأداء · التنوع · الدخل المستقبلي</div></div>
-          <Pill tone="positive">من نفس دفتر الحركات</Pill>
-        </div>
-        <div className="finance-v2-three" style={{marginTop:14}}>
-          <Stat label="الدخل" value={displayMoney(income)} tone="positive"/>
-          <Stat label="المصروف" value={displayMoney(expense)} tone="negative"/>
-          <Stat label="صافي التدفق" value={displayMoney(net)} tone={net>=0?"positive":"negative"}/>
-        </div>
-      </Card>)}
+      {planningTab==="reports" && <div style={{display:"grid",gap:14}}>
+        {legacyNetWorth || <Card><h3>صافي الثروة</h3><div style={{fontSize:28,fontWeight:900}}>{displayMoney(netValue)}</div></Card>}
+        {legacyReports || <Card style={{marginTop:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div><h2 style={{margin:0,fontSize:15}}>مركز التقارير</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>دخل مقابل مصروف · الأداء · التنوع · الدخل المستقبلي</div></div>
+            <Pill tone="positive">من نفس دفتر الحركات</Pill>
+          </div>
+          <div className="finance-v2-three" style={{marginTop:14}}>
+            <Stat label="الدخل" value={displayMoney(income)} tone="positive"/>
+            <Stat label="المصروف" value={displayMoney(expense)} tone="negative"/>
+            <Stat label="صافي التدفق" value={displayMoney(net)} tone={net>=0?"positive":"negative"}/>
+          </div>
+        </Card>}
+      </div>}
     </>;
   }
 
@@ -587,16 +611,15 @@ export default function FinanceRedesign({
   }
 
   const pageNode = page==="dashboard" ? dashboard()
-    : page==="transactions" || page==="inbox" ? transactionsPage()
+    : page==="transactions" || page==="inbox" || page==="recurring" ? transactionsPage()
     : page==="projects" ? (legacyProjects || fallback())
-    : page==="planning" || page==="budgets" || page==="goals" || page==="reports" ? planningPage()
+    : page==="planning" || page==="budgets" || page==="goals" || page==="reports" || page==="networth" ? planningPage()
     : page==="settings" ? settingsPage()
     : page==="accounts" ? accountsPage()
     : page==="categories" ? categoriesPage()
     : page==="currencies" ? (legacyCurrencies || currenciesPage())
-    : page==="recurring" ? (legacyRecurring || recurringPage())
     : page==="context-tags" ? contextTagsPage()
-    : page==="wealth" || page==="assets" || page==="debts" || page==="networth" ? wealthPage()
+    : page==="wealth" || page==="assets" || page==="debts" ? wealthPage()
     : page==="family-cash" ? (legacyFamilyCash || familyPage())
     : page==="family" ? (legacyFamily || familyPage())
     : page==="projects" ? (legacyProjects || fallback())
@@ -606,13 +629,29 @@ export default function FinanceRedesign({
     <Shell
       page={page}
       setPage={setPage}
-      onAdd={actions.onAdd}
+      onAdd={()=>setShowAddChooser(true)}
       onRefresh={actions.onRefresh}
       hideBalances={hideBalances}
       setHideBalances={setHideBalances}
       isDemo={isDemo}
     >
       {pageNode}
+      {showAddChooser && <div role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setShowAddChooser(false);}} style={{position:"fixed",inset:0,zIndex:1200,background:"rgba(20,37,29,.68)",display:"grid",placeItems:"center",padding:16}}>
+        <div role="dialog" aria-modal="true" aria-label="اختيار نوع الإضافة" style={{background:C.surface,width:"min(560px,100%)",borderRadius:18,padding:20,boxShadow:"0 18px 60px rgba(0,0,0,.18)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}><div><div style={{fontSize:10,color:C.green,fontWeight:900}}>إضافة جديدة</div><h2 style={{margin:"5px 0 0",fontSize:19}}>ما نوع العملية التي تريد إضافتها؟</h2></div><button type="button" onClick={()=>setShowAddChooser(false)} style={{border:0,background:"transparent",fontSize:24,cursor:"pointer",color:C.muted}}>×</button></div>
+          <div className="finance-v2-three" style={{marginTop:16}}>
+            {[
+              ["transaction","حركة مالية","دخل أو مصروف أو تحويل"],
+              ["debt","دين / قسط","دين جديد أو التزام"],
+              ["budget","ميزانية","حد إنفاق لفئة وفترة"],
+              ["asset","أصل","أصل أو استثمار جديد"],
+              ["recurring","متكرر / اشتراك","دفعة دورية وتنبيهاتها"]
+            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){actions.onAdd?.();return;}if(kind==="budget"){setPage("planning");setPlanningTab("budgets");return;}if(kind==="recurring"){setPage("recurring");setTxSubTab("recurring");return;}setPage(kind==="debt"?"debts":"assets");}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
+              <div style={{fontSize:13,fontWeight:900,color:C.ink}}>{label}</div><div style={{fontSize:10,color:C.muted,lineHeight:1.7,marginTop:6}}>{desc}</div>
+            </button>)}
+          </div>
+        </div>
+      </div>}
       <TransactionSheet transaction={selectedTransaction} categories={categories} accounts={accounts} baseCurrency={baseCurrency} onClose={() => setSelectedTransaction(null)} />
     </Shell>
   );
