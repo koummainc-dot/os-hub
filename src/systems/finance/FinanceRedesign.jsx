@@ -294,6 +294,7 @@ export default function FinanceRedesign({
   setPage,
   data,
   actions = {},
+  legacyDebt = null,
   isDemo = false,
 }) {
   const [hideBalances, setHideBalances] = React.useState(false);
@@ -518,7 +519,7 @@ export default function FinanceRedesign({
       <Segmented items={[["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"],["networth","صافي الثروة"]]} value={tab} onChange={setWealthTab}/>
       {tab==="overview" && <div className="finance-v2-grid" style={{marginTop:12}}><Stat label="صافي الثروة" value={displayMoney(netValue)} tone="positive"/><Stat label="الأصول" value={displayMoney(netWorth?.assets||0)}/><Stat label="الديون" value={displayMoney(netWorth?.liabilities||0)} tone="negative"/><Stat label="السيولة" value={displayMoney(balanceTotal)} /></div>}
       {tab==="investments" && <Card style={{marginTop:12}}><h2 style={{marginTop:0,fontSize:15}}>المراكز</h2><Table columns={[["name","المركز"],["type","النوع"],["qty","الكمية"],["value","القيمة"],["return","العائد"]]} rows={assets.map((a,i)=>({id:a.id||i,name:a.name||a.asset_name||"أصل",type:a.asset_type||"استثمار",qty:a.quantity||"—",value:displayMoney(a.current_value||a.value||0,a.currency),return:<Pill tone="positive">+{a.return_pct||"—"}%</Pill>}))}/></Card>}
-      {tab==="debts" && <Card style={{marginTop:12}}><h2 style={{marginTop:0,fontSize:15}}>الديون والأقساط</h2><Table columns={[["name","الدين"],["balance","الرصيد"],["installment","القسط"],["due","الاستحقاق"],["status","الحالة"]]} rows={debts.map((d,i)=>({id:d.id||i,name:d.name||"دين",balance:displayMoney(d.remaining_balance||d.balance||0,d.currency),installment:displayMoney(d.installment_amount||0,d.currency),due:d.next_due_date||"—",status:<Pill tone="warning">قائم</Pill>}))}/></Card>}
+      {tab==="debts" && (legacyDebt || <Card style={{marginTop:12}}><h2 style={{marginTop:0,fontSize:15}}>الديون والأقساط</h2><Table columns={[["name","الدين"],["balance","الرصيد"],["installment","القسط"],["due","الاستحقاق"],["status","الحالة"]]} rows={debts.map((d,i)=>({id:d.id||i,name:d.name||"دين",balance:displayMoney(d.remaining_balance||d.balance||0,d.currency),installment:displayMoney(d.installment_amount||0,d.currency),due:d.next_due_date||"—",status:<Pill tone="warning">قائم</Pill>}))}/></Card>)}
       {tab==="networth" && <Card style={{marginTop:12}}><div style={{fontSize:11,color:C.muted}}>صافي الثروة الحالي</div><div style={{fontSize:34,fontWeight:950,marginTop:6}}>{displayMoney(netValue)}</div><div style={{height:170,marginTop:16,display:"flex",alignItems:"flex-end",gap:7}}>{[35,42,39,48,55,58,62,68,71,76,82,90].map((h,i)=><div key={i} style={{flex:1,height:h+"%",background:i===11?C.green:"#D7E5DC",borderRadius:"6px 6px 0 0"}}/>)}</div></Card>}
     </>;
   }
