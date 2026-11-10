@@ -632,9 +632,11 @@ function transactionsPage() {
   }
 
   function budgetsPage() {
-    const rows=(budgetInsights?.categories||budgets.filter(b=>b.category_id));
-    const planned=rows.reduce((s,b)=>s+Number(b.budget_amount||0),0);
-    const spent=rows.reduce((s,b)=>s+Number(b.spent||0),0);
+    const rows=(budgetInsights?.categories?.length?budgetInsights.categories.filter(b=>b.budget_id||Number(b.spent||0)>0):budgets.filter(b=>b.category_id));
+    const filteredRows=rows.filter(b=>(!budgetSearch||(b.category_name||"").toLowerCase().includes(budgetSearch.trim().toLowerCase()))&&(budgetRiskFilter==="all"||(budgetRiskFilter==="unbudgeted"&&!b.budget_id)||(budgetRiskFilter==="over"&&b.budget_id&&Number(b.spent||0)>Number(b.budget_amount||0))||(budgetRiskFilter==="near"&&b.budget_id&&Number(b.spent||0)<=Number(b.budget_amount||0)&&Number(b.spent||0)/Math.max(1,Number(b.budget_amount||0))>=.8)));
+    const planned=rows.reduce((sum,b)=>sum+Number(b.budget_amount||0),0),spent=rows.reduce((sum,b)=>sum+Number(b.spent||0),0);
+    const now=new Date(),daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate(),monthPace=Math.round(now.getDate()/daysInMonth*100);
+    const chartRows=rows.filter(b=>b.budget_id&&Number(b.budget_amount)>0).map(b=>({label:b.category_name||"فئة",value:Math.max(0,Math.min(100,Number(b.spent||0)/Number(b.budget_amount)*100))}));
     return <>
       <div className="finance-v2-grid">
         <Stat label="المتبقي للتخصيص" value={displayMoney(Math.max(0,planned-spent))} note="بعد المصروف المسجل" tone="positive"/>
@@ -642,10 +644,11 @@ function transactionsPage() {
         <Stat label="فئات تحتاج انتباهًا" value={String(rows.filter(b=>b.budget_id&&Number(b.spent||0)>Number(b.budget_amount||0)).length)} note="تجاوزات أو اقتراب من الحد"/>
         <Stat label="المصروف" value={displayMoney(spent)} note={"من "+displayMoney(planned)} tone="negative"/>
       </div>
-
+      <FinanceChart title="نسبة استهلاك الميزانية حسب الفئة" rows={chartRows} valueLabel={v=>v.toFixed(0)+"%"} empty="لا توجد ميزانيات محددة لعرض الرسم بعد."/>
       <Card style={{marginTop:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><h2 style={{margin:0,fontSize:15}}>الفئات</h2><Pill>وضع التحرير</Pill></div>
-        <Table columns={[["name","الفئة"],["planned","المحدد"],["spent","المصروف"],["remaining","المتبقي"],["progress","التقدم"],["status","الحالة"]]} rows={rows.map((b,i)=>{const planned=Number(b.budget_amount||0),spent=Number(b.spent||0),remaining=planned-spent,over=planned>0&&remaining<0;return{id:b.budget_id||b.id||i,name:b.category_name||"فئة",planned:b.budget_id?displayMoney(planned):"غير محدد",spent:displayMoney(spent),remaining:b.budget_id?displayMoney(remaining):"—",progress:<div style={{minWidth:130}}>{planned>0?<Progress value={spent} max={planned} tone={over?"red":"green"}/>:"—"}</div>,status:<Pill tone={over?"negative":planned>0&&spent/planned>.8?"warning":planned>0?"positive":"neutral"}>{over?"تجاوز ✕":planned>0&&spent/planned>.8?"قريب من الحد ▲":planned>0?"ضمن الحد ●":"إنفاق بلا ميزانية"}</Pill>}})}/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:12}}><input value={budgetSearch} onChange={e=>setBudgetSearch(e.target.value)} placeholder="ابحث باسم الفئة" style={{border:"1px solid "+C.line,borderRadius:9,padding:9,font:"inherit"}}/><select value={budgetRiskFilter} onChange={e=>setBudgetRiskFilter(e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:9,font:"inherit"}}><option value="all">كل الحالات</option><option value="over">متجاوزة الحد</option><option value="near">قريبة من الحد</option><option value="unbudgeted">إنفاق بلا ميزانية</option></select></div>
+        <Table columns={[["name","الفئة"],["planned","المحدد"],["spent","المصروف"],["remaining","المتبقي"],["progress","التقدم"],["status","الحالة"]]} rows={filteredRows.map((b,i)=>{const amount=Number(b.budget_amount||0),actual=Number(b.spent||0),remaining=amount-actual,over=amount>0&&remaining<0;return{id:b.budget_id||i,name:b.category_name||"فئة",planned:b.budget_id?displayMoney(amount):"غير محدد",spent:displayMoney(actual),remaining:b.budget_id?displayMoney(remaining):"—",progress:<div style={{minWidth:130}}>{amount>0?<Progress value={actual} max={amount} tone={over?"red":"green"}/>:"—"}</div>,status:<Pill tone={over?"negative":amount>0&&actual/amount>.8?"warning":amount>0?"positive":"neutral"}>{over?"تجاوز ✕":amount>0&&actual/amount>.8?"قريب من الحد ▲":amount>0?"ضمن الحد ●":"إنفاق بلا ميزانية"}</Pill>}})}/>
       </Card>
     </>;
   }
