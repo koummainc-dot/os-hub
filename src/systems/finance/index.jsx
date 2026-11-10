@@ -48,7 +48,6 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [currencies, setCurrencies] = useState([]);
   const [categories, setCategories] = useState([]);
   const [allCategories, setAllCategories] = useState([]);
-  const [contextProjects, setContextProjects] = useState([]);
   const [contextFamilyMembers, setContextFamilyMembers] = useState([]);
   const [contextTags, setContextTags] = useState([]);
   const [goals, setGoals] = useState([]);
@@ -103,7 +102,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     if (!ws?.id || isDemo) { setLoading(false); return; }
     setLoading(true); setError("");
     try {
-      const [ar, cr, tr, sr, br, nr, settingsRes, bu, bt, rr, gr, cu, bi, fp, fm, ct, nwh, ri] = await Promise.all([
+      const [ar, cr, tr, sr, br, nr, settingsRes, bu, bt, rr, gr, cu, bi, fm, ct, nwh, ri] = await Promise.all([
         supabase.from("finance_accounts").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }),
         supabase.from("finance_categories").select("*").eq("workspace_id", ws.id).order("name"),
         supabase.from("finance_transactions").select("*").eq("workspace_id", ws.id).order("local_date", { ascending: false }).limit(150),
@@ -117,7 +116,6 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         supabase.from("finance_goals").select("id,name,currency,status").eq("workspace_id", ws.id).in("status", ["Active","Paused"]).order("name"),
         supabase.rpc("fin_currencies_get", { p_ws: ws.id }),
         supabase.rpc("fin_budget_insights_get", { p_ws: ws.id, p_period: budgetPeriod }),
-        supabase.rpc("fin_projects_get",{p_ws:ws.id}),
         supabase.from("finance_family_members").select("id,display_name,status").eq("workspace_id",ws.id).eq("status","Active").order("display_name"),
         supabase.rpc("fin_family_list_expenses",{p_workspace_id:ws.id,p_limit:200}),
         supabase.rpc("fin_net_worth_snapshots_get",{p_ws:ws.id}),
@@ -132,7 +130,6 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       setBudgetTemplates(bt.error ? [] : (Array.isArray(bt.data) ? bt.data : []));
       setReconciliations(rr.error ? [] : (Array.isArray(rr.data) ? rr.data : []));
       setGoals(gr.error ? [] : (Array.isArray(gr.data) ? gr.data : []));
-      setContextProjects(fp.error ? [] : (fp.data || []).filter(p=>p.status!=="Archived"));
       setContextFamilyMembers(fm.error ? [] : (fm.data || []));
       const familyExpenseRows=Array.isArray(ct.data)?ct.data:[];
       const mappedFamilyTags=familyExpenseRows.flatMap(row=>{
@@ -687,7 +684,6 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         baseCurrency,
         currencies,
         contextTags,
-        contextProjects,
         contextFamilyMembers,
       }}
       actions={{
