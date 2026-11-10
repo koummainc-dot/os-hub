@@ -322,6 +322,15 @@ export default function FinanceRedesign({
   const [budgetPeriod, setBudgetPeriod] = React.useState(new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}).slice(0,7));
   const [budgetDraft, setBudgetDraft] = React.useState({category_id:"",budget_amount:"",notes:""});
   const [selectedTransaction, setSelectedTransaction] = React.useState(null);
+  React.useEffect(()=>{
+    if(page==="debts")setWealthTab("debts");
+    else if(page==="assets")setWealthTab("investments");
+    else if(page==="reports"||page==="networth")setPlanningTab("reports");
+    else if(page==="goals")setPlanningTab("goals");
+    else if(page==="budgets")setPlanningTab("budgets");
+    else if(page==="recurring")setTxSubTab("recurring");
+    else if(page==="transactions")setTxSubTab("ledger");
+  },[page]);
 
   const {
     accounts = [], transactions = [], categories = [], balances = [], summary = null,
