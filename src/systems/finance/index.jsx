@@ -666,6 +666,14 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         onExport: exportVisibleTransactionsCsv,
       }}
         legacyDebt={<FinanceDebts ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+        legacyAssets={<FinanceAssets ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+        legacyGoals={<FinanceGoals ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+        legacyRecurring={<FinanceRecurring ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+        legacyProjects={<FinanceProjects ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+        legacyFamily={<FinanceFamily ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+        legacyFamilyCash={<FinanceFamilyCash ws={ws} access={access} isDemo={isDemo} />}
+        legacyReports={<FinanceReports ws={ws} isDemo={isDemo} baseCurrency={baseCurrency} />}
+        legacyCurrencies={<FinanceFXRates ws={ws} access={access} isDemo={isDemo} baseCurrency={baseCurrency} />}
       />
           {txAction && <div role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setTxAction(null); }} style={{ position: "fixed", inset: 0, zIndex: 1001, background: "#14251DB8", display: "grid", placeItems: "center", padding: 20, overflowY: "auto" }}><div className="fin-modal" role="dialog" aria-modal="true" aria-label="تصحيح حركة مالية" style={{ background: "#fff", width: "min(520px,100%)", borderRadius: 18, padding: 22, boxSizing: "border-box" }}><h2 style={{ margin: "0 0 8px", fontSize: 19 }}>{txAction.kind === "reverse" ? "عكس حركة مالية" : "إلغاء حركة مقترحة"}</h2><p style={{ color: MUTED, fontSize: 12, lineHeight: 1.8 }}>الحركة: <b>{txAction.transaction.name}</b> · {money(txAction.transaction.amount,txAction.transaction.currency)}. {txAction.kind === "reverse" ? "سيُنشأ قيد عكسي مرتبط بالأصل؛ لن تُحذف الحركة الأصلية." : "سيتم إلغاء المقترح قبل نشره في الدفتر."}</p><form onSubmit={confirmTransactionAction} style={{ display: "grid", gap: 12 }}><Field label="سبب التصحيح (مطلوب)"><textarea required minLength={3} rows={3} style={{ ...inputStyle, resize: "vertical" }} value={txActionReason} onChange={e => setTxActionReason(e.target.value)} placeholder="اشرح سبب العكس أو الإلغاء…" /></Field><div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><Button secondary onClick={() => setTxAction(null)}>إلغاء</Button><Button type="submit" disabled={saving || txActionReason.trim().length < 3}>{saving ? "جارٍ التنفيذ…" : txAction.kind === "reverse" ? "تأكيد العكس" : "تأكيد الإلغاء"}</Button></div></form></div></div>}
 
