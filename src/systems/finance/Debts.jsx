@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../../core/supabase.js";
 
 const GREEN = "#059669", INK = "#17211D", MUTED = "#718078", LINE = "#E4EBE6", BG = "#F5F8F5";
@@ -30,6 +30,8 @@ export default function FinanceDebts({ ws, access, isDemo = false, currencies = 
   const [showCreate, setShowCreate] = useState(false), [payDebt, setPayDebt] = useState(null);
   const [form, setForm] = useState({ name: "", counterparty: "", lender_name: "", borrower_name: "", direction: "IOwe", principal: "", currency: "EGP", start_date: today(), end_date: "", repayment_type: "Installments", due_date: today(), due_day: String(Number(today().slice(8, 10))), interest_method: "None", interest_rate: "0", interest_calculation: "Simple", interest_period: "Annual", disbursement_account_id: "", schedule_count: "0", schedule_first_due_date: today(), schedule_frequency: "Monthly" });
   const [payment, setPayment] = useState({ account_id: "", principal: "", interest: "0", fees: "0", local_date: today(), reason: "", installment_id: "" });
+  const debtCreateKeyRef = useRef(null);
+  const debtPaymentKeyRef = useRef(null);
   const canEdit = !isDemo && (access?.level === "edit" || access?.manage || access?.owner);
 
   const load = useCallback(async () => {
@@ -90,9 +92,10 @@ export default function FinanceDebts({ ws, access, isDemo = false, currencies = 
       }) : [];
       const finalDueDate = installmentsPayload.length ? installmentsPayload[installmentsPayload.length - 1].due_date : (form.end_date || null);
       if (form.end_date && finalDueDate && form.end_date < finalDueDate) { setError("تاريخ نهاية الدين يجب أن يكون في أو بعد آخر تاريخ استحقاق."); return; }
-      const p = { workspace_id: ws.id, name: form.name.trim() || (form.direction === "IOwe" ? "دين مستحق عليّ" : "مبلغ مستحق لي"), counterparty: form.counterparty.trim() || null, lender_name: form.lender_name.trim() || null, borrower_name: form.borrower_name.trim() || null, direction: form.direction, principal: String(form.principal), currency: form.currency, start_date: form.start_date, end_date: form.end_date || finalDueDate, due_date: form.repayment_type === "OneTime" ? form.due_date : null, due_day: form.repayment_type === "MonthlyDay" ? Number(form.due_day) : null, repayment_type: form.repayment_type, interest_method: form.interest_method, interest_rate: String(rateInput), interest_calculation: form.interest_calculation, interest_period: form.interest_period, disbursement_account_id: form.disbursement_account_id || null, installments: installmentsPayload, idempotency_key: "debt-create-" + crypto.randomUUID() };
+      const p = { workspace_id: ws.id, name: form.name.trim() || (form.direction === "IOwe" ? "دين مستحق عليّ" : "مبلغ مستحق لي"), counterparty: form.counterparty.trim() || null, lender_name: form.lender_name.trim() || null, borrower_name: form.borrower_name.trim() || null, direction: form.direction, principal: String(form.principal), currency: form.currency, start_date: form.start_date, end_date: form.end_date || finalDueDate, due_date: form.repayment_type === "OneTime" ? form.due_date : null, due_day: form.repayment_type === "MonthlyDay" ? Number(form.due_day) : null, repayment_type: form.repayment_type, interest_method: form.interest_method, interest_rate: String(rateInput), interest_calculation: form.interest_calculation, interest_period: form.interest_period, disbursement_account_id: form.disbursement_account_id || null, installments: installmentsPayload, idempotency_key: idempotencyKey };
       const { error: err } = await supabase.rpc("fin_debt_create", { p });
       if (err) throw err;
+      debtCreateKeyRef.current = null;
       setNotice("تم تسجيل الدين بنجاح."); setShowCreate(false); setForm({ name: "", counterparty: "", lender_name: "", borrower_name: "", direction: "IOwe", principal: "", currency: "EGP", start_date: today(), end_date: "", repayment_type: "Installments", due_date: today(), due_day: String(Number(today().slice(8, 10))), interest_method: "None", interest_rate: "0", interest_calculation: "Simple", interest_period: "Annual", disbursement_account_id: "", schedule_count: "0", schedule_first_due_date: today(), schedule_frequency: "Monthly" }); await load();
     } catch (e) { setError(e?.message || "تعذّر تسجيل الدين"); }
     finally { setSaving(false); }
@@ -102,9 +105,11 @@ export default function FinanceDebts({ ws, access, isDemo = false, currencies = 
     if (!payment.account_id || Number(payment.principal || 0) < 0 || Number(payment.interest || 0) < 0 || Number(payment.fees || 0) < 0 || (Number(payment.principal || 0) + Number(payment.interest || 0) + Number(payment.fees || 0) <= 0)) { setError("اختر الحساب وأدخل مبلغ سداد موجبًا."); return; }
     setSaving(true); setError("");
     try {
-      const p = { workspace_id: ws.id, debt_id: payDebt.id, account_id: payment.account_id, principal: String(payment.principal || 0), interest: String(payment.interest || 0), fees: String(payment.fees || 0), installment_id: payment.installment_id || null, local_date: payment.local_date, reason: payment.reason.trim() || null, idempotency_key: "debt-payment-" + crypto.randomUUID() };
+      const idempotencyKey = debtPaymentKeyRef.current || (debtPaymentKeyRef.current = "debt-payment-" + crypto.randomUUID());
+    const p = { workspace_id: ws.id, debt_id: payDebt.id, account_id: payment.account_id, principal: String(payment.principal || 0), interest: String(payment.interest || 0), fees: String(payment.fees || 0), installment_id: payment.installment_id || null, local_date: payment.local_date, reason: payment.reason.trim() || null, idempotency_key: idempotencyKey };
       const { error: err } = await supabase.rpc("fin_debt_payment", { p });
       if (err) throw err;
+      debtPaymentKeyRef.current = null;
       setNotice("تم تسجيل السداد وربطه بالحركات المالية."); setPayDebt(null); setPayment({ account_id: "", principal: "", interest: "0", fees: "0", local_date: today(), reason: "", installment_id: "" }); await load();
     } catch (e) { setError(e?.message || "تعذّر تسجيل السداد"); }
     finally { setSaving(false); }
