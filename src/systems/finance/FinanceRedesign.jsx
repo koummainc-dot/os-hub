@@ -567,7 +567,7 @@ export default function FinanceRedesign({
           <Stat label="المصروف" value={displayMoney(expense)} tone="negative"/>
           <Stat label="صافي التدفق" value={displayMoney(net)} tone={net>=0?"positive":"negative"}/>
         </div>
-      </Card>}
+      </Card>)}
     </>;
   }
 
