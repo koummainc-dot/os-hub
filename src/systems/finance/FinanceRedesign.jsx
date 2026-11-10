@@ -735,7 +735,7 @@ function transactionsPage() {
   return (
     <Shell
       page={activePage}
-      setPage={setPage}
+      setPage={navigate}
       onAdd={()=>setShowAddChooser(true)}
       onRefresh={actions.onRefresh}
       hideBalances={hideBalances}
