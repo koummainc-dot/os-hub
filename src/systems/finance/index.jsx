@@ -488,12 +488,14 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     finally { setSaving(false); }
   }
 
-  async function saveBudget(e) {
-    e.preventDefault(); if (!canEdit || saving) return;
-    if (!budgetPeriod || !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(budgetPeriod) || budgetForm.budget_amount === "" || Number(budgetForm.budget_amount) < 0) { setError("اختر شهرًا صحيحًا وأدخل ميزانية صفرًا أو أكثر."); return; }
+  async function saveBudget(e, override = null) {
+    e?.preventDefault?.(); if (!canEdit || saving) return;
+    const draft = override || budgetForm;
+    const period = override?.period || budgetPeriod;
+    if (!period || !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(period) || draft.budget_amount === "" || Number(draft.budget_amount) < 0 || !draft.category_id) { setError("اختر شهرًا وفئة مصروف صحيحة وأدخل ميزانية صفرًا أو أكثر."); return; }
     setSaving(true); setError("");
     try {
-      const { error: err } = await supabase.rpc("fin_budget_upsert", { p: { workspace_id: ws.id, category_id: budgetForm.category_id || null, period: budgetPeriod, budget_amount: String(budgetForm.budget_amount), notes: budgetForm.notes || null, source: "Manual" } });
+      const { error: err } = await supabase.rpc("fin_budget_upsert", { p: { workspace_id: ws.id, category_id: draft.category_id, period, budget_amount: String(draft.budget_amount), notes: draft.notes || null, source: "Manual" } });
       if (err) throw err;
       setNotice("تم حفظ الميزانية."); setBudgetForm({ category_id: "", budget_amount: "", notes: "" }); await load();
     } catch (e) { setError(e?.message || "تعذّر حفظ الميزانية"); }
@@ -663,6 +665,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         onEditCategory: startCategoryEdit,
         onToggleCategory: toggleCategoryArchive,
         onRollover: rolloverBudget,
+        onSaveBudget: payload => saveBudget(null, payload),
         onExport: exportVisibleTransactionsCsv,
       }}
         legacyDebt={<FinanceDebts ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
@@ -673,6 +676,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         legacyFamily={<FinanceFamily ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
         legacyFamilyCash={<FinanceFamilyCash ws={ws} access={access} isDemo={isDemo} />}
         legacyReports={<FinanceReports ws={ws} isDemo={isDemo} baseCurrency={baseCurrency} />}
+        legacyNetWorth={<FinanceNetWorthHistory ws={ws} access={access} isDemo={isDemo} />}
         legacyCurrencies={<FinanceFXRates ws={ws} access={access} isDemo={isDemo} baseCurrency={baseCurrency} />}
       />
           {txAction && <div role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setTxAction(null); }} style={{ position: "fixed", inset: 0, zIndex: 1001, background: "#14251DB8", display: "grid", placeItems: "center", padding: 20, overflowY: "auto" }}><div className="fin-modal" role="dialog" aria-modal="true" aria-label="تصحيح حركة مالية" style={{ background: "#fff", width: "min(520px,100%)", borderRadius: 18, padding: 22, boxSizing: "border-box" }}><h2 style={{ margin: "0 0 8px", fontSize: 19 }}>{txAction.kind === "reverse" ? "عكس حركة مالية" : "إلغاء حركة مقترحة"}</h2><p style={{ color: MUTED, fontSize: 12, lineHeight: 1.8 }}>الحركة: <b>{txAction.transaction.name}</b> · {money(txAction.transaction.amount,txAction.transaction.currency)}. {txAction.kind === "reverse" ? "سيُنشأ قيد عكسي مرتبط بالأصل؛ لن تُحذف الحركة الأصلية." : "سيتم إلغاء المقترح قبل نشره في الدفتر."}</p><form onSubmit={confirmTransactionAction} style={{ display: "grid", gap: 12 }}><Field label="سبب التصحيح (مطلوب)"><textarea required minLength={3} rows={3} style={{ ...inputStyle, resize: "vertical" }} value={txActionReason} onChange={e => setTxActionReason(e.target.value)} placeholder="اشرح سبب العكس أو الإلغاء…" /></Field><div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><Button secondary onClick={() => setTxAction(null)}>إلغاء</Button><Button type="submit" disabled={saving || txActionReason.trim().length < 3}>{saving ? "جارٍ التنفيذ…" : txAction.kind === "reverse" ? "تأكيد العكس" : "تأكيد الإلغاء"}</Button></div></form></div></div>}
