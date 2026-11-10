@@ -90,6 +90,7 @@ assert.ok(redesign.includes('["وسوم السياق"'),
 assert.ok(redesign.includes('page==="context-tags"') || redesign.includes('activePage==="context-tags"'),
   "the context-tags settings page must be reachable by navigation");
 assert.ok(redesign.includes('["family", "الأسرة"]'), "Family must be reachable from the Finance navigation");
+assert.ok(redesign.includes('["family-cash","العُهد ومصروفات الأفراد"]') && redesign.includes("legacyFamilyCash"), "Family cash advances must be reachable as a Family sub-section");
 assert.ok(redesign.includes('contextTags.filter(tag=>tag.context_type==="Family"'), "context-tags view must only show family-linked records");
 assert.ok(redesign.includes("contextSearch") && redesign.includes("contextMemberFilter"), "family context records must have search and member filters");
 assert.ok(!redesign.includes('<option value="Personal">شخصي</option>') && !redesign.includes('<option value="Project">مشروع</option>'), "Personal and Projects must not be offered as context types until Projects OS is ready");
