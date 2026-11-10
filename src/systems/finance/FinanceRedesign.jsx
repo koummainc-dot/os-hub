@@ -729,8 +729,7 @@ function transactionsPage() {
     : activePage==="currencies" ? (legacyCurrencies || currenciesPage())
     : activePage==="context-tags" ? contextTagsPage()
     : activePage==="wealth" || activePage==="assets" || activePage==="debts" ? wealthPage()
-    : activePage==="family-cash" ? (legacyFamilyCash || familyPage())
-    : activePage==="family" ? (legacyFamily || familyPage())
+    : ["family","family-cash"].includes(activePage) ? <><Segmented items={[["family","مركز الأسرة"],["family-cash","العُهد ومصروفات الأفراد"]]} value={activePage} onChange={value=>navigate(value)}/>{activePage==="family"?(legacyFamily||fallback()):(legacyFamilyCash||fallback())}</>
     : activePage==="projects" ? (legacyProjects || fallback())
     : fallback();
 
