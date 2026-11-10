@@ -388,7 +388,7 @@ export default function FinanceRedesign({
   const balanceTotal = balances.reduce((s,b)=>s+Number(b.base_value||0),0);
 
   function dashboard() {
-    const budgetRows = (budgetInsights?.categories || budgets.filter(b=>b.category_id)).slice(0,4);
+    const budgetRows = (budgetInsights?.categories?.length ? budgetInsights.categories.filter(b=>b.budget_id||Number(b.spent||0)>0) : budgets.filter(b=>b.category_id)).slice(0,4);
     const todayKey = new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"});
     const monthKey = todayKey.slice(0,7);
     const monthKeys = Array.from({length:12},(_,i)=>{const d=new Date(Date.UTC(Number(monthKey.slice(0,4)),Number(monthKey.slice(5,7))-1-(11-i),1));return d.toISOString().slice(0,7);});
@@ -623,14 +623,14 @@ function transactionsPage() {
     return <>
       <div className="finance-v2-grid">
         <Stat label="المتبقي للتخصيص" value={displayMoney(Math.max(0,planned-spent))} note="بعد المصروف المسجل" tone="positive"/>
-        <Stat label="وتيرة الشهر" value="23%" note="اليوم 7 من 30"/>
-        <Stat label="فئات تحتاج انتباهًا" value={String(rows.filter(b=>Number(b.spent||0)>Number(b.budget_amount||0)).length)} note="تجاوزات أو اقتراب من الحد"/>
+        <Stat label="وتيرة الشهر" value={monthPace+"%"} note={"اليوم "+now.getDate()+" من "+daysInMonth}/>
+        <Stat label="فئات تحتاج انتباهًا" value={String(rows.filter(b=>b.budget_id&&Number(b.spent||0)>Number(b.budget_amount||0)).length)} note="تجاوزات أو اقتراب من الحد"/>
         <Stat label="المصروف" value={displayMoney(spent)} note={"من "+displayMoney(planned)} tone="negative"/>
       </div>
 
       <Card style={{marginTop:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><h2 style={{margin:0,fontSize:15}}>الفئات</h2><Pill>وضع التحرير</Pill></div>
-        <Table columns={[["name","الفئة"],["planned","المحدد"],["spent","المصروف"],["remaining","المتبقي"],["progress","التقدم"],["status","الحالة"]]} rows={rows.map((b,i)=>{const planned=Number(b.budget_amount||0),spent=Number(b.spent||0),remaining=planned-spent,over=remaining<0;return{id:b.id||i,name:b.category_name||"فئة",planned:displayMoney(planned),spent:displayMoney(spent),remaining:displayMoney(remaining),progress:<div style={{minWidth:130}}><Progress value={spent} max={planned} tone={over?"red":"green"}/></div>,status:<Pill tone={over?"negative":spent/planned>.8?"warning":"positive"}>{over?"تجاوز ✕":spent/planned>.8?"قريب من الحد ▲":"ضمن الحد ●"}</Pill>}})}/>
+        <Table columns={[["name","الفئة"],["planned","المحدد"],["spent","المصروف"],["remaining","المتبقي"],["progress","التقدم"],["status","الحالة"]]} rows={rows.map((b,i)=>{const planned=Number(b.budget_amount||0),spent=Number(b.spent||0),remaining=planned-spent,over=planned>0&&remaining<0;return{id:b.budget_id||b.id||i,name:b.category_name||"فئة",planned:b.budget_id?displayMoney(planned):"غير محدد",spent:displayMoney(spent),remaining:b.budget_id?displayMoney(remaining):"—",progress:<div style={{minWidth:130}}>{planned>0?<Progress value={spent} max={planned} tone={over?"red":"green"}/>:"—"}</div>,status:<Pill tone={over?"negative":planned>0&&spent/planned>.8?"warning":planned>0?"positive":"neutral"}>{over?"تجاوز ✕":planned>0&&spent/planned>.8?"قريب من الحد ▲":planned>0?"ضمن الحد ●":"إنفاق بلا ميزانية"}</Pill>}})}/>
       </Card>
     </>;
   }
