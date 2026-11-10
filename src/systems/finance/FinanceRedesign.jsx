@@ -306,7 +306,7 @@ function TransactionSheet({ transaction, categories, accounts, baseCurrency, con
           </div>
           {contextError&&<div role="alert" style={{color:C.red,fontSize:11,marginTop:8}}>{contextError}</div>}
           <div style={{display:"flex",justifyContent:"flex-start",marginTop:10}}><Button disabled={contextSaving||(contextDraft.context_type==="Project"&&!contextDraft.finance_project_id)||(contextDraft.context_type==="Family"&&!contextDraft.family_member_id)} onClick={async()=>{setContextSaving(true);setContextError("");try{await onSaveContext?.(transaction.id,contextDraft);}catch(e){setContextError(e?.message||"تعذّر حفظ وسم السياق.");}finally{setContextSaving(false);}}}>{contextSaving?"جارٍ الحفظ…":"حفظ وسم السياق"}</Button></div>
-        </div>}
+        </div>
         <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}><Button secondary onClick={onClose}>إغلاق</Button></div>
       </div>
     </div>
