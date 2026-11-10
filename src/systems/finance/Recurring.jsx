@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../../core/supabase.js";
+import FinanceChart from "./FinanceChart.jsx";
 import RecurringDueAction from "./RecurringDueAction.jsx";
 const GREEN="#059669",INK="#17211D",MUTED="#718078",LINE="#E4EBE6"; // recurring schedule management
 const today=()=>new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"});
@@ -14,6 +15,7 @@ export default function FinanceRecurring({ws,access,isDemo=false,currencies=[],o
  const [form,setForm]=useState({name:"",amount:"",currency:"EGP",type:"Expense",frequency:"Monthly",next_payment_date:today(),account_id:"",category_id:"",auto_renew:true,notes:""});
  const [payForm,setPayForm]=useState({account_id:"",payment_date:today(),reason:""});
  const recurringPaymentKeyRef=useRef(null);
+ const [recurringSearch,setRecurringSearch]=useState(""),[recurringStatusFilter,setRecurringStatusFilter]=useState("all"),[recurringTypeFilter,setRecurringTypeFilter]=useState("all");
  const canEdit=!isDemo&&(access?.level==="edit"||access?.manage||access?.owner);
  const load=useCallback(async()=>{if(!ws?.id||isDemo){setLoading(false);return;}setLoading(true);setError("");try{
   const [i,o,a,c]=await Promise.all([
@@ -25,6 +27,9 @@ export default function FinanceRecurring({ws,access,isDemo=false,currencies=[],o
   setItems(i.data||[]);setOccurrences(o.data||[]);setAccounts(a.data||[]);setCategories(c.data||[]);
  }catch(e){setError(e?.message||"تعذّر تحميل المدفوعات المتكررة");}finally{setLoading(false);}},[ws?.id,isDemo]);
  useEffect(()=>{load();},[load]);
+ const filteredItems=items.filter(it=>(recurringStatusFilter==="all"||(recurringStatusFilter==="active"?it.active:!it.active))&&(recurringTypeFilter==="all"||it.type===recurringTypeFilter)&&(!recurringSearch||[it.name,it.notes].filter(Boolean).join(" ").toLowerCase().includes(recurringSearch.trim().toLowerCase())));
+ const recurringChartRows=[{label:"مصروفات متكررة",value:items.filter(it=>it.active&&it.type==="Expense").length},{label:"إيرادات متكررة",value:items.filter(it=>it.active&&it.type==="Income").length},{label:"متوقفة",value:items.filter(it=>!it.active).length}].filter(x=>x.value>0);
+
  useEffect(()=>{if(openCreate){startCreate();onCreateHandled?.();}},[openCreate]);
  function startCreate(){setEditingId(null);setPayItem(null);setForm({name:"",amount:"",currency:currencies.find(c=>c.is_active)?.currency||"EGP",type:"Expense",frequency:"Monthly",next_payment_date:today(),account_id:"",category_id:"",auto_renew:true,notes:""});setShowCreate(true);setError("");}
  function startEdit(item){setEditingId(item.id);setPayItem(null);setForm({name:item.name||"",amount:String(item.amount??""),currency:item.currency||"EGP",type:item.type||"Expense",frequency:item.frequency||"Monthly",next_payment_date:item.next_payment_date||today(),account_id:item.account_id||"",category_id:item.category_id||"",auto_renew:!!item.auto_renew,notes:item.notes||""});setShowCreate(true);setError("");}
@@ -48,7 +53,9 @@ export default function FinanceRecurring({ws,access,isDemo=false,currencies=[],o
  <div style={{border:"1px solid "+LINE,borderRadius:12,padding:12}}><div style={{fontSize:11,color:MUTED}}>مستحق اليوم</div><b style={{fontSize:21}}>{items.filter(it=>it.active&&it.next_payment_date===today()).length}</b></div>
  <div style={{border:"1px solid "+LINE,borderRadius:12,padding:12}}><div style={{fontSize:11,color:MUTED}}>قادم خلال 7 أيام</div><b style={{fontSize:21}}>{items.filter(it=>it.active&&it.next_payment_date>today()&&it.next_payment_date<=new Date(Date.now()+7*86400000).toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"})).length}</b></div>
  </div>}
- {loading?<p style={{color:MUTED,textAlign:"center",padding:20}}>جارٍ تحميل البنود…</p>:!items.length?<div style={{padding:35,textAlign:"center",color:MUTED}}><div style={{fontSize:28}}>🔁</div><b>لا توجد بنود متكررة</b><p style={{fontSize:12}}>أضف اشتراكًا أو دخلًا دوريًا أو مصروفًا متكررًا.</p></div>:<div style={{display:"grid",gap:10,marginTop:15}}>{items.map(it=>{const acc=accounts.find(a=>a.id===it.account_id);const due=it.next_payment_date<=today();const monthly=Number(it.amount)*(it.frequency==="Weekly"?52/12:it.frequency==="Quarterly"?1/3:it.frequency==="Yearly"?1/12:1);return <div key={it.id} style={{border:"1px solid "+LINE,borderRadius:12,padding:14}}>
+ <FinanceChart title="توزيع البنود المتكررة" rows={recurringChartRows} empty="لا توجد بنود متكررة لعرض الرسم بعد."/>
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginTop:12}}><input value={recurringSearch} onChange={e=>setRecurringSearch(e.target.value)} placeholder="ابحث باسم الاشتراك أو البند" style={input}/><select value={recurringStatusFilter} onChange={e=>setRecurringStatusFilter(e.target.value)} style={input}><option value="all">كل الحالات</option><option value="active">نشط</option><option value="inactive">متوقف</option></select><select value={recurringTypeFilter} onChange={e=>setRecurringTypeFilter(e.target.value)} style={input}><option value="all">دخل ومصروف</option><option value="Expense">مصروف</option><option value="Income">دخل</option></select></div>
+{loading?<p style={{color:MUTED,textAlign:"center",padding:20}}>جارٍ تحميل البنود…</p>:!items.length?<div style={{padding:35,textAlign:"center",color:MUTED}}><div style={{fontSize:28}}>🔁</div><b>لا توجد بنود متكررة</b><p style={{fontSize:12}}>أضف اشتراكًا أو دخلًا دوريًا أو مصروفًا متكررًا.</p></div>:<div style={{display:"grid",gap:10,marginTop:15}}>{filteredItems.map(it=>{const acc=accounts.find(a=>a.id===it.account_id);const due=it.next_payment_date<=today();const monthly=Number(it.amount)*(it.frequency==="Weekly"?52/12:it.frequency==="Quarterly"?1/3:it.frequency==="Yearly"?1/12:1);return <div key={it.id} style={{border:"1px solid "+LINE,borderRadius:12,padding:14}}>
  <div style={{display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}><div><b>{it.name}</b><div style={{fontSize:11,color:MUTED,marginTop:4}}>{it.type==="Expense"?"مصروف":"دخل"} · {{Weekly:"أسبوعي",Monthly:"شهري",Quarterly:"ربع سنوي",Yearly:"سنوي"}[it.frequency]} · {acc?.name||"الحساب عند تسجيل الدفعة"}</div></div><span style={{background:!it.active?"#F2F4F7":due?"#FEF3F2":"#ECFDF3",color:!it.active?MUTED:due?"#B42318":"#067647",borderRadius:999,padding:"5px 9px",fontSize:11,fontWeight:800}}>{!it.active?"متوقف":due?"مستحق":"قادم"}</span></div>
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginTop:13}}><div><div style={{color:MUTED,fontSize:11}}>المبلغ الدوري</div><b>{money(it.amount,it.currency)}</b></div><div><div style={{color:MUTED,fontSize:11}}>المكافئ الشهري التقريبي</div><b>{money(monthly,it.currency)}</b></div><div><div style={{color:MUTED,fontSize:11}}>الدفعة التالية</div><b>{it.next_payment_date}</b></div><div><div style={{color:MUTED,fontSize:11}}>آخر دفعة</div><b>{it.last_payment_date||"—"}</b></div></div>
  {it.notes&&<p style={{fontSize:11,color:MUTED,marginBottom:0}}>{it.notes}</p>}
