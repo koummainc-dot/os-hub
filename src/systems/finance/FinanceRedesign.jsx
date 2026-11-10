@@ -250,7 +250,7 @@ function Shell({ page, setPage, children, onAdd, onRefresh, hideBalances, setHid
   );
 }
 
-function TransactionSheet({ transaction, categories, accounts, baseCurrency, contextTags = [], contextProjects = [], contextFamilyMembers = [], onSaveContext, onClose }) {
+function TransactionSheet({ transaction, categories, accounts, baseCurrency, contextTags = [], contextFamilyMembers = [], onSaveContext, onClose }) {
   const [contextDraft,setContextDraft]=React.useState({context_type:"Family",finance_project_id:"",family_member_id:""});
   const [contextSaving,setContextSaving]=React.useState(false);
   const [contextError,setContextError]=React.useState("");
@@ -768,7 +768,7 @@ function transactionsPage() {
           </div>
         </div>
       </div>}
-      <TransactionSheet transaction={selectedTransaction} categories={categories} accounts={accounts} baseCurrency={baseCurrency} contextTags={contextTags} contextProjects={data?.contextProjects||[]} contextFamilyMembers={data?.contextFamilyMembers||[]} onSaveContext={actions.onSaveContext} onClose={() => setSelectedTransaction(null)} />
+      <TransactionSheet transaction={selectedTransaction} categories={categories} accounts={accounts} baseCurrency={baseCurrency} contextTags={contextTags} contextFamilyMembers={data?.contextFamilyMembers||[]} onSaveContext={actions.onSaveContext} onClose={() => setSelectedTransaction(null)} />
     </Shell>
   );
 }
