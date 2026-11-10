@@ -300,13 +300,15 @@ function TransactionSheet({ transaction, categories, accounts, baseCurrency, con
         </div>
         {transaction.notes && <div style={{marginTop:12,border:"1px solid "+C.line,borderRadius:12,padding:13}}><div style={{fontSize:10,color:C.muted}}>ملاحظات</div><div style={{fontSize:12,lineHeight:1.8,marginTop:5,whiteSpace:"pre-wrap"}}>{transaction.notes}</div></div>}
         <div style={{marginTop:14,border:"1px solid "+C.line,borderRadius:13,padding:13}}>
-          <h3 style={{margin:"0 0 10px",fontSize:13}}>وسم سياق الحركة</h3>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:9}}>
-            <div style={{fontSize:11,color:C.muted,marginBottom:2}}>السياق المتاح حاليًا: <b style={{color:C.green}}>الأسرة</b></div>
-            <label style={{display:"grid",gap:5,fontSize:11,color:C.muted}}>فرد الأسرة<select value={contextDraft.family_member_id} onChange={e=>setContextDraft(v=>({...v,family_member_id:e.target.value}))} style={{border:"1px solid "+C.line,borderRadius:9,padding:9,font:"inherit"}}><option value="">اختر فردًا</option>{contextFamilyMembers.map(m=><option key={m.id} value={m.id}>{m.display_name}</option>)}</select></label>
-          </div>
-          {contextError&&<div role="alert" style={{color:C.red,fontSize:11,marginTop:8}}>{contextError}</div>}
-          <div style={{display:"flex",justifyContent:"flex-start",marginTop:10}}><Button disabled={contextSaving||!contextDraft.family_member_id} onClick={async()=>{setContextSaving(true);setContextError("");try{await onSaveContext?.(transaction.id,contextDraft);}catch(e){setContextError(e?.message||"تعذّر حفظ وسم السياق.");}finally{setContextSaving(false);}}}>{contextSaving?"جارٍ الحفظ…":"حفظ وسم السياق"}</Button></div>
+          <h3 style={{margin:"0 0 10px",fontSize:13}}>ربط المصروف بفرد من الأسرة</h3>
+          {transaction.type==="Expense"&&transaction.status==="Posted"?<>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:9}}>
+              <div style={{fontSize:11,color:C.muted,marginBottom:2}}>الربط يتم من خلال توزيع مصروفات الأسرة الحالي.</div>
+              <label style={{display:"grid",gap:5,fontSize:11,color:C.muted}}>فرد الأسرة<select value={contextDraft.family_member_id} onChange={e=>setContextDraft(v=>({...v,family_member_id:e.target.value}))} style={{border:"1px solid "+C.line,borderRadius:9,padding:9,font:"inherit"}}><option value="">اختر فردًا</option>{contextFamilyMembers.map(m=><option key={m.id} value={m.id}>{m.display_name}</option>)}</select></label>
+            </div>
+            {contextError&&<div role="alert" style={{color:C.red,fontSize:11,marginTop:8}}>{contextError}</div>}
+            <div style={{display:"flex",justifyContent:"flex-start",marginTop:10}}><Button disabled={contextSaving||!contextDraft.family_member_id} onClick={async()=>{setContextSaving(true);setContextError("");try{await onSaveContext?.(transaction.id,contextDraft);}catch(e){setContextError(e?.message||"تعذّر ربط المصروف بفرد الأسرة.");}finally{setContextSaving(false);}}}>{contextSaving?"جارٍ الحفظ…":"حفظ ربط الأسرة"}</Button></div>
+          </>:<div style={{fontSize:11,color:C.muted,lineHeight:1.8}}>ربط الأسرة متاح للمصروفات المنشورة فقط، لأن دفتر الأسرة الحالي يوزّع المصروفات ولا يضيف حركة محاسبية مكررة.</div>}
         </div>
         <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}><Button secondary onClick={onClose}>إغلاق</Button></div>
       </div>
