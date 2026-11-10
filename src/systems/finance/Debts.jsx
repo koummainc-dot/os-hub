@@ -92,6 +92,7 @@ export default function FinanceDebts({ ws, access, isDemo = false, currencies = 
       }) : [];
       const finalDueDate = installmentsPayload.length ? installmentsPayload[installmentsPayload.length - 1].due_date : (form.end_date || null);
       if (form.end_date && finalDueDate && form.end_date < finalDueDate) { setError("تاريخ نهاية الدين يجب أن يكون في أو بعد آخر تاريخ استحقاق."); return; }
+      const idempotencyKey = debtCreateKeyRef.current || (debtCreateKeyRef.current = "debt-create-" + crypto.randomUUID());
       const p = { workspace_id: ws.id, name: form.name.trim() || (form.direction === "IOwe" ? "دين مستحق عليّ" : "مبلغ مستحق لي"), counterparty: form.counterparty.trim() || null, lender_name: form.lender_name.trim() || null, borrower_name: form.borrower_name.trim() || null, direction: form.direction, principal: String(form.principal), currency: form.currency, start_date: form.start_date, end_date: form.end_date || finalDueDate, due_date: form.repayment_type === "OneTime" ? form.due_date : null, due_day: form.repayment_type === "MonthlyDay" ? Number(form.due_day) : null, repayment_type: form.repayment_type, interest_method: form.interest_method, interest_rate: String(rateInput), interest_calculation: form.interest_calculation, interest_period: form.interest_period, disbursement_account_id: form.disbursement_account_id || null, installments: installmentsPayload, idempotency_key: idempotencyKey };
       const { error: err } = await supabase.rpc("fin_debt_create", { p });
       if (err) throw err;
