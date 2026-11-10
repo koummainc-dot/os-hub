@@ -409,7 +409,7 @@ export default function FinanceRedesign({
     const periodStart=()=>{const now=new Date(todayKey+"T12:00:00");if(performancePeriod==="day")return todayKey;if(performancePeriod==="week"){const d=new Date(now);d.setDate(d.getDate()-6);return d.toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"});}if(performancePeriod==="year")return todayKey.slice(0,4)+"-01-01";return todayKey.slice(0,7)+"-01";};
     const from=periodStart(),periodRows=posted.filter(t=>(t.local_date||"")>=from&&(t.local_date||"")<=todayKey);
     const periodIncome=periodRows.filter(t=>t.type==="Income").reduce((sum,t)=>sum+Number(t.base_amount||t.amount||0),0),periodExpense=periodRows.filter(t=>t.type==="Expense").reduce((sum,t)=>sum+Number(t.base_amount||t.amount||0),0);
-    const upcoming=[...recurringItems].filter(r=>(r.status==null||r.status==="Active")&&r.next_payment_date>=todayKey).sort((a,b)=>String(a.next_payment_date).localeCompare(String(b.next_payment_date))).slice(0,5);
+    const upcoming=[...recurringItems].filter(r=>r.active!==false&&r.next_payment_date>=todayKey).sort((a,b)=>String(a.next_payment_date).localeCompare(String(b.next_payment_date))).slice(0,5);
     return <>
       <PageHead eyebrow="الماليات · نظرة عامة" title="لوحة القيادة" subtitle="مؤشرات حقيقية من دفتر الحركات والأرصدة المحفوظة، دون بيانات افتراضية." actions={<Button onClick={()=>setShowAddChooser(true)}>＋ إضافة</Button>} />
       <div className="finance-v2-grid">
