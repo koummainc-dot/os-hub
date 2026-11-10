@@ -94,6 +94,8 @@ assert.ok(redesign.includes('contextTags.filter(tag=>tag.context_type==="Family"
 assert.ok(redesign.includes("contextSearch") && redesign.includes("contextMemberFilter"), "family context records must have search and member filters");
 assert.ok(!redesign.includes('<option value="Personal">شخصي</option>') && !redesign.includes('<option value="Project">مشروع</option>'), "Personal and Projects must not be offered as context types until Projects OS is ready");
 assert.ok(finance.includes("netWorthSnapshots") && finance.includes("fin_net_worth_snapshots_get"), "dashboard net-worth chart must use persisted snapshots");
+assert.ok(finance.includes("fin_family_list_expenses") && finance.includes("fin_family_set_transaction_allocation"), "family context must use the existing Family allocation ledger RPCs");
+assert.ok(!finance.includes("fin_transaction_context_get") && !finance.includes("fin_transaction_context_set"), "family context must not call context RPCs that are not part of the installed Family ledger");
 assert.ok(finance.includes("recurringItems") && finance.includes("finance_recurring_items"), "dashboard upcoming payments must use persisted recurring records");
 assert.ok(!redesign.includes('value="+35,000"') && !redesign.includes('value="+1.1%"') && !redesign.includes("قسط السيارة"), "dashboard must not display fabricated performance or payment examples");
 assert.ok(!redesign.includes("[35,42,39,48") && !redesign.includes("[42,48,45,53"), "wealth charts must not contain hard-coded sample series");
