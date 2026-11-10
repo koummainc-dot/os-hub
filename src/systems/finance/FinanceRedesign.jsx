@@ -479,7 +479,7 @@ export default function FinanceRedesign({
           <div style={{fontSize:14,fontWeight:900}}>{title}</div>
           <div style={{marginTop:7,color:C.muted,fontSize:11,lineHeight:1.7}}>{desc}</div>
           <div style={{marginTop:12}}>
-            <Button secondary type="button" onClick={(e)=>{e.preventDefault();e.stopPropagation();setPage?.(target);}}>
+            <Button secondary type="button" onClick={(e)=>{e.preventDefault();e.stopPropagation();navigate(target);}}>
               فتح الإعداد ←
             </Button>
           </div>
@@ -673,7 +673,7 @@ export default function FinanceRedesign({
 
   return (
     <Shell
-      page={page}
+      page={activePage}
       setPage={setPage}
       onAdd={()=>setShowAddChooser(true)}
       onRefresh={actions.onRefresh}
