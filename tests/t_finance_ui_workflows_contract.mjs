@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [fx, debts, recurring, assets, goals, redesign, finance] = await Promise.all([
+const [fx, debts, recurring, assets, goals, redesign, finance, family] = await Promise.all([
   read("../src/systems/finance/FXRates.jsx"),
   read("../src/systems/finance/Debts.jsx"),
   read("../src/systems/finance/Recurring.jsx"),
@@ -10,6 +10,7 @@ const [fx, debts, recurring, assets, goals, redesign, finance] = await Promise.a
   read("../src/systems/finance/Goals.jsx"),
   read("../src/systems/finance/FinanceRedesign.jsx"),
   read("../src/systems/finance/index.jsx"),
+  read("../src/systems/finance/Family.jsx"),
 ]);
 
 // Currency and exchange-rate workflows must use authenticated Finance RPCs,
@@ -81,10 +82,21 @@ assert.ok(redesign.includes("internalPage") && redesign.includes("activePage"),
   "nested Finance navigation must have a local fallback state when the host shell does not immediately update");
 assert.ok(redesign.includes('navigate(target)'),
   "settings cards must navigate through the shared Finance navigation handler");
-assert.ok(redesign.includes('["وسوم السياق"'),
+assert.ok(redesign.includes('["ربط الأسرة بالحركات"'),
   "settings must expose the context-tags section");
 assert.ok(redesign.includes('page==="context-tags"') || redesign.includes('activePage==="context-tags"'),
   "the context-tags settings page must be reachable by navigation");
+assert.ok(redesign.includes('["family", "الأسرة"]'), "Family must be reachable from the Finance navigation");
+assert.ok(redesign.includes('contextTags.filter(tag=>tag.context_type==="Family"'), "context-tags view must only show family-linked records");
+assert.ok(redesign.includes("contextSearch") && redesign.includes("contextMemberFilter"), "family context records must have search and member filters");
+assert.ok(!redesign.includes('<option value="Personal">شخصي</option>') && !redesign.includes('<option value="Project">مشروع</option>'), "Personal and Projects must not be offered as context types until Projects OS is ready");
+assert.ok(finance.includes("netWorthSnapshots") && finance.includes("fin_net_worth_snapshots_get"), "dashboard net-worth chart must use persisted snapshots");
+assert.ok(finance.includes("recurringItems") && finance.includes("finance_recurring_items"), "dashboard upcoming payments must use persisted recurring records");
+assert.ok(!redesign.includes('value="+35,000"') && !redesign.includes('value="+1.1%"') && !redesign.includes("قسط السيارة"), "dashboard must not display fabricated performance or payment examples");
+assert.ok(redesign.includes("performancePeriod") && redesign.includes("txFromDate") && redesign.includes("txToDate") && redesign.includes("txAccountFilter"), "dashboard and transaction ledger must have working period and record filters");
+assert.ok(family.includes("finance_family_members") && family.includes("finance_family_budgets") && family.includes("finance_family_allowances"), "Family must manage members, budgets, and allowances from persisted records");
+assert.ok(family.includes("filteredMembers") && family.includes("filteredBudgets") && family.includes("filteredExpenses") && family.includes("filteredAllowances"), "Family record sections must expose working filters");
+assert.ok(family.includes("renderBars") && family.includes("توزيع الحركات حسب حالة الإسناد"), "Family sections must include charts based on actual records");
 assert.match(redesign, /planningTab\s*===\s*"budgets"/);
 assert.match(redesign, /planningTab\s*===\s*"goals"/);
 assert.match(redesign, /planningTab\s*===\s*"reports"/);
