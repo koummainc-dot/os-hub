@@ -75,7 +75,7 @@ export default function FinanceFamily({ws,access,isDemo=false,currencies=[]}) {
   const activeMembers = useMemo(()=>members.filter(m=>m.status==="Active"),[members]);
   const memberLabel = id => members.find(m=>m.id===id)?.display_name || "الأسرة";
   const filteredMembers = members.filter(m=>[m.display_name,m.nickname,m.relationship_label].filter(Boolean).join(" ").toLowerCase().includes(memberSearch.trim().toLowerCase()));
-  const filteredBudgets = budgets.filter(b=>(!budgetMemberFilter||b.family_member_id===budgetMemberFilter)&&(!memberSearch||memberLabel(b.family_member_id).toLowerCase().includes(memberSearch.trim().toLowerCase())));
+  const filteredBudgets = budgets.filter(b=>(!budgetMemberFilter||b.family_member_id===budgetMemberFilter));
   const filteredExpenses = expenses.filter(t=>(expenseStatusFilter==="all"||t.allocation_status===expenseStatusFilter)&&(!expenseSearch||[t.transaction_name,t.category_name,t.local_date].filter(Boolean).join(" ").toLowerCase().includes(expenseSearch.trim().toLowerCase())));
   const filteredAllowances = allowances.filter(a=>(allowanceStatusFilter==="all"||a.status===allowanceStatusFilter)&&(!allowanceSearch||memberLabel(a.family_member_id).toLowerCase().includes(allowanceSearch.trim().toLowerCase())));
   const allocationCounts = [{label:"موزع",value:expenses.filter(t=>["Allocated","Reviewed"].includes(t.allocation_status)).length},{label:"غير موزع",value:expenses.filter(t=>t.allocation_status==="Unassigned").length},{label:"آخر",value:expenses.filter(t=>!["Allocated","Reviewed","Unassigned"].includes(t.allocation_status)).length}].filter(x=>x.value>0);
