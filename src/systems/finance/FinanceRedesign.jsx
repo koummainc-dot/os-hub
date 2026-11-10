@@ -318,6 +318,7 @@ export default function FinanceRedesign({
   const [txTab, setTxTab] = React.useState("all");
   const [txSubTab, setTxSubTab] = React.useState(page === "recurring" ? "recurring" : "ledger");
   const [showAddChooser, setShowAddChooser] = React.useState(false);
+  const [autoOpenAddType, setAutoOpenAddType] = React.useState("");
   const [budgetPeriod, setBudgetPeriod] = React.useState(new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}).slice(0,7));
   const [budgetDraft, setBudgetDraft] = React.useState({category_id:"",budget_amount:"",notes:""});
   const [selectedTransaction, setSelectedTransaction] = React.useState(null);
@@ -405,7 +406,7 @@ export default function FinanceRedesign({
     return <>
       <PageHead eyebrow="الماليات · الحركات" title="الحركات والمدفوعات" subtitle="الحركات اليومية والمتكررة والاشتراكات في مساحة واحدة، مع نفس دفتر الحسابات." actions={<Button onClick={()=>setShowAddChooser(true)}>＋ إضافة</Button>} />
       <Segmented items={[["ledger","الحركات"],["recurring","المتكرر والاشتراكات"]]} value={txSubTab} onChange={setTxSubTab}/>
-      {txSubTab === "recurring" ? (legacyRecurring || <Card style={{marginTop:12}}>قسم المتكرر غير متصل حاليًا.</Card>) : <>
+      {txSubTab === "recurring" ? (legacyRecurring ? React.cloneElement(legacyRecurring,{openCreate:autoOpenAddType==="recurring",onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setShowAddChooser(true)}) : <Card style={{marginTop:12}}>قسم المتكرر غير متصل حاليًا.</Card>) : <>
         <Card style={{marginTop:12}}>
           <div style={{display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",marginBottom:14}}>
             <Segmented items={[["all","الكل"],["expense","مصروف"],["income","دخل"],["review","تحتاج مراجعة"]]} value={txTab} onChange={setTxTab}/>
@@ -561,8 +562,8 @@ export default function FinanceRedesign({
       <PageHead eyebrow="الماليات · الثروة" title="الثروة" subtitle="الأصول والاستثمارات والديون وصافي الثروة في مسار واحد." />
       <Segmented items={[["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"],["networth","صافي الثروة"]]} value={tab} onChange={setWealthTab}/>
       {tab==="overview" && <div className="finance-v2-grid" style={{marginTop:12}}><Stat label="صافي الثروة" value={displayMoney(netValue)} tone="positive"/><Stat label="الأصول" value={displayMoney(netWorth?.assets||0)}/><Stat label="الديون" value={displayMoney(netWorth?.liabilities||0)} tone="negative"/><Stat label="السيولة" value={displayMoney(balanceTotal)} /></div>}
-      {tab==="investments" && (legacyAssets || <Card style={{marginTop:12}}><h2 style={{marginTop:0,fontSize:15}}>المراكز</h2><Table columns={[["name","المركز"],["type","النوع"],["qty","الكمية"],["value","القيمة"],["return","العائد"]]} rows={assets.map((a,i)=>({id:a.id||i,name:a.name||a.asset_name||"أصل",type:a.asset_type||"استثمار",qty:a.quantity||"—",value:displayMoney(a.current_value||a.value||0,a.currency),return:<Pill tone="positive">+{a.return_pct||"—"}%</Pill>}))}/></Card>)}
-      {tab==="debts" && (legacyDebt || <Card style={{marginTop:12}}><h2 style={{marginTop:0,fontSize:15}}>الديون والأقساط</h2><Table columns={[["name","الدين"],["balance","الرصيد"],["installment","القسط"],["due","الاستحقاق"],["status","الحالة"]]} rows={debts.map((d,i)=>({id:d.id||i,name:d.name||"دين",balance:displayMoney(d.remaining_balance||d.balance||0,d.currency),installment:displayMoney(d.installment_amount||0,d.currency),due:d.next_due_date||"—",status:<Pill tone="warning">قائم</Pill>}))}/></Card>)}
+      {tab==="investments" && (legacyAssets ? React.cloneElement(legacyAssets,{openCreate:autoOpenAddType==="asset",onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setShowAddChooser(true)}) : <Card style={{marginTop:12}}><h2 style={{marginTop:0,fontSize:15}}>المراكز</h2><Table columns={[["name","المركز"],["type","النوع"],["qty","الكمية"],["value","القيمة"],["return","العائد"]]} rows={assets.map((a,i)=>({id:a.id||i,name:a.name||a.asset_name||"أصل",type:a.asset_type||"استثمار",qty:a.quantity||"—",value:displayMoney(a.current_value||a.value||0,a.currency),return:<Pill tone="positive">+{a.return_pct||"—"}%</Pill>}))}/></Card>)}
+      {tab==="debts" && (legacyDebt ? React.cloneElement(legacyDebt,{openCreate:autoOpenAddType==="debt",onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setShowAddChooser(true)}) : <Card style={{marginTop:12}}><h2 style={{marginTop:0,fontSize:15}}>الديون والأقساط</h2><Table columns={[["name","الدين"],["balance","الرصيد"],["installment","القسط"],["due","الاستحقاق"],["status","الحالة"]]} rows={debts.map((d,i)=>({id:d.id||i,name:d.name||"دين",balance:displayMoney(d.remaining_balance||d.balance||0,d.currency),installment:displayMoney(d.installment_amount||0,d.currency),due:d.next_due_date||"—",status:<Pill tone="warning">قائم</Pill>}))}/></Card>)}
       {tab==="networth" && <Card style={{marginTop:12}}><div style={{fontSize:11,color:C.muted}}>صافي الثروة الحالي</div><div style={{fontSize:34,fontWeight:950,marginTop:6}}>{displayMoney(netValue)}</div><div style={{height:170,marginTop:16,display:"flex",alignItems:"flex-end",gap:7}}>{[35,42,39,48,55,58,62,68,71,76,82,90].map((h,i)=><div key={i} style={{flex:1,height:h+"%",background:i===11?C.green:"#D7E5DC",borderRadius:"6px 6px 0 0"}}/>)}</div></Card>}
     </>;
   }
@@ -655,7 +656,7 @@ export default function FinanceRedesign({
               ["budget","ميزانية","حد إنفاق لفئة وفترة"],
               ["asset","أصل","أصل أو استثمار جديد"],
               ["recurring","متكرر / اشتراك","دفعة دورية وتنبيهاتها"]
-            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){actions.onAdd?.();return;}if(kind==="budget"){setPage("planning");setPlanningTab("budgets");return;}if(kind==="recurring"){setPage("recurring");setTxSubTab("recurring");return;}setPage(kind==="debt"?"debts":"assets");}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
+            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){actions.onAdd?.();return;}setAutoOpenAddType(kind);if(kind==="budget"){setPage("planning");setPlanningTab("budgets");return;}if(kind==="recurring"){setPage("recurring");setTxSubTab("recurring");return;}setPage(kind==="debt"?"debts":"assets");}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
               <div style={{fontSize:13,fontWeight:900,color:C.ink}}>{label}</div><div style={{fontSize:10,color:C.muted,lineHeight:1.7,marginTop:6}}>{desc}</div>
             </button>)}
           </div>
