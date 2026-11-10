@@ -182,7 +182,7 @@ function Shell({ page, setPage, children, onAdd, onRefresh, hideBalances, setHid
   const primary = [
     ["dashboard", "نظرة عامة"],
     ["transactions", "الحركات"],
-    ["planning", "التخطيط"],
+    ["budgets", "التخطيط"],
     ["settings", "الإعدادات المالية"],
   ];
   const current = page === "dashboard" ? "dashboard"
@@ -686,7 +686,7 @@ export default function FinanceRedesign({
               ["budget","ميزانية","حد إنفاق لفئة وفترة"],
               ["asset","أصل","أصل أو استثمار جديد"],
               ["recurring","متكرر / اشتراك","دفعة دورية وتنبيهاتها"]
-            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){actions.onAdd?.();return;}setAutoOpenAddType(kind);if(kind==="budget"){setPage("planning");setPlanningTab("budgets");setBudgetSaveError("");setShowBudgetForm(true);return;}if(kind==="recurring"){setPage("recurring");setTxSubTab("recurring");return;}setPage(kind==="debt"?"debts":"assets");}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
+            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){actions.onAdd?.();return;}setAutoOpenAddType(kind);if(kind==="budget"){setPage("budgets");setPlanningTab("budgets");setBudgetSaveError("");setShowBudgetForm(true);return;}if(kind==="recurring"){setPage("recurring");setTxSubTab("recurring");return;}setPage(kind==="debt"?"debts":"assets");}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
               <div style={{fontSize:13,fontWeight:900,color:C.ink}}>{label}</div><div style={{fontSize:10,color:C.muted,lineHeight:1.7,marginTop:6}}>{desc}</div>
             </button>)}
           </div>
