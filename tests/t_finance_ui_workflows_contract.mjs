@@ -61,9 +61,16 @@ assert.ok(finance.includes("fin_budgets_get") && finance.includes("fin_budget_up
   "budget read/write must use Finance RPCs");
 assert.ok(redesign.includes('["budgets","الميزانيات"],["goals","الأهداف"],["reports","التقارير"]'),
   "Planning must expose Budgets, Goals, and Reports tabs");
-assert.ok(redesign.includes('setPage("budgets")'),
-  "the Planning entry point must resolve to the registered Budgets page");\nassert.ok(redesign.includes('setPage?.(target)'),
-  "settings cards must expose an explicit navigation action for their target page");
+assert.ok(redesign.includes('navigate("budgets")'),
+  "the Planning entry point must resolve to the registered Budgets page");
+assert.ok(redesign.includes("internalPage") && redesign.includes("activePage"),
+  "nested Finance navigation must have a local fallback state when the host shell does not immediately update");
+assert.ok(redesign.includes('navigate(target)'),
+  "settings cards must navigate through the shared Finance navigation handler");
+assert.ok(redesign.includes('["وسوم السياق"'),
+  "settings must expose the context-tags section");
+assert.ok(redesign.includes('page==="context-tags"') || redesign.includes('activePage==="context-tags"'),
+  "the context-tags settings page must be reachable by navigation");
 assert.match(redesign, /planningTab\s*===\s*"budgets"/);
 assert.match(redesign, /planningTab\s*===\s*"goals"/);
 assert.match(redesign, /planningTab\s*===\s*"reports"/);
