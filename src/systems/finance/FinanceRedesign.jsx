@@ -599,7 +599,7 @@ export default function FinanceRedesign({
         title={title}
         subtitle={subtitle}
         actions={planningTab === "budgets"
-          ? <><Button secondary onClick={actions.onRollover}>نسخ من الشهر السابق</Button><Button onClick={()=>setBudgetSaveError("");setShowBudgetForm(true)}>＋ إضافة ميزانية</Button></>
+          ? <><Button secondary onClick={actions.onRollover}>نسخ من الشهر السابق</Button><Button onClick={()=>{setBudgetSaveError("");setShowBudgetForm(true);}}>＋ إضافة ميزانية</Button></>
           : planningTab === "reports"
             ? <Button secondary onClick={actions.onExport}>تصدير</Button>
              : <Button onClick={()=>setAutoOpenAddType("goal")}>＋ إضافة هدف</Button>}
