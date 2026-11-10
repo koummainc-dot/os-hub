@@ -1,4 +1,5 @@
 import React from "react";
+import FinanceChart from "./FinanceChart.jsx";
 
 const C = {
   bg: "#F5F4EF",
@@ -352,6 +353,12 @@ export default function FinanceRedesign({
   const [performancePeriod, setPerformancePeriod] = React.useState("month");
   const [contextSearch, setContextSearch] = React.useState("");
   const [contextMemberFilter, setContextMemberFilter] = React.useState("");
+  const [accountSearch,setAccountSearch]=React.useState("");
+  const [accountTypeFilter,setAccountTypeFilter]=React.useState("all");
+  const [categorySearch,setCategorySearch]=React.useState("");
+  const [categoryKindFilter,setCategoryKindFilter]=React.useState("all");
+  const [budgetSearch,setBudgetSearch]=React.useState("");
+  const [budgetRiskFilter,setBudgetRiskFilter]=React.useState("all");
   const [txSubTab, setTxSubTab] = React.useState(page === "recurring" ? "recurring" : "ledger");
   const [showAddChooser, setShowAddChooser] = React.useState(false);
   const [showBudgetForm, setShowBudgetForm] = React.useState(false);
@@ -534,10 +541,14 @@ function transactionsPage() {
   }
 
   function categoriesPage() {
+    const rows=categories.filter(c=>(categoryKindFilter==="all"||c.kind===categoryKindFilter)&&(!categorySearch||c.name.toLowerCase().includes(categorySearch.trim().toLowerCase())));
+    const chartRows=[{label:"مصروف",value:categories.filter(c=>c.kind==="Expense").length},{label:"دخل",value:categories.filter(c=>c.kind==="Income").length},{label:"مشترك",value:categories.filter(c=>c.kind==="Both").length}].filter(x=>x.value>0);
     return <>
       <PageHead eyebrow="الماليات · الإعدادات" title="التصنيفات" subtitle="تصنيفات الحركة تُستخدم يوميًا من Quick Add، وهنا تتم إدارتها نادرًا." actions={<Button onClick={actions.onAddCategory}>＋ تصنيف</Button>} />
+      <FinanceChart title="توزيع التصنيفات حسب النوع" rows={chartRows} empty="لا توجد تصنيفات لعرض الرسم بعد."/>
       <Card style={{marginTop:12}}>
-        <Table columns={[["name","التصنيف"],["kind","النوع"],["parent","الرئيسي"],["status","الحالة"],["action",""]]} rows={categories.map(c=>({id:c.id,name:c.name,kind:c.kind==="Expense"?"مصروف":c.kind==="Income"?"دخل":"مشترك",parent:c.parent_id?(categories.find(p=>p.id===c.parent_id)?.name||"—"):"—",status:<Pill tone={c.archived?"neutral":"positive"}>{c.archived?"مؤرشف":"نشط"}</Pill>,action:<div style={{display:"flex",gap:6}}><Button secondary onClick={()=>actions.onEditCategory?.(c)}>تعديل</Button><Button secondary onClick={()=>actions.onToggleCategory?.(c)}>{c.archived?"إعادة تفعيل":"أرشفة"}</Button></div>}))}/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:12}}><input value={categorySearch} onChange={e=>setCategorySearch(e.target.value)} placeholder="ابحث باسم التصنيف" style={{border:"1px solid "+C.line,borderRadius:9,padding:9,font:"inherit"}}/><select value={categoryKindFilter} onChange={e=>setCategoryKindFilter(e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:9,font:"inherit"}}><option value="all">كل الأنواع</option><option value="Expense">مصروف</option><option value="Income">دخل</option><option value="Both">مشترك</option></select></div>
+        <Table columns={[["name","التصنيف"],["kind","النوع"],["parent","الرئيسي"],["status","الحالة"],["action",""]]} rows={rows.map(c=>({id:c.id,name:c.name,kind:c.kind==="Expense"?"مصروف":c.kind==="Income"?"دخل":"مشترك",parent:c.parent_id?(categories.find(p=>p.id===c.parent_id)?.name||"—"):"—",status:<Pill tone={c.archived?"neutral":"positive"}>{c.archived?"مؤرشف":"نشط"}</Pill>,action:<div style={{display:"flex",gap:6}}><Button secondary onClick={()=>actions.onEditCategory?.(c)}>تعديل</Button><Button secondary onClick={()=>actions.onToggleCategory?.(c)}>{c.archived?"إعادة تفعيل":"أرشفة"}</Button></div>}))}/>
       </Card>
     </>;
   }
@@ -601,17 +612,21 @@ function transactionsPage() {
   }
 
   function accountsPage() {
+    const rows=accounts.filter(a=>(accountTypeFilter==="all"||a.account_type===accountTypeFilter)&&(!accountSearch||a.name.toLowerCase().includes(accountSearch.trim().toLowerCase())));
+    const chartRows=[...new Set(accounts.map(a=>a.account_type||"Other"))].map(type=>({label:({Bank:"بنك",Cash:"نقدي","Mobile Wallet":"محفظة موبايل","Credit Card":"بطاقة ائتمان","E-Wallet":"محفظة إلكترونية",Investment:"استثمار",Savings:"ادخار",Other:"أخرى"})[type]||type,value:accounts.filter(a=>a.account_type===type).length})).filter(x=>x.value>0);
     return <>
       <PageHead eyebrow="الماليات · الحسابات" title="الحسابات" subtitle="كل حساب مالي مستقل، مع رصيد وتسوية واضحة." actions={<Button onClick={actions.onAddAccount}>＋ حساب</Button>} />
       <div className="finance-v2-grid">
         <Stat label="النقد والحسابات" value={displayMoney(balanceTotal)} note="الرصيد المجمع" />
-        <Stat label="التزامات البطاقات" value={displayMoney(accounts.filter(a=>a.account_type==="Credit Card").reduce((s,a)=>s+Math.min(0,Number(a.balance||0)),0))} note="داخل الحد الائتماني" tone="negative" />
+        <Stat label="التزامات البطاقات" value={displayMoney(accounts.filter(a=>a.account_type==="Credit Card").reduce((sum,a)=>sum+Math.min(0,Number(a.balance||0)),0))} note="داخل الحد الائتماني" tone="negative" />
         <Stat label="المتاح بعد الالتزامات" value={displayMoney(balanceTotal)} note="القيمة الحالية" />
-        <Stat label="تحتاج تسوية" value={String(accounts.filter(a=>a.needs_reconciliation).length||0)} note="حسابات بفروق غير مسواة" />
+        <Stat label="تحتاج تسوية" value={String(accounts.filter(a=>a.needs_reconciliation).length)} note="حسابات بفروق غير مسواة" />
       </div>
+      <FinanceChart title="عدد الحسابات حسب النوع" rows={chartRows} empty="لا توجد حسابات لعرض الرسم بعد."/>
       <Card style={{marginTop:12}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:12}}><input value={accountSearch} onChange={e=>setAccountSearch(e.target.value)} placeholder="ابحث باسم الحساب" style={{border:"1px solid "+C.line,borderRadius:9,padding:9,font:"inherit"}}/><select value={accountTypeFilter} onChange={e=>setAccountTypeFilter(e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:9,font:"inherit"}}><option value="all">كل أنواع الحسابات</option>{[...new Set(accounts.map(a=>a.account_type).filter(Boolean))].map(type=><option key={type} value={type}>{type}</option>)}</select></div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><h2 style={{margin:0,fontSize:15}}>كل الحسابات</h2><Pill tone="positive">أرصدة مشتقة من الدفتر</Pill></div>
-        <Table columns={[["name","الحساب"],["type","النوع"],["balance","الرصيد"],["recon","التسوية"],["action",""]]} rows={accounts.map(a=>({id:a.id,name:a.name,type:a.account_type||"—",balance:displayMoney(a.balance,a.currency),recon:a.needs_reconciliation?<Pill tone="warning">تحتاج تسوية</Pill>:<Pill tone="positive">متطابق</Pill>,action:<Button secondary onClick={()=>actions.onOpenAccount?.(a)}>فتح</Button>}))}/>
+        <Table columns={[["name","الحساب"],["type","النوع"],["balance","الرصيد"],["recon","التسوية"],["action",""]]} rows={rows.map(a=>({id:a.id,name:a.name,type:a.account_type||"—",balance:displayMoney(a.balance,a.currency),recon:a.needs_reconciliation?<Pill tone="warning">تحتاج تسوية</Pill>:<Pill tone="positive">متطابق</Pill>,action:<Button secondary onClick={()=>actions.onOpenAccount?.(a)}>فتح</Button>}))}/>
       </Card>
     </>;
   }
