@@ -96,6 +96,8 @@ assert.ok(!redesign.includes('<option value="Personal">شخصي</option>') && !r
 assert.ok(finance.includes("netWorthSnapshots") && finance.includes("fin_net_worth_snapshots_get"), "dashboard net-worth chart must use persisted snapshots");
 assert.ok(finance.includes("recurringItems") && finance.includes("finance_recurring_items"), "dashboard upcoming payments must use persisted recurring records");
 assert.ok(!redesign.includes('value="+35,000"') && !redesign.includes('value="+1.1%"') && !redesign.includes("قسط السيارة"), "dashboard must not display fabricated performance or payment examples");
+assert.ok(!redesign.includes("[35,42,39,48") && !redesign.includes("[42,48,45,53"), "wealth charts must not contain hard-coded sample series");
+assert.ok(redesign.includes("assets_total") && redesign.includes("payables_total"), "wealth indicators must use the canonical net-worth RPC fields");
 assert.ok(redesign.includes("performancePeriod") && redesign.includes("txFromDate") && redesign.includes("txToDate") && redesign.includes("txAccountFilter"), "dashboard and transaction ledger must have working period and record filters");
 assert.ok(family.includes("finance_family_members") && family.includes("finance_family_budgets") && family.includes("finance_family_allowances"), "Family must manage members, budgets, and allowances from persisted records");
 assert.ok(family.includes("filteredMembers") && family.includes("filteredBudgets") && family.includes("filteredExpenses") && family.includes("filteredAllowances"), "Family record sections must expose working filters");
