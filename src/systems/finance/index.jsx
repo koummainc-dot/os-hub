@@ -690,6 +690,17 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         onToggleCategory: toggleCategoryArchive,
         onRollover: rolloverBudget,
         onSaveBudget: payload => saveBudget(null, payload),
+        onSaveContext: async (transactionId, context) => {
+          const { error: err } = await supabase.rpc("fin_transaction_context_set", { p: {
+            workspace_id: ws.id,
+            transaction_id: transactionId,
+            context_type: context.context_type,
+            finance_project_id: context.context_type === "Project" ? context.finance_project_id : null,
+            family_member_id: context.context_type === "Family" ? context.family_member_id : null
+          }});
+          if (err) throw err;
+          await load();
+        },
         onExport: exportVisibleTransactionsCsv,
       }}
         legacyDebt={<FinanceDebts ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
