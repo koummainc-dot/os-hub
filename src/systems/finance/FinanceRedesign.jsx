@@ -465,10 +465,14 @@ export default function FinanceRedesign({
     return <>
       <PageHead eyebrow="الماليات · الإعدادات" title="الإعدادات المالية" subtitle="إعداد نادر الاستخدام؛ كل شيء هنا يغيّر طريقة عمل الدفتر، وليس تسجيل حركة يومية." />
       <div className="finance-v2-three" style={{marginTop:12}}>
-        {settingsItems.map(([title,desc,target])=><Card key={target} style={{cursor:"pointer"}} onClick={()=>setPage(target)}>
+        {settingsItems.map(([title,desc,target])=><Card key={target} style={{cursor:"default"}}>
           <div style={{fontSize:14,fontWeight:900}}>{title}</div>
           <div style={{marginTop:7,color:C.muted,fontSize:11,lineHeight:1.7}}>{desc}</div>
-          <div style={{marginTop:12,color:C.green,fontSize:11,fontWeight:900}}>فتح الإعداد ←</div>
+          <div style={{marginTop:12}}>
+            <Button secondary type="button" onClick={(e)=>{e.preventDefault();e.stopPropagation();setPage?.(target);}}>
+              فتح الإعداد ←
+            </Button>
+          </div>
         </Card>)}
       </div>
       <Card style={{marginTop:12}}>
