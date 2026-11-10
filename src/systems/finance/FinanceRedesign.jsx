@@ -337,6 +337,7 @@ export default function FinanceRedesign({
   const [txTab, setTxTab] = React.useState("all");
   const [txSubTab, setTxSubTab] = React.useState(page === "recurring" ? "recurring" : "ledger");
   const [showAddChooser, setShowAddChooser] = React.useState(false);
+  const [showBudgetForm, setShowBudgetForm] = React.useState(false);
   const [autoOpenAddType, setAutoOpenAddType] = React.useState("");
   const [budgetPeriod, setBudgetPeriod] = React.useState(new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}).slice(0,7));
   const [budgetDraft, setBudgetDraft] = React.useState({category_id:"",budget_amount:"",notes:""});
@@ -347,6 +348,7 @@ export default function FinanceRedesign({
     else if(page==="reports"||page==="networth")setPlanningTab("reports");
     else if(page==="goals")setPlanningTab("goals");
     else if(page==="budgets")setPlanningTab("budgets");
+    else if(page==="planning")setPlanningTab("budgets");
     else if(page==="recurring")setTxSubTab("recurring");
     else if(page==="transactions")setTxSubTab("ledger");
   },[page]);
@@ -567,16 +569,7 @@ export default function FinanceRedesign({
         <Stat label="فئات تحتاج انتباهًا" value={String(rows.filter(b=>Number(b.spent||0)>Number(b.budget_amount||0)).length)} note="تجاوزات أو اقتراب من الحد"/>
         <Stat label="المصروف" value={displayMoney(spent)} note={"من "+displayMoney(planned)} tone="negative"/>
       </div>
-      <Card style={{marginTop:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:12}}><h2 style={{margin:0,fontSize:15}}>إعداد ميزانية الفترة</h2><Pill>تُحفظ في دفتر Finance</Pill></div>
-        <form onSubmit={e=>{e.preventDefault();actions.onSaveBudget?.({period:budgetPeriod,category_id:budgetDraft.category_id,budget_amount:budgetDraft.budget_amount,notes:budgetDraft.notes});}} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,alignItems:"end"}}>
-          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>الشهر<input type="month" value={budgetPeriod} onChange={e=>setBudgetPeriod(e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}/></label>
-          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>التصنيف<select required value={budgetDraft.category_id} onChange={e=>setBudgetDraft(v=>({...v,category_id:e.target.value}))} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}><option value="">اختر فئة المصروف</option>{categories.filter(c=>c.kind==="Expense"||c.kind==="Both").map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>الحد المالي<input required type="number" min="0" step="0.01" value={budgetDraft.budget_amount} onChange={e=>setBudgetDraft(v=>({...v,budget_amount:e.target.value}))} placeholder="0.00" style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}/></label>
-          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>ملاحظات<input value={budgetDraft.notes} onChange={e=>setBudgetDraft(v=>({...v,notes:e.target.value}))} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}/></label>
-          <div><Button disabled={!budgetDraft.category_id||budgetDraft.budget_amount===""}>＋ حفظ الميزانية</Button></div>
-        </form>
-      </Card>
+
       <Card style={{marginTop:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><h2 style={{margin:0,fontSize:15}}>الفئات</h2><Pill>وضع التحرير</Pill></div>
         <Table columns={[["name","الفئة"],["planned","المحدد"],["spent","المصروف"],["remaining","المتبقي"],["progress","التقدم"],["status","الحالة"]]} rows={rows.map((b,i)=>{const planned=Number(b.budget_amount||0),spent=Number(b.spent||0),remaining=planned-spent,over=remaining<0;return{id:b.id||i,name:b.category_name||"فئة",planned:displayMoney(planned),spent:displayMoney(spent),remaining:displayMoney(remaining),progress:<div style={{minWidth:130}}><Progress value={spent} max={planned} tone={over?"red":"green"}/></div>,status:<Pill tone={over?"negative":spent/planned>.8?"warning":"positive"}>{over?"تجاوز ✕":spent/planned>.8?"قريب من الحد ▲":"ضمن الحد ●"}</Pill>}})}/>
@@ -605,14 +598,14 @@ export default function FinanceRedesign({
         title={title}
         subtitle={subtitle}
         actions={planningTab === "budgets"
-          ? <><Button secondary onClick={actions.onRollover}>نسخ من الشهر السابق</Button><Button onClick={()=>setShowAddChooser(true)}>＋ إضافة</Button></>
+          ? <><Button secondary onClick={actions.onRollover}>نسخ من الشهر السابق</Button><Button onClick={()=>setShowBudgetForm(true)}>＋ إضافة ميزانية</Button></>
           : planningTab === "reports"
             ? <Button secondary onClick={actions.onExport}>تصدير</Button>
-            : <Button onClick={()=>setShowAddChooser(true)}>＋ إضافة</Button>}
+             : <Button onClick={()=>setAutoOpenAddType("goal")}>＋ إضافة هدف</Button>}
       />
       <Segmented items={[["budgets","الميزانيات"],["goals","الأهداف"],["reports","التقارير"]]} value={planningTab} onChange={setPlanningTab}/>
       {planningTab==="budgets" && budgetsPage()}
-      {planningTab==="goals" && (legacyGoals || <Card style={{marginTop:12}}>
+      {planningTab==="goals" && (legacyGoals ? React.cloneElement(legacyGoals,{openCreate:autoOpenAddType==="goal",onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("goal")}) : <Card style={{marginTop:12}}>
         <h2 style={{marginTop:0,fontSize:15}}>الأهداف المالية</h2>
         <Table columns={[["name","الهدف"],["type","النوع"],["progress","التقدم"],["target","المستهدف"],["status","الحالة"]]} rows={goals.map((g,i)=>({id:g.id||i,name:g.name,type:g.goal_type||"ادخار",progress:<div style={{minWidth:130}}><Progress value={g.current_amount||g.progress||0} max={g.target_amount||g.target||1}/></div>,target:displayMoney(g.target_amount||g.target||0,g.currency||baseCurrency),status:<Pill tone="positive">في المسار</Pill>}))}/>
       </Card>)}
@@ -674,6 +667,14 @@ export default function FinanceRedesign({
       isDemo={isDemo}
     >
       {pageNode}
+      <div role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setShowBudgetForm(false);}} style={{position:"fixed",inset:0,zIndex:1300,background:"rgba(20,37,29,.72)",display:showBudgetForm?"grid":"none",placeItems:"center",padding:16}}><div role="dialog" aria-modal="true" aria-label="إضافة ميزانية" style={{background:C.surface,width:"min(620px,100%)",maxHeight:"calc(100vh - 32px)",overflowY:"auto",borderRadius:18,padding:20,boxShadow:"0 18px 60px rgba(0,0,0,.18)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><h2 style={{margin:0,fontSize:17}}>إعداد ميزانية الفترة</h2><button type="button" onClick={()=>setShowBudgetForm(false)} style={{border:0,background:"transparent",fontSize:24,cursor:"pointer"}}>×</button></div>
+        <form onSubmit={e=>{e.preventDefault();actions.onSaveBudget?.({period:budgetPeriod,category_id:budgetDraft.category_id,budget_amount:budgetDraft.budget_amount,notes:budgetDraft.notes});setShowBudgetForm(false);}} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,alignItems:"end"}}>
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>الشهر<input type="month" value={budgetPeriod} onChange={e=>setBudgetPeriod(e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}/></label>
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>التصنيف<select required value={budgetDraft.category_id} onChange={e=>setBudgetDraft(v=>({...v,category_id:e.target.value}))} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}><option value="">اختر فئة المصروف</option>{categories.filter(c=>c.kind==="Expense"||c.kind==="Both").map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>الحد المالي<input required type="number" min="0" step="0.01" value={budgetDraft.budget_amount} onChange={e=>setBudgetDraft(v=>({...v,budget_amount:e.target.value}))} placeholder="0.00" style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}/></label>
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>ملاحظات<input value={budgetDraft.notes} onChange={e=>setBudgetDraft(v=>({...v,notes:e.target.value}))} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",minWidth:0}}/></label>
+          <div><Button disabled={!budgetDraft.category_id||budgetDraft.budget_amount===""}>＋ حفظ الميزانية</Button></div>
+        </form></div></div>
       {showAddChooser && <div role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setShowAddChooser(false);}} style={{position:"fixed",inset:0,zIndex:1200,background:"rgba(20,37,29,.68)",display:"grid",placeItems:"center",padding:16}}>
         <div role="dialog" aria-modal="true" aria-label="اختيار نوع الإضافة" style={{background:C.surface,width:"min(560px,100%)",borderRadius:18,padding:20,boxShadow:"0 18px 60px rgba(0,0,0,.18)"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}><div><div style={{fontSize:10,color:C.green,fontWeight:900}}>إضافة جديدة</div><h2 style={{margin:"5px 0 0",fontSize:19}}>ما نوع العملية التي تريد إضافتها؟</h2></div><button type="button" onClick={()=>setShowAddChooser(false)} style={{border:0,background:"transparent",fontSize:24,cursor:"pointer",color:C.muted}}>×</button></div>
@@ -684,7 +685,7 @@ export default function FinanceRedesign({
               ["budget","ميزانية","حد إنفاق لفئة وفترة"],
               ["asset","أصل","أصل أو استثمار جديد"],
               ["recurring","متكرر / اشتراك","دفعة دورية وتنبيهاتها"]
-            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){actions.onAdd?.();return;}setAutoOpenAddType(kind);if(kind==="budget"){setPage("planning");setPlanningTab("budgets");return;}if(kind==="recurring"){setPage("recurring");setTxSubTab("recurring");return;}setPage(kind==="debt"?"debts":"assets");}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
+            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){actions.onAdd?.();return;}setAutoOpenAddType(kind);if(kind==="budget"){setPage("planning");setPlanningTab("budgets");setShowBudgetForm(true);return;}if(kind==="recurring"){setPage("recurring");setTxSubTab("recurring");return;}setPage(kind==="debt"?"debts":"assets");}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
               <div style={{fontSize:13,fontWeight:900,color:C.ink}}>{label}</div><div style={{fontSize:10,color:C.muted,lineHeight:1.7,marginTop:6}}>{desc}</div>
             </button>)}
           </div>
