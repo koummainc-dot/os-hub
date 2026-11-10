@@ -345,6 +345,10 @@ export default function FinanceRedesign({
   const [wealthTab, setWealthTab] = React.useState(page === "assets" ? "investments" : page === "debts" ? "debts" : "overview");
   const [familyTab, setFamilyTab] = React.useState(page === "family-cash" ? "allocations" : "overview");
   const [txTab, setTxTab] = React.useState("all");
+  const [txSearch, setTxSearch] = React.useState("");
+  const [txAccountFilter, setTxAccountFilter] = React.useState("");
+  const [txFromDate, setTxFromDate] = React.useState("");
+  const [txToDate, setTxToDate] = React.useState("");
   const [performancePeriod, setPerformancePeriod] = React.useState("month");
   const [contextSearch, setContextSearch] = React.useState("");
   const [contextMemberFilter, setContextMemberFilter] = React.useState("");
@@ -465,6 +469,13 @@ export default function FinanceRedesign({
   }
   
 function transactionsPage() {
+    const rows = transactions.filter(t=>
+      (txTab==="all" || (txTab==="expense"&&t.type==="Expense") || (txTab==="income"&&t.type==="Income") || (txTab==="review"&&t.status!=="Posted")) &&
+      (!txAccountFilter||t.from_account_id===txAccountFilter||t.to_account_id===txAccountFilter) &&
+      (!txFromDate||(t.local_date||"")>=txFromDate) && (!txToDate||(t.local_date||"")<=txToDate) &&
+      (!txSearch||[t.name,t.merchant,t.notes].filter(Boolean).join(" ").toLowerCase().includes(txSearch.trim().toLowerCase()))
+    );
+    const counts=[{label:"مصروف",value:rows.filter(t=>t.type==="Expense").length},{label:"دخل",value:rows.filter(t=>t.type==="Income").length},{label:"تحويل",value:rows.filter(t=>t.type==="Transfer").length}].filter(x=>x.value>0);
     return <>
       <PageHead eyebrow="الماليات · الحركات" title="الحركات والمدفوعات" subtitle="الحركات اليومية والمتكررة والاشتراكات في مساحة واحدة، مع نفس دفتر الحسابات." actions={<Button onClick={actions.onAdd}>＋ إضافة حركة</Button>} />
       <Segmented items={[["ledger","الحركات"],["recurring","المتكرر والاشتراكات"]]} value={txSubTab} onChange={setTxSubTab}/>
@@ -472,15 +483,20 @@ function transactionsPage() {
         <Card style={{marginTop:12}}>
           <div style={{display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",marginBottom:14}}>
             <Segmented items={[["all","الكل"],["expense","مصروف"],["income","دخل"],["review","تحتاج مراجعة"]]} value={txTab} onChange={setTxTab}/>
-            <div style={{display:"flex",gap:6}}><Pill>هذا الشهر</Pill><Pill>بلا تحويلات</Pill></div>
+            <Pill>{rows.length} حركة</Pill>
           </div>
-          {(() => {
-            const rows = transactions.filter(t=>txTab==="all" || (txTab==="expense"&&t.type==="Expense") || (txTab==="income"&&t.type==="Income") || (txTab==="review"&&t.status!=="Posted"));
-            return <>
-              <Table columns={[["date","التاريخ"],["name","الحركة"],["category","التصنيف"],["account","الحساب"],["amount","المبلغ"],["status","الحالة"]]} rows={rows.map(t=>({id:t.id,raw:t,date:t.local_date,name:t.merchant||t.name||"حركة",category:categories.find(c=>c.id===t.category_id)?.name||"—",account:accounts.find(a=>a.id===t.from_account_id)?.name||accounts.find(a=>a.id===t.to_account_id)?.name||"—",amount:<b style={{color:t.type==="Income"?C.green:t.type==="Expense"?C.ink:C.muted}}>{displayMoney(t.amount,t.currency)}</b>,status:<Pill tone={t.status==="Posted"?"positive":"warning"}>{t.status==="Posted"?"تمت المراجعة":"تحتاج مراجعة"}</Pill>}))} onRowClick={setSelectedTransaction}/>
-              <div style={{display:"flex",justifyContent:"flex-end",gap:16,paddingTop:12,fontSize:11,fontWeight:800}}><span>مصروف {displayMoney(rows.filter(t=>t.type==="Expense").reduce((s,t)=>s+Number(t.amount||0),0))}</span><span>دخل {displayMoney(rows.filter(t=>t.type==="Income").reduce((s,t)=>s+Number(t.amount||0),0))}</span></div>
-            </>;
-          })()}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(155px,1fr))",gap:8,marginBottom:12}}>
+            <input value={txSearch} onChange={e=>setTxSearch(e.target.value)} placeholder="ابحث في الحركة أو المستفيد" style={{border:"1px solid "+C.line,borderRadius:9,padding:"9px 10px",font:"inherit",minWidth:0}}/>
+            <select value={txAccountFilter} onChange={e=>setTxAccountFilter(e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:"9px 10px",font:"inherit"}}><option value="">كل الحسابات</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>
+            <input aria-label="من تاريخ" type="date" value={txFromDate} onChange={e=>setTxFromDate(e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:"9px 10px",font:"inherit"}}/>
+            <input aria-label="إلى تاريخ" type="date" value={txToDate} onChange={e=>setTxToDate(e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:"9px 10px",font:"inherit"}}/>
+            <Button secondary onClick={()=>{setTxSearch("");setTxAccountFilter("");setTxFromDate("");setTxToDate("");setTxTab("all");}}>مسح الفلاتر</Button>
+          </div>
+          <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+            {counts.map(x=><div key={x.label} style={{flex:1,minWidth:90,background:C.bg,borderRadius:10,padding:10}}><div style={{fontSize:10,color:C.muted}}>{x.label}</div><b style={{fontSize:18}}>{x.value}</b></div>)}
+          </div>
+          <Table columns={[["date","التاريخ"],["name","الحركة"],["category","التصنيف"],["account","الحساب"],["amount","المبلغ"],["status","الحالة"]]} rows={rows.map(t=>({id:t.id,raw:t,date:t.local_date,name:t.merchant||t.name||"حركة",category:categories.find(c=>c.id===t.category_id)?.name||"—",account:accounts.find(a=>a.id===t.from_account_id)?.name||accounts.find(a=>a.id===t.to_account_id)?.name||"—",amount:<b style={{color:t.type==="Income"?C.green:t.type==="Expense"?C.ink:C.muted}}>{displayMoney(t.amount,t.currency)}</b>,status:<Pill tone={t.status==="Posted"?"positive":"warning"}>{t.status==="Posted"?"تمت المراجعة":"تحتاج مراجعة"}</Pill>}))} onRowClick={setSelectedTransaction}/>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:16,paddingTop:12,fontSize:11,fontWeight:800}}><span>مصروف {displayMoney(rows.filter(t=>t.type==="Expense").reduce((sum,t)=>sum+Number(t.base_amount||t.amount||0),0))}</span><span>دخل {displayMoney(rows.filter(t=>t.type==="Income").reduce((sum,t)=>sum+Number(t.base_amount||t.amount||0),0))}</span></div>
         </Card>
       </>}
     </>;
@@ -491,7 +507,7 @@ function transactionsPage() {
       ["الحسابات والأصول","إضافة وتعديل الحسابات والأصول والرصيد الافتتاحي","accounts"],
       ["التصنيفات","إدارة التصنيفات وقواعد الربط المحاسبي","categories"],
       ["العملات وأسعار الصرف","العملة الأساسية والأسعار التلقائية","currencies"],
-      ["وسوم السياق","وسوم شخصي / مشروع / أسرة وربطها بالحركة","context-tags"],
+      ["ربط الأسرة بالحركات","ربط الحركات بأفراد الأسرة ومتابعة إنفاقهم","context-tags"],
     ];
     return <>
       <PageHead eyebrow="الماليات · الإعدادات" title="الإعدادات المالية" subtitle="إعداد نادر الاستخدام؛ كل شيء هنا يغيّر طريقة عمل الدفتر، وليس تسجيل حركة يومية." />
