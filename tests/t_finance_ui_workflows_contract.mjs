@@ -62,7 +62,8 @@ assert.ok(finance.includes("fin_budgets_get") && finance.includes("fin_budget_up
 assert.ok(redesign.includes('["budgets","الميزانيات"],["goals","الأهداف"],["reports","التقارير"]'),
   "Planning must expose Budgets, Goals, and Reports tabs");
 assert.ok(redesign.includes('setPage("budgets")'),
-  "the Planning entry point must resolve to the registered Budgets page");
+  "the Planning entry point must resolve to the registered Budgets page");\nassert.ok(redesign.includes('setPage?.(target)'),
+  "settings cards must expose an explicit navigation action for their target page");
 assert.match(redesign, /planningTab\s*===\s*"budgets"/);
 assert.match(redesign, /planningTab\s*===\s*"goals"/);
 assert.match(redesign, /planningTab\s*===\s*"reports"/);
