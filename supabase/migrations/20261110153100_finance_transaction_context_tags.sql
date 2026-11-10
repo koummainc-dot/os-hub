@@ -80,3 +80,8 @@ BEGIN
   RETURN out;
 END
 $$;
+
+REVOKE ALL ON FUNCTION public.fin_transaction_context_set(jsonb) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.fin_transaction_context_set(jsonb) TO authenticated;
+REVOKE ALL ON FUNCTION public.fin_transaction_context_get(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.fin_transaction_context_get(uuid) TO authenticated;
