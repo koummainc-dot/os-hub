@@ -510,16 +510,16 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   }
 
   async function saveBudget(e, override = null) {
-    e?.preventDefault?.(); if (!canEdit || saving) return;
+    e?.preventDefault?.(); if (!canEdit || saving) return {ok:false,error:"لا تملك صلاحية تعديل الميزانيات الآن."};
     const draft = override || budgetForm;
     const period = override?.period || budgetPeriod;
-    if (!period || !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(period) || draft.budget_amount === "" || Number(draft.budget_amount) < 0 || !draft.category_id) { setError("اختر شهرًا وفئة مصروف صحيحة وأدخل ميزانية صفرًا أو أكثر."); return; }
+    if (!period || !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(period) || draft.budget_amount === "" || Number(draft.budget_amount) < 0 || !draft.category_id) { setError("اختر شهرًا وفئة مصروف صحيحة وأدخل ميزانية صفرًا أو أكثر."); return {ok:false,error:"اختر شهرًا وفئة مصروف صحيحة وأدخل ميزانية صفرًا أو أكثر."}; }
     setSaving(true); setError("");
     try {
       const { error: err } = await supabase.rpc("fin_budget_upsert", { p: { workspace_id: ws.id, category_id: draft.category_id, period, budget_amount: String(draft.budget_amount), notes: draft.notes || null, source: "Manual" } });
       if (err) throw err;
-      setNotice("تم حفظ الميزانية."); setBudgetForm({ category_id: "", budget_amount: "", notes: "" }); await load();
-    } catch (e) { setError(e?.message || "تعذّر حفظ الميزانية"); }
+      setNotice("تم حفظ الميزانية."); setBudgetForm({ category_id: "", budget_amount: "", notes: "" }); await load(); return {ok:true};
+    } catch (e) { const message=e?.message || "تعذّر حفظ الميزانية"; setError(message); return {ok:false,error:message}; }
     finally { setSaving(false); }
   }
 
