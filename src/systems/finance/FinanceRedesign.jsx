@@ -345,6 +345,9 @@ export default function FinanceRedesign({
   const [wealthTab, setWealthTab] = React.useState(page === "assets" ? "investments" : page === "debts" ? "debts" : "overview");
   const [familyTab, setFamilyTab] = React.useState(page === "family-cash" ? "allocations" : "overview");
   const [txTab, setTxTab] = React.useState("all");
+  const [performancePeriod, setPerformancePeriod] = React.useState("month");
+  const [contextSearch, setContextSearch] = React.useState("");
+  const [contextMemberFilter, setContextMemberFilter] = React.useState("");
   const [txSubTab, setTxSubTab] = React.useState(page === "recurring" ? "recurring" : "ledger");
   const [showAddChooser, setShowAddChooser] = React.useState(false);
   const [showBudgetForm, setShowBudgetForm] = React.useState(false);
@@ -368,7 +371,7 @@ export default function FinanceRedesign({
     accounts = [], transactions = [], categories = [], balances = [], summary = null,
     netWorth = null, budgets = [], budgetInsights = null, goals = [],
     reconciliations = [], baseCurrency = "EGP", recurring = [], projects = [],
-    family = [], assets = [], debts = [], reports = null, contextTags = [],
+    family = [], assets = [], debts = [], reports = null, contextTags = [], netWorthSnapshots = [], recurringItems = [], contextFamilyMembers = [],
   } = data || {};
 
   const displayMoney = (v, c = baseCurrency) => hideBalances ? "••••••" : money(v, c);
@@ -382,68 +385,86 @@ export default function FinanceRedesign({
 
   function dashboard() {
     const budgetRows = (budgetInsights?.categories || budgets.filter(b=>b.category_id)).slice(0,4);
+    const todayKey = new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"});
+    const monthKey = todayKey.slice(0,7);
+    const monthKeys = Array.from({length:12},(_,i)=>{const d=new Date(Date.UTC(Number(monthKey.slice(0,4)),Number(monthKey.slice(5,7))-1-(11-i),1));return d.toISOString().slice(0,7);});
+    const monthlyFlows = monthKeys.map(key=>{
+      const rows=posted.filter(t=>(t.local_date||"").slice(0,7)===key);
+      return {key,income:rows.filter(t=>t.type==="Income").reduce((sum,t)=>sum+Number(t.base_amount||t.amount||0),0),expense:rows.filter(t=>t.type==="Expense").reduce((sum,t)=>sum+Number(t.base_amount||t.amount||0),0),count:rows.length};
+    });
+    const snapshotRows=[...netWorthSnapshots].sort((a,b)=>new Date(a.snapshot_at)-new Date(b.snapshot_at)).slice(-12);
+    const snapshotValues=snapshotRows.map(x=>Number(x.value_base)).filter(Number.isFinite);
+    const snapshotMin=snapshotValues.length?Math.min(...snapshotValues):0,snapshotMax=snapshotValues.length?Math.max(...snapshotValues):0,snapshotRange=Math.max(1,snapshotMax-snapshotMin);
+    const periodStart=()=>{const now=new Date(todayKey+"T12:00:00");if(performancePeriod==="day")return todayKey;if(performancePeriod==="week"){const d=new Date(now);d.setDate(d.getDate()-6);return d.toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"});}if(performancePeriod==="year")return todayKey.slice(0,4)+"-01-01";return todayKey.slice(0,7)+"-01";};
+    const from=periodStart(),periodRows=posted.filter(t=>(t.local_date||"")>=from&&(t.local_date||"")<=todayKey);
+    const periodIncome=periodRows.filter(t=>t.type==="Income").reduce((sum,t)=>sum+Number(t.base_amount||t.amount||0),0),periodExpense=periodRows.filter(t=>t.type==="Expense").reduce((sum,t)=>sum+Number(t.base_amount||t.amount||0),0);
+    const upcoming=[...recurringItems].filter(r=>(r.status==null||r.status==="Active")&&r.next_payment_date>=todayKey).sort((a,b)=>String(a.next_payment_date).localeCompare(String(b.next_payment_date))).slice(0,5);
     return <>
-      <PageHead eyebrow="الماليات · نظرة عامة" title="لوحة القيادة" subtitle="صورة واحدة لما يحدث في أموالك الآن، بدون فتح كل قسم على حدة." actions={<Button onClick={()=>setShowAddChooser(true)}>＋ إضافة</Button>} />
+      <PageHead eyebrow="الماليات · نظرة عامة" title="لوحة القيادة" subtitle="مؤشرات حقيقية من دفتر الحركات والأرصدة المحفوظة، دون بيانات افتراضية." actions={<Button onClick={()=>setShowAddChooser(true)}>＋ إضافة</Button>} />
       <div className="finance-v2-grid">
-        <Stat label="صافي الثروة" value={displayMoney(netValue)} note="هذا الشهر · افتح الثروة" tone="positive" />
-        <Stat label={"الدخل · " + month} value={displayMoney(income)} note="من الحركات المنشورة" tone="positive" />
-        <Stat label={"المصروف · " + month} value={displayMoney(expense)} note="بدون التحويلات" tone="negative" />
-        <Stat label="المتاح للصرف" value={displayMoney(net)} note="حصة اليوم تُحسب من الخطة" />
+        <Stat label="صافي الثروة" value={netWorth?.net_worth==null?"غير متاح":displayMoney(netValue)} note="القيمة الحالية المحسوبة" tone="positive" />
+        <Stat label={"الدخل · "+month} value={displayMoney(income)} note="من الحركات المنشورة" tone="positive" />
+        <Stat label={"المصروف · "+month} value={displayMoney(expense)} note="بدون التحويلات" tone="negative" />
+        <Stat label="صافي التدفق · هذا الشهر" value={displayMoney(net)} note="الدخل ناقص المصروف المسجل" />
       </div>
-
       <div className="finance-v2-two" style={{marginTop:12}}>
         <Card>
           <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",marginBottom:14}}>
-            <div><h2 style={{margin:0,fontSize:15}}>صافي الثروة · 12 شهرًا</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>أصول − ديون · آخر قيمة مسجلة</div></div>
+            <div><h2 style={{margin:0,fontSize:15}}>صافي الثروة · سجل اللقطات</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>اللقطات المحفوظة فقط؛ لا يتم توليد تاريخ تقديري</div></div>
             <Button secondary onClick={()=>setPage("networth")}>فتح الثروة ←</Button>
           </div>
-          <div style={{height:170,display:"flex",alignItems:"flex-end",gap:7,padding:"12px 4px",borderBottom:"1px solid "+C.line}}>
-            {[42,48,45,53,58,62,59,70,73,78,82,92].map((h,i)=><div key={i} style={{flex:1,height:h+"%",background:i===11?C.green:"#D7E5DC",borderRadius:"6px 6px 0 0"}} />)}
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",marginTop:10,fontSize:10,color:C.muted}}><span>أصول {displayMoney(netWorth?.assets||balanceTotal)}</span><span>ديون {displayMoney(netWorth?.liabilities||0)}</span><span>السيولة {displayMoney(balanceTotal)}</span></div>
+          {snapshotRows.length?<div style={{height:170,display:"flex",alignItems:"flex-end",gap:7,padding:"12px 4px",borderBottom:"1px solid "+C.line}}>
+            {snapshotRows.map((point,i)=>{const value=Number(point.value_base),height=12+((value-snapshotMin)/snapshotRange)*78;return <div key={point.id||point.snapshot_at} title={new Date(point.snapshot_at).toLocaleDateString("ar-EG")+": "+displayMoney(value,point.base_currency||baseCurrency)} style={{flex:1,minWidth:5,height:height+"%",background:i===snapshotRows.length-1?C.green:"#D7E5DC",borderRadius:"6px 6px 0 0"}}/>;})}
+          </div>:<div style={{padding:24,textAlign:"center",color:C.muted,fontSize:12}}>لا توجد لقطات محفوظة بعد. احفظ أول لقطة من صفحة صافي الثروة لبدء الرسم البياني.</div>}
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:10,fontSize:10,color:C.muted,flexWrap:"wrap",gap:8}}><span>الأصول {netWorth?.assets==null?"غير متاح":displayMoney(netWorth.assets)}</span><span>الديون {netWorth?.liabilities==null?"غير متاح":displayMoney(netWorth.liabilities)}</span><span>السيولة {displayMoney(balanceTotal)}</span></div>
         </Card>
-
         <Card>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div><h2 style={{margin:0,fontSize:15}}>أخطر الميزانيات</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>الخط الأخضر = وضعك الحالي</div></div>
+            <div><h2 style={{margin:0,fontSize:15}}>أخطر الميزانيات</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>حسب الإنفاق الفعلي مقارنة بالمحدد</div></div>
             <Button secondary onClick={()=>setPage("budgets")}>التخطيط ←</Button>
           </div>
           {budgetRows.length ? budgetRows.map((b,i)=>{
-            const planned=Number(b.budget_amount||b.planned||0); const spent=Number(b.spent||b.actual||0); const over=spent>planned;
+            const planned=Number(b.budget_amount||b.planned||0),spent=Number(b.spent||b.actual||0),over=planned>0&&spent>planned,ratio=planned>0?spent/planned:0;
             return <div key={b.id||i} style={{padding:"10px 0",borderTop:i?"1px solid "+C.line:"0"}}>
               <div style={{display:"flex",justifyContent:"space-between",gap:8,fontSize:11,fontWeight:800}}><span>{b.category_name||b.category?.name||"فئة"}</span><span>{displayMoney(spent)} / {displayMoney(planned)}</span></div>
-              <div style={{marginTop:7}}><Progress value={spent} max={planned} tone={over?"red":"green"}/></div>
-              <div style={{marginTop:5}}><Pill tone={over?"negative":spent/planned>.8?"warning":"positive"}>{over?"تجاوز ✕":spent/planned>.8?"قريب من الحد ▲":"ضمن الحد ●"}</Pill></div>
+              {planned>0?<div style={{marginTop:7}}><Progress value={spent} max={planned} tone={over?"red":"green"}/></div>:<div style={{fontSize:10,color:C.muted,marginTop:6}}>لم يتم تحديد حد لهذه الميزانية</div>}
+              <div style={{marginTop:5}}><Pill tone={over?"negative":ratio>=.8?"warning":planned>0?"positive":"neutral"}>{over?"تجاوز ✕":ratio>=.8?"قريب من الحد ▲":planned>0?"ضمن الحد ●":"بلا حد محدد"}</Pill></div>
             </div>
-          }) : <div style={{padding:20,color:C.muted,fontSize:12}}>لا توجد ميزانيات متاحة للفترة الحالية.</div>}
+          }) : <div style={{padding:20,color:C.muted,fontSize:12}}>لا توجد ميزانيات فعلية للفترة الحالية.</div>}
         </Card>
       </div>
-
       <div className="finance-v2-two" style={{marginTop:12}}>
         <Card>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
             <h2 style={{margin:0,fontSize:15}}>أداء الفترة</h2>
-            <Segmented items={[["day","يوم"],["week","أسبوع"],["month","شهر"],["year","سنة"]]} value="month" onChange={()=>{}}/>
+            <Segmented items={[["day","يوم"],["week","7 أيام"],["month","شهر"],["year","سنة"]]} value={performancePeriod} onChange={setPerformancePeriod}/>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <Stat label="تغيّر صافي الثروة" value="+35,000" note="السوق 62% · الادخار 25% · سداد الدين 13%" tone="positive"/>
-            <Stat label="العائد الكلي للاستثمارات" value="+1.1%" note="رأس مال +0.7 · توزيعات +0.3 · عملة +0.1" tone="positive"/>
+          <div className="finance-v2-grid" style={{gridTemplateColumns:"repeat(2,minmax(0,1fr))"}}>
+            <Stat label="الدخل المسجل" value={displayMoney(periodIncome)} note={"من "+periodRows.length+" حركة منشورة"} tone="positive"/>
+            <Stat label="المصروف المسجل" value={displayMoney(periodExpense)} note={"صافي التدفق "+displayMoney(periodIncome-periodExpense)} tone="negative"/>
+          </div>
+          <div style={{marginTop:14}}>
+            <div style={{fontSize:11,fontWeight:800,marginBottom:8}}>الدخل والمصروف · آخر 12 شهرًا</div>
+            {monthlyFlows.some(x=>x.count>0)?<div style={{height:112,display:"flex",alignItems:"flex-end",gap:5,borderBottom:"1px solid "+C.line,padding:"8px 2px"}}>
+              {monthlyFlows.map(point=>{const max=Math.max(1,...monthlyFlows.flatMap(x=>[x.income,x.expense]));return <div key={point.key} title={point.key+" · دخل "+displayMoney(point.income)+" · مصروف "+displayMoney(point.expense)} style={{flex:1,display:"flex",alignItems:"flex-end",justifyContent:"center",gap:2,height:"100%"}}><div style={{width:"45%",height:Math.max(point.income?4:0,point.income/max*100)+"%",background:C.green,borderRadius:"4px 4px 0 0"}}/><div style={{width:"45%",height:Math.max(point.expense?4:0,point.expense/max*100)+"%",background:"#D7A59D",borderRadius:"4px 4px 0 0"}}/></div>;})}
+            </div>:<div style={{padding:16,textAlign:"center",color:C.muted,fontSize:11}}>لا توجد حركات منشورة ضمن البيانات المحمّلة لعرض الرسم.</div>}
+            <div style={{display:"flex",gap:14,marginTop:7,fontSize:10,color:C.muted}}><span>● الدخل</span><span style={{color:"#B42318"}}>● المصروف</span><span>المصدر: آخر 150 حركة محمّلة</span></div>
           </div>
         </Card>
         <Card>
           <h2 style={{margin:"0 0 12px",fontSize:15}}>المدفوعات القادمة</h2>
-          {[["قسط السيارة","−6,500","10 نوفمبر"],["فاتورة الكهرباء","−850","15 نوفمبر"],["الراتب","+42,000","28 نوفمبر"]].map(([name,amount,date])=><div key={name} style={{display:"flex",justifyContent:"space-between",padding:"11px 0",borderTop:"1px solid "+C.line,fontSize:11}}><div><b>{name}</b><div style={{color:C.muted,marginTop:3}}>{date}</div></div><b style={{color:amount.startsWith("+")?C.green:C.ink}}>{hideBalances?"••••":amount}</b></div>)}
+          {upcoming.length?upcoming.map(r=><div key={r.id} style={{display:"flex",justifyContent:"space-between",gap:10,padding:"11px 0",borderTop:"1px solid "+C.line,fontSize:11}}><div><b>{r.name||"دفعة متكررة"}</b><div style={{color:C.muted,marginTop:3}}>{r.next_payment_date} · {r.frequency||"—"}</div></div><b style={{color:r.type==="Income"?C.green:C.ink,whiteSpace:"nowrap"}}>{r.type==="Income"?"+":"−"}{displayMoney(r.amount,r.currency||baseCurrency)}</b></div>):<div style={{padding:24,textAlign:"center",color:C.muted,fontSize:12}}>لا توجد مدفوعات أو إيرادات متكررة قادمة مسجلة.</div>}
+          <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}><Button secondary onClick={()=>setPage("recurring")}>فتح المتكرر ←</Button></div>
         </Card>
       </div>
-
       <Card style={{marginTop:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div><h2 style={{margin:0,fontSize:15}}>آخر الحركات</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>نفس مصدر الحقيقة الذي يظهر في دفتر الحركات</div></div><Button secondary onClick={()=>setPage("transactions")}>فتح الحركات ←</Button></div>
-        <Table columns={[["date","التاريخ"],["name","الحركة"],["category","التصنيف"],["account","الحساب"],["amount","المبلغ"],["status","الحالة"]]} rows={posted.slice(0,7).map(t=>({id:t.id,raw:t,date:t.local_date,name:t.merchant||t.name||"حركة",category:categories.find(c=>c.id===t.category_id)?.name||"—",account:accounts.find(a=>a.id===t.from_account_id)?.name||"—",amount:displayMoney(t.amount,t.currency),status:<Pill tone={t.status==="Posted"?"positive":"warning"}>{t.status==="Posted"?"تمت المراجعة":"تحتاج مراجعة"}</Pill>}))} onRowClick={setSelectedTransaction}/>
+        <Table columns={[["date","التاريخ"],["name","الحركة"],["category","التصنيف"],["account","الحساب"],["amount","المبلغ"],["status","الحالة"]]} rows={posted.slice(0,7).map(t=>({id:t.id,raw:t,date:t.local_date,name:t.merchant||t.name||"حركة",category:categories.find(c=>c.id===t.category_id)?.name||"—",account:accounts.find(a=>a.id===t.from_account_id)?.name||accounts.find(a=>a.id===t.to_account_id)?.name||"—",amount:displayMoney(t.amount,t.currency),status:<Pill tone={t.status==="Posted"?"positive":"warning"}>{t.status==="Posted"?"تمت المراجعة":"تحتاج مراجعة"}</Pill>}))} onRowClick={setSelectedTransaction}/>
       </Card>
     </>;
   }
-
-  function transactionsPage() {
+  
+function transactionsPage() {
     return <>
       <PageHead eyebrow="الماليات · الحركات" title="الحركات والمدفوعات" subtitle="الحركات اليومية والمتكررة والاشتراكات في مساحة واحدة، مع نفس دفتر الحسابات." actions={<Button onClick={actions.onAdd}>＋ إضافة حركة</Button>} />
       <Segmented items={[["ledger","الحركات"],["recurring","المتكرر والاشتراكات"]]} value={txSubTab} onChange={setTxSubTab}/>
