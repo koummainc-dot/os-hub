@@ -651,12 +651,16 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         budgetInsights,
         goals,
         baseCurrency,
+        currencies,
       }}
       actions={{
         onAdd: () => { setError(""); setShowTx(true); },
         onRefresh: load,
         onAddAccount: startCreateAccount,
         onOpenAccount: startEditAccount,
+        onAddCategory: startCategoryCreate,
+        onEditCategory: startCategoryEdit,
+        onToggleCategory: toggleCategoryArchive,
         onRollover: rolloverBudget,
         onExport: exportVisibleTransactionsCsv,
       }}
