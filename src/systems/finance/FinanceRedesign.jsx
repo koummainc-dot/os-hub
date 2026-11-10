@@ -326,7 +326,7 @@ export default function FinanceRedesign({
     accounts = [], transactions = [], categories = [], balances = [], summary = null,
     netWorth = null, budgets = [], budgetInsights = null, goals = [],
     reconciliations = [], baseCurrency = "EGP", recurring = [], projects = [],
-    family = [], assets = [], debts = [], reports = null,
+    family = [], assets = [], debts = [], reports = null, contextTags = [],
   } = data || {};
 
   const displayMoney = (v, c = baseCurrency) => hideBalances ? "••••••" : money(v, c);
@@ -491,13 +491,22 @@ export default function FinanceRedesign({
   }
 
   function contextTagsPage() {
+    const typeLabel = {Personal:"شخصي",Project:"مشروع",Family:"أسرة"};
     return <>
-      <PageHead eyebrow="الماليات · الإعدادات" title="وسوم السياق" subtitle="وسم واحد يوضح سياق الحركة: شخصي، مشروع، أو أسرة، بدل إنشاء أنظمة منفصلة." />
+      <PageHead eyebrow="الماليات · السياق" title="وسوم سياق الحركات" subtitle="كل حركة تحتفظ بسياقها داخل دفتر Finance نفسه؛ شخصي أو مرتبطة بمشروع أو بأحد أفراد الأسرة." />
       <Card style={{marginTop:12}}>
         <div className="finance-v2-three">
-          {[["شخصي","الحركات الشخصية اليومية"],["مشروع","حركة مرتبطة بمشروع مالي"],["أسرة","حركة مرتبطة بالأسرة أو أحد أفرادها"]].map(([name,desc])=><div key={name} style={{border:"1px solid "+C.line,borderRadius:14,padding:15}}><Pill tone="positive">{name}</Pill><div style={{fontSize:11,color:C.muted,lineHeight:1.8,marginTop:8}}>{desc}</div></div>)}
+          {[
+            ["شخصي","للمصروفات والدخل الشخصي"],
+            ["مشروع","يربط الحركة بمشروع مالي محدد"],
+            ["أسرة","يربط الحركة بفرد من أفراد الأسرة"]
+          ].map(([name,desc])=><div key={name} style={{border:"1px solid "+C.line,borderRadius:14,padding:15}}><Pill tone="positive">{name}</Pill><div style={{fontSize:11,color:C.muted,lineHeight:1.8,marginTop:8}}>{desc}</div></div>)}
         </div>
-        <div style={{marginTop:14,padding:12,borderRadius:12,background:C.bg,color:C.muted,fontSize:11,lineHeight:1.8}}>السياق ليس دفترًا جديدًا؛ هو فلتر وربط على نفس الحركات ومصدر الحقيقة المالي.</div>
+      </Card>
+      <Card style={{marginTop:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:12}}><h2 style={{margin:0,fontSize:15}}>الحركات المرتبطة بسياق</h2><Pill>{String(contextTags.length)} ربط</Pill></div>
+        <Table columns={[["date","التاريخ"],["transaction","الحركة"],["context","السياق"],["linked","الارتباط"]]} rows={contextTags.map((tag,i)=>{const tx=transactions.find(t=>t.id===tag.transaction_id);return{id:tag.transaction_id||i,date:tx?.local_date||"—",transaction:tx?.merchant||tx?.name||"حركة مالية",context:<Pill tone="positive">{typeLabel[tag.context_type]||tag.context_type}</Pill>,linked:tag.project_name||tag.family_member_name||"—"};})} empty="لا توجد حركات مرتبطة بوسوم حتى الآن"/>
+        <div style={{marginTop:10,color:C.muted,fontSize:11,lineHeight:1.8}}>يمكنك اختيار الوسم والمشروع أو فرد الأسرة مباشرة أثناء إضافة الحركة. لا تُنشأ دفاتر منفصلة ولا تُكرر الحركة.</div>
       </Card>
     </>;
   }
