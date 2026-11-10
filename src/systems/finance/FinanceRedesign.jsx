@@ -184,6 +184,7 @@ function Shell({ page, setPage, children, onAdd, onRefresh, hideBalances, setHid
     ["transactions", "الحركات"],
     ["budgets", "التخطيط"],
     ["settings", "الإعدادات المالية"],
+    ["family", "الأسرة"],
   ];
   const current = page === "dashboard" ? "dashboard"
     : ["transactions", "recurring", "inbox"].includes(page) ? "transactions"
@@ -239,7 +240,7 @@ function Shell({ page, setPage, children, onAdd, onRefresh, hideBalances, setHid
       <nav className="finance-v2-mobile-nav">
         {primary.map(([id,label]) => (
           <button key={id} type="button" className={current === id ? "active" : ""} onClick={() => setPage(id)}>
-            <div style={{fontSize:15,marginBottom:2}}>{id==="dashboard"?"⌂":id==="transactions"?"≡":id==="planning"?"◫":"⚙"}</div>
+            <div style={{fontSize:15,marginBottom:2}}>{id==="dashboard"?"⌂":id==="transactions"?"≡":id==="family"?"👪":id==="planning"?"◫":"⚙"}</div>
             {label}
           </button>
         ))}
@@ -558,22 +559,28 @@ function transactionsPage() {
   }
 
   function contextTagsPage() {
-    const typeLabel = {Personal:"شخصي",Project:"مشروع",Family:"أسرة"};
+    const familyTags=contextTags.filter(tag=>tag.context_type==="Family"&&tag.family_member_id);
+    const filtered=familyTags.filter(tag=>{
+      const tx=transactions.find(t=>t.id===tag.transaction_id);
+      const haystack=[tx?.merchant,tx?.name,tag.family_member_name,tag.family_member_nickname].filter(Boolean).join(" ").toLowerCase();
+      return (!contextMemberFilter||tag.family_member_id===contextMemberFilter)&&(!contextSearch||haystack.includes(contextSearch.trim().toLowerCase()));
+    });
+    const memberTotals=contextFamilyMembers.map(member=>({member,total:familyTags.filter(tag=>tag.family_member_id===member.id).reduce((sum,tag)=>{const tx=transactions.find(t=>t.id===tag.transaction_id);return sum+(tx?.status==="Posted"&&tx.type==="Expense"?Number(tx.base_amount||tx.amount||0):0);},0),count:familyTags.filter(tag=>tag.family_member_id===member.id).length})).filter(x=>x.count>0);
+    const maxTotal=Math.max(1,...memberTotals.map(x=>x.total));
     return <>
-      <PageHead eyebrow="الماليات · السياق" title="وسوم سياق الحركات" subtitle="كل حركة تحتفظ بسياقها داخل دفتر Finance نفسه؛ شخصي أو مرتبطة بمشروع أو بأحد أفراد الأسرة." />
+      <PageHead eyebrow="الماليات · الأسرة" title="سياق حركات الأسرة" subtitle="اربط المصروف أو الدخل بفرد من الأسرة، وتابع سجل الحركات من نفس دفتر Finance." actions={<Button onClick={()=>navigate("family")}>إدارة الأسرة ←</Button>} />
       <Card style={{marginTop:12}}>
-        <div className="finance-v2-three">
-          {[
-            ["شخصي","للمصروفات والدخل الشخصي"],
-            ["مشروع","يربط الحركة بمشروع مالي محدد"],
-            ["أسرة","يربط الحركة بفرد من أفراد الأسرة"]
-          ].map(([name,desc])=><div key={name} style={{border:"1px solid "+C.line,borderRadius:14,padding:15}}><Pill tone="positive">{name}</Pill><div style={{fontSize:11,color:C.muted,lineHeight:1.8,marginTop:8}}>{desc}</div></div>)}
-        </div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:12}}><h2 style={{margin:0,fontSize:15}}>إنفاق الأسرة حسب الفرد</h2><Pill>{String(familyTags.length)} حركة مرتبطة</Pill></div>
+        {memberTotals.length?<div style={{display:"grid",gap:10}}>{memberTotals.map(({member,total,count})=><div key={member.id}><div style={{display:"flex",justifyContent:"space-between",fontSize:11,gap:10}}><b>{member.display_name}</b><span>{displayMoney(total)} · {count} حركة</span></div><div style={{height:8,background:"#ECEEEA",borderRadius:99,overflow:"hidden",marginTop:6}}><div style={{height:"100%",width:(total/maxTotal*100)+"%",background:C.green,borderRadius:99}}/></div></div>)}</div>:<div style={{padding:18,textAlign:"center",color:C.muted,fontSize:12}}>لا توجد حركات أسرة مرتبطة بعد. أضف أفراد الأسرة أولًا، ثم اربط الحركة بالفرد عند تسجيلها.</div>}
       </Card>
       <Card style={{marginTop:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:12}}><h2 style={{margin:0,fontSize:15}}>الحركات المرتبطة بسياق</h2><Pill>{String(contextTags.length)} ربط</Pill></div>
-        <Table columns={[["date","التاريخ"],["transaction","الحركة"],["context","السياق"],["linked","الارتباط"]]} rows={contextTags.map((tag,i)=>{const tx=transactions.find(t=>t.id===tag.transaction_id);return{id:tag.transaction_id||i,date:tx?.local_date||"—",transaction:tx?.merchant||tx?.name||"حركة مالية",context:<Pill tone="positive">{typeLabel[tag.context_type]||tag.context_type}</Pill>,linked:tag.project_name||tag.family_member_name||"—"};})} empty="لا توجد حركات مرتبطة بوسوم حتى الآن"/>
-        <div style={{marginTop:10,color:C.muted,fontSize:11,lineHeight:1.8}}>يمكنك اختيار الوسم والمشروع أو فرد الأسرة مباشرة أثناء إضافة الحركة. لا تُنشأ دفاتر منفصلة ولا تُكرر الحركة.</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:12}}><h2 style={{margin:0,fontSize:15}}>الحركات المرتبطة بأفراد الأسرة</h2><Pill>{String(filtered.length)} نتيجة</Pill></div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:8,marginBottom:12}}>
+          <input value={contextSearch} onChange={e=>setContextSearch(e.target.value)} placeholder="ابحث باسم الحركة أو الفرد" style={{border:"1px solid "+C.line,borderRadius:9,padding:"9px 10px",font:"inherit",minWidth:0}}/>
+          <select value={contextMemberFilter} onChange={e=>setContextMemberFilter(e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:"9px 10px",font:"inherit"}}><option value="">كل أفراد الأسرة</option>{contextFamilyMembers.map(m=><option key={m.id} value={m.id}>{m.display_name}</option>)}</select>
+        </div>
+        <Table columns={[["date","التاريخ"],["transaction","الحركة"],["member","فرد الأسرة"],["amount","المبلغ"],["type","النوع"]]} rows={filtered.map((tag,i)=>{const tx=transactions.find(t=>t.id===tag.transaction_id);return{id:tag.transaction_id||i,date:tx?.local_date||"—",transaction:tx?.merchant||tx?.name||"حركة مالية",member:tag.family_member_name||contextFamilyMembers.find(m=>m.id===tag.family_member_id)?.display_name||"—",amount:tx?displayMoney(tx.amount,tx.currency):"—",type:tx?.type==="Income"?"دخل":tx?.type==="Transfer"?"تحويل":"مصروف",raw:tx};})} empty="لا توجد حركات مرتبطة بأفراد الأسرة بهذه الفلاتر"/>
+        <div style={{marginTop:10,color:C.muted,fontSize:11,lineHeight:1.8}}>إدارة الأفراد والميزانيات والمخصصات والتقارير من قسم الأسرة. لا يوجد وسم شخصي منفصل، وربط المشاريع سيُضاف عند اكتمال Projects OS.</div>
       </Card>
     </>;
   }
