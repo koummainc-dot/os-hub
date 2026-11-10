@@ -67,6 +67,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [balances, setBalances] = useState([]);
   const [summary, setSummary] = useState(null);
   const [netWorth, setNetWorth] = useState(null);
+  const [netWorthSnapshots, setNetWorthSnapshots] = useState([]);
+  const [recurringItems, setRecurringItems] = useState([]);
   const [settings, setSettings] = useState({ base_currency: "EGP", timezone: "Africa/Cairo" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -101,7 +103,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     if (!ws?.id || isDemo) { setLoading(false); return; }
     setLoading(true); setError("");
     try {
-      const [ar, cr, tr, sr, br, nr, settingsRes, bu, bt, rr, gr, cu, bi, fp, fm, ct] = await Promise.all([
+      const [ar, cr, tr, sr, br, nr, settingsRes, bu, bt, rr, gr, cu, bi, fp, fm, ct, nwh, ri] = await Promise.all([
         supabase.from("finance_accounts").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }),
         supabase.from("finance_categories").select("*").eq("workspace_id", ws.id).order("name"),
         supabase.from("finance_transactions").select("*").eq("workspace_id", ws.id).order("local_date", { ascending: false }).limit(150),
@@ -122,7 +124,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       for (const r of [ar, cr, tr]) if (r.error) throw r.error;
       setAccounts(ar.data || []); setCurrencies(Array.isArray(cu.data) ? cu.data.filter(c => c.is_active) : []); setAllCategories(cr.data || []); setCategories((cr.data || []).filter(c => !c.archived)); setTransactions(tr.data || []);
       setSummary(sr.error ? null : sr.data); setBalances(br.error ? [] : (Array.isArray(br.data) ? br.data : []));
-      setNetWorth(nr.error ? null : nr.data); setSettings(settingsRes.data || { base_currency: "EGP", timezone: "Africa/Cairo" });
+      setNetWorth(nr.error ? null : nr.data); setNetWorthSnapshots(nwh.error ? [] : (Array.isArray(nwh.data) ? nwh.data : [])); setRecurringItems(ri.error ? [] : (Array.isArray(ri.data) ? ri.data : [])); setSettings(settingsRes.data || { base_currency: "EGP", timezone: "Africa/Cairo" });
       setBudgets(bu.error ? [] : (Array.isArray(bu.data) ? bu.data : []));
       setBudgetInsights(bi.error ? null : bi.data || null);
       setBudgetTemplates(bt.error ? [] : (Array.isArray(bt.data) ? bt.data : []));
@@ -133,7 +135,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       setContextTags(ct.error ? [] : (Array.isArray(ct.data) ? ct.data : []));
       setLockDate(settingsRes.data?.lock_before_date || "");
       const rpcErrors = [sr, br, nr].filter(x => x.error);
-      if (rpcErrors.length || bu.error || bt.error || rr.error || cu.error || bi.error || ct.error) setNotice("بعض المؤشرات أو بيانات الميزانية أو العملات أو وسوم السياق غير متاحة حاليًا؛ راجع صلاحيات الوصول.");
+      if (rpcErrors.length || bu.error || bt.error || rr.error || cu.error || bi.error || ct.error || nwh.error || ri.error) setNotice("بعض المؤشرات أو بيانات الميزانية أو العملات أو وسوم السياق غير متاحة حاليًا؛ راجع صلاحيات الوصول.");
     } catch (e) { setError(e?.message || "تعذّر تحميل بيانات الماليات"); }
     finally { setLoading(false); }
   }, [ws?.id, isDemo, budgetPeriod]);
