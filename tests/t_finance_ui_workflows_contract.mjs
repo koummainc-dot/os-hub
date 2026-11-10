@@ -31,12 +31,18 @@ for (const rpc of ["fin_debt_create", "fin_debt_payment", "fin_debt_set_lifecycl
 assert.ok(debts.includes("installmentsPayload"), "debt schedules must generate installment payloads");
 assert.ok(debts.includes("role=\"dialog\""), "debt forms must render accessible dialogs");
 assert.ok(debts.includes("await load()"), "debt mutations must refresh persisted state");
+assert.ok(debts.includes("debtCreateKeyRef.current || (debtCreateKeyRef.current = \"debt-create-\" + crypto.randomUUID())"),
+  "debt creation must reuse the same idempotency key when a request is retried");
+assert.ok(debts.includes("debtPaymentKeyRef.current || (debtPaymentKeyRef.current = \"debt-payment-\" + crypto.randomUUID())"),
+  "debt payment must reuse the same idempotency key when a request is retried");
 
 // Recurring items must create/update through the server and payment must be
 // idempotent while creating the linked ledger transaction.
 assert.ok(recurring.includes("fin_recurring_save"), "recurring CRUD must use its Finance RPC");
 assert.ok(recurring.includes("fin_recurring_log_payment"), "recurring payments must use their Finance RPC");
 assert.ok(recurring.includes("idempotency_key"), "recurring payments must send an idempotency key");
+assert.ok(recurring.includes("recurringPaymentKeyRef.current||(recurringPaymentKeyRef.current=\"recurring-payment-\"+crypto.randomUUID())"),
+  "recurring payment must reuse the same idempotency key when a request is retried");
 assert.ok(recurring.includes("await load()"), "recurring mutations must refresh persisted state");
 assert.ok(recurring.includes("role=\"dialog\""), "recurring forms must render accessible dialogs");
 
