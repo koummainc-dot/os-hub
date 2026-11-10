@@ -30,6 +30,13 @@ for (const rpc of ["fin_debt_create", "fin_debt_payment", "fin_debt_set_lifecycl
 }
 assert.ok(debts.includes("installmentsPayload"), "debt schedules must generate installment payloads");
 assert.ok(debts.includes("role=\"dialog\""), "debt forms must render accessible dialogs");
+assert.ok(debts.includes("createStep") && debts.includes("الخطوة {createStep} من 5"),
+  "debt creation must use a five-step staged flow instead of showing every field at once");
+for (const stage of ["createStep===1", "createStep===2", "createStep===3", "createStep===4", "createStep===5"]) {
+  assert.ok(debts.includes(stage), `debt wizard must render ${stage}`);
+}
+assert.ok(debts.includes("السابق") && debts.includes("التالي →") && debts.includes("مراجعة قبل الحفظ"),
+  "debt wizard must support previous/next navigation and a final review step");
 assert.ok(debts.includes("await load()"), "debt mutations must refresh persisted state");
 assert.ok(debts.includes("debtCreateKeyRef.current || (debtCreateKeyRef.current = \"debt-create-\" + crypto.randomUUID())"),
   "debt creation must reuse the same idempotency key when a request is retried");
