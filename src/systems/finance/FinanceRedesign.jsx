@@ -296,7 +296,7 @@ function TransactionSheet({ transaction, categories, accounts, baseCurrency, con
             </div>
           ))}
         </div>
-        {transaction.notes && <div style={{marginTop:12,border:"1px solid "+C.line,borderRadius:12,padding:13}}><div style={{fontSize:10,color:C.muted}}>ملاحظات</div><div style={{fontSize:12,lineHeight:1.8,marginTop:5,whiteSpace:"pre-wrap"}}>{transaction.notes}</div></div>
+        {transaction.notes && <div style={{marginTop:12,border:"1px solid "+C.line,borderRadius:12,padding:13}}><div style={{fontSize:10,color:C.muted}}>ملاحظات</div><div style={{fontSize:12,lineHeight:1.8,marginTop:5,whiteSpace:"pre-wrap"}}>{transaction.notes}</div></div>}
         <div style={{marginTop:14,border:"1px solid "+C.line,borderRadius:13,padding:13}}>
           <h3 style={{margin:"0 0 10px",fontSize:13}}>وسم سياق الحركة</h3>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:9}}>
