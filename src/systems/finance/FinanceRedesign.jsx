@@ -331,7 +331,17 @@ export default function FinanceRedesign({
   isDemo = false,
 }) {
   const [hideBalances, setHideBalances] = React.useState(false);
-  const [planningTab, setPlanningTab] = React.useState(page === "reports" || page === "networth" ? "reports" : page === "goals" ? "goals" : "budgets");
+  // FinanceRedesign owns the internal navigation state as a fallback when the host shell
+  // does not immediately reflect a nested Finance page change. The external page setter
+  // is still called so OS Hub routing remains the source of truth when available.
+  const [internalPage, setInternalPage] = React.useState(page);
+  React.useEffect(() => { setInternalPage(page); }, [page]);
+  const navigate = React.useCallback((id) => {
+    setInternalPage(id);
+    setPage?.(id);
+  }, [setPage]);
+  const activePage = internalPage || page || "dashboard";
+  const [planningTab, setPlanningTab] = React.useState(activePage === "reports" || activePage === "networth" ? "reports" : activePage === "goals" ? "goals" : "budgets");
   const [wealthTab, setWealthTab] = React.useState(page === "assets" ? "investments" : page === "debts" ? "debts" : "overview");
   const [familyTab, setFamilyTab] = React.useState(page === "family-cash" ? "allocations" : "overview");
   const [txTab, setTxTab] = React.useState("all");
@@ -344,14 +354,14 @@ export default function FinanceRedesign({
   const [budgetDraft, setBudgetDraft] = React.useState({category_id:"",budget_amount:"",notes:""});
   const [selectedTransaction, setSelectedTransaction] = React.useState(null);
   React.useEffect(()=>{
-    if(page==="debts")setWealthTab("debts");
-    else if(page==="assets")setWealthTab("investments");
-    else if(page==="reports"||page==="networth")setPlanningTab("reports");
-    else if(page==="goals")setPlanningTab("goals");
-    else if(page==="budgets")setPlanningTab("budgets");
-    else if(page==="planning")setPlanningTab("budgets");
-    else if(page==="recurring")setTxSubTab("recurring");
-    else if(page==="transactions")setTxSubTab("ledger");
+    if(activePage==="debts")setWealthTab("debts");
+    else if(activePage==="assets")setWealthTab("investments");
+    else if(activePage==="reports"||activePage==="networth")setPlanningTab("reports");
+    else if(activePage==="goals")setPlanningTab("goals");
+    else if(activePage==="budgets")setPlanningTab("budgets");
+    else if(activePage==="planning")setPlanningTab("budgets");
+    else if(activePage==="recurring")setTxSubTab("recurring");
+    else if(activePage==="transactions")setTxSubTab("ledger");
   },[page]);
 
   const {
@@ -646,19 +656,19 @@ export default function FinanceRedesign({
     return <Card><PageHead eyebrow="الماليات" title="هذه الصفحة جزء من النسخة الجديدة" subtitle="تم توحيد تجربة الماليات حول التبويبات الجديدة. استخدم التنقل العلوي للوصول إلى القسم المطلوب."/><Button onClick={()=>setPage("dashboard")}>العودة للنظرة العامة</Button></Card>;
   }
 
-  const pageNode = page==="dashboard" ? dashboard()
-    : page==="transactions" || page==="inbox" || page==="recurring" ? transactionsPage()
-    : page==="projects" ? (legacyProjects || fallback())
-    : page==="planning" || page==="budgets" || page==="goals" || page==="reports" || page==="networth" ? planningPage()
-    : page==="settings" ? settingsPage()
-    : page==="accounts" ? accountsPage()
-    : page==="categories" ? categoriesPage()
-    : page==="currencies" ? (legacyCurrencies || currenciesPage())
-    : page==="context-tags" ? contextTagsPage()
-    : page==="wealth" || page==="assets" || page==="debts" ? wealthPage()
-    : page==="family-cash" ? (legacyFamilyCash || familyPage())
-    : page==="family" ? (legacyFamily || familyPage())
-    : page==="projects" ? (legacyProjects || fallback())
+  const pageNode = activePage==="dashboard" ? dashboard()
+    : activePage==="transactions" || activePage==="inbox" || activePage==="recurring" ? transactionsPage()
+    : activePage==="projects" ? (legacyProjects || fallback())
+    : activePage==="planning" || activePage==="budgets" || activePage==="goals" || activePage==="reports" || activePage==="networth" ? planningPage()
+    : activePage==="settings" ? settingsPage()
+    : activePage==="accounts" ? accountsPage()
+    : activePage==="categories" ? categoriesPage()
+    : activePage==="currencies" ? (legacyCurrencies || currenciesPage())
+    : activePage==="context-tags" ? contextTagsPage()
+    : activePage==="wealth" || activePage==="assets" || activePage==="debts" ? wealthPage()
+    : activePage==="family-cash" ? (legacyFamilyCash || familyPage())
+    : activePage==="family" ? (legacyFamily || familyPage())
+    : activePage==="projects" ? (legacyProjects || fallback())
     : fallback();
 
   return (
