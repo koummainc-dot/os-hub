@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../../core/supabase.js";
 import RecurringDueAction from "./RecurringDueAction.jsx";
 const GREEN="#059669",INK="#17211D",MUTED="#718078",LINE="#E4EBE6"; // recurring schedule management
@@ -13,6 +13,7 @@ export default function FinanceRecurring({ws,access,isDemo=false,currencies=[],o
  const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState(""),[showCreate,setShowCreate]=useState(false),[editingId,setEditingId]=useState(null),[payItem,setPayItem]=useState(null);
  const [form,setForm]=useState({name:"",amount:"",currency:"EGP",type:"Expense",frequency:"Monthly",next_payment_date:today(),account_id:"",category_id:"",auto_renew:true,notes:""});
  const [payForm,setPayForm]=useState({account_id:"",payment_date:today(),reason:""});
+ const recurringPaymentKeyRef=useRef(null);
  const canEdit=!isDemo&&(access?.level==="edit"||access?.manage||access?.owner);
  const load=useCallback(async()=>{if(!ws?.id||isDemo){setLoading(false);return;}setLoading(true);setError("");try{
   const [i,o,a,c]=await Promise.all([
@@ -33,8 +34,9 @@ export default function FinanceRecurring({ws,access,isDemo=false,currencies=[],o
   const {error:err}=await supabase.rpc("fin_recurring_save",{p});if(err)throw err;setNotice(editingId?"تم تحديث البند المتكرر.":"تم حفظ البند المتكرر.");setShowCreate(false);setEditingId(null);setForm({name:"",amount:"",currency:currencies.find(c=>c.is_active)?.currency||"EGP",type:"Expense",frequency:"Monthly",next_payment_date:today(),account_id:"",category_id:"",auto_renew:true,notes:""});await load();
  }catch(e){setError(e?.message||"تعذّر حفظ البند");}finally{setSaving(false);}}
  async function logPayment(e){e.preventDefault();if(!canEdit||saving||!payItem)return;const acc=payForm.account_id||payItem.account_id;if(!acc){setError("اختر حسابًا لتسجيل الدفعة.");return;}setSaving(true);setError("");try{
-  const p={workspace_id:ws.id,recurring_id:payItem.id,account_id:acc,payment_date:payForm.payment_date||today(),reason:payForm.reason||null,idempotency_key:"recurring-payment-"+crypto.randomUUID()};
-  const {error:err}=await supabase.rpc("fin_recurring_log_payment",{p});if(err)throw err;setNotice("تم تسجيل الدفعة وإنشاء الحركة المالية المرتبطة بها.");setPayItem(null);setPayForm({account_id:"",payment_date:today(),reason:""});await load();
+  const idempotencyKey=recurringPaymentKeyRef.current||(recurringPaymentKeyRef.current="recurring-payment-"+crypto.randomUUID());
+  const p={workspace_id:ws.id,recurring_id:payItem.id,account_id:acc,payment_date:payForm.payment_date||today(),reason:payForm.reason||null,idempotency_key:idempotencyKey};
+  const {error:err}=await supabase.rpc("fin_recurring_log_payment",{p});if(err)throw err;recurringPaymentKeyRef.current=null;setNotice("تم تسجيل الدفعة وإنشاء الحركة المالية المرتبطة بها.");setPayItem(null);setPayForm({account_id:"",payment_date:today(),reason:""});await load();
  }catch(e){setError(e?.message||"تعذّر تسجيل الدفعة");}finally{setSaving(false);}}
  async function toggleActive(item,active){if(!canEdit||saving)return;setSaving(true);setError("");try{const p={workspace_id:ws.id,id:item.id,name:item.name,amount:String(item.amount),currency:item.currency,type:item.type,frequency:item.frequency,next_payment_date:item.next_payment_date,account_id:item.account_id,category_id:item.category_id,active,auto_renew:item.auto_renew,cancellation_date:active?null:today(),notes:item.notes};const {error:err}=await supabase.rpc("fin_recurring_save",{p});if(err)throw err;setNotice(active?"تم تفعيل البند.":"تم إيقاف البند.");await load();}catch(e){setError(e?.message||"تعذّر تحديث البند");}finally{setSaving(false);}}
  if(isDemo)return <Card><h3 style={{marginTop:0}}>المتكرر والاشتراكات</h3><p style={{color:"#92400E",fontSize:13}}>وضع العرض التجريبي للقراءة فقط.</p></Card>;
