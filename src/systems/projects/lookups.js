@@ -22,8 +22,8 @@ export const L = {
   employment: { "Full-time": "دوام كامل", "Part-time": "دوام جزئي", Freelance: "مستقل", Contractor: "متعاقد" },
 };
 export const opts = (map) => Object.entries(map).map(([v, l]) => ({ v, l }));
-export const PRIORITY_COLOR = { Low: "#94A3B8", Medium: "#3B82F6", High: "#F97316", Urgent: "#EF4444" };
-export const STATUS_COLOR = { Idea: "#94A3B8", Planned: "#6366F1", "In Progress": "#3B82F6", "On Hold": "#F59E0B", Completed: "#10B981", Cancelled: "#EF4444", Archived: "#64748B", "Not Started": "#94A3B8", Resolved: "#10B981", Closed: "#64748B", Open: "#F59E0B", "In Mitigation": "#3B82F6", Materialized: "#EF4444" };
+export const PRIORITY_COLOR = { Low: "#94A3B8", Medium: "#EF9F27", High: "#F97316", Urgent: "#EF4444" };
+export const STATUS_COLOR = { Idea: "#94A3B8", Planned: "#94A3B8", "In Progress": "#EF9F27", "On Hold": "#F59E0B", Completed: "#10B981", Cancelled: "#EF4444", Archived: "#64748B", "Not Started": "#94A3B8", Resolved: "#10B981", Closed: "#64748B", Open: "#F59E0B", "In Mitigation": "#EF9F27", Materialized: "#EF4444" };
 export const SEV_COLOR = { Low: "#94A3B8", Medium: "#F59E0B", High: "#F97316", Critical: "#EF4444" };
 
 export const DEFAULT_LOOKUPS = {
