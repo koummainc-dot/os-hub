@@ -11,6 +11,7 @@ import FinanceAssets from "./Assets.jsx";
 import FinanceNetWorthHistory from "./NetWorthHistory.jsx";
 import FinanceFXRates from "./FXRates.jsx";
 import TransactionImport from "./TransactionImport.jsx";
+import FinanceRedesign from "./FinanceRedesign.jsx";
 import { readOSEvents, subscribeOSEvents, subscribeToStoredOSEvents } from "../integrationEvents.js";
 
 const GREEN = "#059669";
@@ -30,7 +31,7 @@ const fmtDate = (v) => { try { return new Date(v + "T12:00:00").toLocaleDateStri
 const TYPES = [{ value: "Expense", label: "مصروف" }, { value: "Income", label: "دخل" }, { value: "Transfer", label: "تحويل" }];
 const ACCOUNT_TYPES = ["Bank", "Cash", "Mobile Wallet", "Credit Card", "E-Wallet", "Payment Platform", "Investment", "Savings", "Other"];
 const TYPE_AR = { Bank: "بنك", Cash: "نقدي", "Mobile Wallet": "محفظة موبايل", "Credit Card": "بطاقة ائتمان", "E-Wallet": "محفظة إلكترونية", "Payment Platform": "منصة دفع", Investment: "استثمار", Savings: "ادخار", Other: "أخرى" };
-const initialTx = () => ({ name: "", type: "Expense", purpose: "Regular", amount: "", currency: "EGP", local_date: today(), from_account_id: "", to_account_id: "", category_id: "", goal_id: "", merchant: "", notes: "" });
+const initialTx = () => ({ name: "", type: "Expense", purpose: "Regular", amount: "", currency: "EGP", local_date: today(), from_account_id: "", to_account_id: "", category_id: "", goal_id: "", merchant: "", notes: "", context_type: "", context_project_id: "", context_family_member_id: "" });
 
 function Card({ children, style = {} }) { return <div style={{ background: "#fff", border: "1px solid " + LINE, borderRadius: 16, padding: 18, ...style }}>{children}</div>; }
 function Button({ children, onClick, secondary = false, disabled = false, type = "button" }) {
@@ -47,6 +48,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [currencies, setCurrencies] = useState([]);
   const [categories, setCategories] = useState([]);
   const [allCategories, setAllCategories] = useState([]);
+  const [contextFamilyMembers, setContextFamilyMembers] = useState([]);
+  const [contextTags, setContextTags] = useState([]);
   const [goals, setGoals] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [reconciliations, setReconciliations] = useState([]);
@@ -63,6 +66,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [balances, setBalances] = useState([]);
   const [summary, setSummary] = useState(null);
   const [netWorth, setNetWorth] = useState(null);
+  const [netWorthSnapshots, setNetWorthSnapshots] = useState([]);
+  const [recurringItems, setRecurringItems] = useState([]);
   const [settings, setSettings] = useState({ base_currency: "EGP", timezone: "Africa/Cairo" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -97,7 +102,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     if (!ws?.id || isDemo) { setLoading(false); return; }
     setLoading(true); setError("");
     try {
-      const [ar, cr, tr, sr, br, nr, settingsRes, bu, bt, rr, gr, cu, bi] = await Promise.all([
+      const [ar, cr, tr, sr, br, nr, settingsRes, bu, bt, rr, gr, cu, bi, fm, ct, nwh, ri] = await Promise.all([
         supabase.from("finance_accounts").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }),
         supabase.from("finance_categories").select("*").eq("workspace_id", ws.id).order("name"),
         supabase.from("finance_transactions").select("*").eq("workspace_id", ws.id).order("local_date", { ascending: false }).limit(150),
@@ -110,20 +115,33 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         supabase.from("finance_reconciliations").select("*").eq("workspace_id", ws.id).order("created_at", { ascending: false }).limit(50),
         supabase.from("finance_goals").select("id,name,currency,status").eq("workspace_id", ws.id).in("status", ["Active","Paused"]).order("name"),
         supabase.rpc("fin_currencies_get", { p_ws: ws.id }),
-        supabase.rpc("fin_budget_insights_get", { p_ws: ws.id, p_period: budgetPeriod })
+        supabase.rpc("fin_budget_insights_get", { p_ws: ws.id, p_period: budgetPeriod }),
+        supabase.from("finance_family_members").select("id,display_name,status").eq("workspace_id",ws.id).eq("status","Active").order("display_name"),
+        supabase.rpc("fin_family_list_expenses",{p_workspace_id:ws.id,p_limit:200}),
+        supabase.rpc("fin_net_worth_snapshots_get",{p_ws:ws.id}),
+        supabase.from("finance_recurring_items").select("id,name,amount,currency,type,frequency,next_payment_date,auto_renew,active").eq("workspace_id",ws.id).order("next_payment_date",{ascending:true})
       ]);
       for (const r of [ar, cr, tr]) if (r.error) throw r.error;
       setAccounts(ar.data || []); setCurrencies(Array.isArray(cu.data) ? cu.data.filter(c => c.is_active) : []); setAllCategories(cr.data || []); setCategories((cr.data || []).filter(c => !c.archived)); setTransactions(tr.data || []);
       setSummary(sr.error ? null : sr.data); setBalances(br.error ? [] : (Array.isArray(br.data) ? br.data : []));
-      setNetWorth(nr.error ? null : nr.data); setSettings(settingsRes.data || { base_currency: "EGP", timezone: "Africa/Cairo" });
+      setNetWorth(nr.error ? null : nr.data); setNetWorthSnapshots(nwh.error ? [] : (Array.isArray(nwh.data) ? nwh.data : [])); setRecurringItems(ri.error ? [] : (Array.isArray(ri.data) ? ri.data : [])); setSettings(settingsRes.data || { base_currency: "EGP", timezone: "Africa/Cairo" });
       setBudgets(bu.error ? [] : (Array.isArray(bu.data) ? bu.data : []));
       setBudgetInsights(bi.error ? null : bi.data || null);
       setBudgetTemplates(bt.error ? [] : (Array.isArray(bt.data) ? bt.data : []));
       setReconciliations(rr.error ? [] : (Array.isArray(rr.data) ? rr.data : []));
       setGoals(gr.error ? [] : (Array.isArray(gr.data) ? gr.data : []));
+      setContextFamilyMembers(fm.error ? [] : (fm.data || []));
+      const familyExpenseRows=Array.isArray(ct.data)?ct.data:[];
+      const mappedFamilyTags=familyExpenseRows.flatMap(row=>{
+        const allocations=Array.isArray(row.allocations)?row.allocations:[];
+        if(allocations.length)return allocations.map(a=>({transaction_id:row.transaction_id,context_type:"Family",family_member_id:a.family_member_id,family_member_name:a.member_name,transaction_name:row.transaction_name,local_date:row.local_date,amount:a.amount??(Number(row.amount)*Number(a.percentage||0)/100),currency:row.currency,allocation_method:a.allocation_method,percentage:a.percentage}));
+        if(row.primary_family_member_id)return [{transaction_id:row.transaction_id,context_type:"Family",family_member_id:row.primary_family_member_id,family_member_name:fm.data?.find(m=>m.id===row.primary_family_member_id)?.display_name,transaction_name:row.transaction_name,local_date:row.local_date,amount:row.amount,currency:row.currency}];
+        return [];
+      });
+      setContextTags(mappedFamilyTags);
       setLockDate(settingsRes.data?.lock_before_date || "");
       const rpcErrors = [sr, br, nr].filter(x => x.error);
-      if (rpcErrors.length || bu.error || bt.error || rr.error || cu.error || bi.error) setNotice("بعض المؤشرات أو بيانات الميزانية أو العملات غير متاحة حاليًا؛ راجع صلاحيات الوصول.");
+      if (rpcErrors.length || bu.error || bt.error || rr.error || cu.error || bi.error || ct.error || nwh.error || ri.error) setNotice("بعض المؤشرات أو بيانات الميزانية أو العملات أو وسوم السياق غير متاحة حاليًا؛ راجع صلاحيات الوصول.");
     } catch (e) { setError(e?.message || "تعذّر تحميل بيانات الماليات"); }
     finally { setLoading(false); }
   }, [ws?.id, isDemo, budgetPeriod]);
@@ -281,6 +299,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     if (!(Number(tx.amount) > 0) || !tx.local_date || !tx.from_account_id) { setError("أكمل المبلغ والتاريخ والحساب."); return; }
     if (tx.type !== "Transfer" && !splitMode && !tx.category_id) { setError("اختَر تصنيفًا للحركة؛ اسم الحركة غير مطلوب."); return; }
     if (tx.type === "Transfer" && (!tx.to_account_id || tx.to_account_id === tx.from_account_id)) { setError("اختر حسابًا مستلمًا مختلفًا عن حساب المصدر."); return; }
+    if (tx.context_type === "Project" && !tx.context_project_id) { setError("اختر المشروع المرتبط بالحركة."); return; }
+    if (tx.context_type === "Family" && !tx.context_family_member_id) { setError("اختر فرد الأسرة المرتبط بالحركة."); return; }
     if (tx.goal_id && tx.type !== "Transfer") { setError("مساهمة الهدف أو السحب منه يجب أن تكون تحويلًا بين حسابين."); return; }
     const validSplits = splitRows.filter(s => s.category_id && Number(s.amount) > 0);
     if (splitMode && tx.type === "Transfer") { setError("تقسيم التحويلات غير متاح؛ اختر دخلًا أو مصروفًا."); return; }
@@ -302,6 +322,15 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       if (rpcError) throw rpcError;
       if (data?.duplicate) setNotice("تم اكتشاف حركة موجودة مسبقًا؛ لم يتم إنشاء نسخة أخرى.");
       else setNotice(data?.warnings?.length ? "تم حفظ الحركة مع تنبيه: " + data.warnings.join(", ") : "تم تسجيل الحركة بنجاح.");
+      if (data?.transaction_id && tx.context_type === "Family" && tx.type === "Expense") {
+        const { error: contextError } = await supabase.rpc("fin_family_set_transaction_allocation", {
+          p_workspace_id:ws.id,p_transaction_id:data.transaction_id,p_responsibility_type:"Personal",
+          p_primary_family_member_id:tx.context_family_member_id,
+          p_allocations:[{family_member_id:tx.context_family_member_id,allocation_method:"Percentage",percentage:100}],
+          p_mark_reviewed:false
+        });
+        if (contextError) setNotice("تم تسجيل المصروف، لكن تعذّر ربطه بفرد الأسرة: " + contextError.message);
+      }
       if (tx.shoppingPurchaseId) {
         const key = "os-finance-shopping-linked:" + ws.id;
         try { const ids = new Set(JSON.parse(localStorage.getItem(key) || "[]")); ids.add(tx.shoppingPurchaseId); localStorage.setItem(key, JSON.stringify([...ids])); } catch {}
@@ -487,15 +516,17 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     finally { setSaving(false); }
   }
 
-  async function saveBudget(e) {
-    e.preventDefault(); if (!canEdit || saving) return;
-    if (!budgetPeriod || !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(budgetPeriod) || budgetForm.budget_amount === "" || Number(budgetForm.budget_amount) < 0) { setError("اختر شهرًا صحيحًا وأدخل ميزانية صفرًا أو أكثر."); return; }
+  async function saveBudget(e, override = null) {
+    e?.preventDefault?.(); if (!canEdit || saving) return {ok:false,error:"لا تملك صلاحية تعديل الميزانيات الآن."};
+    const draft = override || budgetForm;
+    const period = override?.period || budgetPeriod;
+    if (!period || !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(period) || draft.budget_amount === "" || Number(draft.budget_amount) < 0 || !draft.category_id) { setError("اختر شهرًا وفئة مصروف صحيحة وأدخل ميزانية صفرًا أو أكثر."); return {ok:false,error:"اختر شهرًا وفئة مصروف صحيحة وأدخل ميزانية صفرًا أو أكثر."}; }
     setSaving(true); setError("");
     try {
-      const { error: err } = await supabase.rpc("fin_budget_upsert", { p: { workspace_id: ws.id, category_id: budgetForm.category_id || null, period: budgetPeriod, budget_amount: String(budgetForm.budget_amount), notes: budgetForm.notes || null, source: "Manual" } });
+      const { error: err } = await supabase.rpc("fin_budget_upsert", { p: { workspace_id: ws.id, category_id: draft.category_id, period, budget_amount: String(draft.budget_amount), notes: draft.notes || null, source: "Manual" } });
       if (err) throw err;
-      setNotice("تم حفظ الميزانية."); setBudgetForm({ category_id: "", budget_amount: "", notes: "" }); await load();
-    } catch (e) { setError(e?.message || "تعذّر حفظ الميزانية"); }
+      setNotice("تم حفظ الميزانية."); setBudgetForm({ category_id: "", budget_amount: "", notes: "" }); await load(); return {ok:true};
+    } catch (e) { const message=e?.message || "تعذّر حفظ الميزانية"; setError(message); return {ok:false,error:message}; }
     finally { setSaving(false); }
   }
 
@@ -633,6 +664,74 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const tableWrap = { overflowX: "auto", width: "100%" };
   const th = { textAlign: "right", padding: "12px 10px", color: MUTED, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", borderBottom: "1px solid " + LINE };
   const td = { padding: "13px 10px", borderBottom: "1px solid #EEF2EF", fontSize: 12, whiteSpace: "nowrap" };
+
+  if (true) {
+    return <>
+      <FinanceRedesign
+      page={section}
+      setPage={setPage}
+      isDemo={isDemo}
+      data={{
+        accounts,
+        transactions,
+        categories,
+        balances,
+        summary,
+        netWorth,
+        budgets,
+        budgetInsights,
+        goals,
+        baseCurrency,
+        currencies,
+        contextTags,
+        contextFamilyMembers,
+      }}
+      actions={{
+        onAdd: () => { setError(""); setShowTx(true); },
+        onRefresh: load,
+        onAddAccount: startCreateAccount,
+        onOpenAccount: startEditAccount,
+        onAddCategory: startCategoryCreate,
+        onEditCategory: startCategoryEdit,
+        onToggleCategory: toggleCategoryArchive,
+        onRollover: rolloverBudget,
+        onSaveBudget: payload => saveBudget(null, payload),
+        onSaveContext: async (transactionId, context) => {
+          const transaction=transactions.find(t=>t.id===transactionId);
+          if(!transaction||transaction.type!=="Expense"||transaction.status!=="Posted")throw new Error("ربط الأسرة متاح للمصروفات المنشورة فقط.");
+          if(!context.family_member_id)throw new Error("اختر فرد الأسرة أولًا.");
+          const { error: err } = await supabase.rpc("fin_family_set_transaction_allocation", {
+            p_workspace_id:ws.id,p_transaction_id:transactionId,p_responsibility_type:"Personal",
+            p_primary_family_member_id:context.family_member_id,
+            p_allocations:[{family_member_id:context.family_member_id,allocation_method:"Percentage",percentage:100}],
+            p_mark_reviewed:false
+          });
+          if (err) throw err;
+          await load();
+        },
+        onExport: exportVisibleTransactionsCsv,
+      }}
+        legacyDebt={<FinanceDebts ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+        legacyAssets={<FinanceAssets ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+        legacyGoals={<FinanceGoals ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+        legacyRecurring={<FinanceRecurring ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+        legacyProjects={<FinanceProjects ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+        legacyFamily={<FinanceFamily ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+        legacyFamilyCash={<FinanceFamilyCash ws={ws} access={access} isDemo={isDemo} />}
+        legacyReports={<FinanceReports ws={ws} isDemo={isDemo} baseCurrency={baseCurrency} />}
+        legacyNetWorth={<FinanceNetWorthHistory ws={ws} access={access} isDemo={isDemo} />}
+        legacyCurrencies={<FinanceFXRates ws={ws} access={access} isDemo={isDemo} baseCurrency={baseCurrency} />}
+      />
+          {txAction && <div role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setTxAction(null); }} style={{ position: "fixed", inset: 0, zIndex: 1001, background: "#14251DB8", display: "grid", placeItems: "center", padding: 20, overflowY: "auto" }}><div className="fin-modal" role="dialog" aria-modal="true" aria-label="تصحيح حركة مالية" style={{ background: "#fff", width: "min(520px,100%)", borderRadius: 18, padding: 22, boxSizing: "border-box" }}><h2 style={{ margin: "0 0 8px", fontSize: 19 }}>{txAction.kind === "reverse" ? "عكس حركة مالية" : "إلغاء حركة مقترحة"}</h2><p style={{ color: MUTED, fontSize: 12, lineHeight: 1.8 }}>الحركة: <b>{txAction.transaction.name}</b> · {money(txAction.transaction.amount,txAction.transaction.currency)}. {txAction.kind === "reverse" ? "سيُنشأ قيد عكسي مرتبط بالأصل؛ لن تُحذف الحركة الأصلية." : "سيتم إلغاء المقترح قبل نشره في الدفتر."}</p><form onSubmit={confirmTransactionAction} style={{ display: "grid", gap: 12 }}><Field label="سبب التصحيح (مطلوب)"><textarea required minLength={3} rows={3} style={{ ...inputStyle, resize: "vertical" }} value={txActionReason} onChange={e => setTxActionReason(e.target.value)} placeholder="اشرح سبب العكس أو الإلغاء…" /></Field><div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><Button secondary onClick={() => setTxAction(null)}>إلغاء</Button><Button type="submit" disabled={saving || txActionReason.trim().length < 3}>{saving ? "جارٍ التنفيذ…" : txAction.kind === "reverse" ? "تأكيد العكس" : "تأكيد الإلغاء"}</Button></div></form></div></div>}
+
+    {showTx && <div role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setShowTx(false); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#14251DB8", display: "grid", placeItems: "center", padding: 20, overflowY: "auto" }}><div className="fin-modal" role="dialog" aria-modal="true" aria-label="حركة مالية جديدة" style={{ background: "#fff", width: "min(680px,100%)", maxHeight: "calc(100vh - 40px)", overflowY: "auto", borderRadius: 18, padding: 22, boxSizing: "border-box" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}><h2 style={{ margin: 0, fontSize: 19 }}>تسجيل حركة مالية</h2><button onClick={() => setShowTx(false)} aria-label="إغلاق" style={{ border: 0, background: "transparent", fontSize: 22, cursor: "pointer" }}>×</button></div><form onSubmit={saveTransaction} style={{ display: "grid", gap: 13 }}><div style={formGrid}><Field label="نوع الحركة *"><Select disabled={!!tx.goal_id} value={tx.type} onChange={e => setTx({ ...tx, type: e.target.value, category_id: "", context_type:e.target.value==="Expense"?tx.context_type:"", context_family_member_id:e.target.value==="Expense"?tx.context_family_member_id:"" })}>{TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</Select></Field><Field label="المبلغ *"><Input required type="number" min="0.01" step="0.01" value={tx.amount} onChange={e => setTx({ ...tx, amount: e.target.value })} placeholder="0.00" /></Field><Field label="عملة الحركة"><Select disabled value={accountById[tx.from_account_id]?.currency || tx.currency}>{!currencies.some(c => c.currency === (accountById[tx.from_account_id]?.currency || tx.currency)) && <option value={accountById[tx.from_account_id]?.currency || tx.currency}>{accountById[tx.from_account_id]?.currency || tx.currency}</option>}{currencies.map(c => <option key={c.currency} value={c.currency}>{c.currency} · {c.display_name}</option>)}</Select></Field><Field label="التاريخ *"><Input required type="date" value={tx.local_date} onChange={e => setTx({ ...tx, local_date: e.target.value })} /></Field><Field label={tx.type === "Transfer" ? "من حساب *" : "الحساب *"}><Select required value={tx.from_account_id} onChange={e => setTx({ ...tx, from_account_id: e.target.value, currency: accountById[e.target.value]?.currency || tx.currency })}><option value="">اختر حسابًا</option>{accounts.filter(a => a.status === "Active" && (!tx.goal_id || a.currency === goals.find(g => g.id === tx.goal_id)?.currency)).map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</Select></Field>{tx.type === "Transfer" ? <Field label="إلى حساب *"><Select required value={tx.to_account_id} onChange={e => setTx({ ...tx, to_account_id: e.target.value })}><option value="">اختر الحساب المستلم</option>{accounts.filter(a => a.status === "Active" && a.id !== tx.from_account_id && (!tx.goal_id || a.currency === goals.find(g => g.id === tx.goal_id)?.currency)).map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</Select></Field> : <Field label="التصنيف"><Select value={tx.category_id} onChange={e => setTx({ ...tx, category_id: e.target.value })}><option value="">بدون تصنيف</option>{categories.filter(c => c.kind === "Both" || c.kind === tx.type).map(c => <option key={c.id} value={c.id}>{c.parent_id ? (categoryById[c.parent_id]?.name || "تصنيف رئيسي") + " ← " + c.name : c.name}</option>)}</Select></Field>}<Field label="الهدف المالي (اختياري)"><Select value={tx.goal_id} onChange={e => { const g = goals.find(x => x.id === e.target.value); setTx({ ...tx, goal_id: e.target.value, purpose: e.target.value ? "GoalContribution" : "Regular", type: e.target.value ? "Transfer" : "Expense", category_id: "", currency: g?.currency || tx.currency }); setSplitMode(false); }}><option value="">بدون ربط بهدف</option>{goals.map(g => <option key={g.id} value={g.id}>{g.name} · {g.currency}</option>)}</Select></Field>{tx.goal_id && <Field label="نوع حركة الهدف"><Select value={tx.purpose} onChange={e => setTx({ ...tx, purpose: e.target.value, type: "Transfer" })}><option value="GoalContribution">مساهمة في الهدف</option><option value="GoalWithdrawal">سحب من الهدف</option></Select></Field>}{tx.type==="Expense"&&<><Field label="ربط المصروف بفرد من الأسرة (اختياري)"><Select value={tx.context_type} onChange={e=>setTx({...tx,context_type:e.target.value,context_project_id:"",context_family_member_id:""})}><option value="">بدون ربط أسري</option><option value="Family">أسرة</option></Select></Field>{tx.context_type==="Family" && <Field label="فرد الأسرة المرتبط *"><Select required value={tx.context_family_member_id} onChange={e=>setTx({...tx,context_family_member_id:e.target.value})}><option value="">اختر فردًا</option>{contextFamilyMembers.map(m=><option key={m.id} value={m.id}>{m.display_name}</option>)}</Select></Field>}</>}<Field label="التاجر / المستفيد"><Input value={tx.merchant} onChange={e => setTx({ ...tx, merchant: e.target.value })} placeholder="اختياري" /></Field></div>{tx.type !== "Transfer" && <div style={{ border: "1px solid " + LINE, borderRadius: 12, padding: 13, background: BG }}><label style={{ display: "flex", gap: 9, alignItems: "center", fontSize: 13, fontWeight: 750 }}><input type="checkbox" checked={splitMode} onChange={e => setSplitMode(e.target.checked)} /> توزيع الحركة على عدة تصنيفات</label>{splitMode && <div style={{ display: "grid", gap: 9, marginTop: 12 }}>{splitRows.map((row, idx) => <div key={idx} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(110px,.6fr) auto", gap: 8, alignItems: "end" }}><Field label={"التصنيف " + (idx + 1)}><Select value={row.category_id} onChange={e => setSplitRows(rows => rows.map((x,i) => i === idx ? { ...x, category_id: e.target.value } : x))}><option value="">اختر التصنيف</option>{categories.filter(c => c.kind === "Both" || c.kind === tx.type).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></Field><Field label="المبلغ"><Input type="number" min="0.01" step="0.01" value={row.amount} onChange={e => setSplitRows(rows => rows.map((x,i) => i === idx ? { ...x, amount: e.target.value } : x))} /></Field>{splitRows.length > 2 && <Button secondary onClick={() => setSplitRows(rows => rows.filter((_,i) => i !== idx))}>حذف</Button>}</div>)}<div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, fontSize: 12, color: Math.abs(splitRows.reduce((sum,s) => sum + (Number(s.amount)||0),0) - (Number(tx.amount)||0)) < 0.0001 ? "#047857" : "#B42318" }}><span>مجموع التقسيمات: {money(splitRows.reduce((sum,s) => sum + (Number(s.amount)||0),0), tx.currency)}</span><span>مبلغ الحركة: {money(Number(tx.amount)||0, tx.currency)}</span></div><div><Button secondary onClick={() => setSplitRows(rows => [...rows, { category_id: "", amount: "" }])}>＋ إضافة تصنيف</Button></div></div>}</div>}<Field label="ملاحظات"><textarea value={tx.notes} onChange={e => setTx({ ...tx, notes: e.target.value })} rows={3} style={{ ...inputStyle, resize: "vertical" }} /></Field><div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 5 }}><Button secondary onClick={() => setShowTx(false)}>إلغاء</Button><Button type="submit" disabled={saving || !accounts.length}>{saving ? "جارٍ الحفظ…" : "حفظ الحركة ونشرها"}</Button></div>{!accounts.length && <div style={{ color: "#B42318", fontSize: 12 }}>أنشئ حسابًا أولًا لتسجيل حركة مالية.</div>}</form></div></div>}
+
+    {showAccount && <div onMouseDown={e => { if (e.target === e.currentTarget) setShowAccount(false); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#14251DB8", display: "grid", placeItems: "center", padding: 20 }}><div className="fin-modal" role="dialog" aria-modal="true" style={{ background: "#fff", width: "min(560px,100%)", borderRadius: 18, padding: 22, boxSizing: "border-box" }}><h2 style={{ margin: "0 0 16px", fontSize: 19 }}>{editingAccountId ? "تعديل الحساب المالي" : "إنشاء حساب مالي"}</h2><p style={{ color: MUTED, fontSize: 12, lineHeight: 1.7, marginTop: -8 }}>لا يمكن تغيير العملة أو الرصيد الافتتاحي بعد وجود حركات دفتر مرتبطة بالحساب. أرشف الحساب بدل حذفه للحفاظ على السجل.</p><form onSubmit={saveAccount} style={{ display: "grid", gap: 13 }}><div style={formGrid}><Field label="اسم الحساب *"><Input required value={accountForm.name} onChange={e => setAccountForm({ ...accountForm, name: e.target.value })} placeholder="مثال: حساب البنك" /></Field><Field label="نوع الحساب"><Select value={accountForm.account_type} onChange={e => setAccountForm({ ...accountForm, account_type: e.target.value })}>{ACCOUNT_TYPES.map(t => <option key={t} value={t}>{TYPE_AR[t] || t}</option>)}</Select></Field><Field label="العملة"><Select required value={accountForm.currency} onChange={e => setAccountForm({ ...accountForm, currency: e.target.value })}>{!currencies.some(c => c.currency === accountForm.currency) && accountForm.currency && <option value={accountForm.currency}>{accountForm.currency} · العملة الحالية</option>}{currencies.map(c => <option key={c.currency} value={c.currency}>{c.currency} · {c.display_name}</option>)}</Select></Field><Field label="الرصيد الافتتاحي"><Input type="number" step="0.01" value={accountForm.initial_balance} onChange={e => setAccountForm({ ...accountForm, initial_balance: e.target.value })} /></Field></div><label style={{ display: "flex", gap: 9, alignItems: "center", fontSize: 12 }}><input type="checkbox" checked={accountForm.include_in_net_worth} onChange={e => setAccountForm({ ...accountForm, include_in_net_worth: e.target.checked })} /> تضمين الحساب في صافي الثروة</label><div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><Button secondary onClick={() => { setShowAccount(false); setEditingAccountId(null); }}>إلغاء</Button><Button type="submit" disabled={saving}>{saving ? "جارٍ الحفظ…" : editingAccountId ? "حفظ التعديلات" : "إنشاء الحساب"}</Button></div></form></div></div>}
+
+    {showCategory && <div onMouseDown={e => { if (e.target === e.currentTarget) setShowCategory(false); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#14251DB8", display: "grid", placeItems: "center", padding: 20 }}><div className="fin-modal" role="dialog" aria-modal="true" style={{ background: "#fff", width: "min(500px,100%)", borderRadius: 18, padding: 22, boxSizing: "border-box" }}><h2 style={{ margin: "0 0 16px", fontSize: 19 }}>{editingCategoryId?"تعديل اسم التصنيف":"تصنيف جديد"}</h2><form onSubmit={saveCategory} style={{ display: "grid", gap: 13 }}><Field label="اسم التصنيف *"><Input required value={categoryForm.name} onChange={e => setCategoryForm({ ...categoryForm, name: e.target.value })} placeholder="مثال: الطعام" /></Field><Field label="نوع التصنيف"><Select disabled={!!editingCategoryId} value={categoryForm.kind} onChange={e => setCategoryForm({ ...categoryForm, kind: e.target.value, parent_id: "" })}><option value="Expense">مصروف</option><option value="Income">دخل</option><option value="Both">مشترك</option></Select></Field><Field label="التصنيف الرئيسي (اختياري)"><Select value={categoryForm.parent_id} onChange={e => setCategoryForm({ ...categoryForm, parent_id: e.target.value })}><option value="">تصنيف رئيسي</option>{allCategories.filter(c => !c.parent_id && !c.archived && c.kind === categoryForm.kind).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></Field><div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><Button secondary onClick={() => {setShowCategory(false);setEditingCategoryId(null);}}>إلغاء</Button><Button type="submit" disabled={saving}>{saving ? "جارٍ الحفظ…" : editingCategoryId?"حفظ الاسم":"حفظ التصنيف"}</Button></div></form></div></div>}
+
+    </>;
+  }
 
   return <div style={pageStyle}>{homeBillPayments.length > 0 && canEdit && <Card style={{ borderColor: "#C7D2FE", background: "#F5F7FF", marginBottom: 12 }}><div style={{ fontWeight: 850, marginBottom: 6 }}>🏠 تكاليف منزلية تنتظر تسجيلها في Finance OS</div><div style={{ fontSize: 11, color: MUTED, marginBottom: 9 }}>تم تسجيل الدفعة أو الاستلام في Home OS. لن تُنشأ معاملة مالية إلا بعد مراجعة الحساب والتصنيف وتأكيدك، مع مفتاح يمنع تكرار المعاملة.</div>{homeBillPayments.map(event => { const isPurchase = event.type === "home.purchase.receipt.recorded"; const isMaintenance = event.type === "home.maintenance.cost.recorded"; const title = isPurchase ? ((event.payload.purchaseTitle || "مشتريات منزلية") + " — " + (event.payload.itemName || "صنف")) : isMaintenance ? (event.payload.maintenanceTitle || "صيانة منزلية") : (event.payload.billTitle || "فاتورة منزلية"); return <div key={event.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", borderTop: "1px solid #DCE2FF", padding: "9px 0" }}><div><b style={{ fontSize: 13 }}>{title}</b><div style={{ fontSize: 11, color: MUTED }}>{money(event.payload.amount, event.payload.currency)} · {event.payload.paymentDate || "—"}{isPurchase ? " · كمية: " + event.payload.quantity : ""}</div></div><Button disabled={!accounts.some(a => a.status === "Active" && a.currency === (event.payload.currency || "EGP"))} onClick={() => { const category = categories.find(c => /home|house|منزل|مشتريات|مرافق|utilities/i.test(c.name || "")); setTx({ ...initialTx(), type: "Expense", amount: String(event.payload.amount ?? ""), currency: event.payload.currency || "EGP", local_date: event.payload.paymentDate || today(), merchant: isPurchase ? (event.payload.purchaseTitle || "مشتريات منزلية") : isMaintenance ? (event.payload.maintenanceTitle || "صيانة منزلية") : (event.payload.billTitle || "فاتورة منزلية"), category_id: category?.id || "", notes: (isPurchase ? "استلام مشتريات من Home OS — " + (event.payload.itemName || "") : isMaintenance ? "تكلفة صيانة من Home OS" : "دفعة من Home OS") + " — " + (event.payload.category || "منزل"), homeBillPaymentId: event.payload.sourcePaymentId }); setSplitMode(false); setShowTx(true); }}>مراجعة وتسجيل المصروف</Button></div>; })}</Card>}{shoppingPurchases.length > 0 && canEdit && <Card style={{ borderColor: "#F2D3A0", background: "#FFFAF0", marginBottom: 12 }}><div style={{ fontWeight: 850, marginBottom: 6 }}>🛒 مشتريات تنتظر تسجيلها في Finance OS</div><div style={{ fontSize: 11, color: MUTED, marginBottom: 9 }}>لن يُسجّل أي مصروف قبل اختيار الحساب والتصنيف وتأكيدك.</div>{shoppingPurchases.map(event => <div key={event.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", borderTop: "1px solid #F2E5CE", padding: "9px 0" }}><div><b style={{ fontSize: 13 }}>{event.payload.productName || "شراء جديد"}</b><div style={{ fontSize: 11, color: MUTED }}>{money(event.payload.actualPrice, event.payload.currency)} · {event.payload.purchaseDate || "—"}</div></div><Button disabled={!accounts.some(a => a.status === "Active" && a.currency === (event.payload.currency || "EGP"))} onClick={() => { setTx({ ...initialTx(), type: "Expense", amount: String(event.payload.actualPrice ?? ""), currency: event.payload.currency || "EGP", local_date: event.payload.purchaseDate || today(), merchant: event.payload.merchant || "", notes: ["شراء من Shopping OS", event.payload.receiptUrl || ""].filter(Boolean).join(" · "), shoppingPurchaseId: event.payload.sourcePurchaseId }); setSplitMode(false); setShowTx(true); }}>مراجعة وتسجيل المصروف</Button></div>)}</Card>}{learningActivity.length > 0 && <Card style={{ borderColor: "#DDD6FE", background: "#F5F3FF", color: "#5B21B6", marginBottom: 12 }}><div style={{ fontWeight: 800, marginBottom: 6 }}>🔗 نشاط جديد من Learning OS</div>{learningActivity.map((event) => <div key={event.id} style={{ fontSize: 12, marginTop: 4 }}>{event.type === "learning.study_session.completed" ? `تم تسجيل جلسة دراسة — ${Number(event.payload?.minutes) || 0} دقيقة` : event.type === "learning.lesson.completed" ? `تم إكمال درس: ${event.payload?.lessonName || "درس"}` : `تم إكمال دورة: ${event.payload?.courseName || "دورة"}`}</div>)}<div style={{ marginTop: 8 }}><Button secondary onClick={() => setLearningActivity([])}>إخفاء</Button></div></Card>}
     <style>{`@media(max-width:640px){.fin-header{align-items:flex-start!important;flex-direction:column!important}.fin-actions{width:100%;display:flex;flex-wrap:wrap}.fin-actions button{flex:1}.fin-modal{padding:14px!important}.fin-tile{padding:14px!important}}`}</style>
