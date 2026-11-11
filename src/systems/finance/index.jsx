@@ -646,11 +646,11 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     finally { setSaving(false); }
   }
 
-  const pageTitle = ({ "family-cash": "عهد ومصروفات الأفراد", dashboard: "لوحة القيادة", inbox: "الوارد", transactions: "الحركات المالية", accounts: "الحسابات", categories: "التصنيفات", budgets: "الميزانيات", reconciliation: "التسوية البنكية", assets: "الأصول والاستثمارات", debts: "الديون والأقساط", recurring: "المتكرر والاشتراكات", projects: "المشاريع المالية", networth: "صافي الثروة", fx: "أسعار الصرف", reports: "التقارير", settings: "الإعدادات والأمان", family: "مركز مصاريف الأسرة" })[section] || "الماليات";
+  const pageTitle = ({ "family-cash": "عهد ومصروفات الأفراد", dashboard: "لوحة القيادة", inbox: "الوارد", transactions: "الحركات المالية", accounts: "الحسابات", categories: "التصنيفات", budgets: "الميزانيات", reconciliation: "التسوية البنكية", assets: "الأصول والاستثمارات", debts: "الديون والأقساط", recurring: "المتكرر والاشتراكات", projects: "المشاريع المالية", networth: "صافي الثروة", fx: "أسعار الصرف", reports: "التقارير", planning: "التخطيط والميزانية", settings: "الإعدادات والأمان", "context-tags": "وسوم السياق", family: "مركز مصاريف الأسرة" })[section] || "الماليات";
   const navGroups = [
     { id: "overview", label: "الرئيسية", items: [["dashboard", "لوحة القيادة", "⌂"], ["inbox", "الوارد (الدخل)", "📥"], ["transactions", "الحركات المالية", "🧾"], ["accounts", "الحسابات", "🏦"]] },
-    { id: "family", label: "الأسرة", items: [["family", "مركز مصاريف الأسرة", "👪"], ["family-cash", "عهد ومصروفات الأفراد", "👪"]] },
-    { id: "planning", label: "التخطيط والميزانية", items: [["budgets", "الميزانيات", "📊"], ["goals", "الأهداف المالية", "🎯"], ["recurring", "المتكرر والاشتراكات", "🔁"], ["projects", "مشاريع مرتبطة بالمشاريع الأساسية", "📁"]] },
+    { id: "family", label: "الأسرة", items: [["family", "مركز مصاريف الأسرة", "👪"], ["family-cash", "عهد ومصروفات الأفراد", "👪"], ["context-tags", "وسوم السياق", "🏷️"]] },
+    { id: "planning", label: "التخطيط والميزانية", items: [["planning", "التخطيط", "📊"], ["budgets", "الميزانيات", "📊"], ["goals", "الأهداف المالية", "🎯"], ["recurring", "المتكرر والاشتراكات", "🔁"], ["projects", "مشاريع مرتبطة بالمشاريع الأساسية", "📁"]] },
     { id: "wealth", label: "الثروة والالتزامات", items: [["assets", "الأصول", "📈"], ["debts", "الديون والأقساط", "💳"], ["networth", "صافي الثروة", "💎"], ["reconciliation", "التسوية البنكية", "☑️"]] },
     { id: "analysis", label: "التحليل والإعدادات", items: [["reports", "التقارير والتحليلات", "📑"], ["categories", "التصنيفات", "🗂️"], ["fx", "العملات وأسعار الصرف", "💱"], ["settings", "الإعدادات والأمان", "🔐"]] }
   ];
