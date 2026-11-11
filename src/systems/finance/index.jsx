@@ -8,7 +8,6 @@ import FinanceRecurring from "./Recurring.jsx";
 import FinanceReports from "./Reports.jsx";
 import FinanceProjects from "./Projects.jsx";
 import FinanceAssets from "./Assets.jsx";
-import FinanceNetWorthHistory from "./NetWorthHistory.jsx";
 import FinanceFXRates from "./FXRates.jsx";
 import TransactionImport from "./TransactionImport.jsx";
 import FinanceRedesign from "./FinanceRedesign.jsx";
