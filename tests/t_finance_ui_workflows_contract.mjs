@@ -94,10 +94,9 @@ assert.ok(redesign.includes('["وسوم السياق"') && redesign.includes('"f
   "settings must route currencies to the installed FX screen");
 assert.ok(redesign.includes('autoOpenAddType==="debt"') && redesign.includes('activePage!=="debts"') && redesign.includes('autoOpenAddType==="asset"') && redesign.includes('autoOpenAddType==="recurring"'),
   "global Add chooser must open debt, asset, and recurring forms as modal overlays without changing page navigation");
-assert.ok(redesign.includes('Segmented items={[["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"]]}'),
+assert.ok(redesign.includes('Segmented items={[["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"]]}' ),
   "wealth must merge overview and net worth into one wealth overview instead of a standalone net-worth tab");
-),
-  "settings must expose the context-tags section");
+assert.ok(redesign.includes('["وسوم السياق"'), "settings must expose the context-tags section");
 assert.ok(redesign.includes('page==="context-tags"') || redesign.includes('activePage==="context-tags"'),
   "the context-tags settings page must be reachable by navigation");
 assert.ok(redesign.includes('["family", "الأسرة"]'), "Family must be reachable from the Finance navigation");
