@@ -82,8 +82,8 @@ assert.ok(goals.includes("openCreate") && goals.includes("onRequestAdd"),
   "goal creation must support the Planning and global Add flows");
 assert.ok(finance.includes("fin_budgets_get") && finance.includes("fin_budget_upsert"),
   "budget read/write must use Finance RPCs");
-assert.ok(redesign.includes('["budgets","الميزانيات"],["goals","الأهداف"],["wealth","الثروة"],["reports","التقارير"]'),
-  "Planning must expose Budgets, Goals, Wealth, and Reports tabs");
+assert.ok(redesign.includes('["budgets","الميزانيات"],["goals","الأهداف المالية"],["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"],["reports","التقارير"]'),
+  "Planning must expose Budgets, Goals, Overview, Investments, Debts, and Reports tabs");
 assert.ok(redesign.includes('activePage==="planning"') && redesign.includes("planningPage()"), "Planning must have a dedicated route");
 assert.ok(redesign.includes('navigate("budgets")'),
   "the Planning entry point must resolve to the registered Budgets page");
@@ -98,7 +98,7 @@ assert.ok(redesign.includes('autoOpenAddType==="debt"') && redesign.includes('ac
 assert.ok(redesign.includes("TransactionCreateModal") && redesign.includes("showTransactionForm"), "transaction add must render as a real Finance modal");
 assert.ok(finance.includes("onSaveTransaction") && finance.includes("saveTransaction(null, draft, split, rows)"), "transaction modal must connect to the canonical ledger save handler");
 assert.ok(redesign.includes("planningTab===\"wealth\"") && redesign.includes("activePage===\"wealth\""), "Wealth must be a Planning subsection rather than a standalone top-level Finance section");
-assert.ok(core.includes("wealth:الثروة:💎") && !core.includes("assets:الأصول:📈") && !core.includes("debts:الديون والأقساط:💳") && !core.includes("networth:صافي الثروة:💎"), "Finance sidebar must expose Wealth only through Planning and remove duplicate top-level wealth routes");
+assert.ok(core.includes("planning:التخطيط:◫") && !core.includes("wealth:الثروة:💎") && !core.includes("budgets:الميزانيات:📊") && !core.includes("goals:الأهداف المالية:🎯") && !core.includes("reports:التقارير:📑"), "Finance sidebar must expose one Planning section and keep its six subsections inside FinanceRedesign");
 assert.ok(redesign.includes('Segmented items={[["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"]]}' ),
   "wealth must merge overview and net worth into one wealth overview instead of a standalone net-worth tab");
 assert.ok(redesign.includes('["وسوم السياق"'), "settings must expose the context-tags section");
@@ -117,7 +117,7 @@ assert.ok(finance.includes("recurringItems") && finance.includes("finance_recurr
 assert.ok(finance.includes("FinanceRedesign") && !finance.includes("const navGroups = ["), "Finance index must delegate rendering/navigation to the single FinanceRedesign orchestrator and must not keep a second navigation tree");
 assert.ok(!finance.includes("if (true)"), "Finance index must not retain an always-true legacy renderer branch");
 assert.ok(!redesign.includes("legacyNetWorth"), "Net worth must not be reintroduced as a separate Planning/legacy screen");
-assert.ok(redesign.includes('activePage==="wealth" || activePage==="assets" || activePage==="debts"'), "Wealth must own the assets and debts subsections");
+assert.ok(redesign.includes('planningTab==="overview" || planningTab==="investments" || planningTab==="debts"'), "Planning must own the wealth overview, investments, and debts subsections");
 
 assert.ok(!redesign.includes('value="+35,000"') && !redesign.includes('value="+1.1%"') && !redesign.includes("قسط السيارة"), "dashboard must not display fabricated performance or payment examples");
 assert.ok(!redesign.includes("[35,42,39,48") && !redesign.includes("[42,48,45,53"), "wealth charts must not contain hard-coded sample series");
