@@ -21,12 +21,13 @@ export default function FinanceFamilyCash({ws,access,isDemo=false}){
   if(!ws?.id||isDemo){setMembers([]);setTransactions([]);setAccounts([]);setAdvances([]);setEntries([]);setCategories([]);setLoading(false);return;}
   setLoading(true);setError("");
   try{
-   const [m,t,ac,a,e,c]=await Promise.all([
+   const [m,t,a,e,ac,c]=await Promise.all([
     supabase.from("finance_family_members").select("id,display_name,status").eq("workspace_id",ws.id).eq("status","Active").order("display_name"),
     supabase.from("finance_transactions").select("id,name,type,status,amount,currency,local_date,merchant,account_id").eq("workspace_id",ws.id).in("type",["Expense","Transfer"]).eq("status","Posted").order("local_date",{ascending:false}).limit(300),
     supabase.from("finance_family_cash_advances").select("id,family_member_id,disbursement_transaction_id,account_id,amount,currency,disbursed_on,note,status,created_at").eq("workspace_id",ws.id).order("disbursed_on",{ascending:false}),
     supabase.from("finance_family_cash_entries").select("id,advance_id,entry_type,amount,currency,entry_date,category_id,description,receipt_reference,created_at").eq("workspace_id",ws.id).order("entry_date",{ascending:false}),
-    supabase.from("finance_accounts").select("id,name,status,currency").eq("workspace_id",ws.id).in("status",["Active","Archived"]).order("name"),\n    supabase.from("finance_categories").select("id,name,kind,archived").eq("workspace_id",ws.id).eq("archived",false).in("kind",["Expense","Both"]).order("name")
+    supabase.from("finance_accounts").select("id,name,status,currency").eq("workspace_id",ws.id).in("status",["Active","Archived"]).order("name"),
+    supabase.from("finance_categories").select("id,name,kind,archived").eq("workspace_id",ws.id).eq("archived",false).in("kind",["Expense","Both"]).order("name")
    ]);
    for(const r of [m,t,a,e])if(r.error)throw r.error;
    setMembers(m.data||[]);setTransactions(t.data||[]);setAccounts(ac.data||[]);setAdvances(a.data||[]);setEntries(e.data||[]);setCategories(c.error?[]:c.data||[]);
@@ -35,7 +36,8 @@ export default function FinanceFamilyCash({ws,access,isDemo=false}){
  },[ws?.id,isDemo]);
  useEffect(()=>{load();},[load]);
  const memberName=id=>members.find(m=>m.id===id)?.display_name||"فرد مؤرشف";
- const txById=useMemo(()=>Object.fromEntries(transactions.map(t=>[t.id,t])),[transactions]);\n const accountById=useMemo(()=>Object.fromEntries(accounts.map(a=>[a.id,a])),[accounts]);
+ const txById=useMemo(()=>Object.fromEntries(transactions.map(t=>[t.id,t])),[transactions]);
+ const accountById=useMemo(()=>Object.fromEntries(accounts.map(a=>[a.id,a])),[accounts]);
  const linked=new Set(advances.map(a=>a.disbursement_transaction_id));
  const availableTransactions=transactions.filter(t=>!linked.has(t.id));
  const selected=advances.find(a=>a.id===advanceId);
