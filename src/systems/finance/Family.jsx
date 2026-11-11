@@ -59,7 +59,7 @@ export default function FinanceFamily({ws,access,isDemo=false,currencies=[]}) {
         supabase.from("workspace_members").select("user_id,display_name,email,status").eq("workspace_id",ws.id).eq("status","active").order("display_name")
       ]);
       if(m.error) throw m.error; if(b.error) throw b.error; if(a.error) throw a.error; if(x.error) throw x.error; if(p.error) throw p.error; if(cat.error) throw cat.error;
-      setMembers(m.data||[]); setBudgets(b.data||[]); setCategories(cat.data||[]); setAllowances(a.data||[]); setExpenses(x.data||[]); setPrivateDetails(p.data||[]); setWorkspaceUsers(users.error?[]:(users.data||[]));
+      setMembers(m.data||[]); setBudgets(b.data||[]); setCategories(cat.data||[]); setAllowances(a.data||[]); setExpenses(x.data||[]); setWorkspaceUsers(users.error?[]:(users.data||[]));
     } catch(e) { setError(e?.message||"تعذّر تحميل مركز العائلة. تحقق من صلاحيات Finance/Family وتطبيق ترحيل قاعدة البيانات."); }
     finally { setLoading(false); }
   },[ws?.id,isDemo]);
