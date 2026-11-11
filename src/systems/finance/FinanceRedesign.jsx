@@ -754,8 +754,8 @@ function transactionsPage() {
     </>;
   }
 
-  function wealthPage() {
-    const tab = wealthTab;
+  function wealthPage(overrideTab = null) {
+    const tab = overrideTab || wealthTab;
     return <>
       <PageHead eyebrow="الماليات · الثروة" title="الثروة" subtitle="الأصول والاستثمارات والديون وصافي الثروة في مسار واحد." />
       <Segmented items={[["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"]]} value={tab} onChange={setWealthTab}/>
@@ -786,7 +786,7 @@ function transactionsPage() {
         <h2 style={{marginTop:0,fontSize:15}}>الأهداف المالية</h2>
         <Table columns={[["name","الهدف"],["type","النوع"],["progress","التقدم"],["target","المستهدف"],["status","الحالة"]]} rows={goals.map((g,i)=>({id:g.id||i,name:g.name,type:g.goal_type||"ادخار",progress:<div style={{minWidth:130}}><Progress value={g.current_amount||g.progress||0} max={g.target_amount||g.target||1}/></div>,target:displayMoney(g.target_amount||g.target||0,g.currency||baseCurrency),status:<Pill tone="positive">في المسار</Pill>}))}/>
       </Card>)}
-      {(planningTab==="overview" || planningTab==="investments" || planningTab==="debts") && (()=>{ setWealthTab(planningTab); return wealthPage(); })()}
+      {(planningTab==="overview" || planningTab==="investments" || planningTab==="debts") && wealthPage(planningTab)}
       {planningTab==="reports" && <div style={{display:"grid",gap:14}}>
         {legacyReports || <Card style={{marginTop:12}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
