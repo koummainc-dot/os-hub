@@ -97,7 +97,7 @@ assert.ok(redesign.includes('autoOpenAddType==="debt"') && redesign.includes('ac
   "global Add chooser must open debt, asset, and recurring forms as modal overlays without changing page navigation");
 assert.ok(redesign.includes("TransactionCreateModal") && redesign.includes("showTransactionForm"), "transaction add must render as a real Finance modal");
 assert.ok(finance.includes("onSaveTransaction") && finance.includes("saveTransaction(null, draft, split, rows)"), "transaction modal must connect to the canonical ledger save handler");
-assert.ok(redesign.includes("planningTab===\"wealth\"") && redesign.includes("activePage===\"wealth\""), "Wealth must be a Planning subsection rather than a standalone top-level Finance section");
+assert.ok(redesign.includes("planningTab===\"overview\"") && redesign.includes("planningTab===\"investments\"") && redesign.includes("planningTab===\"debts\""), "Wealth content must be a Planning subsection rather than a standalone top-level Finance section");
 assert.ok(core.includes("planning:التخطيط:◫") && !core.includes("wealth:الثروة:💎") && !core.includes("budgets:الميزانيات:📊") && !core.includes("goals:الأهداف المالية:🎯") && !core.includes("reports:التقارير:📑"), "Finance sidebar must expose one Planning section and keep its six subsections inside FinanceRedesign");
 assert.ok(redesign.includes('Segmented items={[["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"]]}' ),
   "wealth must merge overview and net worth into one wealth overview instead of a standalone net-worth tab");
