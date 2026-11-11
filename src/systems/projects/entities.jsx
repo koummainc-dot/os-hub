@@ -451,7 +451,7 @@ export function PrdsView({ projectId }) {
       {projectId && canNew && <div style={{ marginBottom: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
         <Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ مواصفة</Btn>
         <Btn small onClick={() => setLinkForm({})}>🔗 ربط مواصفة موجودة</Btn>
-      </div>
+      </div>}
       {!list.length ? <Empty icon="📝" title="لا مواصفات" sub="اكتب المواصفة قبل التنفيذ: المشكلة، الحل، مقاييس النجاح." /> : (
         <div style={{ display: "grid", gridTemplateColumns: "minmax(230px,.72fr) minmax(0,1.65fr)", gap: 12, alignItems: "start" }}>
           <div style={{ ...S.card, padding: 7 }}>
