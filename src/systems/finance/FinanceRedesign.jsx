@@ -189,7 +189,7 @@ function Shell({ page, setPage, children, onAdd, onRefresh, hideBalances, setHid
   ];
   const current = page === "dashboard" ? "dashboard"
     : ["transactions", "recurring", "inbox"].includes(page) ? "transactions"
-    : ["budgets", "goals", "reports", "projects"].includes(page) ? "planning"
+    : ["planning", "budgets", "goals", "reports", "wealth", "projects"].includes(page) ? "planning"
     : ["settings", "accounts", "categories", "currencies", "recurring", "context-tags"].includes(page) ? "settings" : page;
 
   return (
@@ -438,7 +438,7 @@ export default function FinanceRedesign({
     setPage?.(id);
   }, [setPage]);
   const activePage = internalPage || page || "dashboard";
-  const [planningTab, setPlanningTab] = React.useState(activePage === "reports" || activePage === "networth" ? "reports" : activePage === "goals" ? "goals" : "budgets");
+  const [planningTab, setPlanningTab] = React.useState(activePage === "wealth" ? "wealth" : activePage === "reports" || activePage === "networth" ? "reports" : activePage === "goals" ? "goals" : "budgets");
   const [wealthTab, setWealthTab] = React.useState(page === "assets" ? "investments" : page === "debts" ? "debts" : "overview");
   const [familyTab, setFamilyTab] = React.useState(page === "family-cash" ? "allocations" : "overview");
   const [txTab, setTxTab] = React.useState("all");
@@ -471,6 +471,7 @@ export default function FinanceRedesign({
     if(activePage==="debts")setWealthTab("debts");
     else if(activePage==="assets")setWealthTab("investments");
     else if(activePage==="reports"||activePage==="networth")setPlanningTab("reports");
+    else if(activePage==="wealth")setPlanningTab("wealth");
     else if(activePage==="goals")setPlanningTab("goals");
     else if(activePage==="budgets")setPlanningTab("budgets");
     else if(activePage==="planning")setPlanningTab("budgets");
@@ -522,7 +523,7 @@ export default function FinanceRedesign({
         <Card>
           <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",marginBottom:14}}>
             <div><h2 style={{margin:0,fontSize:15}}>صافي الثروة · سجل اللقطات</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>اللقطات المحفوظة فقط؛ لا يتم توليد تاريخ تقديري</div></div>
-            <Button secondary onClick={()=>setPage("networth")}>فتح الثروة ←</Button>
+            <Button secondary onClick={()=>{setPlanningTab("wealth");navigate("planning");}}>فتح الثروة ←</Button>
           </div>
           {snapshotRows.length?<div style={{height:170,display:"flex",alignItems:"flex-end",gap:7,padding:"12px 4px",borderBottom:"1px solid "+C.line}}>
             {snapshotRows.map((point,i)=>{const value=Number(point.value_base),height=12+((value-snapshotMin)/snapshotRange)*78;return <div key={point.id||point.snapshot_at} title={new Date(point.snapshot_at).toLocaleDateString("ar-EG")+": "+displayMoney(value,point.base_currency||baseCurrency)} style={{flex:1,minWidth:5,height:height+"%",background:i===snapshotRows.length-1?C.green:"#D7E5DC",borderRadius:"6px 6px 0 0"}}/>;})}
@@ -766,8 +767,8 @@ function transactionsPage() {
   }
 
   function planningPage() {
-    const title = planningTab === "budgets" ? "الميزانيات" : planningTab === "goals" ? "الأهداف المالية" : "التقارير";
-    const subtitle = planningTab === "budgets" ? "راقب حدود الإنفاق والمصروف الفعلي من نفس مصدر الحركات." : planningTab === "goals" ? "اربط الادخار والتقدم المالي بأهدافك دون إنشاء دفتر منفصل." : "تقارير الماليات تُقرأ من نفس الحركات والأرصدة، ولا تنشئ مصدر حقيقة آخر.";
+    const title = planningTab === "budgets" ? "الميزانيات" : planningTab === "goals" ? "الأهداف المالية" : planningTab === "wealth" ? "الثروة" : "التقارير";
+    const subtitle = planningTab === "budgets" ? "راقب حدود الإنفاق والمصروف الفعلي من نفس مصدر الحركات." : planningTab === "goals" ? "اربط الادخار والتقدم المالي بأهدافك دون إنشاء دفتر منفصل." : planningTab === "wealth" ? "الأصول والاستثمارات والديون وصافي الثروة في مسار واحد." : "تقارير الماليات تُقرأ من نفس الحركات والأرصدة، ولا تنشئ مصدر حقيقة آخر.";
     return <>
       <PageHead
         eyebrow="الماليات · التخطيط"
@@ -779,7 +780,7 @@ function transactionsPage() {
             ? <Button secondary onClick={actions.onExport}>تصدير</Button>
              : <Button onClick={()=>setAutoOpenAddType("goal")}>＋ إضافة هدف</Button>}
       />
-      <Segmented items={[["budgets","الميزانيات"],["goals","الأهداف"],["reports","التقارير"]]} value={planningTab} onChange={value=>{setPlanningTab(value);if(value==="budgets")navigate("budgets");else if(value==="goals")navigate("goals");else navigate("reports");}}/>
+      <Segmented items={[["budgets","الميزانيات"],["goals","الأهداف"],["wealth","الثروة"],["reports","التقارير"]]} value={planningTab} onChange={value=>{setPlanningTab(value);if(value==="budgets")navigate("budgets");else if(value==="goals")navigate("goals");else navigate("reports");}}/>
       {planningTab==="budgets" && budgetsPage()}
       {planningTab==="goals" && (legacyGoals ? React.cloneElement(legacyGoals,{openCreate:autoOpenAddType==="goal",onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("goal")}) : <Card style={{marginTop:12}}>
         <h2 style={{marginTop:0,fontSize:15}}>الأهداف المالية</h2>
@@ -819,13 +820,13 @@ function transactionsPage() {
   const pageNode = activePage==="dashboard" ? dashboard()
     : activePage==="transactions" || activePage==="inbox" || activePage==="recurring" ? transactionsPage()
     : activePage==="projects" ? (legacyProjects || fallback())
-    : activePage==="planning" || activePage==="budgets" || activePage==="goals" || activePage==="reports" ? planningPage()
+    : activePage==="planning" || activePage==="budgets" || activePage==="goals" || activePage==="reports" || activePage==="wealth" ? planningPage()
     : activePage==="settings" ? settingsPage()
     : activePage==="accounts" ? accountsPage()
     : activePage==="categories" ? categoriesPage()
     : activePage==="fx" || activePage==="currencies" ? (legacyCurrencies || currenciesPage())
     : activePage==="context-tags" ? contextTagsPage()
-    : activePage==="wealth" || activePage==="assets" || activePage==="debts" ? wealthPage()
+    : activePage==="assets" || activePage==="debts" ? wealthPage()
     : ["family","family-cash"].includes(activePage) ? <><Segmented items={[["family","مركز الأسرة"],["family-cash","العُهد ومصروفات الأفراد"]]} value={activePage} onChange={value=>navigate(value)}/>{activePage==="family"?(legacyFamily||fallback()):(legacyFamilyCash||fallback())}</>
     : activePage==="projects" ? (legacyProjects || fallback())
     : fallback();
