@@ -30,7 +30,9 @@ export const projOpts = (projects, includeArchived) => projects.filter((p) => in
 
 // ── Project form ────────────────────────────────────────────────────
 export function ProjectForm({ initial, onClose }) {
-  const { A: act, people, lookups, toast, openProject, data } = useP(); const isNew = !initial || !initial.id;
+  const { A: act, people, lookups, toast, openProject, data, ws } = useP(); const isNew = !initial || !initial.id;
+  const [financeProjects, setFinanceProjects] = useState([]);
+  useEffect(() => { let active = true; if (!ws?.id) return () => { active = false; }; supabase.rpc("fin_projects_get", { p_ws: ws.id }).then(({ data: rows, error }) => { if (active && !error) setFinanceProjects(Array.isArray(rows) ? rows : []); }).catch(() => {}); return () => { active = false; }; }, [ws?.id]);
   const initialFinance = initial?.finance_enabled === true || !!initial?.finance_link?.finance_project_ref || initial?.budget_amount != null || initial?.budget_planned != null;
   const initialFinanceLink = initial?.finance_link || {};
   const fields = [
@@ -44,7 +46,7 @@ export function ProjectForm({ initial, onClose }) {
     { key: "final_goal", label: "الهدف النهائي", type: "textarea" }, { key: "description", label: "الوصف", type: "textarea" },
     { key: "finance_enabled", label: "هل للمشروع جانب مالي؟", type: "bool", checkLabel: "نعم، اربط المشروع بنظام المال", hint: "هذا لا ينشئ معاملات داخل Projects؛ Finance يظل مالك المعاملات والصرف والإيرادات والتمويل." },
     { key: "finance_link_mode", label: "طريقة الربط المالي", type: "select", options: [{ v: "existing", l: "ربط مشروع مالي موجود" }, { v: "request", l: "طلب إنشاء/اختيار مشروع في Finance" }], allowEmpty: false, show: (v) => !!v.finance_enabled },
-    { key: "finance_project_ref", label: "مرجع مشروع Finance", show: (v) => !!v.finance_enabled && v.finance_link_mode === "existing", hint: "أدخل المعرّف الثابت لمشروع Finance؛ لا ننسخ بيانات المعاملات هنا." },
+    { key: "finance_project_ref", label: "مشروع Finance المرتبط", type: "select", emptyLabel: "— اختر مشروعًا ماليًا —", options: financeProjects.map((p) => ({ v: p.project_ref || p.id, l: (p.name || p.project_ref || p.id) + (p.status ? " · " + p.status : "") })), show: (v) => !!v.finance_enabled && v.finance_link_mode === "existing", hint: financeProjects.length ? "اختر من ملفات Finance الموجودة؛ لا يتم نسخ المعاملات إلى Projects." : "لا توجد ملفات Finance متاحة حاليًا. يمكنك اختيار «طلب إنشاء/اختيار» ليتم إنشاء الملف المالي بعد حفظ المشروع." },
     { key: "finance_purpose", label: "طبيعة الجانب المالي", type: "select", options: [{ v: "expense", l: "مصروفات" }, { v: "funding", l: "تمويل" }, { v: "revenue", l: "إيرادات/أرباح" }, { v: "mixed", l: "مختلط" }], allowEmpty: false, show: (v) => !!v.finance_enabled },
     { key: "budget_amount", label: "الميزانية المخطَّطة", type: "number", min: 0, show: (v) => !!v.finance_enabled },
     { key: "budget_currency", label: "عملة الميزانية", show: (v) => !!v.finance_enabled },
@@ -61,17 +63,24 @@ export function ProjectForm({ initial, onClose }) {
     onSubmit={async (v) => {
       const financeEnabled = !!v.finance_enabled;
       if (financeEnabled && v.finance_link_mode === "existing" && !String(v.finance_project_ref || "").trim()) throw new Error("أدخل مرجع مشروع Finance الموجود أو اختر طلب إنشاء/اختيار.");
-      const financeLink = financeEnabled ? {
-        ...(initial?.finance_link || {}),
-        finance_project_ref: String(v.finance_project_ref || "").trim() || null,
-        finance_project_url: String(v.finance_project_url || "").trim() || null,
-        status: String(v.finance_project_ref || "").trim() ? "Linked" : "Requested",
-        linked_at: String(v.finance_project_ref || "").trim() ? (initial?.finance_link?.linked_at || new Date().toISOString()) : null
-      } : null;
-      const payload = { ...v, budget_amount: financeEnabled && v.budget_amount !== "" ? Number(v.budget_amount) : null, budget_currency: financeEnabled ? (v.budget_currency || "EGP") : null, finance_enabled: financeEnabled, finance_purpose: financeEnabled ? v.finance_purpose : null, finance_link: financeLink };
+      let financeRef = String(v.finance_project_ref || "").trim() || null;
+      const payload = { ...v, budget_amount: financeEnabled && v.budget_amount !== "" ? Number(v.budget_amount) : null, budget_currency: financeEnabled ? (v.budget_currency || "EGP") : null, finance_enabled: financeEnabled, finance_purpose: financeEnabled ? v.finance_purpose : null };
+      if (!financeEnabled) payload.finance_link = null;
       delete payload.finance_link_mode; delete payload.finance_project_ref; delete payload.finance_project_url; delete payload.budget_planned;
       const saved = await act.saveProject({ ...payload, lead_id: v.lead_id || undefined }, isNew);
-      if (saved) { toast(isNew ? "✅ تم إنشاء المشروع" : "✅ تم الحفظ"); onClose(); if (isNew) openProject(saved.id); } else return false;
+      if (!saved) return false;
+      if (financeEnabled && v.finance_link_mode === "request" && !financeRef && ws?.id) {
+        const financePayload = { workspace_id: ws.id, name: saved.name, project_type: "Other", budget: v.budget_amount === "" ? null : String(v.budget_amount), currency: v.budget_currency || "EGP", start_date: saved.start_date || new Date().toISOString().slice(0, 10), end_date: saved.target_date || null, status: saved.status === "Completed" ? "Completed" : saved.status === "Cancelled" ? "Cancelled" : saved.status === "In Progress" ? "Active" : "Planning", scope: "Business", project_ref: saved.id, roi_basis: "ExpensesLinked", notes: "تم إنشاؤه من Projects OS؛ Finance هو مصدر الحقيقة للحركات." };
+        const { data: financeSaved, error: financeError } = await supabase.rpc("fin_project_save", { p: financePayload });
+        if (financeError) { await act.saveProject({ ...saved, finance_link: { ...(saved.finance_link || {}), status: "Error", error: financeError.message || "Finance save failed" } }, false); throw new Error("تم إنشاء المشروع، لكن تعذّر إنشاء ملفه المالي في Finance: " + (financeError.message || "خطأ غير معروف")); }
+        financeRef = financeSaved?.project_ref || financeSaved?.id || null;
+        const financeLink = { ...(saved.finance_link || {}), finance_project_ref: financeRef, status: financeRef ? "Linked" : "Requested", linked_at: financeRef ? new Date().toISOString() : null };
+        await act.saveProject({ ...saved, finance_link: financeLink }, false);
+      } else if (financeEnabled) {
+        const financeLink = { ...(saved.finance_link || {}), finance_project_ref: financeRef, finance_project_url: String(v.finance_project_url || "").trim() || null, status: financeRef ? "Linked" : "Requested", linked_at: financeRef ? (saved.finance_link?.linked_at || new Date().toISOString()) : null };
+        await act.saveProject({ ...saved, finance_link: financeLink }, false);
+      }
+      toast(isNew ? "✅ تم إنشاء المشروع" : "✅ تم الحفظ"); onClose(); if (isNew) openProject(saved.id);
     }} onClose={onClose} />;
 }
 
