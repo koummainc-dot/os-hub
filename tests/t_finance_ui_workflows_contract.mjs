@@ -85,8 +85,8 @@ assert.ok(finance.includes("fin_budgets_get") && finance.includes("fin_budget_up
 assert.ok(redesign.includes('["budgets","الميزانيات"],["goals","الأهداف المالية"],["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"],["reports","التقارير"]'),
   "Planning must expose Budgets, Goals, Overview, Investments, Debts, and Reports tabs");
 assert.ok(redesign.includes('activePage==="planning"') && redesign.includes("planningPage()"), "Planning must have a dedicated route");
-assert.ok(redesign.includes('navigate("budgets")'),
-  "the Planning entry point must resolve to the registered Budgets page");
+assert.ok(redesign.includes('navigate("planning")'),
+  "the Planning entry point must resolve to the registered Planning page");
 assert.ok(redesign.includes("internalPage") && redesign.includes("activePage"),
   "nested Finance navigation must have a local fallback state when the host shell does not immediately update");
 assert.ok(redesign.includes('navigate(target)'),
