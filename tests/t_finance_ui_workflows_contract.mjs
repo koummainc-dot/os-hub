@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [fx, debts, recurring, assets, goals, redesign, finance, family, familyCash, netWorthHistory, financeChart] = await Promise.all([
+const [fx, debts, recurring, assets, goals, redesign, finance, family, familyCash, netWorthHistory, financeChart, core] = await Promise.all([
   read("../src/systems/finance/FXRates.jsx"),
   read("../src/systems/finance/Debts.jsx"),
   read("../src/systems/finance/Recurring.jsx"),
@@ -14,6 +14,7 @@ const [fx, debts, recurring, assets, goals, redesign, finance, family, familyCas
   read("../src/systems/finance/FamilyCash.jsx"),
   read("../src/systems/finance/NetWorthHistory.jsx"),
   read("../src/systems/finance/FinanceChart.jsx"),
+  read("../src/core/core.js"),
 ]);
 
 // Currency and exchange-rate workflows must use authenticated Finance RPCs,
@@ -81,8 +82,8 @@ assert.ok(goals.includes("openCreate") && goals.includes("onRequestAdd"),
   "goal creation must support the Planning and global Add flows");
 assert.ok(finance.includes("fin_budgets_get") && finance.includes("fin_budget_upsert"),
   "budget read/write must use Finance RPCs");
-assert.ok(redesign.includes('["budgets","الميزانيات"],["goals","الأهداف"],["reports","التقارير"]'),
-  "Planning must expose Budgets, Goals, and Reports tabs");
+assert.ok(redesign.includes('["budgets","الميزانيات"],["goals","الأهداف"],["wealth","الثروة"],["reports","التقارير"]'),
+  "Planning must expose Budgets, Goals, Wealth, and Reports tabs");
 assert.ok(redesign.includes('activePage==="planning"') && redesign.includes("planningPage()"), "Planning must have a dedicated route");
 assert.ok(redesign.includes('navigate("budgets")'),
   "the Planning entry point must resolve to the registered Budgets page");
@@ -94,6 +95,10 @@ assert.ok(redesign.includes('["وسوم السياق"') && redesign.includes('"f
   "settings must route currencies to the installed FX screen");
 assert.ok(redesign.includes('autoOpenAddType==="debt"') && redesign.includes('activePage!=="debts"') && redesign.includes('autoOpenAddType==="asset"') && redesign.includes('autoOpenAddType==="recurring"'),
   "global Add chooser must open debt, asset, and recurring forms as modal overlays without changing page navigation");
+assert.ok(redesign.includes("TransactionCreateModal") && redesign.includes("showTransactionForm"), "transaction add must render as a real Finance modal");
+assert.ok(finance.includes("onSaveTransaction") && finance.includes("saveTransaction(null, draft, split, rows)"), "transaction modal must connect to the canonical ledger save handler");
+assert.ok(redesign.includes("planningTab===\"wealth\"") && redesign.includes("activePage===\"wealth\""), "Wealth must be a Planning subsection rather than a standalone top-level Finance section");
+assert.ok(core.includes("wealth:الثروة:💎") && !core.includes("assets:الأصول:📈") && !core.includes("debts:الديون والأقساط:💳") && !core.includes("networth:صافي الثروة:💎"), "Finance sidebar must expose Wealth only through Planning and remove duplicate top-level wealth routes");
 assert.ok(redesign.includes('Segmented items={[["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"]]}' ),
   "wealth must merge overview and net worth into one wealth overview instead of a standalone net-worth tab");
 assert.ok(redesign.includes('["وسوم السياق"'), "settings must expose the context-tags section");
