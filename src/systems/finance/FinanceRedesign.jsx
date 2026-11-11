@@ -438,7 +438,7 @@ export default function FinanceRedesign({
     setPage?.(id);
   }, [setPage]);
   const activePage = internalPage || page || "dashboard";
-  const [planningTab, setPlanningTab] = React.useState(activePage === "wealth" ? "wealth" : activePage === "reports" || activePage === "networth" ? "reports" : activePage === "goals" ? "goals" : "budgets");
+  const [planningTab, setPlanningTab] = React.useState(activePage === "goals" ? "goals" : activePage === "reports" ? "reports" : activePage === "assets" ? "investments" : activePage === "debts" ? "debts" : "overview");
   const [wealthTab, setWealthTab] = React.useState(page === "assets" ? "investments" : page === "debts" ? "debts" : "overview");
   const [familyTab, setFamilyTab] = React.useState(page === "family-cash" ? "allocations" : "overview");
   const [txTab, setTxTab] = React.useState("all");
@@ -585,7 +585,7 @@ function transactionsPage() {
     );
     const counts=[{label:"مصروف",value:rows.filter(t=>t.type==="Expense").length},{label:"دخل",value:rows.filter(t=>t.type==="Income").length},{label:"تحويل",value:rows.filter(t=>t.type==="Transfer").length}].filter(x=>x.value>0);
     return <>
-      <PageHead eyebrow="الماليات · الحركات" title="الحركات والمدفوعات" subtitle="الحركات اليومية والمتكررة والاشتراكات في مساحة واحدة، مع نفس دفتر الحسابات." actions={<Button onClick={actions.onAdd}>＋ إضافة حركة</Button>} />
+      <PageHead eyebrow="الماليات · الحركات" title="الحركات والمدفوعات" subtitle="الحركات اليومية والمتكررة والاشتراكات في مساحة واحدة، مع نفس دفتر الحسابات." actions={<Button onClick={()=>{setTransactionDraft({ type:"Expense", purpose:"Regular", amount:"", currency:baseCurrency, local_date:new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}), from_account_id:"", to_account_id:"", category_id:"", goal_id:"", merchant:"", notes:"", context_type:"", context_project_id:"", context_family_member_id:"" });setTransactionSplitMode(false);setTransactionSplitRows([{category_id:"",amount:""},{category_id:"",amount:""}]);setShowTransactionForm(true);}}>＋ إضافة حركة</Button>} />
       <Segmented items={[["ledger","الحركات"],["recurring","المتكرر والاشتراكات"]]} value={txSubTab} onChange={setTxSubTab}/>
       {txSubTab === "recurring" ? (legacyRecurring ? React.cloneElement(legacyRecurring,{openCreate:autoOpenAddType==="recurring",onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("recurring")}) : <Card style={{marginTop:12}}>قسم المتكرر غير متصل حاليًا.</Card>) : <>
         <Card style={{marginTop:12}}>
@@ -754,8 +754,8 @@ function transactionsPage() {
     </>;
   }
 
-  function wealthPage() {
-    const tab = wealthTab;
+  function wealthPage(overrideTab = null) {
+    const tab = overrideTab || wealthTab;
     return <>
       <PageHead eyebrow="الماليات · الثروة" title="الثروة" subtitle="الأصول والاستثمارات والديون وصافي الثروة في مسار واحد." />
       <Segmented items={[["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"]]} value={tab} onChange={setWealthTab}/>
@@ -767,8 +767,8 @@ function transactionsPage() {
   }
 
   function planningPage() {
-    const title = planningTab === "budgets" ? "الميزانيات" : planningTab === "goals" ? "الأهداف المالية" : planningTab === "wealth" ? "الثروة" : "التقارير";
-    const subtitle = planningTab === "budgets" ? "راقب حدود الإنفاق والمصروف الفعلي من نفس مصدر الحركات." : planningTab === "goals" ? "اربط الادخار والتقدم المالي بأهدافك دون إنشاء دفتر منفصل." : planningTab === "wealth" ? "الأصول والاستثمارات والديون وصافي الثروة في مسار واحد." : "تقارير الماليات تُقرأ من نفس الحركات والأرصدة، ولا تنشئ مصدر حقيقة آخر.";
+    const title = planningTab === "budgets" ? "الميزانيات" : planningTab === "goals" ? "الأهداف المالية" : planningTab === "overview" ? "نظرة عامة" : planningTab === "investments" ? "الاستثمارات" : planningTab === "debts" ? "الديون" : "التقارير";
+    const subtitle = planningTab === "budgets" ? "راقب حدود الإنفاق والمصروف الفعلي من نفس مصدر الحركات." : planningTab === "goals" ? "اربط الادخار والتقدم المالي بأهدافك دون إنشاء دفتر منفصل." : planningTab === "overview" ? "صافي الثروة والأصول والديون والسيولة في نظرة واحدة." : planningTab === "investments" ? "الأصول والاستثمارات المسجلة في نفس دفتر الماليات." : planningTab === "debts" ? "الديون والأقساط والالتزامات الحالية." : "تقارير الماليات تُقرأ من نفس الحركات والأرصدة، ولا تنشئ مصدر حقيقة آخر.";
     return <>
       <PageHead
         eyebrow="الماليات · التخطيط"
@@ -780,12 +780,13 @@ function transactionsPage() {
             ? <Button secondary onClick={actions.onExport}>تصدير</Button>
              : <Button onClick={()=>setAutoOpenAddType("goal")}>＋ إضافة هدف</Button>}
       />
-      <Segmented items={[["budgets","الميزانيات"],["goals","الأهداف"],["wealth","الثروة"],["reports","التقارير"]]} value={planningTab} onChange={value=>{setPlanningTab(value);if(value==="budgets")navigate("budgets");else if(value==="goals")navigate("goals");else navigate("reports");}}/>
+      <Segmented items={[["budgets","الميزانيات"],["goals","الأهداف المالية"],["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"],["reports","التقارير"]]} value={planningTab} onChange={value=>{setPlanningTab(value);navigate("planning");}}/>
       {planningTab==="budgets" && budgetsPage()}
       {planningTab==="goals" && (legacyGoals ? React.cloneElement(legacyGoals,{openCreate:autoOpenAddType==="goal",onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("goal")}) : <Card style={{marginTop:12}}>
         <h2 style={{marginTop:0,fontSize:15}}>الأهداف المالية</h2>
         <Table columns={[["name","الهدف"],["type","النوع"],["progress","التقدم"],["target","المستهدف"],["status","الحالة"]]} rows={goals.map((g,i)=>({id:g.id||i,name:g.name,type:g.goal_type||"ادخار",progress:<div style={{minWidth:130}}><Progress value={g.current_amount||g.progress||0} max={g.target_amount||g.target||1}/></div>,target:displayMoney(g.target_amount||g.target||0,g.currency||baseCurrency),status:<Pill tone="positive">في المسار</Pill>}))}/>
       </Card>)}
+      {(planningTab==="overview" || planningTab==="investments" || planningTab==="debts") && wealthPage(planningTab)}
       {planningTab==="reports" && <div style={{display:"grid",gap:14}}>
         {legacyReports || <Card style={{marginTop:12}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -820,7 +821,7 @@ function transactionsPage() {
   const pageNode = activePage==="dashboard" ? dashboard()
     : activePage==="transactions" || activePage==="inbox" || activePage==="recurring" ? transactionsPage()
     : activePage==="projects" ? (legacyProjects || fallback())
-    : activePage==="planning" || activePage==="budgets" || activePage==="goals" || activePage==="reports" || activePage==="wealth" ? planningPage()
+    : activePage==="planning" || activePage==="budgets" || activePage==="goals" || activePage==="reports" || activePage==="wealth" || activePage==="assets" || activePage==="debts" ? planningPage()
     : activePage==="settings" ? settingsPage()
     : activePage==="accounts" ? accountsPage()
     : activePage==="categories" ? categoriesPage()
