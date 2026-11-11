@@ -329,7 +329,6 @@ export default function FinanceRedesign({
   legacyFamily = null,
   legacyFamilyCash = null,
   legacyReports = null,
-  legacyNetWorth = null,
   legacyCurrencies = null,
   isDemo = false,
 }) {
@@ -688,7 +687,6 @@ function transactionsPage() {
         <Table columns={[["name","الهدف"],["type","النوع"],["progress","التقدم"],["target","المستهدف"],["status","الحالة"]]} rows={goals.map((g,i)=>({id:g.id||i,name:g.name,type:g.goal_type||"ادخار",progress:<div style={{minWidth:130}}><Progress value={g.current_amount||g.progress||0} max={g.target_amount||g.target||1}/></div>,target:displayMoney(g.target_amount||g.target||0,g.currency||baseCurrency),status:<Pill tone="positive">في المسار</Pill>}))}/>
       </Card>)}
       {planningTab==="reports" && <div style={{display:"grid",gap:14}}>
-        {legacyNetWorth || <Card><h3>صافي الثروة</h3><div style={{fontSize:28,fontWeight:900}}>{displayMoney(netValue)}</div></Card>}
         {legacyReports || <Card style={{marginTop:12}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div><h2 style={{margin:0,fontSize:15}}>مركز التقارير</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>دخل مقابل مصروف · الأداء · التنوع · الدخل المستقبلي</div></div>

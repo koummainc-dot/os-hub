@@ -105,10 +105,15 @@ assert.ok(redesign.includes('contextTags.filter(tag=>tag.context_type==="Family"
 assert.ok(redesign.includes("contextSearch") && redesign.includes("contextMemberFilter"), "family context records must have search and member filters");
 assert.ok(!redesign.includes('<option value="Personal">شخصي</option>') && !redesign.includes('<option value="Project">مشروع</option>'), "Personal and Projects must not be offered as context types until Projects OS is ready");
 assert.ok(finance.includes("netWorthSnapshots") && finance.includes("fin_net_worth_snapshots_get"), "dashboard net-worth chart must use persisted snapshots");
-assert.ok(finance.includes('["planning", "التخطيط', "📊"]'), "Finance navigation must expose Planning as a real section");
+assert.ok(redesign.includes('activePage==="planning"') && redesign.includes('["budgets", "التخطيط"]'), "Finance navigation must expose Planning as a real section");
 assert.ok(finance.includes("fin_family_list_expenses") && finance.includes("fin_family_set_transaction_allocation"), "family context must use the existing Family allocation ledger RPCs");
 assert.ok(!finance.includes("fin_transaction_context_get") && !finance.includes("fin_transaction_context_set"), "family context must not call context RPCs that are not part of the installed Family ledger");
 assert.ok(finance.includes("recurringItems") && finance.includes("finance_recurring_items"), "dashboard upcoming payments must use persisted recurring records");
+assert.ok(finance.includes("FinanceRedesign") && !finance.includes("const navGroups = ["), "Finance index must delegate rendering/navigation to the single FinanceRedesign orchestrator and must not keep a second navigation tree");
+assert.ok(!finance.includes("if (true)"), "Finance index must not retain an always-true legacy renderer branch");
+assert.ok(!redesign.includes("legacyNetWorth"), "Net worth must not be reintroduced as a separate Planning/legacy screen");
+assert.ok(redesign.includes('activePage==="wealth" || activePage==="assets" || activePage==="debts"'), "Wealth must own the assets and debts subsections");
+
 assert.ok(!redesign.includes('value="+35,000"') && !redesign.includes('value="+1.1%"') && !redesign.includes("قسط السيارة"), "dashboard must not display fabricated performance or payment examples");
 assert.ok(!redesign.includes("[35,42,39,48") && !redesign.includes("[42,48,45,53"), "wealth charts must not contain hard-coded sample series");
 assert.ok(redesign.includes("assets_total") && redesign.includes("payables_total"), "wealth indicators must use the canonical net-worth RPC fields");
