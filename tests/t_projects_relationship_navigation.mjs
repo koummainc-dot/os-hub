@@ -171,11 +171,16 @@ assert.ok(projectScreens.includes('import { listKnowledgeMeetings } from "../kno
 assert.ok(projectScreens.includes('task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index'),
   "Project Detail meeting follow-ups must not create duplicate tasks after a task already exists");
 
-const risksPage = projectIndex.slice(projectIndex.indexOf("function RisksPage()"), projectIndex.indexOf("const SCREENS"));
+const governancePage = projectIndex.slice(projectIndex.indexOf("function GovernancePage()"), projectIndex.indexOf("const SCREENS"));
 assert.ok(projectIndex.includes('issues: IssuesView') &&
-  risksPage.includes('id: "risks"') && risksPage.includes('id: "decisions"') &&
-  !risksPage.includes('id: "issues"') && !risksPage.includes('<IssuesView'),
-  "global Issues must have one dedicated destination; the Risks page must not duplicate its tab");
+  governancePage.includes('id: "risks"') && governancePage.includes('id: "issues"') && governancePage.includes('id: "decisions"') &&
+  governancePage.includes('<IssuesView') && governancePage.includes('<DecisionsView'),
+  "global Governance must expose Risks, Issues and Decisions from one destination");
+const governanceNav = projectIndex.slice(projectIndex.indexOf('{ id: "governance"'), projectIndex.indexOf('{ id: "collaboration"'));
+assert.ok(governanceNav.includes('{ id: "risks", label: "المخاطر والمشاكل والقرارات", icon: "⚠" }') &&
+  !governanceNav.includes('{ id: "issues", label: "المشاكل"') &&
+  !governanceNav.includes('{ id: "decisions", label: "القرارات"'),
+  "global sidebar must not create duplicate Issues/Decisions destinations");
 const projectOkr = projectScreens.slice(projectScreens.indexOf("function ProjectOkr"), projectScreens.indexOf("function RelatedTab"));
 const okrScreens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
 assert.ok(projectOkr.includes('openOkrRecord("objective", o.id)') && projectOkr.includes('openOkrRecord("kr", k.id)') &&
@@ -329,3 +334,17 @@ assert.ok(parts.includes("viewBox={\"0 0 940 \" + (44 + timelineRows.length * 38
   "Dependency connector coordinates and SVG height include Objective, Phase and Main Task rows");
 
 console.log("✓ Projects relationship navigation contracts passed");
+
+assert.ok(parts.includes('key: "finance_enabled"') &&
+  parts.includes('key: "finance_project_ref"') &&
+  parts.includes('key: "finance_purpose"') &&
+  parts.includes('key: "budget_amount"') &&
+  parts.includes('finance_link: financeLink'),
+  "Project creation exposes the optional Finance context without creating transaction records in Projects");
+assert.ok(projectScreens.includes('{ id: "finance", label: "المالية"') &&
+  projectScreens.includes('function FinanceTab({ p })') &&
+  projectScreens.includes('project_finance_snapshot') &&
+  projectScreens.includes('Finance هو مصدر الحقيقة'),
+  "Project Detail exposes a Finance/Budget tab with read-only spend snapshot semantics");
+assert.ok(projectScreens.includes('p.budget_amount ?? p.budget_planned'),
+  "Project Overview reads the canonical budget_amount while retaining a compatibility fallback for legacy budget_planned data");
