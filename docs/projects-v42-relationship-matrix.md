@@ -130,7 +130,7 @@ Projects must never accept raw transaction ownership.
 
 ### Knowledge
 
-Projects may request meetings by project_ref and create Tasks from meeting action items with source_meeting_id + source_followup_index. Conversion must be idempotent.
+Projects may request meetings by project_ref. A Knowledge meeting action item can be selected during Task creation; Projects stores source_ref + source_meeting_id + source_followup_index only. Conversion is idempotent and never creates a local Meeting entity.
 
 ### Core
 
