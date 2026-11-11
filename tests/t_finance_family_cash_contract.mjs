@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 const migration = await readFile(new URL("../supabase/migrations/20261030130000_finance_family_cash_tracking.sql", import.meta.url), "utf8");
 const ui = await readFile(new URL("../src/systems/finance/FamilyCash.jsx", import.meta.url), "utf8");
 const finance = await readFile(new URL("../src/systems/finance/index.jsx", import.meta.url), "utf8");
+const redesign = await readFile(new URL("../src/systems/finance/FinanceRedesign.jsx", import.meta.url), "utf8");
 
 assert.match(migration, /create table if not exists public\.finance_family_cash_advances/i);
 assert.match(migration, /create table if not exists public\.finance_family_cash_entries/i);
