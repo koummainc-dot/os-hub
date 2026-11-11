@@ -111,7 +111,8 @@ assert.ok(assets.includes("FinanceChart") && assets.includes("filteredAssets") &
 assert.ok(recurring.includes("FinanceChart") && recurring.includes("filteredItems") && recurring.includes("recurringStatusFilter"), "Recurring must have a chart and searchable status/type filters");
 assert.ok(fx.includes("FinanceChart") && fx.includes("filteredRates") && fx.includes("rateFromDate") && fx.includes("rateToDate"), "FX history must have a chart and date/currency filters");
 assert.ok(netWorthHistory.includes("FinanceChart") && netWorthHistory.includes("filteredSnapshots") && netWorthHistory.includes("snapshotFrom"), "Net-worth history must have a chart and snapshot date filters");
-assert.ok(familyCash.includes("FinanceChart") && familyCash.includes("filteredAdvances") && familyCash.includes("filteredEntries"), "Family cash advances and entries must have charts and record filters");\nassert.ok(familyCash.includes("account_id") && familyCash.includes("حساب المصدر"), "Family cash must make the source account of each advance explicit");
+assert.ok(familyCash.includes("FinanceChart") && familyCash.includes("filteredAdvances") && familyCash.includes("filteredEntries"), "Family cash advances and entries must have charts and record filters");
+assert.ok(familyCash.includes("account_id") && familyCash.includes("حساب المصدر"), "Family cash must make the source account of each advance explicit");
 assert.ok(familyCash.includes("fin_family_cash_disburse"), "Family cash must expose the real-money disbursement workflow");
 assert.ok(familyCash.includes("disbursementAccountId") && familyCash.includes("disbursementAmount"), "Family cash disbursement must choose a source account and amount");
 assert.ok(familyCash.includes("تسليم المبلغ وإنشاء العهدة"), "Family cash must expose one action for posting the disbursement and creating its linked advance");
