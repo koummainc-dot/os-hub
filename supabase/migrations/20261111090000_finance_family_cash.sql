@@ -23,6 +23,7 @@ create table if not exists public.finance_family_cash_advances (
     references public.finance_transactions(workspace_id,id) on delete restrict,
   foreign key (workspace_id, account_id)
     references public.finance_accounts(workspace_id,id) on delete restrict,
+  unique (workspace_id, id),
   unique (workspace_id, disbursement_transaction_id)
 );
 
