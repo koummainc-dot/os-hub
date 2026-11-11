@@ -111,7 +111,7 @@ assert.ok(assets.includes("FinanceChart") && assets.includes("filteredAssets") &
 assert.ok(recurring.includes("FinanceChart") && recurring.includes("filteredItems") && recurring.includes("recurringStatusFilter"), "Recurring must have a chart and searchable status/type filters");
 assert.ok(fx.includes("FinanceChart") && fx.includes("filteredRates") && fx.includes("rateFromDate") && fx.includes("rateToDate"), "FX history must have a chart and date/currency filters");
 assert.ok(netWorthHistory.includes("FinanceChart") && netWorthHistory.includes("filteredSnapshots") && netWorthHistory.includes("snapshotFrom"), "Net-worth history must have a chart and snapshot date filters");
-assert.ok(familyCash.includes("FinanceChart") && familyCash.includes("filteredAdvances") && familyCash.includes("filteredEntries"), "Family cash advances and entries must have charts and record filters");
+assert.ok(familyCash.includes("FinanceChart") && familyCash.includes("filteredAdvances") && familyCash.includes("filteredEntries"), "Family cash advances and entries must have charts and record filters");\nassert.ok(familyCash.includes("account_id") && familyCash.includes("حساب المصدر"), "Family cash must make the source account of each advance explicit");
 assert.ok(financeChart.includes("role=\"img\"") && financeChart.includes("rows"), "Shared Finance chart must render accessible data-driven bars");
 assert.ok(redesign.includes("FinanceChart") && redesign.includes("filteredRows") && redesign.includes("filteredAccounts") && redesign.includes("filteredCategories"), "Finance budgets, accounts, categories, and transactions must expose charts/filters");
 assert.match(redesign, /planningTab\s*===\s*"budgets"/);
