@@ -112,6 +112,11 @@ assert.ok(recurring.includes("FinanceChart") && recurring.includes("filteredItem
 assert.ok(fx.includes("FinanceChart") && fx.includes("filteredRates") && fx.includes("rateFromDate") && fx.includes("rateToDate"), "FX history must have a chart and date/currency filters");
 assert.ok(netWorthHistory.includes("FinanceChart") && netWorthHistory.includes("filteredSnapshots") && netWorthHistory.includes("snapshotFrom"), "Net-worth history must have a chart and snapshot date filters");
 assert.ok(familyCash.includes("FinanceChart") && familyCash.includes("filteredAdvances") && familyCash.includes("filteredEntries"), "Family cash advances and entries must have charts and record filters");\nassert.ok(familyCash.includes("account_id") && familyCash.includes("حساب المصدر"), "Family cash must make the source account of each advance explicit");
+assert.ok(familyCash.includes("fin_family_cash_disburse"), "Family cash must expose the real-money disbursement workflow");
+assert.ok(familyCash.includes("disbursementAccountId") && familyCash.includes("disbursementAmount"), "Family cash disbursement must choose a source account and amount");
+assert.ok(familyCash.includes("تسليم المبلغ وإنشاء العهدة"), "Family cash must expose one action for posting the disbursement and creating its linked advance");
+assert.ok(familyCash.includes("الميزانية والمخصص لا يخصمان أي مبلغ"), "Family cash must clearly distinguish planning/allowance from actual disbursement");
+
 assert.ok(financeChart.includes("role=\"img\"") && financeChart.includes("rows"), "Shared Finance chart must render accessible data-driven bars");
 assert.ok(redesign.includes("FinanceChart") && redesign.includes("filteredRows") && redesign.includes("filteredAccounts") && redesign.includes("filteredCategories"), "Finance budgets, accounts, categories, and transactions must expose charts/filters");
 assert.match(redesign, /planningTab\s*===\s*"budgets"/);
