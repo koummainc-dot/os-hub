@@ -515,7 +515,7 @@ function transactionsPage() {
     const settingsItems = [
       ["الحسابات والأصول","إضافة وتعديل الحسابات والأصول والرصيد الافتتاحي","accounts"],
       ["التصنيفات","إدارة التصنيفات وقواعد الربط المحاسبي","categories"],
-      ["العملات وأسعار الصرف","العملة الأساسية والأسعار التلقائية","currencies"],
+      ["العملات وأسعار الصرف","العملة الأساسية والأسعار التلقائية","fx"],
       ["وسوم السياق","ربط الحركات بأفراد الأسرة ومتابعة إنفاقهم","context-tags"],
     ];
     return <>
@@ -659,11 +659,11 @@ function transactionsPage() {
     const tab = wealthTab;
     return <>
       <PageHead eyebrow="الماليات · الثروة" title="الثروة" subtitle="الأصول والاستثمارات والديون وصافي الثروة في مسار واحد." />
-      <Segmented items={[["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"],["networth","صافي الثروة"]]} value={tab} onChange={setWealthTab}/>
-      {tab==="overview" && <><div className="finance-v2-grid" style={{marginTop:12}}><Stat label="صافي الثروة" value={netWorth?.net_worth==null?"غير متاح":displayMoney(netValue)} tone="positive"/><Stat label="الأصول" value={netWorth?.assets_total==null?"غير متاح":displayMoney(netWorth.assets_total)}/><Stat label="الديون" value={netWorth?.payables_total==null?"غير متاح":displayMoney(netWorth.payables_total)} tone="negative"/><Stat label="السيولة" value={displayMoney(balanceTotal)} /></div><FinanceChart title="مكونات الثروة الحالية" rows={[{label:"الأصول",value:Number(netWorth?.assets_total||0)},{label:"الديون",value:Number(netWorth?.payables_total||0)},{label:"السيولة",value:balanceTotal}].filter(x=>x.value>0)} empty="لا توجد قيم مالية متاحة لعرض الرسم."/></>}
+      <Segmented items={[["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"]]} value={tab} onChange={setWealthTab}/>
+      {tab==="overview" && <><div className="finance-v2-grid" style={{marginTop:12}}><Stat label="صافي الثروة" value={netWorth?.net_worth==null?"غير متاح":displayMoney(netValue)} tone="positive"/><Stat label="الأصول" value={netWorth?.assets_total==null?"غير متاح":displayMoney(netWorth.assets_total)}/><Stat label="الديون" value={netWorth?.payables_total==null?"غير متاح":displayMoney(netWorth.payables_total)} tone="negative"/><Stat label="السيولة" value={displayMoney(balanceTotal)} /></div><FinanceChart title="مكونات الثروة الحالية" rows={[{label:"الأصول",value:Number(netWorth?.assets_total||0)},{label:"الديون",value:Number(netWorth?.payables_total||0)},{label:"السيولة",value:balanceTotal}].filter(x=>x.value>0)} empty="لا توجد قيم مالية متاحة لعرض الرسم."/><Card style={{marginTop:12}}><div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}><div><h2 style={{margin:0,fontSize:15}}>صافي الثروة</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>القيمة الحالية وسجل اللقطات المحفوظة في نفس قسم الثروة.</div></div><Pill tone="positive">{netWorth?.net_worth==null?"غير متاح":displayMoney(netValue)}</Pill></div><FinanceChart title="تغير صافي الثروة عبر اللقطات" rows={netWorthSnapshots.slice(-12).map(x=>({id:x.id,label:new Date(x.snapshot_at).toLocaleDateString("ar-EG",{month:"short",year:"2-digit"}),value:Number(x.value_base)}))} valueLabel={v=>displayMoney(v)} empty="لا توجد لقطات محفوظة لعرض الرسم بعد."/></Card></>}
       {tab==="investments" && (legacyAssets ? React.cloneElement(legacyAssets,{openCreate:autoOpenAddType==="asset",onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("asset")}) : <Card style={{marginTop:12}}><h2 style={{marginTop:0,fontSize:15}}>المراكز</h2><Table columns={[["name","المركز"],["type","النوع"],["qty","الكمية"],["value","القيمة"],["return","العائد"]]} rows={assets.map((a,i)=>({id:a.id||i,name:a.name||a.asset_name||"أصل",type:a.asset_type||"استثمار",qty:a.quantity||"—",value:displayMoney(a.current_value||a.value||0,a.currency),return:a.return_pct==null?"غير متاح":<Pill tone="positive">+{a.return_pct}%</Pill>}))}/></Card>)}
       {tab==="debts" && (legacyDebt ? React.cloneElement(legacyDebt,{openCreate:autoOpenAddType==="debt",onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("debt")}) : <Card style={{marginTop:12}}><h2 style={{marginTop:0,fontSize:15}}>الديون والأقساط</h2><Table columns={[["name","الدين"],["balance","الرصيد"],["installment","القسط"],["due","الاستحقاق"],["status","الحالة"]]} rows={debts.map((d,i)=>({id:d.id||i,name:d.name||"دين",balance:displayMoney(d.remaining_balance||d.balance||0,d.currency),installment:displayMoney(d.installment_amount||0,d.currency),due:d.next_due_date||"—",status:<Pill tone="warning">قائم</Pill>}))}/></Card>)}
-      {tab==="networth" && <Card style={{marginTop:12}}><div style={{fontSize:11,color:C.muted}}>صافي الثروة الحالي</div><div style={{fontSize:34,fontWeight:950,marginTop:6}}>{netWorth?.net_worth==null?"غير متاح":displayMoney(netValue)}</div><FinanceChart title="سجل اللقطات المحفوظة" rows={netWorthSnapshots.slice(-12).map(x=>({id:x.id,label:new Date(x.snapshot_at).toLocaleDateString("ar-EG",{month:"short",year:"2-digit"}),value:Number(x.value_base)}))} valueLabel={v=>displayMoney(v)} empty="لا توجد لقطات محفوظة لعرض الرسم بعد."/></Card>}
+      
     </>;
   }
 
@@ -722,11 +722,11 @@ function transactionsPage() {
   const pageNode = activePage==="dashboard" ? dashboard()
     : activePage==="transactions" || activePage==="inbox" || activePage==="recurring" ? transactionsPage()
     : activePage==="projects" ? (legacyProjects || fallback())
-    : activePage==="planning" || activePage==="budgets" || activePage==="goals" || activePage==="reports" || activePage==="networth" ? planningPage()
+    : activePage==="planning" || activePage==="budgets" || activePage==="goals" || activePage==="reports" ? planningPage()
     : activePage==="settings" ? settingsPage()
     : activePage==="accounts" ? accountsPage()
     : activePage==="categories" ? categoriesPage()
-    : activePage==="currencies" ? (legacyCurrencies || currenciesPage())
+    : activePage==="fx" || activePage==="currencies" ? (legacyCurrencies || currenciesPage())
     : activePage==="context-tags" ? contextTagsPage()
     : activePage==="wealth" || activePage==="assets" || activePage==="debts" ? wealthPage()
     : ["family","family-cash"].includes(activePage) ? <><Segmented items={[["family","مركز الأسرة"],["family-cash","العُهد ومصروفات الأفراد"]]} value={activePage} onChange={value=>navigate(value)}/>{activePage==="family"?(legacyFamily||fallback()):(legacyFamilyCash||fallback())}</>
@@ -762,12 +762,15 @@ function transactionsPage() {
               ["budget","ميزانية","حد إنفاق لفئة وفترة"],
               ["asset","أصل","أصل أو استثمار جديد"],
               ["recurring","متكرر / اشتراك","دفعة دورية وتنبيهاتها"]
-            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){actions.onAdd?.();return;}setAutoOpenAddType(kind);if(kind==="budget"){setPage("budgets");setPlanningTab("budgets");setBudgetSaveError("");setShowBudgetForm(true);return;}if(kind==="recurring"){setPage("recurring");setTxSubTab("recurring");return;}setPage(kind==="debt"?"debts":"assets");}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
+            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){actions.onAdd?.();return;}setAutoOpenAddType(kind);if(kind==="budget"){setPlanningTab("budgets");setBudgetSaveError("");setShowBudgetForm(true);return;}if(kind==="recurring"){setTxSubTab("recurring");return;}}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
               <div style={{fontSize:13,fontWeight:900,color:C.ink}}>{label}</div><div style={{fontSize:10,color:C.muted,lineHeight:1.7,marginTop:6}}>{desc}</div>
             </button>)}
           </div>
         </div>
       </div>}
+      {autoOpenAddType==="debt" && activePage!=="debts" && legacyDebt ? React.cloneElement(legacyDebt,{openCreate:true,onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("debt")}) : null}
+      {autoOpenAddType==="asset" && activePage!=="assets" && legacyAssets ? React.cloneElement(legacyAssets,{openCreate:true,onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("asset")}) : null}
+      {autoOpenAddType==="recurring" && activePage!=="recurring" && legacyRecurring ? React.cloneElement(legacyRecurring,{openCreate:true,onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("recurring")}) : null}
       <TransactionSheet transaction={selectedTransaction} categories={categories} accounts={accounts} baseCurrency={baseCurrency} contextTags={contextTags} contextFamilyMembers={data?.contextFamilyMembers||[]} onSaveContext={actions.onSaveContext} onClose={() => setSelectedTransaction(null)} />
     </Shell>
   );
