@@ -333,6 +333,19 @@ assert.ok(parts.includes("viewBox={\"0 0 940 \" + (44 + timelineRows.length * 38
   parts.includes("timelineRows.indexOf(row)"),
   "Dependency connector coordinates and SVG height include Objective, Phase and Main Task rows");
 
+
+assert.ok(store.includes("createTaskFromSource") &&
+  store.includes('source_ref') &&
+  store.includes("source_meeting_id") &&
+  store.includes("source_followup_index") &&
+  store.includes("JSON.stringify(task.source_ref || null) === sourceKey"),
+  "Knowledge action-item → Task bridge stores an external source reference and is idempotent, without creating a local Meeting entity");
+assert.ok(parts.includes('key: "meeting_action_ref"') &&
+  parts.includes("dataWithKnowledge.__knowledgeMeetings") &&
+  parts.includes('system: "knowledge"') &&
+  parts.includes("item_index"),
+  "Task creation can select a Knowledge meeting action item and stores only the source reference");
+
 console.log("✓ Projects relationship navigation contracts passed");
 
 assert.ok(parts.includes('key: "finance_enabled"') &&
