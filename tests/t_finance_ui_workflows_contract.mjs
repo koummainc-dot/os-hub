@@ -116,6 +116,7 @@ assert.ok(familyCash.includes("fin_family_cash_disburse"), "Family cash must exp
 assert.ok(familyCash.includes("disbursementAccountId") && familyCash.includes("disbursementAmount"), "Family cash disbursement must choose a source account and amount");
 assert.ok(familyCash.includes("تسليم المبلغ وإنشاء العهدة"), "Family cash must expose one action for posting the disbursement and creating its linked advance");
 assert.ok(familyCash.includes("الميزانية والمخصص لا يخصمان أي مبلغ"), "Family cash must clearly distinguish planning/allowance from actual disbursement");
+assert.ok(familyCash.includes("netUsed") && familyCash.includes("entry_type===\"Return\""), "Family cash remaining balance must subtract returns from net used amount");
 
 assert.ok(financeChart.includes("role=\"img\"") && financeChart.includes("rows"), "Shared Finance chart must render accessible data-driven bars");
 assert.ok(redesign.includes("FinanceChart") && redesign.includes("filteredRows") && redesign.includes("filteredAccounts") && redesign.includes("filteredCategories"), "Finance budgets, accounts, categories, and transactions must expose charts/filters");
