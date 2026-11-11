@@ -246,6 +246,7 @@ function ProjectUpdates({ p }) {
     { id: "delivery", label: "التسليم", defaultTab: "outputs", tabs: [{ id: "outputs", label: "المخرجات", count: counts.outputs }, { id: "work", label: "العمل والوقت" }, { id: "timeline", label: "الخط الزمني" }, { id: "related", label: "المراجع" }] },
     { id: "governance", label: "الحوكمة", defaultTab: "risks", tabs: [{ id: "risks", label: "المخاطر", count: counts.risks }, { id: "issues", label: "المشاكل", count: counts.issues }, { id: "decisions", label: "القرارات", count: counts.decisions }] },
     { id: "collaboration", label: "التعاون", defaultTab: "people", tabs: [{ id: "people", label: "الفريق" }, { id: "activity", label: "النشاط" }] },
+    { id: "finance", label: "المالية", defaultTab: "finance", tabs: [{ id: "finance", label: "المالية والميزانية" }] },
   ];
   // Keep these stable tab IDs for existing deep links while grouping the UI by workflow.
   const activeGroup = tabGroups.find((group) => group.tabs.some((item) => item.id === tab)) || tabGroups[0];
@@ -281,6 +282,7 @@ function ProjectUpdates({ p }) {
       {tab === "okr" && <ProjectOkr p={p} />}
       {tab === "related" && <RelatedTab p={p} canE={canE} />}
       {tab === "activity" && <ProjectActivityHub p={p} />}
+      {tab === "finance" && <FinanceTab p={p} />}
       {edit && <ProjectForm initial={p} onClose={() => setEdit(false)} />}
     </div>
   );
@@ -313,7 +315,7 @@ function Overview({ p, m }) {
         <div style={{ fontSize: 12, color: C.dim, marginTop: 10, lineHeight: 1.9 }}>الموعد: {p.target_date ? `${fmt(p.target_date)} (${m.daysRemaining < 0 ? "تجاوز " + -m.daysRemaining + " يوم" : "باقٍ " + m.daysRemaining + " يوم"})` : "غير محدد"}<br />متأخرة: {m.overdueLeafCount} · مخاطر مفتوحة: {m.openRisks} (عالية {m.highOpenRisks}) · مشاكل: {m.openIssues} (حرجة {m.criticalOpenIssues})</div>
       </div>
       <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>الوقت والتكلفة</div>
-        <div style={{ fontSize: 12.5, lineHeight: 2 }}>التقدير: {fmtMinutes(m.estimated)} · الفعلي: {fmtMinutes(m.actual)}<br />{m.timeRatio != null ? <>نسبة الوقت: <b style={{ color: m.timeRatio > 1 ? C.bad : C.ok }}>{Math.round(m.timeRatio * 100)}%</b></> : "لا تقديرات لحساب النسبة"}<br />الميزانية المخطَّطة: {p.budget_planned != null ? `${p.budget_planned} ${p.budget_currency || ""}` : "—"} <span style={{ fontSize: 10.5, color: C.muted }}>(الفعلي يُربط بنظام المال لاحقاً)</span></div></div>
+        <div style={{ fontSize: 12.5, lineHeight: 2 }}>التقدير: {fmtMinutes(m.estimated)} · الفعلي: {fmtMinutes(m.actual)}<br />{m.timeRatio != null ? <>نسبة الوقت: <b style={{ color: m.timeRatio > 1 ? C.bad : C.ok }}>{Math.round(m.timeRatio * 100)}%</b></> : "لا تقديرات لحساب النسبة"}<br />الميزانية المخطَّطة: {(p.budget_amount ?? p.budget_planned) != null ? `${p.budget_amount ?? p.budget_planned} ${p.budget_currency || ""}` : "—"} <span style={{ fontSize: 10.5, color: C.muted }}>(الصرف الفعلي مصدره Finance)</span></div></div>
       <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>التتبّع (Traceability)</div>
         {cov ? <><Progress value={cov.ratio} /><div style={{ fontSize: 12, color: C.dim, marginTop: 6 }}>{cov.unlinked.length} مهمة بلا مواصفة أو اكتشاف{settings.traceabilityPolicy !== "off" ? "" : " (السياسة مُعطّلة)"}</div></> : <span style={{ fontSize: 12, color: C.muted }}>لا مهام</span>}</div>
       <div style={{ ...S.card, gridColumn: "1 / -1" }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>الهدف والوصف</div><div style={{ fontSize: 13, lineHeight: 1.9, whiteSpace: "pre-wrap" }}>{p.final_goal || "—"}{p.description ? "\n\n" + p.description : ""}</div></div>
@@ -373,6 +375,57 @@ function ProjectTimeline({ p }) {
     </div>
   </div>;
 }
+function FinanceTab({ p }) {
+  const { A: act, can, toast } = useP();
+  const link = p.finance_link || {};
+  const snapshot = p.project_finance_snapshot || null;
+  const budget = p.budget_amount ?? p.budget_planned ?? null;
+  const spent = snapshot?.spent_amount ?? null;
+  const sameCurrency = snapshot && budget != null ? String(snapshot.currency || p.budget_currency || "") === String(p.budget_currency || "") : true;
+  const remaining = sameCurrency && budget != null && spent != null ? Number(budget) - Number(spent) : null;
+  const ratio = sameCurrency && budget > 0 && spent != null ? Number(spent) / Number(budget) : null;
+  const statusLabel = link.status === "Linked" ? "مرتبط" : link.status === "Requested" ? "طلب ربط/إنشاء" : link.status === "Error" ? "خطأ في الربط" : "غير مربوط";
+  const statusColor = link.status === "Linked" ? C.ok : link.status === "Error" ? C.bad : C.warn;
+  const updateLink = async (next) => {
+    if (!can("project.edit", p)) return;
+    await act.saveProject({ ...p, finance_link: { ...link, ...next } }, false);
+    toast("✅ تم تحديث رابط Finance");
+  };
+  return <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 12 }}>
+    <section style={S.card}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <b style={{ fontSize: 13 }}>Finance & Budget</b><Chip color={statusColor}>{statusLabel}</Chip><span style={{ flex: 1 }} />
+        {can("project.edit", p) && <Btn small onClick={() => updateLink({ status: "Requested" })}>طلب مزامنة/ربط</Btn>}
+      </div>
+      <div style={{ fontSize: 12.5, lineHeight: 2 }}>
+        <div>الجانب المالي: <b>{p.finance_enabled ? "مفعّل" : "غير مفعّل"}</b></div>
+        <div>الطبيعة: {p.finance_purpose === "expense" ? "مصروفات" : p.finance_purpose === "funding" ? "تمويل" : p.finance_purpose === "revenue" ? "إيرادات/أرباح" : p.finance_purpose === "mixed" ? "مختلط" : "—"}</div>
+        <div>الميزانية: <b>{budget != null ? `${budget} ${p.budget_currency || ""}` : "—"}</b></div>
+        <div>مشروع Finance: {link.finance_project_ref ? <code>{link.finance_project_ref}</code> : "—"}</div>
+        {link.finance_project_url && <div><a href={link.finance_project_url} target="_blank" rel="noreferrer" style={{ color: C.info }}>فتح مشروع Finance ↗</a></div>}
+      </div>
+      {!p.finance_enabled && <div style={{ marginTop: 9, fontSize: 11, color: C.muted }}>يمكن تفعيل الجانب المالي من «تعديل المشروع». لن يتم إنشاء أي معاملة داخل Projects.</div>}
+    </section>
+    <section style={S.card}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Spend Snapshot</div>
+      {!snapshot ? <Empty icon="💰" title="لا توجد لقطة صرف من Finance بعد" sub={p.finance_enabled ? "عند توفر عقد Finance ستظهر هنا بيانات الصرف مع وقت المصدر وحالة المزامنة." : "فعّل الجانب المالي واربط المشروع بـ Finance أولاً."} /> :
+        <div style={{ fontSize: 12.5, lineHeight: 2 }}>
+          <div>المصروف: <b>{spent != null ? `${spent} ${snapshot.currency || ""}` : "—"}</b></div>
+          <div>المتبقي: <b>{remaining != null ? `${remaining} ${p.budget_currency || snapshot.currency || ""}` : "—"}</b></div>
+          <div>نسبة الصرف: <b>{ratio != null ? Math.round(ratio * 100) + "%" : "—"}</b></div>
+          <div>عدد الحركات: {snapshot.transactions_count ?? "—"}</div>
+          <div>حالة المزامنة: {snapshot.sync_status || "—"}</div>
+          <div>as_of: {snapshot.as_of || "—"}</div>
+        </div>}
+      {snapshot && !sameCurrency && <div style={{ marginTop: 8, color: C.warn, fontSize: 11 }}>⚠ العملة مختلفة؛ لا يتم حساب المتبقي أو نسبة الصرف.</div>}
+    </section>
+    <section style={{ ...S.card, gridColumn: "1 / -1" }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>قاعدة الملكية</div>
+      <div style={{ fontSize: 11.5, color: C.dim, lineHeight: 1.8 }}>Projects يملك سياق الميزانية والرابط فقط. Finance هو مصدر الحقيقة للمعاملات، المصروفات، التمويل والإيرادات. لا توجد معاملات مالية موازية داخل Projects.</div>
+    </section>
+  </div>;
+}
+
 function WorkTab({ p }) {
   const { data, idx, nameOf, can } = useP();
   const taskIds = idx.list.filter((t) => t.project_id === p.id).map((t) => t.id);
