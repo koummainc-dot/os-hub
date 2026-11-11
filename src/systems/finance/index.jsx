@@ -293,63 +293,66 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const budgetDaysLeft = budgetIsCurrentMonth ? Math.max(1, budgetMonthDays - Number(today().slice(8, 10)) + 1) : budgetPeriod > today().slice(0, 7) ? budgetMonthDays : 0;
   const suggestedDailyLimit = budgetDaysLeft > 0 ? budgetRemaining / budgetDaysLeft : null;
 
-  async function saveTransaction(e) {
-    e.preventDefault(); if (!canEdit || saving) return;
-    if (!(Number(tx.amount) > 0) || !tx.local_date || !tx.from_account_id) { setError("أكمل المبلغ والتاريخ والحساب."); return; }
-    if (tx.type !== "Transfer" && !splitMode && !tx.category_id) { setError("اختَر تصنيفًا للحركة؛ اسم الحركة غير مطلوب."); return; }
-    if (tx.type === "Transfer" && (!tx.to_account_id || tx.to_account_id === tx.from_account_id)) { setError("اختر حسابًا مستلمًا مختلفًا عن حساب المصدر."); return; }
-    if (tx.context_type === "Project" && !tx.context_project_id) { setError("اختر المشروع المرتبط بالحركة."); return; }
-    if (tx.context_type === "Family" && !tx.context_family_member_id) { setError("اختر فرد الأسرة المرتبط بالحركة."); return; }
-    if (tx.goal_id && tx.type !== "Transfer") { setError("مساهمة الهدف أو السحب منه يجب أن تكون تحويلًا بين حسابين."); return; }
-    const validSplits = splitRows.filter(s => s.category_id && Number(s.amount) > 0);
-    if (splitMode && tx.type === "Transfer") { setError("تقسيم التحويلات غير متاح؛ اختر دخلًا أو مصروفًا."); return; }
-    if (splitMode && (validSplits.length < 2 || Math.abs(validSplits.reduce((sum, s) => sum + Number(s.amount), 0) - Number(tx.amount)) > 0.0001)) { setError("أضف تصنيفين على الأقل، وتأكد أن مجموع التقسيمات يساوي مبلغ الحركة بالكامل."); return; }
-    if (tx.type === "Transfer" && accountById[tx.from_account_id]?.currency !== accountById[tx.to_account_id]?.currency) { setError("التحويل بين عملتين مختلفتين سيُفعّل في مرحلة أسعار الصرف؛ استخدم حسابين بنفس العملة حاليًا."); return; }
+  async function saveTransaction(e, overrideDraft = null, overrideSplitMode = null, overrideSplitRows = null) {
+    e?.preventDefault?.(); if (!canEdit || saving) return {ok:false,error:"لا تملك صلاحية تسجيل الحركات الآن."};
+    const draft = overrideDraft || tx;
+    const currentSplitMode = overrideSplitMode == null ? currentSplitMode : overrideSplitMode;
+    const currentSplitRows = overrideSplitRows || currentSplitRows;
+    if (!(Number(draft.amount) > 0) || !draft.local_date || !draft.from_account_id) { setError("أكمل المبلغ والتاريخ والحساب."); return; }
+    if (draft.type !== "Transfer" && !currentSplitMode && !draft.category_id) { setError("اختَر تصنيفًا للحركة؛ اسم الحركة غير مطلوب."); return; }
+    if (draft.type === "Transfer" && (!draft.to_account_id || draft.to_account_id === draft.from_account_id)) { setError("اختر حسابًا مستلمًا مختلفًا عن حساب المصدر."); return; }
+    if (draft.context_type === "Project" && !draft.context_project_id) { setError("اختر المشروع المرتبط بالحركة."); return; }
+    if (draft.context_type === "Family" && !draft.context_family_member_id) { setError("اختر فرد الأسرة المرتبط بالحركة."); return; }
+    if (draft.goal_id && draft.type !== "Transfer") { setError("مساهمة الهدف أو السحب منه يجب أن تكون تحويلًا بين حسابين."); return; }
+    const validSplits = currentSplitRows.filter(s => s.category_id && Number(s.amount) > 0);
+    if (currentSplitMode && draft.type === "Transfer") { setError("تقسيم التحويلات غير متاح؛ اختر دخلًا أو مصروفًا."); return; }
+    if (currentSplitMode && (validSplits.length < 2 || Math.abs(validSplits.reduce((sum, s) => sum + Number(s.amount), 0) - Number(draft.amount)) > 0.0001)) { setError("أضف تصنيفين على الأقل، وتأكد أن مجموع التقسيمات يساوي مبلغ الحركة بالكامل."); return; }
+    if (draft.type === "Transfer" && accountById[draft.from_account_id]?.currency !== accountById[draft.to_account_id]?.currency) { setError("التحويل بين عملتين مختلفتين سيُفعّل في مرحلة أسعار الصرف؛ استخدم حسابين بنفس العملة حاليًا."); return; }
     setSaving(true); setError("");
     try {
-      const sourceAccount = accountById[tx.from_account_id];
+      const sourceAccount = accountById[draft.from_account_id];
       const payload = {
-        workspace_id: ws.id, name: (tx.type === "Transfer" ? "تحويل بين حسابات" : splitMode ? "حركة موزعة على تصنيفات" : (categoryById[tx.category_id]?.name || (tx.type === "Income" ? "دخل" : "مصروف"))), type: tx.type, purpose: tx.purpose || "Regular", status: "Posted",
-        amount: String(tx.amount), currency: tx.currency || sourceAccount?.currency || baseCurrency, local_date: tx.local_date,
-        from_account_id: tx.from_account_id, to_account_id: tx.type === "Transfer" ? tx.to_account_id : null,
-        category_id: tx.type === "Transfer" || splitMode ? null : (tx.category_id || null), goal_id: tx.goal_id || null, merchant: tx.merchant || null, notes: tx.notes || null,
-        splits: splitMode ? validSplits.map(s => ({ category_id: s.category_id, amount: String(s.amount) })) : [],
-        client_generated_id: tx.shoppingPurchaseId ? "shopping-purchase-" + tx.shoppingPurchaseId : tx.homeBillPaymentId ? "home-bill-payment-" + tx.homeBillPaymentId : "web-" + (globalThis.crypto?.randomUUID?.() || (Date.now() + "-" + Math.random().toString(36).slice(2))),
-        idempotency_key: tx.shoppingPurchaseId ? "shopping-purchase-" + tx.shoppingPurchaseId : tx.homeBillPaymentId ? "home-bill-payment-" + tx.homeBillPaymentId : "finance-ui-" + (globalThis.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2))
+        workspace_id: ws.id, name: (draft.type === "Transfer" ? "تحويل بين حسابات" : currentSplitMode ? "حركة موزعة على تصنيفات" : (categoryById[draft.category_id]?.name || (draft.type === "Income" ? "دخل" : "مصروف"))), type: draft.type, purpose: draft.purpose || "Regular", status: "Posted",
+        amount: String(draft.amount), currency: draft.currency || sourceAccount?.currency || baseCurrency, local_date: draft.local_date,
+        from_account_id: draft.from_account_id, to_account_id: draft.type === "Transfer" ? draft.to_account_id : null,
+        category_id: draft.type === "Transfer" || currentSplitMode ? null : (draft.category_id || null), goal_id: draft.goal_id || null, merchant: draft.merchant || null, notes: draft.notes || null,
+        splits: currentSplitMode ? validSplits.map(s => ({ category_id: s.category_id, amount: String(s.amount) })) : [],
+        client_generated_id: draft.shoppingPurchaseId ? "shopping-purchase-" + draft.shoppingPurchaseId : draft.homeBillPaymentId ? "home-bill-payment-" + draft.homeBillPaymentId : "web-" + (globalThis.crypto?.randomUUID?.() || (Date.now() + "-" + Math.random().toString(36).slice(2))),
+        idempotency_key: draft.shoppingPurchaseId ? "shopping-purchase-" + draft.shoppingPurchaseId : draft.homeBillPaymentId ? "home-bill-payment-" + draft.homeBillPaymentId : "finance-ui-" + (globalThis.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2))
       };
       const { data, error: rpcError } = await supabase.rpc("fin_post_transaction_with_splits", { p: payload });
       if (rpcError) throw rpcError;
       if (data?.duplicate) setNotice("تم اكتشاف حركة موجودة مسبقًا؛ لم يتم إنشاء نسخة أخرى.");
       else setNotice(data?.warnings?.length ? "تم حفظ الحركة مع تنبيه: " + data.warnings.join(", ") : "تم تسجيل الحركة بنجاح.");
-      if (data?.transaction_id && tx.context_type === "Family" && tx.type === "Expense") {
+      if (data?.transaction_id && draft.context_type === "Family" && draft.type === "Expense") {
         const { error: contextError } = await supabase.rpc("fin_family_set_transaction_allocation", {
           p_workspace_id:ws.id,p_transaction_id:data.transaction_id,p_responsibility_type:"Personal",
-          p_primary_family_member_id:tx.context_family_member_id,
-          p_allocations:[{family_member_id:tx.context_family_member_id,allocation_method:"Percentage",percentage:100}],
+          p_primary_family_member_id:draft.context_family_member_id,
+          p_allocations:[{family_member_id:draft.context_family_member_id,allocation_method:"Percentage",percentage:100}],
           p_mark_reviewed:false
         });
         if (contextError) setNotice("تم تسجيل المصروف، لكن تعذّر ربطه بفرد الأسرة: " + contextError.message);
       }
-      if (tx.shoppingPurchaseId) {
+      if (draft.shoppingPurchaseId) {
         const key = "os-finance-shopping-linked:" + ws.id;
-        try { const ids = new Set(JSON.parse(localStorage.getItem(key) || "[]")); ids.add(tx.shoppingPurchaseId); localStorage.setItem(key, JSON.stringify([...ids])); } catch {}
-        setShoppingPurchases(rows => rows.filter(event => event.payload?.sourcePurchaseId !== tx.shoppingPurchaseId));
+        try { const ids = new Set(JSON.parse(localStorage.getItem(key) || "[]")); ids.add(draft.shoppingPurchaseId); localStorage.setItem(key, JSON.stringify([...ids])); } catch {}
+        setShoppingPurchases(rows => rows.filter(event => event.payload?.sourcePurchaseId !== draft.shoppingPurchaseId));
       }
-      if (tx.homeBillPaymentId) {
+      if (draft.homeBillPaymentId) {
         const key = "os-finance-home-bills-linked:" + ws.id;
-        try { const ids = new Set(JSON.parse(localStorage.getItem(key) || "[]")); ids.add(tx.homeBillPaymentId); localStorage.setItem(key, JSON.stringify([...ids])); } catch {}
+        try { const ids = new Set(JSON.parse(localStorage.getItem(key) || "[]")); ids.add(draft.homeBillPaymentId); localStorage.setItem(key, JSON.stringify([...ids])); } catch {}
         // The transaction has been posted or deduplicated by Finance; acknowledge
         // the durable Home proposal so it no longer appears in the pending feed.
         try {
           await supabase.rpc("home_finance_outbox_ack", {
             p_workspace_id: ws.id,
-            p_source_payment_id: tx.homeBillPaymentId
+            p_source_payment_id: draft.homeBillPaymentId
           });
         } catch { /* Finance transaction idempotency still protects against duplicate posting */ }
-        setHomeBillPayments(rows => rows.filter(event => event.payload?.sourcePaymentId !== tx.homeBillPaymentId));
+        setHomeBillPayments(rows => rows.filter(event => event.payload?.sourcePaymentId !== draft.homeBillPaymentId));
       }
-      setShowTx(false); setTx(initialTx()); setSplitMode(false); setSplitRows([{ category_id: "", amount: "" }, { category_id: "", amount: "" }]); await load();
-    } catch (e) { setError(e?.message || "تعذّر تسجيل الحركة"); }
+      setShowTx(false); setTx(initialTx()); setSplitMode(false); setSplitRows([{ category_id: "", amount: "" }, { category_id: "", amount: "" }]); await load(); return {ok:true};
+    } catch (e) { const message=e?.message || "تعذّر تسجيل الحركة"; setError(message); return {ok:false,error:message}; }
     finally { setSaving(false); }
   }
 
@@ -667,9 +670,12 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         contextFamilyMembers,
         netWorthSnapshots,
         recurringItems,
+        error,
       }}
       actions={{
         onAdd: () => { setError(""); setShowTx(true); },
+        onSaveTransaction: (draft, split, rows) => saveTransaction(null, draft, split, rows),
+        transactionSaving: saving,
         onRefresh: load,
         onAddAccount: startCreateAccount,
         onOpenAccount: startEditAccount,
