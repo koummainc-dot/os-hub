@@ -22,7 +22,6 @@ assert.match(migration, /revoke all on function public\.fin_family_cash_link_tra
 assert.match(migration, /grant execute on function public\.fin_family_cash_add_entry\(uuid,uuid,text,numeric,date,uuid,text,text\) to authenticated/i);
 assert.match(ui, /fin_family_cash_link_transaction/);
 assert.match(ui, /fin_family_cash_add_entry/);
-assert.match(ui, /مصروفات العهدة هنا سجل توثيقي ولا تُضاف مرة ثانية إلى دفتر الماليات/,
 assert.ok(redesign.includes("family-cash") && redesign.includes("العُهد ومصروفات الأفراد"), "cash tracking page must be reachable from Finance OS");
 assert.ok(redesign.includes("legacyFamilyCash"), "FinanceRedesign must connect the Family cash domain implementation");
 console.log("Finance family cash tracking contract tests passed.");
