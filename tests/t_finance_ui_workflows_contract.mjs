@@ -62,6 +62,10 @@ assert.ok(assets.includes("fin_asset_upsert"), "asset CRUD must use the asset RP
 assert.ok(assets.includes("fin_asset_confirm_valuation"), "valuation confirmation must use its dedicated RPC");
 assert.ok(assets.includes("fin_net_worth"), "asset screen must read server-calculated net worth");
 assert.ok(assets.includes("role=\"dialog\""), "asset forms must render accessible dialogs");
+assert.ok(assets.includes("assetStep") && assets.includes("الخطوة {assetStep} من 3") && assets.includes("assetStep===1") && assets.includes("assetStep===2") && assets.includes("assetStep===3"),
+  "asset creation must use a three-step modal flow covering identity, valuation, and review");
+assert.ok(assets.includes("تأكيد التقييم") && assets.includes("fin_asset_confirm_valuation"),
+  "asset lifecycle must expose a real valuation confirmation workflow");
 
 // Goals and budgets must remain reachable through Planning and use the same
 // Finance workspace rather than a local-only store.
@@ -79,14 +83,20 @@ assert.ok(finance.includes("fin_budgets_get") && finance.includes("fin_budget_up
   "budget read/write must use Finance RPCs");
 assert.ok(redesign.includes('["budgets","الميزانيات"],["goals","الأهداف"],["reports","التقارير"]'),
   "Planning must expose Budgets, Goals, and Reports tabs");
+assert.ok(redesign.includes('activePage==="planning"') && redesign.includes("planningPage()"), "Planning must have a dedicated route");
 assert.ok(redesign.includes('navigate("budgets")'),
   "the Planning entry point must resolve to the registered Budgets page");
 assert.ok(redesign.includes("internalPage") && redesign.includes("activePage"),
   "nested Finance navigation must have a local fallback state when the host shell does not immediately update");
 assert.ok(redesign.includes('navigate(target)'),
   "settings cards must navigate through the shared Finance navigation handler");
-assert.ok(redesign.includes('["وسوم السياق"'),
-  "settings must expose the context-tags section");
+assert.ok(redesign.includes('["وسوم السياق"') && redesign.includes('"fx"'),
+  "settings must route currencies to the installed FX screen");
+assert.ok(redesign.includes('autoOpenAddType==="debt"') && redesign.includes('activePage!=="debts"') && redesign.includes('autoOpenAddType==="asset"') && redesign.includes('autoOpenAddType==="recurring"'),
+  "global Add chooser must open debt, asset, and recurring forms as modal overlays without changing page navigation");
+assert.ok(redesign.includes('Segmented items={[["overview","نظرة عامة"],["investments","الاستثمارات"],["debts","الديون"]]}' ),
+  "wealth must merge overview and net worth into one wealth overview instead of a standalone net-worth tab");
+assert.ok(redesign.includes('["وسوم السياق"'), "settings must expose the context-tags section");
 assert.ok(redesign.includes('page==="context-tags"') || redesign.includes('activePage==="context-tags"'),
   "the context-tags settings page must be reachable by navigation");
 assert.ok(redesign.includes('["family", "الأسرة"]'), "Family must be reachable from the Finance navigation");
@@ -95,6 +105,7 @@ assert.ok(redesign.includes('contextTags.filter(tag=>tag.context_type==="Family"
 assert.ok(redesign.includes("contextSearch") && redesign.includes("contextMemberFilter"), "family context records must have search and member filters");
 assert.ok(!redesign.includes('<option value="Personal">شخصي</option>') && !redesign.includes('<option value="Project">مشروع</option>'), "Personal and Projects must not be offered as context types until Projects OS is ready");
 assert.ok(finance.includes("netWorthSnapshots") && finance.includes("fin_net_worth_snapshots_get"), "dashboard net-worth chart must use persisted snapshots");
+assert.ok(finance.includes('["planning", "التخطيط', "📊"]'), "Finance navigation must expose Planning as a real section");
 assert.ok(finance.includes("fin_family_list_expenses") && finance.includes("fin_family_set_transaction_allocation"), "family context must use the existing Family allocation ledger RPCs");
 assert.ok(!finance.includes("fin_transaction_context_get") && !finance.includes("fin_transaction_context_set"), "family context must not call context RPCs that are not part of the installed Family ledger");
 assert.ok(finance.includes("recurringItems") && finance.includes("finance_recurring_items"), "dashboard upcoming payments must use persisted recurring records");
