@@ -22,7 +22,7 @@ export function DueChip({ date, status, today }) {
   const color = done ? C.muted : d < 0 ? C.bad : d <= 2 ? C.warn : C.dim;
   return <span style={{ fontSize: 11, color, fontWeight: !done && d < 0 ? 700 : 500 }}>📅 {fmtShort(date)}{!done && d < 0 ? ` (متأخر ${-d}ي)` : ""}</span>;
 }
-export function ProjectName({ id, onClick }) { const { projectsById, openProject } = useP(); const p = projectsById[id]; if (!p) return <span style={{ color: C.muted }}>—</span>; return <a onClick={(e) => { e.preventDefault(); (onClick || openProject)(id); }} href="#" style={{ color: C.info, fontSize: 12, textDecoration: "none", fontWeight: 600 }}>{p.is_system ? "⚙ " : "📁 "}{p.name}</a>; }
+export function ProjectName({ id, onClick }) { const { projectsById, openProject } = useP(); const p = projectsById[id]; if (!p) return <span style={{ color: C.muted }}>—</span>; return <a onClick={(e) => { e.preventDefault(); (onClick || openProject)(id); }} href="#" style={{ color: A, fontSize: 12, textDecoration: "none", fontWeight: 600 }}>{p.is_system ? "⚙ " : "📁 "}{p.name}</a>; }
 export const projOpts = (projects, includeArchived) => projects.filter((p) => includeArchived || !p.archived_at).map((p) => ({ v: p.id, l: (p.is_system ? "⚙ " : "") + p.name }));
 
 // ── Project form ────────────────────────────────────────────────────
