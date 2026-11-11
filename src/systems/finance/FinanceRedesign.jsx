@@ -397,7 +397,7 @@ function TransactionCreateModal({
           <div style={{fontSize:11,fontWeight:900,marginBottom:8}}>ربط السياق</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}>
             <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>السياق
-              <select value={draft.context_type} onChange={e=>update("context_type",e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}><option value="">بدون سياق</option><option value="Family">الأسرة</option><option value="Project">المشروع</option></select>
+              <select value={draft.context_type} onChange={e=>update("context_type",e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}><option value="">بدون سياق</option><option value="Family">الأسرة</option></select>
             </label>
             {draft.context_type==="Family" && <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>فرد الأسرة
               <select value={draft.context_family_member_id} onChange={e=>update("context_family_member_id",e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}><option value="">اختر فردًا</option>{contextFamilyMembers.map(m=><option key={m.id} value={m.id}>{m.display_name}</option>)}</select>
