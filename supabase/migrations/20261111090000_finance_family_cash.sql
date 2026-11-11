@@ -108,7 +108,7 @@ begin
     workspace_id,family_member_id,disbursement_transaction_id,account_id,
     amount,currency,disbursed_on,note,created_by,updated_by
   ) values (
-    p_workspace_id,p_family_member_id,p_transaction_id,tx.account_id,
+    p_workspace_id,p_family_member_id,p_transaction_id,tx.from_account_id,
     tx.amount,tx.currency,tx.local_date,nullif(left(coalesce(p_note,''),500),''),
     auth.uid(),auth.uid()
   )
