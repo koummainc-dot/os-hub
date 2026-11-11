@@ -561,9 +561,50 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       act("decisions", decision.id, "implementation_task_created", task.title);
       return task;
     },
+    // External source bridge: Knowledge action items become canonical Projects tasks without copying the Meeting entity.
+    async createTaskFromSource({ projectId, sourceSystem, sourceId, sourceItemIndex = null, title, description = "", due_date = null, assignee_id = null }) {
+      const project = projectsById[projectId];
+      if (!project || project.is_system || project.archived_at) throw new Error("المشروع غير صالح أو غير نشط.");
+      if (!sourceSystem || !sourceId || !String(title || "").trim()) throw new Error("مصدر المهمة وعنوانها مطلوبان.");
+      if (sourceSystem !== "knowledge") throw new Error("مصدر المهام الخارجي المدعوم حاليًا هو Knowledge.");
+      if (!can("task.write", project)) throw new Error("لا تملك صلاحية إنشاء مهمة في هذا المشروع.");
+      const source_ref = { system: sourceSystem, id: String(sourceId), item_index: sourceItemIndex == null ? null : Number(sourceItemIndex) };
+      const sourceKey = JSON.stringify(source_ref);
+      const existing = (data.tasks || []).find((task) => D.isActiveRec(task) && JSON.stringify(task.source_ref || null) === sourceKey);
+      if (existing) return existing;
+      const task = {
+        id: uid(),
+        title: String(title).trim(),
+        description: String(description || "").trim(),
+        project_id: projectId,
+        due_date: due_date || null,
+        assignee_id: assignee_id || null,
+        priority: "Medium",
+        status: "Not Started",
+        planning_bucket: "Inbox",
+        source_ref,
+        source_meeting_id: String(sourceId),
+        source_followup_index: sourceItemIndex == null ? null : Number(sourceItemIndex),
+        created_by: me,
+        sort_order: Date.now(),
+      };
+      const errs = D.validateTaskRefs(task, { projectsById, tasksById: idx.byId, prdsById });
+      if (errs.length) throw new Error(errs[0]);
+      if (D.traceabilityBlocked(settings, project.type, project.is_system, task)) throw new Error("سياسة التتبع تمنع إنشاء المهمة دون ربط مواصفة أو اكتشاف.");
+      const saved = await putIn("tasks", task, project);
+      if (!saved) throw new Error("لم يؤكد مخزن البيانات إنشاء المهمة.");
+      act("tasks", task.id, "created_from_source", task.title);
+      return saved;
+    },
+
     // tasks
     async saveTask(v, isNew, linkedKrId) {
       const project = projectsById[v.project_id];
+      if (isNew && v.source_ref) {
+        const sourceKey = JSON.stringify(v.source_ref);
+        const existingSourceTask = (data.tasks || []).find((task) => D.isActiveRec(task) && JSON.stringify(task.source_ref || null) === sourceKey);
+        if (existingSourceTask) return existingSourceTask;
+      }
       const errs = D.validateTaskRefs({ ...v, id: v.id || "new" }, { projectsById, tasksById: idx.byId, prdsById }); if (errs.length) throw new Error(errs[0]);
       // New task writes never persist a direct Objective link; Objective is derived from KR membership.
       const linkedKr = linkedKrId ? (data.krs || []).find((kr) => kr.id === linkedKrId && !kr.deleted_at && !kr.archived_at) : null;
