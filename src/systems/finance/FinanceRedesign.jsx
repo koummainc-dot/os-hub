@@ -189,7 +189,7 @@ function Shell({ page, setPage, children, onAdd, onRefresh, hideBalances, setHid
   ];
   const current = page === "dashboard" ? "dashboard"
     : ["transactions", "recurring", "inbox"].includes(page) ? "transactions"
-    : ["budgets", "goals", "reports", "projects"].includes(page) ? "planning"
+    : ["planning", "budgets", "goals", "reports", "wealth", "projects"].includes(page) ? "planning"
     : ["settings", "accounts", "categories", "currencies", "recurring", "context-tags"].includes(page) ? "settings" : page;
 
   return (
@@ -316,6 +316,101 @@ function TransactionSheet({ transaction, categories, accounts, baseCurrency, con
   );
 }
 
+
+function TransactionCreateModal({
+  open,
+  draft,
+  setDraft,
+  splitMode,
+  setSplitMode,
+  splitRows,
+  setSplitRows,
+  accounts = [],
+  categories = [],
+  goals = [],
+  contextFamilyMembers = [],
+  baseCurrency = "EGP",
+  saving = false,
+  error = "",
+  onSave,
+  onClose,
+}) {
+  if (!open) return null;
+  const update = (key, value) => setDraft(prev => ({ ...prev, [key]: value }));
+  const activeAccounts = accounts.filter(a => a.status !== "Archived");
+  return (
+    <div role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position:"fixed", inset:0, zIndex:1400, background:"rgba(20,37,29,.72)", display:"grid", placeItems:"center", padding:16, overflowY:"auto" }}>
+      <div role="dialog" aria-modal="true" aria-label="إضافة حركة مالية" style={{ background:C.surface, width:"min(720px,100%)", maxHeight:"calc(100vh - 32px)", overflowY:"auto", borderRadius:18, padding:22, boxSizing:"border-box", boxShadow:"0 18px 60px rgba(0,0,0,.18)" }}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
+          <div><div style={{color:C.green,fontSize:10,fontWeight:900}}>الماليات · الحركات</div><h2 style={{margin:"5px 0 0",fontSize:20}}>إضافة حركة</h2><div style={{marginTop:5,color:C.muted,fontSize:11}}>تُحفظ مباشرة في نفس دفتر الحركات.</div></div>
+          <button type="button" onClick={onClose} aria-label="إغلاق" style={{border:0,background:"transparent",fontSize:24,cursor:"pointer",color:C.muted}}>×</button>
+        </div>
+        {error && <div role="alert" style={{marginTop:14,background:C.redSoft,color:C.red,border:"1px solid #F3C1BC",borderRadius:10,padding:10,fontSize:11}}>{error}</div>}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10,marginTop:16}}>
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>النوع
+            <select value={draft.type} onChange={e=>update("type",e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}>
+              <option value="Expense">مصروف</option><option value="Income">دخل</option><option value="Transfer">تحويل</option>
+            </select>
+          </label>
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>التاريخ
+            <input type="date" value={draft.local_date} onChange={e=>update("local_date",e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}/>
+          </label>
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>المبلغ
+            <input type="number" min="0" step="0.01" value={draft.amount} onChange={e=>update("amount",e.target.value)} placeholder="0.00" style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}/>
+          </label>
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>العملة
+            <input value={draft.currency || baseCurrency} onChange={e=>update("currency",e.target.value.toUpperCase())} maxLength={3} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}/>
+          </label>
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>الحساب المصدر
+            <select value={draft.from_account_id} onChange={e=>update("from_account_id",e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}>
+              <option value="">اختر الحساب</option>{activeAccounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}
+            </select>
+          </label>
+          {draft.type==="Transfer" ? <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>الحساب المستلم
+            <select value={draft.to_account_id} onChange={e=>update("to_account_id",e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}>
+              <option value="">اختر الحساب</option>{activeAccounts.filter(a=>a.id!==draft.from_account_id).map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}
+            </select>
+          </label> : <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>التصنيف
+            <select value={draft.category_id} onChange={e=>update("category_id",e.target.value)} disabled={splitMode} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",opacity:splitMode?.55:1}}>
+              <option value="">اختر التصنيف</option>{categories.filter(c=>c.kind===draft.type||c.kind==="Both").map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>}
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>التاجر / المستفيد
+            <input value={draft.merchant} onChange={e=>update("merchant",e.target.value)} placeholder="اختياري" style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}/>
+          </label>
+          <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>الغرض
+            <select value={draft.purpose} onChange={e=>update("purpose",e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}><option value="Regular">عادي</option><option value="Essential">أساسي</option><option value="Discretionary">اختياري</option></select>
+          </label>
+        </div>
+        {draft.type!=="Transfer" && <div style={{marginTop:12,border:"1px solid "+C.line,borderRadius:12,padding:12}}>
+          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:11,fontWeight:800}}><input type="checkbox" checked={splitMode} onChange={e=>setSplitMode(e.target.checked)}/> تقسيم الحركة على أكثر من تصنيف</label>
+          {splitMode && <div style={{display:"grid",gap:8,marginTop:10}}>
+            {splitRows.map((row,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"1fr 150px auto",gap:8}}>
+              <select value={row.category_id} onChange={e=>setSplitRows(rows=>rows.map((r,j)=>j===i?{...r,category_id:e.target.value}:r))} style={{border:"1px solid "+C.line,borderRadius:9,padding:9,font:"inherit"}}><option value="">التصنيف</option>{categories.filter(c=>c.kind===draft.type||c.kind==="Both").map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+              <input type="number" min="0" step="0.01" value={row.amount} onChange={e=>setSplitRows(rows=>rows.map((r,j)=>j===i?{...r,amount:e.target.value}:r))} placeholder="المبلغ" style={{border:"1px solid "+C.line,borderRadius:9,padding:9,font:"inherit"}}/>
+              <button type="button" onClick={()=>setSplitRows(rows=>rows.filter((_,j)=>j!==i))} disabled={splitRows.length<=2} style={{border:"1px solid "+C.line,background:C.surface,borderRadius:9,padding:"0 10px",cursor:splitRows.length<=2?"not-allowed":"pointer"}}>×</button>
+            </div>)}
+            <Button secondary onClick={()=>setSplitRows(rows=>[...rows,{category_id:"",amount:""}])}>＋ تصنيف آخر</Button>
+          </div>}
+        </div>}
+        <div style={{marginTop:12,border:"1px solid "+C.line,borderRadius:12,padding:12}}>
+          <div style={{fontSize:11,fontWeight:900,marginBottom:8}}>ربط السياق</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}>
+            <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>السياق
+              <select value={draft.context_type} onChange={e=>update("context_type",e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}><option value="">بدون سياق</option><option value="Family">الأسرة</option></select>
+            </label>
+            {draft.context_type==="Family" && <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>فرد الأسرة
+              <select value={draft.context_family_member_id} onChange={e=>update("context_family_member_id",e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}><option value="">اختر فردًا</option>{contextFamilyMembers.map(m=><option key={m.id} value={m.id}>{m.display_name}</option>)}</select>
+            </label>}
+          </div>
+        </div>
+        <label style={{display:"grid",gap:6,fontSize:11,color:C.muted,marginTop:12}}>ملاحظات<textarea value={draft.notes} onChange={e=>update("notes",e.target.value)} rows={3} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",resize:"vertical"}}/></label>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}><Button secondary onClick={onClose}>إلغاء</Button><Button disabled={saving} onClick={onSave}>{saving?"جارٍ الحفظ…":"حفظ الحركة"}</Button></div>
+      </div>
+    </div>
+  );
+}
+
 export default function FinanceRedesign({
   page = "dashboard",
   setPage,
@@ -343,7 +438,7 @@ export default function FinanceRedesign({
     setPage?.(id);
   }, [setPage]);
   const activePage = internalPage || page || "dashboard";
-  const [planningTab, setPlanningTab] = React.useState(activePage === "reports" || activePage === "networth" ? "reports" : activePage === "goals" ? "goals" : "budgets");
+  const [planningTab, setPlanningTab] = React.useState(activePage === "wealth" ? "wealth" : activePage === "reports" || activePage === "networth" ? "reports" : activePage === "goals" ? "goals" : "budgets");
   const [wealthTab, setWealthTab] = React.useState(page === "assets" ? "investments" : page === "debts" ? "debts" : "overview");
   const [familyTab, setFamilyTab] = React.useState(page === "family-cash" ? "allocations" : "overview");
   const [txTab, setTxTab] = React.useState("all");
@@ -362,6 +457,10 @@ export default function FinanceRedesign({
   const [budgetRiskFilter,setBudgetRiskFilter]=React.useState("all");
   const [txSubTab, setTxSubTab] = React.useState(page === "recurring" ? "recurring" : "ledger");
   const [showAddChooser, setShowAddChooser] = React.useState(false);
+  const [showTransactionForm, setShowTransactionForm] = React.useState(false);
+  const [transactionDraft, setTransactionDraft] = React.useState(() => ({ type:"Expense", purpose:"Regular", amount:"", currency:"EGP", local_date:new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}), from_account_id:"", to_account_id:"", category_id:"", goal_id:"", merchant:"", notes:"", context_type:"", context_project_id:"", context_family_member_id:"" }));
+  const [transactionSplitMode, setTransactionSplitMode] = React.useState(false);
+  const [transactionSplitRows, setTransactionSplitRows] = React.useState([{category_id:"",amount:""},{category_id:"",amount:""}]);
   const [showBudgetForm, setShowBudgetForm] = React.useState(false);
   const [budgetSaveError, setBudgetSaveError] = React.useState("");
   const [autoOpenAddType, setAutoOpenAddType] = React.useState("");
@@ -372,6 +471,7 @@ export default function FinanceRedesign({
     if(activePage==="debts")setWealthTab("debts");
     else if(activePage==="assets")setWealthTab("investments");
     else if(activePage==="reports"||activePage==="networth")setPlanningTab("reports");
+    else if(activePage==="wealth")setPlanningTab("wealth");
     else if(activePage==="goals")setPlanningTab("goals");
     else if(activePage==="budgets")setPlanningTab("budgets");
     else if(activePage==="planning")setPlanningTab("budgets");
@@ -423,7 +523,7 @@ export default function FinanceRedesign({
         <Card>
           <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",marginBottom:14}}>
             <div><h2 style={{margin:0,fontSize:15}}>صافي الثروة · سجل اللقطات</h2><div style={{color:C.muted,fontSize:10,marginTop:4}}>اللقطات المحفوظة فقط؛ لا يتم توليد تاريخ تقديري</div></div>
-            <Button secondary onClick={()=>setPage("networth")}>فتح الثروة ←</Button>
+            <Button secondary onClick={()=>{setPlanningTab("wealth");navigate("planning");}}>فتح الثروة ←</Button>
           </div>
           {snapshotRows.length?<div style={{height:170,display:"flex",alignItems:"flex-end",gap:7,padding:"12px 4px",borderBottom:"1px solid "+C.line}}>
             {snapshotRows.map((point,i)=>{const value=Number(point.value_base),height=12+((value-snapshotMin)/snapshotRange)*78;return <div key={point.id||point.snapshot_at} title={new Date(point.snapshot_at).toLocaleDateString("ar-EG")+": "+displayMoney(value,point.base_currency||baseCurrency)} style={{flex:1,minWidth:5,height:height+"%",background:i===snapshotRows.length-1?C.green:"#D7E5DC",borderRadius:"6px 6px 0 0"}}/>;})}
@@ -667,8 +767,8 @@ function transactionsPage() {
   }
 
   function planningPage() {
-    const title = planningTab === "budgets" ? "الميزانيات" : planningTab === "goals" ? "الأهداف المالية" : "التقارير";
-    const subtitle = planningTab === "budgets" ? "راقب حدود الإنفاق والمصروف الفعلي من نفس مصدر الحركات." : planningTab === "goals" ? "اربط الادخار والتقدم المالي بأهدافك دون إنشاء دفتر منفصل." : "تقارير الماليات تُقرأ من نفس الحركات والأرصدة، ولا تنشئ مصدر حقيقة آخر.";
+    const title = planningTab === "budgets" ? "الميزانيات" : planningTab === "goals" ? "الأهداف المالية" : planningTab === "wealth" ? "الثروة" : "التقارير";
+    const subtitle = planningTab === "budgets" ? "راقب حدود الإنفاق والمصروف الفعلي من نفس مصدر الحركات." : planningTab === "goals" ? "اربط الادخار والتقدم المالي بأهدافك دون إنشاء دفتر منفصل." : planningTab === "wealth" ? "الأصول والاستثمارات والديون وصافي الثروة في مسار واحد." : "تقارير الماليات تُقرأ من نفس الحركات والأرصدة، ولا تنشئ مصدر حقيقة آخر.";
     return <>
       <PageHead
         eyebrow="الماليات · التخطيط"
@@ -680,7 +780,7 @@ function transactionsPage() {
             ? <Button secondary onClick={actions.onExport}>تصدير</Button>
              : <Button onClick={()=>setAutoOpenAddType("goal")}>＋ إضافة هدف</Button>}
       />
-      <Segmented items={[["budgets","الميزانيات"],["goals","الأهداف"],["reports","التقارير"]]} value={planningTab} onChange={value=>{setPlanningTab(value);if(value==="budgets")navigate("budgets");else if(value==="goals")navigate("goals");else navigate("reports");}}/>
+      <Segmented items={[["budgets","الميزانيات"],["goals","الأهداف"],["wealth","الثروة"],["reports","التقارير"]]} value={planningTab} onChange={value=>{setPlanningTab(value);if(value==="budgets")navigate("budgets");else if(value==="goals")navigate("goals");else navigate("reports");}}/>
       {planningTab==="budgets" && budgetsPage()}
       {planningTab==="goals" && (legacyGoals ? React.cloneElement(legacyGoals,{openCreate:autoOpenAddType==="goal",onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("goal")}) : <Card style={{marginTop:12}}>
         <h2 style={{marginTop:0,fontSize:15}}>الأهداف المالية</h2>
@@ -720,13 +820,13 @@ function transactionsPage() {
   const pageNode = activePage==="dashboard" ? dashboard()
     : activePage==="transactions" || activePage==="inbox" || activePage==="recurring" ? transactionsPage()
     : activePage==="projects" ? (legacyProjects || fallback())
-    : activePage==="planning" || activePage==="budgets" || activePage==="goals" || activePage==="reports" ? planningPage()
+    : activePage==="planning" || activePage==="budgets" || activePage==="goals" || activePage==="reports" || activePage==="wealth" ? planningPage()
     : activePage==="settings" ? settingsPage()
     : activePage==="accounts" ? accountsPage()
     : activePage==="categories" ? categoriesPage()
     : activePage==="fx" || activePage==="currencies" ? (legacyCurrencies || currenciesPage())
     : activePage==="context-tags" ? contextTagsPage()
-    : activePage==="wealth" || activePage==="assets" || activePage==="debts" ? wealthPage()
+    : activePage==="assets" || activePage==="debts" ? wealthPage()
     : ["family","family-cash"].includes(activePage) ? <><Segmented items={[["family","مركز الأسرة"],["family-cash","العُهد ومصروفات الأفراد"]]} value={activePage} onChange={value=>navigate(value)}/>{activePage==="family"?(legacyFamily||fallback()):(legacyFamilyCash||fallback())}</>
     : activePage==="projects" ? (legacyProjects || fallback())
     : fallback();
@@ -760,7 +860,7 @@ function transactionsPage() {
               ["budget","ميزانية","حد إنفاق لفئة وفترة"],
               ["asset","أصل","أصل أو استثمار جديد"],
               ["recurring","متكرر / اشتراك","دفعة دورية وتنبيهاتها"]
-            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){actions.onAdd?.();return;}setAutoOpenAddType(kind);if(kind==="budget"){setPlanningTab("budgets");setBudgetSaveError("");setShowBudgetForm(true);return;}if(kind==="recurring"){setTxSubTab("recurring");return;}}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
+            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){setTransactionDraft({ type:"Expense", purpose:"Regular", amount:"", currency:baseCurrency, local_date:new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}), from_account_id:"", to_account_id:"", category_id:"", goal_id:"", merchant:"", notes:"", context_type:"", context_project_id:"", context_family_member_id:"" });setTransactionSplitMode(false);setTransactionSplitRows([{category_id:"",amount:""},{category_id:"",amount:""}]);setShowTransactionForm(true);return;}setAutoOpenAddType(kind);if(kind==="budget"){setPlanningTab("budgets");setBudgetSaveError("");setShowBudgetForm(true);return;}if(kind==="recurring"){setTxSubTab("recurring");return;}}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
               <div style={{fontSize:13,fontWeight:900,color:C.ink}}>{label}</div><div style={{fontSize:10,color:C.muted,lineHeight:1.7,marginTop:6}}>{desc}</div>
             </button>)}
           </div>
@@ -769,6 +869,7 @@ function transactionsPage() {
       {autoOpenAddType==="debt" && activePage!=="debts" && legacyDebt ? React.cloneElement(legacyDebt,{openCreate:true,onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("debt")}) : null}
       {autoOpenAddType==="asset" && activePage!=="assets" && legacyAssets ? React.cloneElement(legacyAssets,{openCreate:true,onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("asset")}) : null}
       {autoOpenAddType==="recurring" && activePage!=="recurring" && legacyRecurring ? React.cloneElement(legacyRecurring,{openCreate:true,onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("recurring")}) : null}
+      <TransactionCreateModal open={showTransactionForm} draft={transactionDraft} setDraft={setTransactionDraft} splitMode={transactionSplitMode} setSplitMode={setTransactionSplitMode} splitRows={transactionSplitRows} setSplitRows={setTransactionSplitRows} accounts={accounts} categories={categories} goals={goals} contextFamilyMembers={contextFamilyMembers} baseCurrency={baseCurrency} saving={actions.transactionSaving} error={data?.error||""} onSave={async()=>{const result=await actions.onSaveTransaction?.(transactionDraft,transactionSplitMode,transactionSplitRows);if(result?.ok){setShowTransactionForm(false);setTransactionDraft({ type:"Expense", purpose:"Regular", amount:"", currency:baseCurrency, local_date:new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}), from_account_id:"", to_account_id:"", category_id:"", goal_id:"", merchant:"", notes:"", context_type:"", context_project_id:"", context_family_member_id:"" });setTransactionSplitMode(false);setTransactionSplitRows([{category_id:"",amount:""},{category_id:"",amount:""}]);}}} onClose={()=>setShowTransactionForm(false)} />
       <TransactionSheet transaction={selectedTransaction} categories={categories} accounts={accounts} baseCurrency={baseCurrency} contextTags={contextTags} contextFamilyMembers={data?.contextFamilyMembers||[]} onSaveContext={actions.onSaveContext} onClose={() => setSelectedTransaction(null)} />
     </Shell>
   );
