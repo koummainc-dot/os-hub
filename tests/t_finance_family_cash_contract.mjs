@@ -23,8 +23,8 @@ assert.match(migration, /grant execute on function public\.fin_family_cash_add_e
 assert.match(ui, /fin_family_cash_link_transaction/);
 assert.match(ui, /fin_family_cash_add_entry/);
 assert.match(ui, /مصروفات العهدة هنا سجل توثيقي ولا تُضاف مرة ثانية إلى دفتر الماليات/,
-assert.match(redesign, /\["family-cash","العُهد ومصروفات الأفراد"\]/, "cash tracking page must be reachable from Finance OS");
-assert.match(redesign, /legacyFamilyCash/, "FinanceRedesign must connect the Family cash domain implementation");
+assert.ok(redesign.includes('["family-cash","العُهد ومصروفات الأفراد"]'), "cash tracking page must be reachable from Finance OS");
+assert.ok(redesign.includes("legacyFamilyCash"), "FinanceRedesign must connect the Family cash domain implementation");
   "cash tracking page must be reachable from Finance OS");
 assert.match(finance, /\["family-cash", "عهد ومصروفات الأفراد", "👪"\]/);
 console.log("Finance family cash tracking contract tests passed.");
