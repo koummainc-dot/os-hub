@@ -50,7 +50,7 @@ export default function FinanceFamily({ws,access,isDemo=false,currencies=[]}) {
     setMembers([]); setBudgets([]); setCategories([]); setAllowances([]); setExpenses([]);  setWorkspaceUsers([]); setReportRows([]);
     setLoading(true); setError("");
     try {
-      const [m,b,a,x,p,cat,users] = await Promise.all([
+      const [m,b,a,x,cat,users] = await Promise.all([
         supabase.from("finance_family_members").select("id,display_name,nickname,relationship_type,relationship_label,color,default_responsibility,linked_user_id,status,created_at").eq("workspace_id",ws.id).order("status").order("display_name"),
         supabase.from("finance_family_budgets").select("id,family_member_id,category_id,period,start_date,end_date,amount,currency,rollover_rule,rollover_cap,status").eq("workspace_id",ws.id).eq("status","Active").order("period",{ascending:false}),
         supabase.from("finance_family_allowances").select("id,family_member_id,amount,currency,frequency,due_day,start_date,end_date,status").eq("workspace_id",ws.id).neq("status","Archived").order("created_at",{ascending:false}),
@@ -58,7 +58,7 @@ export default function FinanceFamily({ws,access,isDemo=false,currencies=[]}) {
         supabase.from("finance_categories").select("id,name,kind,parent_id,archived").eq("workspace_id",ws.id).eq("archived",false).order("name"),
         supabase.from("workspace_members").select("user_id,display_name,email,status").eq("workspace_id",ws.id).eq("status","active").order("display_name")
       ]);
-      if(m.error) throw m.error; if(b.error) throw b.error; if(a.error) throw a.error; if(x.error) throw x.error; if(p.error) throw p.error; if(cat.error) throw cat.error;
+      if(m.error) throw m.error; if(b.error) throw b.error; if(a.error) throw a.error; if(x.error) throw x.error; if(cat.error) throw cat.error;
       setMembers(m.data||[]); setBudgets(b.data||[]); setCategories(cat.data||[]); setAllowances(a.data||[]); setExpenses(x.data||[]); setWorkspaceUsers(users.error?[]:(users.data||[]));
     } catch(e) { setError(e?.message||"تعذّر تحميل مركز العائلة. تحقق من صلاحيات Finance/Family وتطبيق ترحيل قاعدة البيانات."); }
     finally { setLoading(false); }
