@@ -702,7 +702,6 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       legacyFamily={<FinanceFamily ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
       legacyFamilyCash={<FinanceFamilyCash ws={ws} access={access} isDemo={isDemo} />}
       legacyReports={<FinanceReports ws={ws} isDemo={isDemo} baseCurrency={baseCurrency} />}
-      legacyNetWorth={<FinanceNetWorthHistory ws={ws} access={access} isDemo={isDemo} />}
       legacyCurrencies={<FinanceFXRates ws={ws} access={access} isDemo={isDemo} baseCurrency={baseCurrency} />}
     />
   );
