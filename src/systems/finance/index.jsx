@@ -296,8 +296,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   async function saveTransaction(e, overrideDraft = null, overrideSplitMode = null, overrideSplitRows = null) {
     e?.preventDefault?.(); if (!canEdit || saving) return {ok:false,error:"لا تملك صلاحية تسجيل الحركات الآن."};
     const draft = overrideDraft || tx;
-    const currentSplitMode = overrideSplitMode == null ? currentSplitMode : overrideSplitMode;
-    const currentSplitRows = overrideSplitRows || currentSplitRows;
+    const currentSplitMode = overrideSplitMode == null ? splitMode : overrideSplitMode;
+    const currentSplitRows = overrideSplitRows || splitRows;
     if (!(Number(draft.amount) > 0) || !draft.local_date || !draft.from_account_id) { setError("أكمل المبلغ والتاريخ والحساب."); return; }
     if (draft.type !== "Transfer" && !currentSplitMode && !draft.category_id) { setError("اختَر تصنيفًا للحركة؛ اسم الحركة غير مطلوب."); return; }
     if (draft.type === "Transfer" && (!draft.to_account_id || draft.to_account_id === draft.from_account_id)) { setError("اختر حسابًا مستلمًا مختلفًا عن حساب المصدر."); return; }
