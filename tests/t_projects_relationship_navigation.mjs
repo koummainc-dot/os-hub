@@ -343,8 +343,10 @@ assert.ok(store.includes("createTaskFromSource") &&
 assert.ok(parts.includes('key: "meeting_action_ref"') &&
   parts.includes("dataWithKnowledge.__knowledgeMeetings") &&
   parts.includes('system: "knowledge"') &&
-  parts.includes("item_index"),
-  "Task creation can select a Knowledge meeting action item and stores only the source reference");
+  parts.includes("item_index") &&
+  parts.includes("source_meeting_id") &&
+  parts.includes("source_followup_index"),
+  "Task creation can select a Knowledge meeting action item and persists the canonical external source reference plus meeting provenance");
 
 console.log("✓ Projects relationship navigation contracts passed");
 
