@@ -84,6 +84,37 @@ export function TemplatePicker({ onClose, tpl }) {
 }
 const countNodes = (nodes) => nodes.reduce((a, n) => a + 1 + countNodes(n.children || []), 0);
 
+function ProjectWorkspaceNav({ groups, activeGroupId, activeTab, onGroupChange, onTabChange }) {
+  return <nav className="projects-workspace-nav" aria-label="تنقل المشروع">
+    <div className="projects-workspace-nav-mobile">
+      <label className="projects-workspace-nav-label" htmlFor="projects-workspace-section">قسم المشروع</label>
+      <select id="projects-workspace-section" value={activeTab} onChange={(e) => onTabChange(e.target.value)}>
+        {groups.flatMap((group) => group.tabs.map((item) => <option key={item.id} value={item.id}>{group.label} — {item.label}</option>))}
+      </select>
+    </div>
+    <div className="projects-workspace-nav-desktop">
+      {groups.map((group) => <section key={group.id} className="projects-workspace-nav-group">
+        <button type="button" className={"projects-workspace-nav-group-title" + (group.id === activeGroupId ? " is-active" : "")} onClick={() => onGroupChange(group.id)}>
+          <span>{group.label}</span>
+          <span aria-hidden="true">›</span>
+        </button>
+        <div className="projects-workspace-nav-items">
+          {group.tabs.map((item) => <button
+            key={item.id}
+            type="button"
+            className={"projects-workspace-nav-item" + (item.id === activeTab ? " is-active" : "")}
+            onClick={() => onTabChange(item.id)}
+            aria-current={item.id === activeTab ? "page" : undefined}
+          >
+            <span>{item.label}</span>
+            {item.count != null && <span className="projects-workspace-nav-count">{item.count}</span>}
+          </button>)}
+        </div>
+      </section>)}
+    </div>
+  </nav>;
+}
+
 // ═════ Project detail ═════
 function ProjectDetail() {
   const { view, setView, projectsById, metrics, data, can, A: act, idx, today, people, nameOf, toast, sessionsDummy, openTask } = useP();
@@ -115,8 +146,13 @@ function ProjectDetail() {
         <StatusChip s={p.status} />
         {canE && <select style={{ ...S.sel, width: 150 }} value="" onChange={(e) => e.target.value && act.setProjectStatus(p, e.target.value)}><option value="">تغيير الحالة…</option>{Object.keys(L.projectStatus).filter((s) => s !== p.status && s !== "Archived").map((s) => <option key={s} value={s}>{L.projectStatus[s]}</option>)}</select>}
         {canE && <Btn onClick={() => setEdit(true)}>✎ تعديل</Btn>}{can("project.archive", p) && (p.archived_at ? <Btn onClick={() => act.restoreProject(p)}>♻️ استرجاع</Btn> : <Btn onClick={() => act.archiveProject(p)}>🗄 أرشفة</Btn>)}{can("project.delete", p) && <Btn danger onClick={async () => { if (await act.deleteProject(p)) setView({ projectId: null, tab: "overview" }); }}>🗑</Btn>}</>} />
-      <Tabs tabs={tabGroups.map(({ id, label }) => ({ id, label }))} value={activeGroup.id} onChange={setGroup} small />
-      {activeGroup.tabs.length > 1 && <Tabs tabs={activeGroup.tabs} value={tab} onChange={setTab} small />}
+      <ProjectWorkspaceNav
+        groups={tabGroups}
+        activeGroupId={activeGroup.id}
+        activeTab={tab}
+        onGroupChange={setGroup}
+        onTabChange={setTab}
+      />
       {tab === "overview" && <Overview p={p} m={m} />}
       {tab === "tasks" && <TaskTree projectId={p.id} />}
       {tab === "timeline" && <ProjectTimeline p={p} />}
