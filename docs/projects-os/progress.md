@@ -21,6 +21,14 @@ Phase 0 baseline was completed before this branch. This branch implements **Phas
 - Normalized the shared CSS accent token to the existing Core UI accent (#EF9F27) instead of keeping the conflicting blue token.
 - Added a Phase 1 contract test and included it in the main test suite.
 
+## Verification Evidence
+- Latest branch CI: **passed**.
+- Latest Vercel deployment: **READY**.
+- Phase 1 navigation contract: **passed** inside CI.
+- Projects acceptance Phase A task UX: **passed** end-to-end, including quick add, timeline/table, inline edit, bulk completion, custom fields, deep-link focus, and task search recovery.
+- A separate broader `Verify app` run still has pre-existing/out-of-scope acceptance failures in the later template/task-tree and role-navigation sections; these are not Phase 1 navigation-contract failures and must not be treated as proof of Phase 1 completion until reconciled.
+- Manual browser RTL/responsive/back-button acceptance remains unproven in this environment.
+
 ## Intentionally Not Done in Phase 1
 - No Projects schema migration.
 - No Finance schema/API changes.
@@ -29,8 +37,5 @@ Phase 0 baseline was completed before this branch. This branch implements **Phas
 - No production deployment.
 - No final D-01 branding decision; orange is the current technical token alignment with Core UI, pending product/design approval.
 
-## Verification
-The repository CI/build must be run against this branch before Phase 1 can be marked as passed. Local execution was not available in this environment because the repository could not be cloned over the network.
-
 ## Next
-Phase 1 exit evidence: CI/build + lint + navigation contract + responsive/manual acceptance. Then proceed to Phase 2 (Project Overview & Portfolio) without changing the data model unless a proven blocker requires it.
+Close only the remaining acceptance evidence: reconcile the broader Verify app failures, then perform responsive/RTL/manual browser acceptance. Do not start Phase 2 or add new features before that closure.
