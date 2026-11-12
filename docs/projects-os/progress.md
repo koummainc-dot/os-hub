@@ -19,14 +19,24 @@ Phase 0 baseline was completed before this branch. This branch implements **Phas
   - Mobile single-section selector.
   - Existing project tab IDs remain intact for deep links.
 - Normalized the shared CSS accent token to the existing Core UI accent (#EF9F27) instead of keeping the conflicting blue token.
-- Added a Phase 1 contract test and included it in the main test suite.
+- Fixed the Core OS Registry route mismatch that prevented the new “مهامي” navigation entry from opening: `myWork` is now registered alongside the canonical `tasks` route.
+- Added a Phase 1 contract test and included it in the main test suite; the contract now guards the `myWork` registry compatibility as well.
 
 ## Verification Evidence
 - Latest branch CI: **passed**.
-- Latest Vercel deployment: **READY**.
+- Latest Vercel deployment: **READY** and the preview responds HTTP 200 with the Arabic RTL shell.
 - Phase 1 navigation contract: **passed** inside CI.
 - Projects acceptance Phase A task UX: **passed** end-to-end, including quick add, timeline/table, inline edit, bulk completion, custom fields, deep-link focus, and task search recovery.
-- A separate broader `Verify app` run still has pre-existing/out-of-scope acceptance failures in the later template/task-tree and role-navigation sections; these are not Phase 1 navigation-contract failures and must not be treated as proof of Phase 1 completion until reconciled.
+- The broader `Verify app` run is **not green** and currently reports 7 later acceptance failures:
+  1. Sara: Projects settings visibility expectation.
+  2. Template-created project: parent/child task-tree assertion.
+  3. Template-created project: child-task action visibility assertion.
+  4. Template-created project: overview leaf-count assertion after completion.
+  5. New task form: collapsed advanced-fields assertion.
+  6. New task creation assertion.
+  7. Task sheet/timer assertion.
+- These 7 failures occur after the Phase 1 navigation contract and after the Phase A task-UX acceptance block. They are not evidence that the Phase 1 navigation contract itself is broken; they are remaining broader acceptance evidence that must be reconciled before declaring the overall Projects acceptance gate closed.
+- The separate Finance Family Center workflow also reports a failure in the same commit's workflow set; it is outside the Phase 1 Projects navigation scope and is not being changed here.
 - Manual browser RTL/responsive/back-button acceptance remains unproven in this environment.
 
 ## Intentionally Not Done in Phase 1
@@ -37,5 +47,9 @@ Phase 0 baseline was completed before this branch. This branch implements **Phas
 - No production deployment.
 - No final D-01 branding decision; orange is the current technical token alignment with Core UI, pending product/design approval.
 
-## Next
-Close only the remaining acceptance evidence: reconcile the broader Verify app failures, then perform responsive/RTL/manual browser acceptance. Do not start Phase 2 or add new features before that closure.
+## Closure Gate
+Do not start Phase 2, add new features, or run another cosmetic redesign cycle yet. The remaining work is only:
+1. Reconcile the 7 broader Verify app failures without expanding Phase 1 scope.
+2. Re-run CI/Verify after those targeted fixes or explicitly document any test-only expectation that is obsolete.
+3. Perform manual browser RTL/responsive/back-button acceptance.
+4. Only after those gates pass, close Phase 1 and move to Phase 2.
