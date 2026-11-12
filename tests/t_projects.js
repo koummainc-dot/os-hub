@@ -19,12 +19,16 @@ const {makeEnv,sleep,appJs}=require('./harness');
     "الإنجازات":"النتائج والتقارير","التحديثات":"النتائج والتقارير","المراجعات الأسبوعية":"النتائج والتقارير",
     "القوالب":"الإدارة","الإعدادات":"الإدارة"
   };
+  const findSectionButton=(label)=>nav().find(x=>{
+    const t=x.textContent.trim();
+    return isSectionButton(x,label) || t===label || t.startsWith(label+" ");
+  });
   const goSection=async(label)=>{
-    let b=nav().find(x=>isSectionButton(x,label));
+    let b=findSectionButton(label);
     if(!b){
       const group=sectionGroups[label];
-      const g=group&&nav().find(x=>x.textContent.trim().includes(group)&&x.textContent.trim()!==label);
-      if(g){g.click();await sleep(80);b=nav().find(x=>isSectionButton(x,label));}
+      const g=group&&nav().find(x=>x.textContent.trim()===group);
+      if(g){g.click();await sleep(80);b=findSectionButton(label);}
     }
     if(!b)return false;b.click();await sleep(450);return true;
   };
