@@ -107,6 +107,7 @@ assert.ok(okrScreens.includes('const target = view?.okrFocus') &&
   "OKRs destination must reveal, scroll to, and highlight the exact target even when its status is outside the default filter");
 
 assert.ok(projectScreens.includes("activeGroup.tabs.length > 1") &&
+  projectScreens.includes("const setGroup = (groupId) =>") &&
   projectScreens.includes("setTab(group.defaultTab)"),
   "group navigation must reveal relevant subtabs and select a safe default destination");
 
