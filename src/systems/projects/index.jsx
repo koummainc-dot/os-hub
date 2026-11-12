@@ -13,13 +13,35 @@ import { buildSeed } from "./demo.js";
 import { loadDurableOSEvents, subscribeDurableOSEvents } from "../integrationEvents.js";
 import MasterplanWizard from "./masterplanWizard.jsx";
 
-function RisksPage() {
-  const [tab, setTab] = useState("risks"); const { data } = useP();
-  return <div><div style={{ fontSize: 21, fontWeight: 700, marginBottom: 12 }}>المخاطر والقرارات</div>
-    <Tabs value={tab} onChange={setTab} tabs={[{ id: "risks", label: "⚠️ المخاطر", count: data.risks.length }, { id: "decisions", label: "⚖️ القرارات", count: data.decisions.length }]} />
-    {tab === "risks" && <RisksView />}{tab === "decisions" && <DecisionsView />}</div>;
+function GovernancePage() {
+  const { page } = useP();
+  const initialTab = page === "issues" ? "issues" : page === "decisions" ? "decisions" : "risks";
+  const [tab, setTab] = useState(initialTab);
+  useEffect(() => {
+    if (page === "issues") setTab("issues");
+    else if (page === "decisions") setTab("decisions");
+    else if (page === "risks") setTab("risks");
+  }, [page]);
+  const { data, setPage } = useP();
+  const tabs = [
+    { id: "risks", label: "المخاطر", count: data.risks.length },
+    { id: "issues", label: "المشاكل", count: data.issues.length },
+    { id: "decisions", label: "القرارات", count: data.decisions.length },
+  ];
+  const selectTab = (next) => {
+    setTab(next);
+    setPage(next === "risks" ? "risks" : next);
+  };
+  return <div>
+    <div style={{ fontSize: 21, fontWeight: 700, marginBottom: 12 }}>مركز الحوكمة</div>
+    <Tabs value={tab} onChange={selectTab} tabs={tabs} />
+    {tab === "risks" && <RisksView />}
+    {tab === "issues" && <IssuesView />}
+    {tab === "decisions" && <DecisionsView />}
+  </div>;
 }
-const SCREENS = { dashboard: Dashboard, today: Today, week: Week, myWork: MyWork, portfolio: Portfolio, projects: Projects, tasks: Tasks, issues: IssuesView, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: RisksPage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings, masterplanImport: MasterplanWizard };
+
+const SCREENS = { dashboard: Dashboard, today: Today, week: Week, myWork: MyWork, portfolio: Portfolio, projects: Projects, tasks: Tasks, issues: GovernancePage, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: GovernancePage, decisions: GovernancePage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings, masterplanImport: MasterplanWizard };
 
 function ProjectsDurableEventBridge({ ws, isDemo, children }) {
   const ctx = useP();
@@ -53,37 +75,39 @@ function Router({ sourceWriteRequest }) {
     if (!shell || !shell.publish) return;
     const visible = Object.keys(SCREENS).filter((k) => k !== "masterplanImport" && !(role === "Viewer" && ["reviews", "contacts"].includes(k)));
     const groups = [
-      { id: "work", label: "العمل", items: [
+      { id: "today", label: "مساحة اليوم", items: [
         { id: "dashboard", label: "الرئيسية", icon: "⌂" },
         { id: "today", label: "اليوم", icon: "☀" },
         { id: "myWork", label: "مهامي", icon: "✓" },
-        { id: "projects", label: "المشاريع", icon: "📁" },
-        { id: "tasks", label: "المهام", icon: "☑" },
         { id: "week", label: "هذا الأسبوع", icon: "🗓️" },
+      ]},
+      { id: "portfolio", label: "المحفظة والمشاريع", items: [
+        { id: "projects", label: "المشاريع", icon: "📁" },
         { id: "portfolio", label: "المحفظة", icon: "▦" },
       ]},
       { id: "planning", label: "التخطيط", items: [
         { id: "discovery", label: "الاكتشاف", icon: "↘" },
         { id: "prds", label: "المواصفات", icon: "▤" },
         { id: "okrs", label: "الأهداف (OKR)", icon: "🎯" },
-        { id: "meetings", label: "الاجتماعات", icon: "👥" },
       ]},
-      { id: "delivery", label: "التسليم", items: [
+      { id: "execution", label: "التنفيذ", items: [
+        { id: "tasks", label: "المهام", icon: "☑" },
         { id: "outputs", label: "المخرجات", icon: "📦" },
-        { id: "updates", label: "التحديثات", icon: "↗" },
-        { id: "wins", label: "الإنجازات", icon: "🏆" },
       ]},
       { id: "governance", label: "الحوكمة", items: [
-        { id: "risks", label: "المخاطر والمشاكل والقرارات", icon: "⚠" },
-        { id: "issues", label: "المشاكل", icon: "●" },
-        { id: "decisions", label: "القرارات", icon: "⚖" },
+        { id: "risks", label: "مركز الحوكمة", icon: "⚖" },
       ]},
-      { id: "collaboration", label: "التعاون", items: [
-        { id: "contacts", label: "جهات الاتصال", icon: "👤" },
+      { id: "collaboration", label: "التعاون والمعرفة", items: [
+        { id: "meetings", label: "الاجتماعات", icon: "👥" },
         { id: "team", label: "الفريق", icon: "👥" },
+        { id: "contacts", label: "جهات الاتصال", icon: "👤" },
+      ]},
+      { id: "results", label: "النتائج والتقارير", items: [
+        { id: "wins", label: "الإنجازات", icon: "🏆" },
+        { id: "updates", label: "التحديثات", icon: "↗" },
         { id: "reviews", label: "المراجعات الأسبوعية", icon: "↻" },
       ]},
-      { id: "system", label: "النظام", items: [
+      { id: "admin", label: "الإدارة", items: [
         { id: "templates", label: "القوالب", icon: "◇" },
         { id: "settings", label: "الإعدادات", icon: "⚙" },
       ]},
