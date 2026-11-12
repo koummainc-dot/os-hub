@@ -9,7 +9,25 @@ const {makeEnv,sleep,appJs}=require('./harness');
   const setVal=async(el,v)=>{if(!el)throw new Error('Acceptance harness could not find the expected form control');const proto=el.tagName==='SELECT'?w.HTMLSelectElement.prototype:el.tagName==='TEXTAREA'?w.HTMLTextAreaElement.prototype:w.HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,v);el.dispatchEvent(new w.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));await sleep(60);};
   const nav=()=>all('aside button');
   const isSectionButton=(button,label)=>{const spans=button.querySelectorAll('span');return spans.length>=2&&spans[spans.length-1].textContent.trim()===label;};
-  const goSection=async(label)=>{const b=nav().find(x=>isSectionButton(x,label));if(!b)return false;b.click();await sleep(450);return true;};
+  const sectionGroups={
+    "الرئيسية":"مساحة اليوم","اليوم":"مساحة اليوم","مهامي":"مساحة اليوم","هذا الأسبوع":"مساحة اليوم",
+    "المشاريع":"المحفظة والمشاريع","المحفظة":"المحفظة والمشاريع",
+    "الاكتشاف":"التخطيط","المواصفات":"التخطيط","الأهداف (OKR)":"التخطيط",
+    "المهام":"التنفيذ","المخرجات":"التنفيذ",
+    "مركز الحوكمة":"الحوكمة","المخاطر والمشاكل والقرارات":"الحوكمة",
+    "الاجتماعات":"التعاون والمعرفة","الفريق":"التعاون والمعرفة","جهات الاتصال":"التعاون والمعرفة",
+    "الإنجازات":"النتائج والتقارير","التحديثات":"النتائج والتقارير","المراجعات الأسبوعية":"النتائج والتقارير",
+    "القوالب":"الإدارة","الإعدادات":"الإدارة"
+  };
+  const goSection=async(label)=>{
+    let b=nav().find(x=>isSectionButton(x,label));
+    if(!b){
+      const group=sectionGroups[label];
+      const g=group&&nav().find(x=>x.textContent.trim().includes(group)&&x.textContent.trim()!==label);
+      if(g){g.click();await sleep(80);b=nav().find(x=>isSectionButton(x,label));}
+    }
+    if(!b)return false;b.click();await sleep(450);return true;
+  };
   const toToday=async()=>{const c=all('aside button').find(x=>x.textContent.includes('▾'));c&&c.click();await sleep(60);const t=all('aside button').find(x=>x.textContent.includes('اليوم (كل الأنظمة)'));t&&t.click();await sleep(80);};
   const openProjects=async()=>{
     await toToday();
@@ -27,7 +45,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
 
   await click('جرّب الوضع التجريبي'); await sleep(200); ok(await openProjects(),'Projects OS opens before section acceptance');
   console.log('— sections render real content');
-  const markers={ 'الرئيسية':'صحة المشاريع','اليوم':'مستحقة اليوم','هذا الأسبوع':'اكتشافات قيد العمل','المشاريع':'تطبيق إدارة الوقت','مهامي':'مهمة ورقية','الاكتشاف':'ظهور التطبيق في نتائج المتجر','المواصفات':'مواصفة تطبيق إدارة الوقت','الأهداف (OKR)':'إطلاق منتج ناجح','المخرجات':'Wireframes','المخاطر والمشاكل والقرارات':'تعقيد المزامنة','الاجتماعات':'Knowledge OS','التحديثات':'تحديث الإدارة','الإنجازات':'اعتماد المواصفة','المراجعات الأسبوعية':'المراجعات الأسبوعية','جهات الاتصال':'ليلى المنصور','الفريق':'حِمل الأسبوع','القوالب':'قوالب المشاريع','الإعدادات':'المنطقة الزمنية' };
+  const markers={ 'الرئيسية':'صحة المشاريع','اليوم':'مستحقة اليوم','هذا الأسبوع':'اكتشافات قيد العمل','المشاريع':'تطبيق إدارة الوقت','مهامي':'مهمة ورقية','الاكتشاف':'ظهور التطبيق في نتائج المتجر','المواصفات':'مواصفة تطبيق إدارة الوقت','الأهداف (OKR)':'إطلاق منتج ناجح','المخرجات':'Wireframes','مركز الحوكمة':'تعقيد المزامنة','الاجتماعات':'Knowledge OS','التحديثات':'تحديث الإدارة','الإنجازات':'اعتماد المواصفة','المراجعات الأسبوعية':'المراجعات الأسبوعية','جهات الاتصال':'ليلى المنصور','الفريق':'حِمل الأسبوع','القوالب':'قوالب المشاريع','الإعدادات':'المنطقة الزمنية' };
   for(const [label,marker] of Object.entries(markers)){
     const good=await goSection(label); const has=txt().includes(marker);
     ok(good&&has,`section «${label}» shows «${marker}»`+(good?'':' (nav missing)'));
