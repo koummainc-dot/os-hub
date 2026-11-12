@@ -106,9 +106,12 @@ assert.ok(okrScreens.includes('const target = view?.okrFocus') &&
   okrScreens.includes('setFilter("all")'),
   "OKRs destination must reveal, scroll to, and highlight the exact target even when its status is outside the default filter");
 
-assert.ok(projectScreens.includes("activeGroup.tabs.length > 1") &&
+assert.ok(projectScreens.includes("const tabGroups = [") &&
+  projectScreens.includes("defaultTab: "tasks"") &&
+  projectScreens.includes("defaultTab: "outputs"") &&
+  projectScreens.includes("defaultTab: "risks"") &&
   projectScreens.includes("const setGroup = (groupId) =>") &&
   projectScreens.includes("setTab(group.defaultTab)"),
-  "group navigation must reveal relevant subtabs and select a safe default destination");
+  "group navigation must expose grouped subtabs and select a safe default destination");
 
 console.log("✓ Projects relationship navigation contracts passed");
