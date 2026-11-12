@@ -18,7 +18,7 @@ assert.ok(detail.includes("projects-workspace-nav-desktop"), "project workspace 
 assert.ok(detail.includes('aria-label="تنقل المشروع"'), "project workspace navigation is accessible");
 assert.ok(detail.includes('id: "governance"'), "project workspace keeps the governance group");
 assert.ok(detail.includes('id: "collaboration"'), "project workspace keeps the collaboration group");
-assert.ok(detail.includes('id: "delivery"'), "project workspace keeps the delivery group");
+assert.ok(detail.includes('id: "execution"'), "project workspace keeps the execution group");
 
 assert.ok(styles.includes("--accent:#EF9F27 !important"), "global accent token matches the existing Core UI accent");
 assert.ok(styles.includes(".projects-workspace-nav-mobile"), "responsive workspace navigation styles are present");
