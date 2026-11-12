@@ -27,8 +27,11 @@ const {makeEnv,sleep,appJs}=require('./harness');
     let b=findSectionButton(label);
     if(!b){
       const group=sectionGroups[label];
-      const g=group&&nav().find(x=>x.textContent.trim()===group);
-      if(g){g.click();await sleep(80);b=findSectionButton(label);}
+      const g=group&&nav().find(x=>{
+        const t=x.textContent.trim();
+        return t===group || t.startsWith(group+" ") || t.includes(group);
+      });
+      if(g){g.click();await sleep(180);b=findSectionButton(label);}
     }
     if(!b)return false;b.click();await sleep(450);return true;
   };
