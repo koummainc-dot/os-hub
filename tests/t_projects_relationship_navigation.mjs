@@ -90,11 +90,11 @@ assert.ok(projectScreens.includes('import { listKnowledgeMeetings } from "../kno
 assert.ok(projectScreens.includes('task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index'),
   "Project Detail meeting follow-ups must not create duplicate tasks after a task already exists");
 
-const risksPage = projectIndex.slice(projectIndex.indexOf("function RisksPage()"), projectIndex.indexOf("const SCREENS"));
-assert.ok(projectIndex.includes('issues: IssuesView') &&
-  risksPage.includes('id: "risks"') && risksPage.includes('id: "decisions"') &&
-  !risksPage.includes('id: "issues"') && !risksPage.includes('<IssuesView'),
-  "global Issues must have one dedicated destination; the Risks page must not duplicate its tab");
+const governancePage = projectIndex.slice(projectIndex.indexOf("function GovernancePage()"), projectIndex.indexOf("const SCREENS"));
+assert.ok(projectIndex.includes('issues: GovernancePage') &&
+  governancePage.includes('id: "risks"') && governancePage.includes('id: "issues"') && governancePage.includes('id: "decisions"') &&
+  governancePage.includes('{tab === "issues" && <IssuesView />'),
+  "global Governance must provide one unified destination for risks, issues, and decisions");
 const projectOkr = projectScreens.slice(projectScreens.indexOf("function ProjectOkr"), projectScreens.indexOf("function RelatedTab"));
 const okrScreens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
 assert.ok(projectOkr.includes('openOkrRecord("objective", o.id)') && projectOkr.includes('openOkrRecord("kr", k.id)') &&
