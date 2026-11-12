@@ -136,6 +136,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   }
 
   console.log('— Phase A task UX: quick add, inline edit, bulk actions, custom fields');
+  if (!findSectionButton('مهامي')) console.log('DEBUG sidebar before My Work', nav().map(b=>b.textContent.trim()));
   await goSection('مهامي');
   ok(!!btn('⚡ إضافة سريعة'),'quick add action is visible');
   if(await click('⚡ إضافة سريعة',null,120)){
