@@ -56,7 +56,7 @@ alter table public.workspace_records enable row level security;
 grant select,insert,update,delete on public.workspace_records to authenticated;
 
 create or replace function public.ws_access_level(p_workspace_id uuid, p_system text, p_section text)
-returns text language sql stable as $
+returns text language sql stable as $function$
   select case
     when p_workspace_id::text <> nullif(current_setting('test.allowed_workspace_id', true), '') then 'none'
     when p_system = 'projects' then coalesce(
@@ -66,7 +66,7 @@ returns text language sql stable as $
     )
     else coalesce(nullif(current_setting('test.access_level', true), ''), 'none')
   end
-$;
+$function$;
 create policy workspace_records_select on public.workspace_records
 for select to authenticated
 using (
