@@ -8,9 +8,10 @@ declare
   result jsonb;
 begin
   insert into public.workspace_records(workspace_id,system_id,collection,id,data)
-  values
-    (ws,'projects','projects','discovery-project','{"name":"Project One"}'),
-    (ws,'projects','discovery','d1','{"title":"D1","status":"Open","project_ids":["discovery-project"]}')
+  values(ws,'projects','projects','discovery-project','{"name":"Discovery Project"}');
+
+  insert into public.workspace_records(workspace_id,system_id,collection,id,data)
+  values(ws,'projects','discovery','d1','{"title":"D1","status":"Open","project_ids":["discovery-project"]}')
   returning updated_at into discovery_ts;
 
   result := public.projects_apply_records_batch(
