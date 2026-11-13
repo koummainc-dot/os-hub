@@ -42,6 +42,11 @@ for (const filter of ["typeFilter", "healthFilter", "leadFilter", "teamFilter", 
 assert.ok(portfolio.includes("timelinePosition(finish)") && portfolio.includes("timelineDates"), "Project Timeline uses project start/target dates");
 assert.ok(portfolio.includes("calendarDates") && portfolio.includes("p.target_date === date"), "Project Calendar uses target dates and opens exact projects");
 assert.ok(portfolio.includes("p.members || []"), "Team filter reads the canonical Project.members relation");
+assert.ok(portfolio.includes('right={can("project.create") && <Btn kind="primary"'), "Portfolio exposes a permission-gated Project create action");
+assert.ok(portfolio.includes('{newProjectOpen && <ProjectForm initial={{}}'), "Portfolio create opens the canonical ProjectForm");
+assert.ok(portfolio.includes('m.progress == null ? "غير قابل للقياس"'), "Portfolio cards and views do not coerce Not Measurable progress to zero");
+assert.ok(portfolio.includes('"الأيام المتبقية"') && portfolio.includes("m.daysRemaining"), "Portfolio table includes the target date and remaining-days metric");
+assert.ok(portfolio.includes('["المشروع","الحالة","الصحة","التقدم","الموعد","الأيام المتبقية","القائد","الفريق"'), "Portfolio table includes the lead and team columns");
 assert.ok(portfolio.includes("إلغاء فلتر المشاريع المتأخرة") === false, "delayed-only indicator is represented by the combined filter reset");
 
 
