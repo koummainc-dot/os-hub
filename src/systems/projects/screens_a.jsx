@@ -8,7 +8,7 @@ import * as D from "./domain.js";
 import { readOSEvents, subscribeOSEvents, subscribeToStoredOSEvents } from "../integrationEvents.js";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
 import { L, opts } from "./lookups.js";
-import { HealthBadge, StatusChip, PriorityChip, Who, DueChip, ProjectName, TaskForm, mOpts, projOpts } from "./parts.jsx";
+import { HealthBadge, StatusChip, PriorityChip, Who, DueChip, ProjectName, ProjectForm, TaskForm, mOpts, projOpts } from "./parts.jsx";
 
 const Section = ({ title, count, color, children, action }) => (
   <div style={{ ...S.card, marginBottom: 12 }}>
@@ -297,9 +297,10 @@ export function Tasks() {
 // ═════ Portfolio ═════
 // Cross-project portfolio view; derived only from existing workspace records.
 export function Portfolio() {
-  const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, setView, people } = useP();
+  const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, setView, people, can } = useP();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("active");
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [mode, setMode] = useState("cards");
   const [delayedOnly, setDelayedOnly] = useState(false);
   const [typeFilter, setTypeFilter] = useState("");
@@ -359,7 +360,7 @@ export function Portfolio() {
   const boardStatuses = [...new Set(visible.map((p) => p.status || "Planned"))];
   return (
     <div>
-      <Head title="محفظة المشاريع" sub="نظرة موحّدة على حالة المشاريع والأهداف والمخاطر عبر مساحة العمل." />
+      <Head title="محفظة المشاريع" sub="نظرة موحّدة على حالة المشاريع والأهداف والمخاطر عبر مساحة العمل." right={can("project.create") && <Btn kind="primary" onClick={() => setNewProjectOpen(true)}>＋ مشروع جديد</Btn>} />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 10, marginBottom: 14 }}>
         <Stat label="مشاريع نشطة" value={openProjects.length} color={C.info} onClick={() => setStatus("active")} />
         <Stat label="مشاريع مكتملة" value={completed.length} color={C.ok} onClick={() => setStatus("completed")} />
@@ -415,7 +416,7 @@ export function Portfolio() {
               <td style={{ padding: 9 }}><button type="button" onClick={() => openProject(p.id)} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", font: "inherit", fontWeight: 700, textAlign: "start" }}>{p.name}</button><div style={{ color: C.muted, fontSize: 10.5 }}>{p.type || "—"}</div></td>
               <td style={{ padding: 9, whiteSpace: "nowrap" }}>{L.projectStatus[p.status] || p.status || "—"}</td>
               <td style={{ padding: 9 }}><HealthBadge m={m} compact /></td>
-              <td style={{ padding: 9, minWidth: 120 }}><Progress value={m.progress == null ? null : m.progress} /></td>
+              <td style={{ padding: 9, minWidth: 120 }}><Progress value={m.progress == null ? null : m.progress} /><div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{m.progress == null ? "غير قابل للقياس" : Math.round(m.progress) + "%"}</div></td>
               <td style={{ padding: 9, whiteSpace: "nowrap" }}>{p.target_date ? fmtShort(p.target_date) : "—"}</td>
               <td style={{ padding: 9 }}>{people.find((person) => person.id === p.lead_id)?.name || "—"}</td>
               <td style={{ padding: 9 }}>{L.priority[p.priority] || p.priority || "—"}</td>
@@ -426,7 +427,7 @@ export function Portfolio() {
       </div>
       : mode === "board" ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, overflowX: "auto", alignItems: "start" }}>
         {boardStatuses.map((projectStatus) => <section key={projectStatus} style={{ ...S.card, padding: 9, minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>{L.projectStatus[projectStatus] || projectStatus}<Chip>{visible.filter((p) => p.status === projectStatus).length}</Chip></div>
-          {visible.filter((p) => p.status === projectStatus).map((p) => <button key={p.id} type="button" onClick={() => openProject(p.id)} style={{ ...S.card, display: "block", width: "100%", padding: 9, marginBottom: 7, textAlign: "start", cursor: "pointer" }}><div style={{ display: "flex", gap: 7, alignItems: "center" }}><b style={{ flex: 1, fontSize: 12 }}>{p.name}</b><HealthBadge m={metrics[p.id] || {}} compact /></div><div style={{ fontSize: 10.5, color: C.muted, marginTop: 5 }}>{p.target_date ? "الموعد " + fmtShort(p.target_date) : "بلا موعد"} · {Math.round(metrics[p.id]?.progress || 0)}%</div></button>)}
+          {visible.filter((p) => p.status === projectStatus).map((p) => <button key={p.id} type="button" onClick={() => openProject(p.id)} style={{ ...S.card, display: "block", width: "100%", padding: 9, marginBottom: 7, textAlign: "start", cursor: "pointer" }}><div style={{ display: "flex", gap: 7, alignItems: "center" }}><b style={{ flex: 1, fontSize: 12 }}>{p.name}</b><HealthBadge m={metrics[p.id] || {}} compact /></div><div style={{ fontSize: 10.5, color: C.muted, marginTop: 5 }}>{p.target_date ? "الموعد " + fmtShort(p.target_date) : "بلا موعد"} · {metrics[p.id]?.progress == null ? "غير قابل للقياس" : Math.round(metrics[p.id].progress) + "%"}</div></button>)}
           {!visible.some((p) => p.status === projectStatus) && <span style={{ color: C.muted, fontSize: 11 }}>لا مشاريع</span>}
         </section>)}
       </div>
@@ -472,7 +473,7 @@ export function Portfolio() {
                 <HealthBadge m={m} compact />
               </div>
               {p.description && <div style={{ color: C.dim, fontSize: 11.5, marginTop: 8, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.description}</div>}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}><Progress value={m.progress || 0} /><b style={{ fontSize: 11, minWidth: 36, textAlign: "end" }}>{Math.round(m.progress || 0)}%</b></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}><Progress value={m.progress == null ? null : m.progress} /><b style={{ fontSize: 11, minWidth: 36, textAlign: "end" }}>{m.progress == null ? "غير قابل للقياس" : Math.round(m.progress) + "%"}</b></div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginTop: 11, paddingTop: 9, borderTop: "1px solid " + C.line }}>
                 <div><div style={{ fontSize: 15, fontWeight: 700 }}>{open}</div><div style={{ color: C.muted, fontSize: 10 }}>مهام مفتوحة</div></div>
                 <div><div style={{ fontSize: 15, fontWeight: 700, color: overdue ? C.bad : C.text }}>{overdue}</div><div style={{ color: C.muted, fontSize: 10 }}>متأخرة</div></div>
@@ -481,7 +482,8 @@ export function Portfolio() {
             </div>;
           })}
         </div>}
-      <div style={{ marginTop: 12, color: C.muted, fontSize: 10.5 }}>المؤشرات محسوبة من سجلات المشاريع والمهام والمخاطر والمشاكل الحالية؛ لا تُنشأ بيانات أو علاقات جديدة في هذه الشاشة.</div>
+      <div style={{ marginTop: 12, color: C.muted, fontSize: 10.5 }}>المؤشرات محسوبة من سجلات المشاريع والمهام والمخاطر والمشاكل الحالية؛ لا تُنشأ بيانات أو علاقات جديدة في هذه الشاشة. الربط المالي لا يعرض حالة أو أرقامًا هنا قبل اكتمال Finance read model.</div>
+      {newProjectOpen && <ProjectForm initial={{}} onClose={() => setNewProjectOpen(false)} />}
     </div>
   );
 }
