@@ -23,7 +23,7 @@ const detail = screensB.slice(screensB.indexOf("function ProjectDetail()"), scre
 assert.ok(detail.includes('view.taskFilter === "overdue"') && detail.includes("D.isOverdueLeaf(task, idx, today)"), "Project Detail translates the overdue filter using the canonical domain rule");
 assert.ok(detail.includes('view.taskFilter === "ids"') && detail.includes('(view.taskFilterIds || []).includes(task.id)'), "Project Detail restores exact task-ID filters from Overview");
 assert.ok(detail.includes('filterLabel={taskFilterLabel}') && detail.includes('filter={taskFilter}'), "Project Detail passes filter and explanation into the canonical task tree");
-assert.ok(detail.includes("taskFilterIds: []"), "opening the all-tasks view clears stale metric IDs");
+assert.ok(overview.includes("taskFilterIds: []"), "opening the all-tasks view clears stale metric IDs");
 
 assert.ok(detail.includes('<TaskTree projectId={p.id} filter={taskFilter} filterLabel={taskFilterLabel} />'), "Project Detail passes the metric filter into the canonical task tree");
 
