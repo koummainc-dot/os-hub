@@ -5,7 +5,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   const all=(sel)=>[...doc.querySelectorAll(sel)];
   const clickBtn=async(label,scope)=>{const b=all(scope||'button').find(x=>x.textContent.includes(label)); if(!b)return false; b.click(); await sleep(150); return true;};
   const setVal=async(el,v)=>{const proto=el.tagName==='SELECT'?w.HTMLSelectElement.prototype:el.tagName==='TEXTAREA'?w.HTMLTextAreaElement.prototype:w.HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,v);el.dispatchEvent(new w.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));await sleep(100);};
-  const navItems=()=>all('aside > div:nth-child(2) > button').map(b=>b.textContent);
+  const navItems=()=>all('aside > div:nth-child(2) button').map(b=>b.textContent);
   const tileTitles=()=>all('main button').map(b=>b.textContent);
   const toToday=async()=>{const c=all('aside button').find(x=>x.textContent.includes('▾')); c&&c.click(); await sleep(60); const t=all('aside button').find(x=>x.textContent.includes('اليوم (كل الأنظمة)')); t&&t.click(); await sleep(80);};
   const openSys=async(name)=>{await toToday(); const t=all('main button').find(b=>b.textContent.includes(name)); if(!t) return false; t.click(); await sleep(350); return true;};
