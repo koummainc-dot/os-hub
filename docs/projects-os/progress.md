@@ -1,42 +1,53 @@
 # Projects OS — Master Refactor Progress
 
 ## Current branch
-- PR: #188 — `feat(projects): v5 workspace, integrations, and navigation`
+- PR: #188 — `feat(projects): v5 workspace and cross-system traceability`
 - Branch: `feat/projects-v5-phase1-navigation`
 - Base: `main`
-- Production database: unchanged; no new migration or production deployment in this pass.
+- Production database: unchanged; no new production migration, RLS change or production deployment in this pass.
 
-## Verified before this pass
-- Phase 0 inventory and safety baseline recorded.
-- Phase 1 global navigation, Governance consolidation, responsive workspace shell, legacy route compatibility, and Core `myWork` registration implemented.
-- Automated CI, Verify app, Finance Family Center workflow, and production build passed on commit `d16450b6bdca390faf647af1c32d33c0737f11f2`.
-- Preview deployment was READY. Static HTTP response showed the Arabic RTL shell; this is not a substitute for interactive browser acceptance.
+## Latest code evidence
+- Code evidence commit: `689cd1be328efa8ec03b59b7e2e990cebfc44fd2`.
+- GitHub CI, Verify app, Finance Family Center Checks and Finance PostgreSQL smoke all passed on that commit; the Spiritual PostgreSQL smoke also passed.
+- Projects domain assertions: **66 PASS / 0 FAIL**; template write/rollback contract: **4 PASS / 0 FAIL**.
+- Projects relationship navigation, stable Knowledge follow-up identity and Projects integration/navigation contracts passed.
+- Vercel Preview for that code commit was READY: `https://os-8jmikhbot-koumma.vercel.app`.
+- These are code/automation results. They do not constitute the missing manual RTL/accessibility/three-account acceptance.
 
-## Master-spec implementation completed in this pass
-- **Project Workspace / Planning:** Discovery can now be opened within a project context, filters to records already linked to that project, and pre-fills the project relationship when creating a new discovery record.
-- **Project Workspace / Knowledge:** meetings and project-owned external references have separate navigation tabs. The historical `related` route remains accepted as a compatibility path.
-- **Knowledge → Projects follow-ups:** new task links persist a stable `source_followup_id` plus the legacy numeric index for backward compatibility. Explicit Knowledge IDs are preferred; legacy string follow-ups use normalized-content identity. Existing tasks are searched by stable ID first, then legacy index/title to avoid recreating already-linked follow-ups after reorder.
-- **Project Workspace / Finance:** an explicit handoff opens Finance OS on its canonical Projects page with the selected Projects OS project reference. Finance selects an existing profile or pre-fills its own profile form; it never auto-creates a finance profile or duplicates transactions inside Projects.
-- **Project Workspace / Results:** project-scoped views surface linked achievements and stakeholder updates while keeping their canonical records in Projects collections.
-- **Design tokens:** remaining CSS blue focus/selection/hover values were aligned to the shared orange accent token; semantic risk/status colors were not blanket-replaced.
-- Added contract coverage for the new navigation, route context, scoped Discovery, stable Knowledge follow-up identity, and Finance ownership.
+## Master specification coverage
+The full phase/gate/decision/feature map is now recorded in **[`master-spec-status.md`](./master-spec-status.md)**. It maps:
+- all eight source phases (0–7);
+- approval gates G0–G7;
+- decision register D-01 to D-12;
+- baseline requirements F-01 to F-26 and S2 items;
+- exact automated evidence, missing manual acceptance and production hard stops.
 
-## Still open in the master spec (not claimed complete)
-- **G1 / G2:** final human product/design approval for D-01 accent and interactive 360px/RTL/focus/keyboard/contrast acceptance.
-- **G3:** perform real-data, cross-project invalid-reference, bidirectional traceability, archive/restore, and multi-account permission cycles against a controlled test workspace.
-- **G4 — Knowledge:** `listKnowledgeMeetings` still reads a workspace snapshot and then filters in the client. The current storage contract is a normalized workspace snapshot, not a project-scoped meeting query. Server-side project scoping and D-05 canonical project references need a no-loss schema/data inventory and permission review before any RPC/migration change. The UI split does not close that security gate.
-- **G4 — Finance:** the Finance handoff is implemented, but linked-profile visibility, finance-specific read/write permission, missing/stale currency values, transaction attribution, and two-account isolation still require live role-based tests. No finance numbers are copied into Projects.
-- **D-08 Milestones:** remains open; no duplicate Milestone entity/table was introduced. Timeline currently visualizes dated leaf Tasks.
-- **D-04 Follow-up migration:** stable IDs are written for new tasks and old index links remain readable. Existing Knowledge snapshot records have not been backfilled; that requires a dry-run mapping and explicit duplicate/legacy review. The stable client identity is not a server-side uniqueness constraint; concurrent duplicate protection still needs a database contract.
-- **P7 / G5–G7:** full create/reload/edit/archive/restore and all cross-system end-to-end cycles, offline conflict/retry, performance, accessibility, mobile/tablet, and final release acceptance remain to be evidenced. No production rollout was performed.
-- **D-06/D-07:** Saved Views and Unified Inbox ownership remain deferred to their platform contracts; this pass did not create duplicate storage.
+### Current implementation summary
+- **Navigation:** global route groups, unified Governance, legacy routes and missing Core `myWork` registration.
+- **Workspace:** responsive desktop/mobile navigation with retained historical project tab IDs.
+- **Planning:** project-scoped Discovery filtering/prefill; existing PRD/Requirement/Task/Output and KR domain contracts retained.
+- **Governance:** global unified route and project tabs; risk/issue/decision traceability and lifecycle contracts remain passing.
+- **Knowledge:** separate Meetings and project-owned References tabs; new task links use stable follow-up identity with legacy index/title fallback.
+- **Finance:** context handoff to Finance OS; Finance selects its existing profile or pre-fills its own form; no finance profile/transaction is written by Projects.
+- **Results:** project-scoped Wins and Updates read views; canonical records remain in Projects.
+- **Style:** remaining blue focus/selection/hover values checked in the stylesheet were aligned to the shared orange accent. Shared component consolidation and manual visual approval remain open.
 
-## Data safety decisions
-- No database migration, RLS policy change, RPC replacement, or destructive data operation was performed.
-- Finance remains the owner of Finance Project Profiles and finance transactions.
-- Knowledge remains the owner of meetings and source follow-ups.
-- Projects stores only the project-side task reference and stable follow-up link metadata.
-- The Project Finance button carries an ephemeral route context; only the user action inside Finance OS can save a profile.
+## Open release blockers
+- Knowledge reads still load the workspace snapshot and filter client-side; this is not server-side project isolation.
+- Canonical Knowledge `project_ref`, old reference backfill and server-side follow-up idempotency remain blocked by data-contract/no-loss work.
+- Finance read model, sync states, currency mismatch handling, transaction attribution and real role-specific visibility are not implemented/proven.
+- Saved Views (D-06), Unified Inbox (D-07), Milestone model (D-08), language scope (D-09) and legacy KR/Task migration (D-12) remain open or deferred.
+- Full Overview/Portfolio metric click-through, exact contextual create coverage, Activity aggregation, Weekly Review privacy and immutable Update Snapshot/Addendum E2E are not fully accepted.
+- Manual 360px/tablet/desktop RTL, keyboard/accessibility, offline/conflict/retry, performance and browser Back/deep-link acceptance remain unverified.
+- Real-data Create → Reload → Edit → Reload → Archive/Restore → Reload and at least two authorized accounts plus one restricted account remain unrun.
+- No production migration, rollback rehearsal, owner release approval or production deployment has occurred.
 
-## Next acceptance gate
-Run the new and existing automated suites on the updated commit; confirm the new Preview deployment is READY; then complete interactive acceptance (360px/desktop RTL, browser Back/deep links, finance permissions, and a controlled Knowledge reorder/retry). Do not merge or deploy production until those results are recorded.
+## Data safety
+- Knowledge remains owner of meetings and source follow-ups.
+- Finance remains owner of Finance Project Profiles and transactions.
+- Projects stores project-side links and task traceability metadata only.
+- No legacy references were backfilled; no production schema/RLS contract was changed.
+- No duplicate Milestone, Saved View, Inbox or finance ledger model was introduced.
+
+## Next work batch
+Continue only the safe, code-only parts of Phase 2/3: actionable metric click-through mapping, remaining contextual create entry points, Task Sheet/Outputs Storage messaging and targeted exact-record/empty/error/permission assertions. Do not add Saved Views persistence, Milestones or Knowledge/Finance schema changes until their D-06/D-08/G4/G5 gates are resolved.
