@@ -496,12 +496,17 @@ function PrdEditor({ prd, onClose, onOpen }) {
 }
 
 // ═════ Discovery (PIO) ═════
-export function DiscoveryView() {
+export function DiscoveryView({ projectId = null } = {}) {
   const { data, A: act, can, projectsById, people, toast, me, today, settings, confirm, openProject, idx, nameOf, view } = useP();
   const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [mode, setMode] = useState("board"); const [q, setQ] = useState(""); const [type, setType] = useState(""); const [conv, setConv] = useState(null); const convertingDiscoveryIds = useRef(new Set());
   const runDiscoveryConversionOnce = async (id, work) => { if (convertingDiscoveryIds.current.has(id)) { toast("التحويل جارٍ بالفعل؛ انتظر اكتماله قبل إعادة المحاولة."); return null; } convertingDiscoveryIds.current.add(id); try { return await work(); } finally { convertingDiscoveryIds.current.delete(id); } };
-  const list = data.discovery.filter((d) => (!type || d.type === type) && (!q || d.title.toLowerCase().includes(q.toLowerCase())));
-  const canWriteDiscovery = can("discovery.write");
+  const scopedProjectId = projectId == null ? null : String(projectId);
+  const list = data.discovery.filter((d) =>
+    (!scopedProjectId || (d.project_ids || []).some((id) => String(id) === scopedProjectId))
+    && (!type || d.type === type)
+    && (!q || d.title.toLowerCase().includes(q.toLowerCase()))
+  );
+  const canWriteDiscovery = can("discovery.write", scopedProjectId ? projectsById[scopedProjectId] : undefined);
   const statuses = Object.keys(L.discoveryStatus);
   const conversionWriteAction = { task: "task.write", prd: "prd.write", issue: "issue.write" };
   const eligibleConversionProjects = (kind, source) => (source.project_ids || []).map((id) => projectsById[id]).filter((project) => project && !project.is_system && !project.archived_at && can(conversionWriteAction[kind], project));
@@ -573,7 +578,7 @@ export function DiscoveryView() {
     </div>);
   return (
     <div>
-      <Head title="الاكتشاف" sub="مشاكل · أفكار · فرص — الوارد قبل أن تتحول إلى مشاريع ومهام" right={<><Seg value={mode} onChange={setMode} options={[{ v: "board", l: "لوحة" }, { v: "list", l: "قائمة" }]} />{canWriteDiscovery && <Btn kind="primary" onClick={() => setForm({ status: "Inbox", type: "Idea", logged_at: today })}>➕ عنصر</Btn>}</>} />
+      <Head title="الاكتشاف" sub="مشاكل · أفكار · فرص — الوارد قبل أن تتحول إلى مشاريع ومهام" right={<><Seg value={mode} onChange={setMode} options={[{ v: "board", l: "لوحة" }, { v: "list", l: "قائمة" }]} />{canWriteDiscovery && <Btn kind="primary" onClick={() => setForm({ status: "Inbox", type: "Idea", logged_at: today, ...(scopedProjectId ? { project_ids: [scopedProjectId] } : {}) })}>➕ عنصر</Btn>}</>} />
       <SearchBar value={q} onChange={setQ} placeholder="بحث…"><select style={{ ...S.sel, width: 130 }} value={type} onChange={(e) => setType(e.target.value)}><option value="">كل الأنواع</option>{opts(L.discoveryType).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></SearchBar>
       {mode === "board" ? <Board columns={statuses.map((s) => ({ id: s, label: L.discoveryStatus[s], color: s === "Dropped" ? "#EF4444" : s === "Completed" ? "#10B981" : s === "Working On" ? "#3B82F6" : "#94A3B8", items: list.filter((d) => d.status === s) }))} onMove={canWriteDiscovery ? move : undefined} renderCard={card} />
         : !list.length ? <Empty icon="💡" title="لا عناصر" /> : <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((d) => <div key={d.id} id={recordDomId("discovery", d.id)} onClick={() => setForm(d)} style={{ ...recordFocusStyle(view, "discovery", d.id), display: "flex", gap: 8, padding: "8px 0", borderBottom: `1px solid ${C.line}`, cursor: "pointer", alignItems: "center", fontSize: 13 }}><span>{typeIcon[d.type]}</span><span style={{ flex: 1 }}>{d.title}</span><Chip color={C.info}>{L.discoveryStatus[d.status]}</Chip></div>)}</div>}
