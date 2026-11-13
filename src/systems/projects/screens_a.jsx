@@ -341,7 +341,7 @@ export function Portfolio() {
   const priorityOptions = [...new Set(projects.map((p) => String(p.priority || "Medium")))].sort();
   const visibilityOptions = [...new Set(projects.map((p) => String(p.visibility || "workspace")))].sort();
   const healthOptions = [...new Set(projects.map((p) => metrics[p.id]?.health).filter(Boolean))].sort();
-  const filtersActive = !!(query || typeFilter || healthFilter || leadFilter || teamFilter || priorityFilter || visibilityFilter || dateFrom || dateTo || highRiskOnly || delayedOnly);
+  const filtersActive = status !== "active" || !!(query || typeFilter || healthFilter || leadFilter || teamFilter || priorityFilter || visibilityFilter || dateFrom || dateTo || highRiskOnly || delayedOnly);
   const clearFilters = () => {
     setQuery(""); setStatus("active"); setDelayedOnly(false); setTypeFilter(""); setHealthFilter("");
     setLeadFilter(""); setTeamFilter(""); setPriorityFilter(""); setVisibilityFilter("");
