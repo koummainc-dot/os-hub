@@ -27,17 +27,10 @@ Phase 0 baseline was completed before this branch. This branch implements **Phas
 - Latest Vercel deployment: **READY** and the preview responds HTTP 200 with the Arabic RTL shell.
 - Phase 1 navigation contract: **passed** inside CI.
 - Projects acceptance Phase A task UX: **passed** end-to-end, including quick add, timeline/table, inline edit, bulk completion, custom fields, deep-link focus, and task search recovery.
-- The broader `Verify app` run is **not green** and currently reports 7 later acceptance failures:
-  1. Sara: Projects settings visibility expectation.
-  2. Template-created project: parent/child task-tree assertion.
-  3. Template-created project: child-task action visibility assertion.
-  4. Template-created project: overview leaf-count assertion after completion.
-  5. New task form: collapsed advanced-fields assertion.
-  6. New task creation assertion.
-  7. Task sheet/timer assertion.
-- These 7 failures occur after the Phase 1 navigation contract and after the Phase A task-UX acceptance block. They are not evidence that the Phase 1 navigation contract itself is broken; they are remaining broader acceptance evidence that must be reconciled before declaring the overall Projects acceptance gate closed.
-- The separate Finance Family Center workflow also reports a failure in the same commit's workflow set; it is outside the Phase 1 Projects navigation scope and is not being changed here.
-- Manual browser RTL/responsive/back-button acceptance remains unproven in this environment.
+- The latest broader `Verify app` workflow **passed** after the targeted acceptance-harness fixes; its `test-and-build` job completed successfully with both the full test suite and production build.
+- The latest branch CI workflow **passed**: test-and-build, Finance acceptance/build, informational full-suite, and Spiritual PostgreSQL smoke all completed successfully.
+- The Phase 1 navigation contract and Projects Phase A task UX remain covered by the passing suite.
+- The remaining acceptance gate is manual browser RTL/responsive/back-button validation; no automated failure is currently blocking Phase 1 closure.
 
 ## Intentionally Not Done in Phase 1
 - No Projects schema migration.
