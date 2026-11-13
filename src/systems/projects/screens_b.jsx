@@ -123,7 +123,16 @@ function ProjectDetail() {
   if (!p) return <div><Btn onClick={() => setView({ projectId: null, tab: "overview" })}>← المشاريع</Btn><Empty icon="🔎" title="المشروع غير موجود أو محجوب" /></div>;
   const m = metrics[p.id]; const tab = view.tab; const setTab = (t) => setView({ ...view, tab: t });
   const counts = { tasks: m.leafTotal, outputs: m.outputsCount, risks: m.openRisks, issues: m.openIssues, decisions: m.decisionsCount, prds: data.prds.filter((x) => x.project_id === p.id).length };
-  const overdueTaskFilter = view.taskFilter === "overdue" ? (task) => D.isOverdueLeaf(task, idx, today) : undefined;
+  const taskFilter = view.taskFilter === "overdue"
+    ? (task) => D.isOverdueLeaf(task, idx, today)
+    : view.taskFilter === "ids"
+      ? (task) => (view.taskFilterIds || []).includes(task.id)
+      : undefined;
+  const taskFilterLabel = view.taskFilter === "overdue"
+    ? "تُعرض المهام المتأخرة فقط داخل هذا المشروع."
+    : view.taskFilter === "ids"
+      ? "تُعرض المهام التي لا ترتبط بمواصفة أو عنصر اكتشاف فقط."
+      : null;
   const tabGroups = [
     { id: "overview", label: "نظرة عامة", defaultTab: "overview", tabs: [{ id: "overview", label: "نظرة عامة" }] },
     { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "discovery", label: "الاكتشاف" }, { id: "tasks", label: "المهام", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }, { id: "timeline", label: "الخط الزمني" }] },
@@ -160,7 +169,7 @@ function ProjectDetail() {
         onTabChange={setTab}
       />
       {tab === "overview" && <Overview p={p} m={m} />}
-      {tab === "tasks" && <TaskTree projectId={p.id} filter={overdueTaskFilter} />}
+      {tab === "tasks" && <TaskTree projectId={p.id} filter={taskFilter} filterLabel={taskFilterLabel} />}
       {tab === "discovery" && <DiscoveryView projectId={p.id} />}
       {tab === "timeline" && <ProjectTimeline p={p} />}
       {tab === "outputs" && <OutputsView projectId={p.id} />}
