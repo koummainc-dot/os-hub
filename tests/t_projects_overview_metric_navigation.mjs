@@ -28,10 +28,10 @@ assert.ok(overview.includes("taskFilterIds: []"), "opening the all-tasks view cl
 
 assert.ok(detail.includes('<TaskTree projectId={p.id} filter={taskFilter} filterLabel={taskFilterLabel} />'), "Project Detail passes the metric filter into the canonical task tree");
 assert.ok(detail.includes("＋ إضافة") && detail.includes('can("task.write", p)'), "Project Header exposes the contextual add menu when the user can create records");
-for (const [permission,tab] of [["task.write","tasks"],["output.write","outputs"],["prd.write","prds"],["risk.write","risks"],["issue.write","issues"],["decision.write","decisions"]]) {
-  assert.ok(detail.includes(`can("${permission}", p)`) && detail.includes(`tab: "${tab}"`), `Project Header contextual add menu routes ${permission} to its canonical section`);
+for (const permission of ["task.write","output.write","prd.write","risk.write","issue.write","decision.write"]) {
+  assert.ok(detail.includes(`can("${permission}", p)`), `Project Header gates its contextual create action with ${permission}`);
 }
-assert.ok(detail.includes("canE && <button") && detail.includes('tab: "resources"'), "Project Header only exposes project-owned reference creation to project editors");
+assert.ok(detail.includes("canE && <button") && detail.includes('openQuickCreate("resource", "resources"'), "Project Header only exposes project-owned reference creation to project editors");
 for (const [kind, tab] of [["task","tasks"],["output","outputs"],["prd","prds"],["risk","risks"],["issue","issues"],["decision","decisions"],["resource","resources"]]) {
   assert.ok(detail.includes(`openQuickCreate("${kind}", "${tab}"`), `Project Header ${kind} action targets its canonical form`);
 }
