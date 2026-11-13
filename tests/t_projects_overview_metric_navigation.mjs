@@ -50,7 +50,7 @@ for (const [kind, start, end] of entityQuickCreates) {
   const section = entities.slice(startAt, endAt < 0 ? undefined : endAt);
   assert.ok(section.includes(`view.quickCreate !== "${kind}"`) && section.includes("if (canNew) setForm({ project_id: projectId })") && section.includes("quickCreate: null"), `${kind} opens its existing permission-gated canonical form`);
 }
-const related = screensB.slice(screensB.indexOf("function RelatedTab"), screensB.indexOf("function ProjectFinanceTab"));
+const related = screensB.slice(screensB.indexOf("function RelatedTab"));
 assert.ok(related.includes('view.quickCreate !== "resource"') && related.includes("setF(true)") && related.includes("quickCreate: null"), "Resources opens its existing project-link form");
 
 
