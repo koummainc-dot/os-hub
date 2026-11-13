@@ -35,6 +35,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
     }
     if(!b)return false;b.click();await sleep(450);return true;
   };
+  const clickProjectTab=async(label)=>{const b=all('button.projects-workspace-nav-item').find(x=>x.textContent.trim().startsWith(label));if(!b)return false;b.click();await sleep(180);return true;};
   const toToday=async()=>{const c=all('aside button').find(x=>x.textContent.includes('▾'));c&&c.click();await sleep(60);const t=all('aside button').find(x=>x.textContent.includes('اليوم (كل الأنظمة)'));t&&t.click();await sleep(80);};
   const openProjects=async()=>{
     await toToday();
@@ -246,10 +247,10 @@ const {makeEnv,sleep,appJs}=require('./harness');
   ok(!!btn('＋ فرعية'),'child-task action is visible without opening the overflow menu');
   const checks=all('input[type=checkbox]'); ok(checks.length>10,'leaf checkboxes rendered ('+checks.length+')');
   console.log('— complete a task & progress');
-  if(checks[0]){ checks[0].click(); await sleep(250); await click('نظرة عامة'); await sleep(150); ok(/\d+\/\d+ مهمة/.test(txt()),'overview shows leaf counts after completing'); }
+  if(checks[0]){ checks[0].click(); await sleep(250); ok(await clickProjectTab('نظرة عامة'),'template project overview tab opens'); await sleep(150); ok(/\d+\/\d+ مهمة/.test(txt()),'overview shows leaf counts after completing'); }
   else ok(false,'a leaf checkbox is available for completion acceptance');
   console.log('— new task form');
-  await click('التخطيط'); await sleep(100); await click('المهام'); await sleep(150); await click('مهمة جديدة'); await sleep(150);
+  ok(await clickProjectTab('المهام'),'project task tab reopens before manual task creation'); await sleep(150); await click('➕ مهمة جديدة',doc.querySelector('main'),150);
   const dlg=doc.querySelector('[role=dialog]');
   ok(!!dlg&& !dlg.textContent.includes('المواصفة (PRD)'),'advanced task fields start collapsed');
   if(dlg){
