@@ -7,13 +7,13 @@
 - Production database: unchanged; no new production migration, RLS change or production deployment in this pass.
 
 ## Latest verified code baseline
-- Latest code evidence commit: `5b2664abab8eee4dca1b010e9817dd7cc3a7af9b`.
+- Latest implementation and test evidence commit: `c3a72b5a0c1330fa102876fa78ce15e146e2a5f3`.
 - GitHub CI: **SUCCESS**; Verify app: **SUCCESS**; Finance Family Center Checks: **SUCCESS**; Finance PostgreSQL smoke: **SUCCESS**; Spiritual PostgreSQL smoke: **SUCCESS**.
-- Full OS test suite, existing regression suite, Finance acceptance and production build all passed on this code commit.
+- Full OS test suite, existing regression suite, Finance acceptance, production build and Project Header quick-create contract tests passed on this commit.
 - Projects domain assertions: **66 PASS / 0 FAIL**; template write/rollback contract: **4 PASS / 0 FAIL**.
-- Overview/Portfolio metric-navigation, exact filter, Project Header contextual permission, stable Knowledge follow-up and navigation/integration contracts passed.
-- Vercel Preview: **READY** — `https://os-ngobn4vzc-koumma.vercel.app` (deployment `dpl_F49Hj9nPy5MUB5v2phFfNbKCDUY5`).
-- Automated results do not constitute manual RTL/accessibility/three-account acceptance.
+- Overview/Portfolio metric-navigation, exact filter, seven permission-gated quick-create flows, stable Knowledge follow-up and navigation/integration contracts passed.
+- Vercel Preview: **READY** — `https://os-1k7tpqwyg-koumma.vercel.app`.
+- Automated results do not constitute manual Preview interaction, RTL/accessibility, real-data lifecycle, or three-account acceptance.
 
 ## Master specification coverage
 The full phase/gate/decision/feature map is now recorded in **[`master-spec-status.md`](./master-spec-status.md)**. It maps:
