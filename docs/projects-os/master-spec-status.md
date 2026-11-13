@@ -4,7 +4,7 @@
 **Implementation branch:** `feat/projects-v5-phase1-navigation`  
 **PR:** #188  
 **Latest verified implementation/test commit:** `8218791d9a151b26b07fbb5331ad8210c792fcb0`  
-**Current PR head (documentation-only):** `085d63068bc5e78d939ba5ed05536debce9aa696`  
+**Latest verified Preview build (documentation-only commit):** `6ee5a3f42ac362a838b6551bef9103caa421a3f3`; application code is unchanged from `8218791...`  
 **Review date:** 2026-11-13
 
 This document maps the original v5 specification to the implementation and evidence in the repository. It deliberately distinguishes an existing screen or unit test from a complete acceptance result. No production database operation or production release is authorized by this status report.
@@ -76,7 +76,7 @@ The table below records only the strongest current evidence. “Automated” mea
 | **F-06** Days remaining | Project dates and days remaining in Portfolio Table; Project Overview target date opens project Timeline | **PARTIAL** — manual date/timezone and real-data acceptance remains |
 | **F-07** Estimated/actual time | Time/session domain tests and task/project views | **PASS (domain/contract)** |
 | **F-08** Budget/spend/remaining | Planned budget shown; Finance context handoff implemented; no Finance read-model summary yet | **PARTIAL** |
-| **F-09** Outputs | Task Sheet and Outputs use the existing private Storage bucket/helper; stable per-file IDs/paths, immediate metadata persistence after each successful upload, short-lived signed downloads, and resumable failure messaging. Automated contract covers upload success, already-existing object retry, and network failure. | **PARTIAL** — upload UI and code contracts exist; not end-to-end accepted. | Still requires real Supabase upload/reload/download and authorized/restricted-account Storage RLS acceptance. A narrow recovery gap remains: if Storage accepts a file but the subsequent Output metadata write fails, the stable file ID remains only in the open form's memory; after a full reload, reselecting the file creates a new ID/path and may leave the original object orphaned. Persisted upload-intent recovery and orphan reconciliation are not yet implemented or tested. |
+| **F-09** Outputs | Task Sheet and Outputs use the existing private Storage bucket/helper; stable per-file IDs/paths, immediate metadata persistence after each successful upload, short-lived signed downloads, and resumable failure messaging. Automated contract covers upload success, already-existing object retry, and network failure. | **PARTIAL** — real Supabase upload/reload/download and authorized/restricted-account Storage RLS acceptance remain unverified. One recovery gap remains: if Storage accepts a file but the subsequent Output metadata write fails, the stable file ID lives only in the open form's memory; after a full reload, reselecting the file creates a new ID/path and may leave the original object orphaned. Persisted upload-intent recovery and orphan reconciliation are not implemented or tested. |
 | **F-10** Work Sessions/Timer/Void/Idempotency | Session actual-time aggregation, deterministic IDs, validation and write guards | **PASS (domain/contract)** |
 | **F-11** Decisions | Governance view and decision traceability contracts pass | **PARTIAL** — real record lifecycle and permissions still open |
 | **F-12** Risks | Risk scoring/health/materialization traceability contracts pass | **PARTIAL** — live lifecycle and role proof remain |
@@ -113,7 +113,7 @@ The table below records only the strongest current evidence. “Automated” mea
 
 ## 5. Acceptance evidence on the reviewed commit
 
-**Current PR-head Preview:** `https://os-9jx6o8k5k-koumma.vercel.app` — deployment is READY for docs-only head `085d63068bc5e78d939ba5ed05536debce9aa696`. The earlier code-evidence Preview is listed below for commit `8218791...`. READY confirms deployment status, not manual browser acceptance.
+**Latest verified branch Preview build:** `https://os-krabn6h9y-koumma.vercel.app` — deployment is READY for docs-only commit `6ee5a3f42ac362a838b6551bef9103caa421a3f3`; the application code is unchanged from implementation/test commit `8218791...`. READY confirms deployment status, not manual browser acceptance.
 
 
 **Latest verified code/test commit:** `8218791d9a151b26b07fbb5331ad8210c792fcb0`  
