@@ -102,6 +102,40 @@ begin
 end
 $assert$;
 
+-- Direct PostgREST writes to knowledge_external_links must enforce the same
+-- Projects visibility rule; they cannot bypass the Knowledge item metadata trigger.
+insert into public.knowledge_external_links
+  (workspace_id,item_id,target_system,target_id,relation_type,created_by)
+values
+  ('11111111-1111-4111-8111-111111111111','meeting-general','projects','project-a','supports',auth.uid());
+
+select set_config('test.projects_access_level','none',false);
+do $assert$
+begin
+  begin
+    insert into public.knowledge_external_links
+      (workspace_id,item_id,target_system,target_id,relation_type,created_by)
+    values
+      ('11111111-1111-4111-8111-111111111111','meeting-general','projects','project-b','used_in',auth.uid());
+    raise exception 'Direct external-link INSERT bypassed Projects visibility';
+  exception when sqlstate '42501' then
+    null;
+  end;
+
+  begin
+    update public.knowledge_external_links
+       set target_id='project-b'
+     where workspace_id='11111111-1111-4111-8111-111111111111'
+       and item_id='meeting-general' and target_system='projects'
+       and target_id='project-a' and relation_type='supports';
+    raise exception 'Direct external-link UPDATE bypassed Projects visibility';
+  exception when sqlstate '42501' then
+    null;
+  end;
+end
+$assert$;
+select set_config('test.projects_access_level','view',false);
+
 -- An unknown project cannot be linked by forging metadata.
 do $assert$
 begin
