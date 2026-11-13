@@ -4,7 +4,7 @@ import { C, Btn, Chip, Head, Empty, Progress, Seg, Board, SearchBar, Tabs, FormM
 import { fmt, fmtShort, diffDays } from "../../core/dates.js";
 import { uid, nowIso } from "../../core/records.jsx";
 import { supabase } from "../../core/supabase.js";
-import { OUTPUT_STORAGE_BUCKET, outputFileMetadata, outputObjectPath, validateOutputUpload } from "./outputStorage.js";
+import { OUTPUT_STORAGE_BUCKET, outputObjectPath, validateOutputUpload, uploadOutputFileWithRetry } from "./outputStorage.js";
 import { useP } from "./store.jsx";
 import * as D from "./domain.js";
 import { L, opts, PRIORITY_COLOR, STATUS_COLOR, SEV_COLOR } from "./lookups.js";
@@ -43,51 +43,66 @@ function RecordDetailModal({ title, fields, onClose }) {
 export function OutputsView({ projectId }) {
   const { data, A: act, can, projectsById, people, toast, confirm, lookups, idx, openTask, openProject, setPage, view, setView, ws, me } = useP();
   const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [type, setType] = useState(""); const [ap, setAp] = useState(""); const [q, setQ] = useState("");
+  const uploadProgressRef = useRef(new Map());
   const list = data.outputs.filter((o) => (!projectId || o.project_id === projectId) && (!type || o.type === type) && (!ap || o.approval === ap) && (!q || o.name.toLowerCase().includes(q.toLowerCase())));
   useRecordFocus(view, "output", projectId, list.length);
   const canNew = projectId ? can("output.write", projectsById[projectId]) : data.projects.some((p) => can("output.write", p));
   useEffect(() => {
     if (view.quickCreate !== "output") return;
-    if (canNew) setForm({ project_id: projectId });
+    if (canNew) setForm({ id: uid(), project_id: projectId });
     else toast("ليس لديك صلاحية إضافة مخرجات لهذا المشروع.");
     setView((current) => ({ ...current, quickCreate: null }));
   }, [view.quickCreate, canNew, projectId, setView, toast]);
 
-  const uploadOutputFiles = async (output, files) => {
-    const selected = Array.from(files || []).filter(Boolean);
-    if (!selected.length) return output;
-    if (!ws?.id) throw new Error("المساحة الحالية غير متاحة للرفع.");
-    const uploaded = [];
-    try {
-      for (const file of selected) {
-        const validation = validateOutputUpload(file);
-        if (!validation.ok) throw new Error(validation.error);
-        const fileId = uid();
-        const objectPath = outputObjectPath({
-          workspaceId: ws.id,
-          projectId: output.project_id,
-          outputId: output.id,
-          fileId,
-          filename: file.name
-        });
-        const { error } = await supabase.storage.from(OUTPUT_STORAGE_BUCKET).upload(objectPath, file, { upsert: false, contentType: file.type });
-        if (error) throw error;
-        uploaded.push(outputFileMetadata({ file, objectPath }));
-      }
-      return { ...output, files: [...(output.files || []), ...uploaded] };
-    } catch (error) {
-      if (uploaded.length) {
-        await supabase.storage.from(OUTPUT_STORAGE_BUCKET).remove(uploaded.map((x) => x.object_path)).catch(() => null);
-      }
-      throw error;
+  const mergeOutputFiles = (...groups) => {
+    const merged = new Map();
+    for (const file of groups.flat()) {
+      if (!file) continue;
+      const key = typeof file === "string" ? "legacy:" + file : file.object_path || "file:" + (file.name || "");
+      if (!merged.has(key)) merged.set(key, file);
     }
+    return [...merged.values()];
+  };
+
+  const uploadOutputFiles = async (output, files, project) => {
+    let current = output;
+    if (!ws?.id) throw new Error("المساحة الحالية غير متاحة للرفع.");
+    for (const pendingFile of Array.from(files || []).filter(Boolean)) {
+      const file = pendingFile.file;
+      const fileId = pendingFile.fileId;
+      const objectPath = outputObjectPath({
+        workspaceId: ws.id,
+        projectId: current.project_id,
+        outputId: current.id,
+        fileId,
+        filename: file?.name,
+      });
+      if ((current.files || []).some((item) => item && typeof item === "object" && item.object_path === objectPath)) continue;
+      const metadata = await uploadOutputFileWithRetry({
+        storage: supabase.storage,
+        workspaceId: ws.id,
+        output: current,
+        pendingFile,
+      });
+      const next = { ...current, files: mergeOutputFiles(current.files || [], [metadata]) };
+      // Persist after each successful file. A later failure cannot lose earlier files.
+      await act.put("outputs", next, project);
+      current = next;
+      uploadProgressRef.current.set(current.id, current.files);
+    }
+    return current;
   };
 
   const submit = async (v) => {
     const project = projectsById[v.project_id]; const prev = v.id ? data.outputs.find((o) => o.id === v.id) : null;
-    let rec = { ...v, id: v.id || uid(), files: Array.isArray(v.files) ? v.files : (prev?.files || []) };
     const pendingFiles = Array.from(v.__pendingFiles || []);
     delete rec.__pendingFiles;
+    const savedProgress = uploadProgressRef.current.get(v.id) || [];
+    let rec = {
+      ...v,
+      id: v.id || uid(),
+      files: mergeOutputFiles(prev?.files || [], v.files || [], savedProgress),
+    };
     if (!project || project.is_system) throw new Error("اختر مشروعًا صالحًا قبل حفظ المخرج.");
     if (rec.task_id) {
       const task = idx.byId[rec.task_id];
@@ -105,16 +120,24 @@ export function OutputsView({ projectId }) {
       rec.approved_by = me; rec.approved_at = nowIso();
     } else if (rec.approval !== "Final") { rec.approved_by = null; rec.approved_at = null; }
 
-    // Create the Output record first so Storage RLS can authorize against the real output/project.
+    // Save the Output first so Storage RLS can authorize each private object.
     await act.put("outputs", rec, project);
     try {
-      if (pendingFiles.length) rec = await uploadOutputFiles(rec, pendingFiles);
-      if (pendingFiles.length) await act.put("outputs", rec, project);
+      if (pendingFiles.length) rec = await uploadOutputFiles(rec, pendingFiles, project);
+      uploadProgressRef.current.delete(rec.id);
       toast(pendingFiles.length ? "✅ تم حفظ المخرج ورفع الملفات بأمان" : "✅ تم الحفظ");
       setForm(null);
     } catch (error) {
-      if (!prev) await act.del("outputs", rec.id, rec.name);
-      throw new Error("تم حفظ المخرج لكن تعذر إكمال رفع الملفات: " + (error?.message || "فشل الرفع"));
+      const fileName = pendingFiles.find((item) => {
+        const candidate = item?.file;
+        return candidate && !rec.files.some((saved) => saved?.name === candidate.name && saved?.size_bytes === candidate.size);
+      })?.file?.name;
+      throw new Error(
+        "تم حفظ سجل المخرج كمسودة. " +
+        (fileName ? "تعذر رفع أو ربط الملف «" + fileName + "». " : "تعذر إكمال رفع الملفات. ") +
+        "الملفات التي اكتمل ربطها محفوظة؛ اضغط «حفظ» مرة أخرى لإكمال الباقي دون تكرار الملفات. " +
+        (error?.message || "فشل الرفع")
+      );
     }
   };
 
@@ -129,8 +152,8 @@ export function OutputsView({ projectId }) {
 
   return (
     <div>
-      {!projectId && <Head title="المخرجات" sub={`${list.length} مخرج`} right={canNew && <Btn kind="primary" onClick={() => setForm({})}>➕ مخرج</Btn>} />}
-      {projectId && canNew && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ مخرج</Btn></div>}
+      {!projectId && <Head title="المخرجات" sub={`${list.length} مخرج`} right={canNew && <Btn kind="primary" onClick={() => setForm({ id: uid() })}>➕ مخرج</Btn>} />}
+      {projectId && canNew && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setForm({ id: uid(), project_id: projectId })}>➕ مخرج</Btn></div>}
       <SearchBar value={q} onChange={setQ} placeholder="بحث…"><select style={{ ...S.sel, width: 140 }} value={type} onChange={(e) => setType(e.target.value)}><option value="">كل الأنواع</option>{lookups.output_type.map((x) => <option key={x}>{x}</option>)}</select><select style={{ ...S.sel, width: 130 }} value={ap} onChange={(e) => setAp(e.target.value)}><option value="">كل الحالات</option>{opts(L.approval).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></SearchBar>
       {!list.length ? <Empty icon="📦" title="لا مخرجات" sub="المخرجات هي ما يُسلَّم فعلاً (تصميم، كود، مستند…)" /> : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}>
@@ -170,9 +193,9 @@ export function OutputsView({ projectId }) {
             const files = Array.from(e.target.files || []);
             const errors = files.map(validateOutputUpload).filter((x) => !x.ok).map((x) => x.error);
             if (errors.length) { toast("⛔ " + errors[0]); e.target.value = ""; return; }
-            set("__pendingFiles", files);
+            set("__pendingFiles", files.map((file) => ({ file, fileId: uid(), uploadedAt: nowIso() })));
           }} accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.txt,.csv,.json,.zip,.docx,.xlsx,.pptx" />
-          {(values.__pendingFiles || []).length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>سيتم رفع {values.__pendingFiles.length} ملف بعد حفظ المخرج.</div>}
+          {(values.__pendingFiles || []).length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>ملفات جاهزة للرفع: {(values.__pendingFiles || []).map((item) => item.file?.name).filter(Boolean).join("، ")}. عند تعذر الاتصال، أعد الضغط على «حفظ» لإكمال المحاولة دون تكرار الملفات.</div>}
         </div>
       )} />}
     </div>
