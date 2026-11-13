@@ -72,7 +72,7 @@ export function TaskForm({ initial, projectId, parentId, allowedProjectIds, onCl
 }
 
 // ── Task tree ───────────────────────────────────────────────────────
-export function TaskTree({ projectId, tasks, readOnly, filter }) {
+export function TaskTree({ projectId, tasks, readOnly, filter, filterLabel = null }) {
   const { idx, A: act, can, today, people, openTask, projectsById, toast, view, setView } = useP(); const project = projectsById[projectId];
   const [open, setOpen] = useState({}); const [form, setForm] = useState(null); const [menu, setMenu] = useState(null); const [dragId, setDragId] = useState(null);
   const canWrite = !readOnly && can("task.write", project);
@@ -122,8 +122,8 @@ export function TaskTree({ projectId, tasks, readOnly, filter }) {
   return (
     <div>
       {filter && <div role="status" style={{ ...S.card, padding: "7px 10px", marginBottom: 8, display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-        <span style={{ flex: 1 }}>تُعرض المهام المتأخرة فقط داخل هذا المشروع.</span>
-        <Btn small onClick={() => setView((current) => ({ ...current, taskFilter: null }))}>إلغاء الفلتر</Btn>
+        <span style={{ flex: 1 }}>{filterLabel || "تُعرض المهام المطابقة للفلتر داخل هذا المشروع."}</span>
+        <Btn small onClick={() => setView((current) => ({ ...current, taskFilter: null, taskFilterIds: [] }))}>إلغاء الفلتر</Btn>
       </div>}
       <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ display: "inline-flex", border: "1px solid " + C.line, borderRadius: 8, overflow: "hidden" }}>
@@ -133,7 +133,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter }) {
       </div>
       <div style={{ display: mode === "list" ? "block" : "none" }}>
         {canWrite && <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>يمكنك استخدام «＋ فرعية» أو خيارات المهمة لنقلها؛ السحب الاختياري يحافظ على ترتيب الشجرة.</div>}
-        {visibleRoots.length === 0 && <Empty icon={filter ? "🔎" : "✅"} title={filter ? "لا توجد مهام تطابق هذا الفلتر" : "لا توجد مهام بعد"} sub={filter ? "لا توجد مهام متأخرة حاليًا في هذا المشروع." : "أضف أول مهمة أو أنشئ المشروع من قالب جاهز."} />}
+        {visibleRoots.length === 0 && <Empty icon={filter ? "🔎" : "✅"} title={filter ? "لا توجد مهام تطابق هذا الفلتر" : "لا توجد مهام بعد"} sub={filterLabel ? "لا توجد مهام تطابق هذا الفلتر حاليًا." : filter ? "لا توجد مهام مطابقة حاليًا في هذا المشروع." : "أضف أول مهمة أو أنشئ المشروع من قالب جاهز."} />}
         <div style={{ ...S.card, padding: 0, overflow: "hidden", display: visibleRoots.length ? "block" : "none" }}
           onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => { const id = e.dataTransfer.getData("text/plain"); if (id && e.target === e.currentTarget) await act.reparent(id, null); }}>
           {visibleRoots.map((t) => <Row key={t.id} t={t} depth={0} />)}
