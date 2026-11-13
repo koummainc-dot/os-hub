@@ -49,7 +49,7 @@ export function Dashboard() {
         <Stat label="مشاريع جارية" value={running.length} color={C.info} onClick={() => setPage("projects")} />
         <Stat label="مهام متأخرة" value={overdue.length} color={overdue.length ? C.bad : C.ok} onClick={() => setPage("tasks")} />
         <Stat label="مشاكل حرجة" value={critical.length} color={critical.length ? C.bad : C.ok} onClick={() => { setView((v) => ({ ...v, issueSeverityFilter: "Critical", issueStatusFilter: "open" })); setPage("issues"); }} />
-        <Stat label="مخاطر عالية" value={highRisks.length} color={highRisks.length ? C.orange : C.ok} onClick={() => setPage("risks")} />
+        <Stat label="مخاطر عالية" value={highRisks.length} color={highRisks.length ? C.orange : C.ok} onClick={() => { setView((current) => ({ ...current, riskStatusFilter: "open", riskHighOnly: true })); setPage("risks"); }} />
         <Stat label="صندوق الاكتشاف" value={inbox.length} sub="بانتظار الفرز" color={C.violet} onClick={() => setPage("discovery")} />
       </div>
       <Section title="صحة المشاريع" count={running.length}>
@@ -296,6 +296,7 @@ export function Portfolio() {
   const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, setView } = useP();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("active");
+  const [delayedOnly, setDelayedOnly] = useState(false);
   const projects = data.projects.filter((p) => !p.is_system && !p.deleted_at);
   const openProjects = projects.filter((p) => !p.archived_at && !["Completed", "Cancelled"].includes(p.status));
   const completed = projects.filter((p) => p.status === "Completed" && !p.archived_at);
@@ -306,6 +307,7 @@ export function Portfolio() {
   const visible = projects
     .filter((p) => status === "all" || (status === "active" ? openProjects.includes(p) : status === "completed" ? completed.includes(p) : !!p.archived_at))
     .filter((p) => !query || [p.name, p.description, p.final_goal].some((v) => String(v || "").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
+    .filter((p) => !delayedOnly || delayed.includes(p))
     .sort((a, b) => {
       const rank = { Red: 0, Orange: 1, Yellow: 2, Green: 3, OnHold: 4, NotEvaluated: 5 };
       return (rank[metrics[a.id]?.health] ?? 9) - (rank[metrics[b.id]?.health] ?? 9) || String(a.target_date || "9999").localeCompare(String(b.target_date || "9999"));
@@ -317,8 +319,8 @@ export function Portfolio() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 10, marginBottom: 14 }}>
         <Stat label="مشاريع نشطة" value={openProjects.length} color={C.info} onClick={() => setStatus("active")} />
         <Stat label="مشاريع مكتملة" value={completed.length} color={C.ok} onClick={() => setStatus("completed")} />
-        <Stat label="مشاريع متأخرة" value={delayed.length} color={delayed.length ? C.bad : C.ok} onClick={() => setStatus("active")} />
-        <Stat label="مهام مفتوحة" value={taskCount} color={C.violet} onClick={() => setPage("tasks")} />
+        <Stat label="مشاريع متأخرة" value={delayed.length} color={delayed.length ? C.bad : C.ok} onClick={() => { setStatus("active"); setDelayedOnly(true); }} />
+        <Stat label="مهام مفتوحة" value={taskCount} color={C.violet} onClick={() => { setView((current) => ({ ...current, activeProjectsOnly: true })); setPage("tasks"); }} />
         <Stat label="مشاكل حرجة" value={criticalIssues.length} color={criticalIssues.length ? C.bad : C.ok} onClick={() => { setView((v) => ({ ...v, issueSeverityFilter: "Critical", issueStatusFilter: "open" })); setPage("issues"); }} />
         <Stat label="مخاطر عالية" value={highRisks.length} color={highRisks.length ? C.orange : C.ok} onClick={() => setPage("risks")} />
       </div>
@@ -335,6 +337,7 @@ export function Portfolio() {
             <option value="active">النشطة</option><option value="completed">المكتملة</option><option value="archived">المؤرشفة</option><option value="all">كل المشاريع</option>
           </select>
           <span style={{ color: C.muted, fontSize: 11 }}>{visible.length} مشروع</span>
+          {delayedOnly && <Btn small onClick={() => setDelayedOnly(false)}>إلغاء فلتر المشاريع المتأخرة</Btn>}
         </div>
       </div>
       {!visible.length ? <Empty icon="🗂️" title="لا توجد مشاريع مطابقة" sub="غيّر الفلتر أو عبارة البحث لعرض مشاريع أخرى." /> :
