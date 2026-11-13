@@ -149,6 +149,7 @@ function ProjectDetail() {
   const navActiveTab = tab === "related" ? "resources" : tab;
   const setGroup = (groupId) => { const group = tabGroups.find((item) => item.id === groupId); if (group) setTab(group.defaultTab); };
   const canE = can("project.edit", p);
+  const openQuickCreate = (kind, targetTab, patch = {}) => setView({ ...view, ...patch, tab: targetTab, focusRecord: null, quickCreate: kind });
   return (
     <div>
       <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11.5 }}>
@@ -162,13 +163,13 @@ function ProjectDetail() {
         {(can("task.write", p) || can("output.write", p) || can("prd.write", p) || can("risk.write", p) || can("issue.write", p) || can("decision.write", p) || canE) && <details style={{ position: "relative" }}>
           <summary style={{ listStyle: "none", border: "1px solid " + C.line, borderRadius: 8, padding: "7px 11px", cursor: "pointer", color: C.info, fontSize: 12.5, userSelect: "none" }}>＋ إضافة</summary>
           <div style={{ position: "absolute", insetInlineEnd: 0, top: "calc(100% + 6px)", zIndex: 30, minWidth: 185, display: "grid", gap: 3, padding: 6, background: C.card, border: "1px solid " + C.line, borderRadius: 9, boxShadow: "0 10px 28px rgba(0,0,0,.14)" }}>
-            {can("task.write", p) && <button type="button" onClick={() => setView({ ...view, tab: "tasks", taskFilter: null, taskFilterIds: [], focusRecord: null })} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ مهمة جديدة</button>}
-            {can("output.write", p) && <button type="button" onClick={() => setView({ ...view, tab: "outputs", focusRecord: null })} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ مخرج</button>}
-            {can("prd.write", p) && <button type="button" onClick={() => setView({ ...view, tab: "prds", focusRecord: null })} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ مواصفة PRD</button>}
-            {can("risk.write", p) && <button type="button" onClick={() => setView({ ...view, tab: "risks", riskStatusFilter: "all", riskHighOnly: false, focusRecord: null })} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ خطر</button>}
-            {can("issue.write", p) && <button type="button" onClick={() => setView({ ...view, tab: "issues", issueStatusFilter: "all", issueSeverityFilter: "", focusRecord: null })} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ مشكلة</button>}
-            {can("decision.write", p) && <button type="button" onClick={() => setView({ ...view, tab: "decisions", focusRecord: null })} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ قرار</button>}
-            {canE && <button type="button" onClick={() => setView({ ...view, tab: "resources", focusRecord: null })} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ رابط أو مرجع</button>}
+            {can("task.write", p) && <button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); openQuickCreate("task", "tasks", { taskFilter: null, taskFilterIds: [] }); }} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ مهمة جديدة</button>}
+            {can("output.write", p) && <button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); openQuickCreate("output", "outputs"); }} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ مخرج</button>}
+            {can("prd.write", p) && <button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); openQuickCreate("prd", "prds"); }} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ مواصفة PRD</button>}
+            {can("risk.write", p) && <button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); openQuickCreate("risk", "risks", { riskStatusFilter: "all", riskHighOnly: false }); }} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ خطر</button>}
+            {can("issue.write", p) && <button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); openQuickCreate("issue", "issues", { issueStatusFilter: "all", issueSeverityFilter: "" }); }} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ مشكلة</button>}
+            {can("decision.write", p) && <button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); openQuickCreate("decision", "decisions"); }} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ قرار</button>}
+            {canE && <button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); openQuickCreate("resource", "resources"); }} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ رابط أو مرجع</button>}
           </div>
         </details>}
         {canE && <select style={{ ...S.sel, width: 150 }} value="" onChange={(e) => e.target.value && act.setProjectStatus(p, e.target.value)}><option value="">تغيير الحالة…</option>{Object.keys(L.projectStatus).filter((s) => s !== p.status && s !== "Archived").map((s) => <option key={s} value={s}>{L.projectStatus[s]}</option>)}</select>}
@@ -358,7 +359,7 @@ function ProjectUpdatesTab({ p }) {
   </div>;
 }
 function RelatedTab({ p, canE, section = "all" }) {
-  const { A: act, toast, ws, data, can, me, today, setPage } = useP();
+  const { A: act, toast, ws, data, can, me, today, setPage, view, setView } = useP();
   const links = p.links || [];
   const [f, setF] = useState(false);
   const [meetings, setMeetings] = useState([]);
@@ -366,6 +367,12 @@ function RelatedTab({ p, canE, section = "all" }) {
   const [meetingError, setMeetingError] = useState("");
   const [creatingFollowup, setCreatingFollowup] = useState("");
   const creatingFollowupsRef = useRef(new Set());
+  useEffect(() => {
+    if (view.quickCreate !== "resource" || section !== "resources") return;
+    if (canE) setF(true);
+    else toast("ليس لديك صلاحية إضافة مراجع لهذا المشروع.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view.quickCreate, section, canE, setView, toast]);
 
   const refreshMeetings = async () => {
     if (!ws?.id) { setMeetings([]); setLoadingMeetings(false); return; }
