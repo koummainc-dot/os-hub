@@ -1,7 +1,8 @@
 -- Forward-only reconciliation for Projects server-side integrity guards.
 -- This repairs known missing function/trigger effects without rewriting legacy rows
--- or replaying historical migrations. It intentionally performs no workspace_records
--- UPDATE/DELETE, no backfill, and no Storage bucket/policy changes.
+-- or replaying historical migrations. At migration time it executes no record-data
+-- UPDATE/DELETE and performs no backfill or Storage bucket/policy change. The batch
+-- RPC definition includes its normal UPDATE statements for later authenticated calls.
 --
 -- Source definitions:
 --   20261030100000_projects_final_output_guard
