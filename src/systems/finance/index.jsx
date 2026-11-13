@@ -42,7 +42,7 @@ function Input(props) { return <input {...props} style={{ ...inputStyle, ...(pro
 function Select(props) { return <select {...props} style={{ ...inputStyle, ...(props.style || {}) }}>{props.children}</select>; }
 function Empty({ title, detail }) { return <div style={{ padding: "36px 16px", textAlign: "center", color: MUTED }}><div style={{ fontSize: 30, marginBottom: 8 }}>🧾</div><b style={{ color: INK }}>{title}</b><div style={{ marginTop: 6, fontSize: 13 }}>{detail}</div></div>; }
 
-export default function FinanceOS({ ws, access, page = "dashboard", setPage, isDemo = false, shell }) {
+export default function FinanceOS({ ws, access, page = "dashboard", setPage, isDemo = false, shell, routeContext = null }) {
   const [accounts, setAccounts] = useState([]);
   const [currencies, setCurrencies] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -703,7 +703,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       legacyAssets={<FinanceAssets ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
       legacyGoals={<FinanceGoals ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
       legacyRecurring={<FinanceRecurring ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
-      legacyProjects={<FinanceProjects ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+      legacyProjects={<FinanceProjects ws={ws} access={access} isDemo={isDemo} currencies={currencies} initialProjectRef={routeContext?.projectRef || null} />}
       legacyFamily={<FinanceFamily ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
       legacyFamilyCash={<FinanceFamilyCash ws={ws} access={access} isDemo={isDemo} />}
       legacyReports={<FinanceReports ws={ws} isDemo={isDemo} baseCurrency={baseCurrency} />}
