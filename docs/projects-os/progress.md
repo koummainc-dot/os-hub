@@ -9,11 +9,11 @@
 ## Latest verified code baseline
 - Latest implementation and test evidence commit: `8218791d9a151b26b07fbb5331ad8210c792fcb0`.
 - GitHub CI: **SUCCESS**; Verify app: **SUCCESS**; Finance Family Center Checks: **SUCCESS**; Finance PostgreSQL smoke: **SUCCESS**; Spiritual PostgreSQL smoke: **SUCCESS**.
-- Full OS test suite, existing regression suite, Finance acceptance, production build, Project Header quick-create contracts and retry-safe Output upload contract passed on this code commit.
+- Full OS test suite, Finance acceptance suite and production build passed on the recovery implementation commit; Verify app's additional full test/build workflow was still running at the last status check.
 - Projects domain assertions: **66 PASS / 0 FAIL**; template write/rollback contract: **4 PASS / 0 FAIL**.
-- Overview/Portfolio navigation, seven permission-gated quick-create flows, stable Knowledge follow-up, and Task Sheet/Outputs file-upload retry contracts passed.
+- Overview/Portfolio navigation, seven permission-gated quick-create flows, stable Knowledge follow-up, and persisted Output upload-intent recovery contracts passed in the full OS test suite.
 - Vercel Preview: **READY** — `https://os-jygby3wwv-koumma.vercel.app`.
-- This is automated/code evidence only: actual user file upload/download, Storage RLS permissions, mobile RTL, and real-data lifecycle still require manual Preview acceptance.
+- This is automated/code evidence only: the post-Storage metadata-write failure → reload → reselect → same-object-path recovery is mocked in the contract suite; actual Supabase upload/download, Storage RLS with different accounts, mobile RTL and real-data lifecycle still require manual Preview acceptance.
 
 ## Master specification coverage
 The full phase/gate/decision/feature map is now recorded in **[`master-spec-status.md`](./master-spec-status.md)**. It maps:
@@ -26,7 +26,7 @@ The full phase/gate/decision/feature map is now recorded in **[`master-spec-stat
 ### Current implementation summary
 - **Navigation:** global route groups, unified Governance, legacy routes and missing Core `myWork` registration.
 - **Workspace:** responsive desktop/mobile navigation with retained historical project tab IDs.
-- **Planning & Outputs:** project-scoped Discovery filtering/prefill; existing PRD/Requirement/Task/Output and KR contracts retained. Task Sheet and Outputs share the existing private `projects-outputs` Storage helper; stable per-file IDs and object paths make retries idempotent; metadata is persisted after each completed file; downloads use short-lived signed URLs; a failed later file leaves earlier links and the Draft record available for retry.
+- **Planning & Outputs:** project-scoped Discovery filtering/prefill; existing PRD/Requirement/Task/Output and KR contracts retained. Task Sheet and Outputs share the existing private `projects-outputs` Storage boundary. Persisted upload-intent recovery is now implemented for both Outputs and Task Sheet: the pending `file_id`, exact `object_path`, file identity and timestamp are saved on the canonical Output record before Storage upload. If Storage accepts the object but metadata persistence fails, the intent survives reload; reselecting the same file reuses the original path, attaches metadata and clears the intent. `t_projects_output_upload_contract.mjs` now simulates this exact failure → reload → reselect → same-path retry → metadata recovery sequence. Private downloads continue using short-lived signed URLs; no new bucket/table or production migration was added.
 - **Governance:** global unified route and project tabs; risk/issue/decision traceability and lifecycle contracts remain passing.
 - **Knowledge:** separate Meetings and project-owned References tabs; new task links use stable follow-up identity with legacy index/title fallback.
 - **Finance:** context handoff to Finance OS; Finance selects its existing profile or pre-fills its own form; no finance profile/transaction is written by Projects.
@@ -39,7 +39,7 @@ The full phase/gate/decision/feature map is now recorded in **[`master-spec-stat
 - Canonical Knowledge `project_ref`, old reference backfill and server-side follow-up idempotency remain blocked by data-contract/no-loss work.
 - Finance read model, sync states, currency mismatch handling, transaction attribution and real role-specific visibility are not implemented/proven.
 - Saved Views (D-06), Unified Inbox (D-07), Milestone model (D-08), language scope (D-09) and legacy KR/Task migration (D-12) remain open or deferred.
-- Project Header shortcuts now open canonical create modals directly; automated contracts pass, while live Preview acceptance remains pending. Task Sheet and Outputs upload failures now retain completed files and support retry against the same Storage object path; real file upload/download and Storage RLS permission acceptance remain unverified. Portfolio Saved Views/Finance Link Status and richer Calendar events remain open; Activity aggregation, Weekly Review privacy and immutable Update Snapshot/Addendum E2E are not fully accepted.
+- Project Header shortcuts still have manual Preview acceptance pending. Task Sheet and Outputs now persist upload intents before Storage and recover the same object after reload by reselecting the file; automated failure/recovery contract passes, while real file upload/download and Storage RLS acceptance remain unverified. Portfolio Saved Views/Finance Link Status and richer Calendar events remain open; Activity aggregation, Weekly Review privacy and immutable Update Snapshot/Addendum E2E are not fully accepted.
 - Manual 360px/tablet/desktop RTL, keyboard/accessibility, offline/conflict/retry, performance and browser Back/deep-link acceptance remain unverified.
 - Real-data Create → Reload → Edit → Reload → Archive/Restore → Reload and at least two authorized accounts plus one restricted account remain unrun.
 - No production migration, rollback rehearsal, owner release approval or production deployment has occurred.
