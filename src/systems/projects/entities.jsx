@@ -4,7 +4,7 @@ import { C, Btn, Chip, Head, Empty, Progress, Seg, Board, SearchBar, Tabs, FormM
 import { fmt, fmtShort, diffDays } from "../../core/dates.js";
 import { uid, nowIso } from "../../core/records.jsx";
 import { supabase } from "../../core/supabase.js";
-import { OUTPUT_STORAGE_BUCKET, outputObjectPath, validateOutputUpload, uploadOutputFileWithRetry } from "./outputStorage.js";
+import { OUTPUT_STORAGE_BUCKET, validateOutputUpload, findOutputUploadIntent, uploadOutputFilesWithRecovery } from "./outputStorage.js";
 import { useP } from "./store.jsx";
 import * as D from "./domain.js";
 import { L, opts, PRIORITY_COLOR, STATUS_COLOR, SEV_COLOR } from "./lookups.js";
@@ -65,32 +65,19 @@ export function OutputsView({ projectId }) {
   };
 
   const uploadOutputFiles = async (output, files, project) => {
-    let current = output;
     if (!ws?.id) throw new Error("المساحة الحالية غير متاحة للرفع.");
-    for (const pendingFile of Array.from(files || []).filter(Boolean)) {
-      const file = pendingFile.file;
-      const fileId = pendingFile.fileId;
-      const objectPath = outputObjectPath({
-        workspaceId: ws.id,
-        projectId: current.project_id,
-        outputId: current.id,
-        fileId,
-        filename: file?.name,
-      });
-      if ((current.files || []).some((item) => item && typeof item === "object" && item.object_path === objectPath)) continue;
-      const metadata = await uploadOutputFileWithRetry({
-        storage: supabase.storage,
-        workspaceId: ws.id,
-        output: current,
-        pendingFile,
-      });
-      const next = { ...current, files: mergeOutputFiles(current.files || [], [metadata]) };
-      // Persist after each successful file. A later failure cannot lose earlier files.
-      await act.put("outputs", next, project);
-      current = next;
-      uploadProgressRef.current.set(current.id, current.files);
-    }
-    return current;
+    return uploadOutputFilesWithRecovery({
+      storage: supabase.storage,
+      workspaceId: ws.id,
+      output,
+      pendingFiles: files,
+      saveOutput: async (next) => {
+        const saved = await act.put("outputs", next, project);
+        if (!saved || saved._syncPending) throw new Error("لم يؤكد الخادم حفظ نية الرفع أو بيانات الملف؛ أعد المحاولة قبل رفع أي ملف.");
+        uploadProgressRef.current.set(saved.id, saved.files || []);
+        return saved;
+      },
+    });
   };
 
   const submit = async (v) => {
@@ -103,6 +90,7 @@ export function OutputsView({ projectId }) {
       ...recordValues,
       id: v.id || uid(),
       files: mergeOutputFiles(prev?.files || [], v.files || [], savedProgress),
+      upload_intents: Array.isArray(recordValues.upload_intents) ? recordValues.upload_intents : (prev?.upload_intents || []),
     };
     if (!project || project.is_system) throw new Error("اختر مشروعًا صالحًا قبل حفظ المخرج.");
     if (rec.task_id) {
@@ -122,7 +110,11 @@ export function OutputsView({ projectId }) {
     } else if (rec.approval !== "Final") { rec.approved_by = null; rec.approved_at = null; }
 
     // Save the Output first so Storage RLS can authorize each private object.
-    await act.put("outputs", rec, project);
+    const savedOutput = await act.put("outputs", rec, project);
+    if (!savedOutput || (pendingFiles.length && savedOutput._syncPending)) {
+      throw new Error("لم يؤكد الخادم حفظ سجل المخرج؛ لم يبدأ رفع الملفات. تحقق من الاتصال ثم أعد المحاولة.");
+    }
+    rec = savedOutput;
     try {
       if (pendingFiles.length) rec = await uploadOutputFiles(rec, pendingFiles, project);
       uploadProgressRef.current.delete(rec.id);
@@ -137,7 +129,7 @@ export function OutputsView({ projectId }) {
       throw new Error(
         "تم حفظ سجل المخرج كمسودة. " +
         (fileName ? "تعذر رفع أو ربط الملف «" + fileName + "». " : "تعذر إكمال رفع الملفات. ") +
-        "الملفات التي اكتمل ربطها محفوظة؛ اضغط «حفظ» مرة أخرى لإكمال الباقي دون تكرار الملفات. " +
+        "الملفات التي اكتمل ربطها محفوظة، ونوايا الملفات غير المكتملة محفوظة داخل سجل المخرج. بعد إعادة التحميل افتح تعديل المخرج وأعد اختيار الملف نفسه لإكمال الربط دون إنشاء نسخة. " +
         (error?.message || "فشل الرفع")
       );
     }
@@ -164,7 +156,7 @@ export function OutputsView({ projectId }) {
               <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}><span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>📦 {o.name}</span><Chip color={o.approval === "Final" ? C.ok : o.approval === "Review" ? C.warn : C.muted}>{L.approval[o.approval]}</Chip></div>
               <div style={{ fontSize: 11.5, color: C.dim, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><Chip>{o.type}</Chip>{!projectId && <ProjectName id={o.project_id} />}{o.task_id && idx.byId[o.task_id] && <button onClick={() => openTask(o.task_id)} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", padding: 0 }}>🔗 {idx.byId[o.task_id].title}</button>}{o.prd_requirement_id && <button type="button" onClick={() => openProject(o.project_id, "prds", { kind: "prd", id: o.prd_id })} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>متطلب: {(data.prds.find((p) => p.id === o.prd_id)?.requirements || []).find((r) => r.id === o.prd_requirement_id)?.title || "فتح المواصفة"} ↗</button>}{data.wins.some((w) => (w.output_ids || []).includes(o.id)) && <button type="button" onClick={() => setPage("wins")} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>🏆 إنجاز مرتبط</button>}</div>
               {o.url && <a href={o.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.info, display: "block", margin: "4px 0", wordBreak: "break-all" }}>🔗 {o.url}</a>}
-              {o.notes && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{o.notes}</div>}
+              {o.notes && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{o.notes}</div>}{(o.upload_intents || []).length > 0 && <div style={{ fontSize: 11.5, color: C.warn, marginTop: 6 }}>⚠️ {o.upload_intents.length} ملف يحتاج استكمال الرفع أو ربط Metadata. افتح تعديل المخرج وأعد اختيار الملف نفسه لاستعادة المحاولة.</div>}
               {(o.files || []).length > 0 && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>{(o.files || []).map((file, i) => <button key={file.object_path || i} type="button" onClick={() => typeof file === "string" ? window.open(file, "_blank", "noopener,noreferrer") : downloadFile(file)} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", padding: 0, textAlign: "start", fontSize: 11.5 }}>📎 {typeof file === "string" ? file : `${file.name || "ملف"} · ${Math.ceil((file.size_bytes || 0) / 1024)} KB`}</button>)}</div>}
               {o.approved_by && <div style={{ fontSize: 10.5, color: C.muted }}>اعتمده {<Who id={o.approved_by} size={14} />} · {fmt((o.approved_at || "").slice(0, 10))}</div>}
               <div style={{ marginTop: 6, display: "flex", gap: 6, alignItems: "center" }}><Btn small onClick={() => setDetail(o)}>عرض التفاصيل</Btn>{o.approval === "Final" ? <Chip color={C.ok}>🔒 مخرج نهائي — لا يُعدَّل</Chip> : <RowActions canW={can("output.write", projectsById[o.project_id])} onEdit={() => setForm(o)} onDelete={() => act.del("outputs", o.id, o.name)} />}</div>
@@ -191,13 +183,19 @@ export function OutputsView({ projectId }) {
         <div style={{ gridColumn: "1 / -1", marginTop: 8, border: `1px solid ${C.line}`, borderRadius: 8, padding: 10 }}>
           <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, marginBottom: 6 }}>📎 ملفات المخرج</div>
           {(values.files || []).length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>{(values.files || []).map((file, i) => <div key={file.object_path || i} style={{ fontSize: 11.5, color: C.dim }}>✓ {typeof file === "string" ? file : `${file.name || "ملف"} · ${Math.ceil((file.size_bytes || 0) / 1024)} KB`}</div>)}</div>}
+          {(values.upload_intents || []).length > 0 && <div style={{ marginBottom: 8, padding: 8, borderRadius: 6, background: "rgba(245,158,11,0.08)", fontSize: 11.5, color: C.warn }}>ملفات محفوظة تنتظر الاستكمال: {(values.upload_intents || []).map((intent) => `${intent.name} (${Math.ceil((intent.size_bytes || 0) / 1024)} KB)`).join("، ")}. أعد اختيار الملف نفسه؛ سنستخدم معرّف ومسار الرفع المحفوظين.</div>}
           <input type="file" multiple onChange={(e) => {
             const files = Array.from(e.target.files || []);
-            const errors = files.map(validateOutputUpload).filter((x) => !x.ok).map((x) => x.error);
-            if (errors.length) { toast("⛔ " + errors[0]); e.target.value = ""; return; }
-            set("__pendingFiles", [...(values.__pendingFiles || []), ...files.map((file) => ({ file, fileId: uid(), uploadedAt: nowIso() }))]);
+            const invalid = files.map(validateOutputUpload).find((x) => !x.ok);
+            if (invalid) { toast("⛔ " + invalid.error); e.target.value = ""; return; }
+            const pending = [...(values.__pendingFiles || [])];
+            const additions = files.filter((file) => !pending.some((item) => item.file?.name === file.name && item.file?.size === file.size && item.file?.lastModified === file.lastModified)).map((file) => {
+              const intent = findOutputUploadIntent(values.upload_intents, file);
+              return { file, fileId: intent?.file_id || uid(), uploadedAt: intent?.uploaded_at || nowIso() };
+            });
+            set("__pendingFiles", [...pending, ...additions]);
           }} accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.txt,.csv,.json,.zip,.docx,.xlsx,.pptx" />
-          {(values.__pendingFiles || []).length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>ملفات جاهزة للرفع: {(values.__pendingFiles || []).map((item) => item.file?.name).filter(Boolean).join("، ")}. عند تعذر الاتصال، أعد الضغط على «حفظ» لإكمال المحاولة دون تكرار الملفات.</div>}
+          {(values.__pendingFiles || []).length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>ملفات جاهزة للرفع: {(values.__pendingFiles || []).map((item) => item.file?.name).filter(Boolean).join("، ")}. إذا فشل الربط، سيبقى معرّف الرفع محفوظًا بعد إعادة تحميل الصفحة.</div>}
         </div>
       )} />}
     </div>
