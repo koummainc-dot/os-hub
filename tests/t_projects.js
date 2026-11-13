@@ -243,7 +243,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
   if(nameIn) await setVal(nameIn,'مشروع اختبار القالب');
   await click('حفظ',doc.querySelector('[role=dialog]'),400);
   ok(txt().includes('مشروع اختبار القالب'),'project created and opened'); 
-  await click('التخطيط'); await sleep(100); await click('المهام'); await sleep(200); ok(txt().includes('الاكتشاف')&&txt().includes('كتابة المواصفة'),'template task tree copied (parents + children)');
+  ok(await clickProjectTab('المهام'),'template project task tab opens'); await sleep(200); ok(txt().includes('الاكتشاف')&&txt().includes('كتابة المواصفة'),'template task tree copied (parents + children)');
   ok(!!btn('＋ فرعية'),'child-task action is visible without opening the overflow menu');
   const checks=all('input[type=checkbox]'); ok(checks.length>10,'leaf checkboxes rendered ('+checks.length+')');
   console.log('— complete a task & progress');
