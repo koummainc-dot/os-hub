@@ -5,6 +5,7 @@
 - Branch: `feat/projects-v5-phase1-navigation`
 - Base: `main`
 - Production database: unchanged; no new production migration, RLS change or production deployment in this pass.
+- **Live migration audit (read-only, 2026-11-13):** Supabase project `os-hub` reports 103 applied migration-history rows; current branch contains 125 SQL migration files. By normalized migration name: 103/103 applied rows have a matching file name, 79 match both name and timestamp, 24 have a same-name timestamp mismatch, and 22 SQL file names have no matching applied-history name. Projects-related unmatched SQL names include `projects_final_output_guard`, `projects_task_issue_traceability`, `projects_task_issue_deferred_validation`, `projects_prd_requirement_traceability`, `projects_entity_relationship_integrity`, `projects_prd_verified_evidence_guard` and `projects_atomic_discovery_batch_fix`. This is a reconciliation list, **not** evidence that the files should be applied; compare the live SQL effects and any consolidated migrations first. No production migration or data write was run.
 
 ## Latest verified code baseline
 - Latest implementation and test evidence commit: `8218791d9a151b26b07fbb5331ad8210c792fcb0`.
@@ -37,7 +38,7 @@ The full phase/gate/decision/feature map is now recorded in **[`master-spec-stat
 ## Open release blockers
 - Knowledge reads still load the workspace snapshot and filter client-side; this is not server-side project isolation.
 - Canonical Knowledge `project_ref`, old reference backfill and server-side follow-up idempotency remain blocked by data-contract/no-loss work.
-- Finance read model, sync states, currency mismatch handling, transaction attribution and real role-specific visibility are not implemented/proven.
+- **Finance live read-model audit:** `fin_projects_get(p_ws uuid)` exists in the live database, reads Finance-owned project profiles and linked transaction detail, calculates revenue/expenses/net/budget usage/ROI, and checks `fin__need(p_ws,'dashboard','view')`. Its current function definition uses an empty search_path. The Finance module consumes this RPC; Finance read model is therefore **present**, while cross-OS link states, currency/last-sync, profile cardinality, budget-transfer policy and real role acceptance remain incomplete.
 - Saved Views (D-06), Unified Inbox (D-07), Milestone model (D-08), language scope (D-09) and legacy KR/Task migration (D-12) remain open or deferred.
 - Project Header shortcuts still have manual Preview acceptance pending. Task Sheet and Outputs now persist upload intents before Storage and recover the same object after reload by reselecting the file; automated failure/recovery contract passes, while real file upload/download and Storage RLS acceptance remain unverified. Portfolio Saved Views/Finance Link Status and richer Calendar events remain open; Activity aggregation, Weekly Review privacy and immutable Update Snapshot/Addendum E2E are not fully accepted.
 - Manual 360px/tablet/desktop RTL, keyboard/accessibility, offline/conflict/retry, performance and browser Back/deep-link acceptance remain unverified.
