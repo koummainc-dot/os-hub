@@ -21,6 +21,11 @@ assert.ok(outputs.includes("label: \"الملفات\""), "Output details expose 
 assert.ok(!outputs.includes("data:URL") && !outputs.includes("base64"), "Direct upload must not be faked by embedding base64/data URLs in records");
 assert.ok(!outputs.includes("localStorage"), "Outputs upload contract must not introduce a second local-only persistence path");
 assert.ok(outputs.includes("uploadOutputFileWithRetry"), "Outputs use the shared retry-safe Supabase Storage upload boundary");
+assert.ok(outputs.includes('set("__pendingFiles", [...(values.__pendingFiles || []), ...files.map((file) => ({ file, fileId: uid()'), "Outputs preserve prior file selections and stable retry IDs when adding more files");
+assert.ok(outputs.includes("Persist after each successful file"), "Outputs persist metadata after each uploaded file instead of waiting for the whole batch");
+assert.ok(outputs.includes("const latestFiles = uploadProgressRef.current.get(rec.id)"), "Outputs retain per-form progress when reporting a failed later file");
+assert.ok(outputs.includes('setForm({ id: uid(), project_id: projectId })'), "Project-scoped Output forms create a stable Output ID before Storage upload");
+assert.ok(outputs.includes("تم حفظ سجل المخرج كمسودة") && outputs.includes("دون تكرار الملفات"), "Outputs show a truthful resumable failure message rather than deleting the draft");
 assert.ok(!outputs.includes("remove(uploaded.map"), "A failed later file does not blindly delete earlier files that may already be linked");
 assert.ok(outputs.includes("createSignedUrl"), "Private Output files use signed URLs rather than public bucket URLs");
 assert.ok(migration.includes("projects_outputs_select") && migration.includes("projects_outputs_insert") && migration.includes("projects_outputs_delete"), "Storage migration defines the three required private-object policies");
