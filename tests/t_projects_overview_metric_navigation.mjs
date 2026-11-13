@@ -20,16 +20,17 @@ assert.ok(overview.includes('taskFilter: "ids", taskFilterIds: unlinkedTaskIds')
 
 
 const detail = screensB.slice(screensB.indexOf("function ProjectDetail()"), screensB.indexOf("function Overview("));
-assert.ok(detail.includes("const overdueTaskFilter = view.taskFilter === \"overdue\" ? (task) => D.isOverdueLeaf(task, idx, today) : undefined"), "Project Detail translates the task filter state using the domain overdue rule");
+assert.ok(detail.includes('view.taskFilter === "overdue"') && detail.includes("D.isOverdueLeaf(task, idx, today)"), "Project Detail translates the overdue filter using the canonical domain rule");
 assert.ok(detail.includes('view.taskFilter === "ids"') && detail.includes('(view.taskFilterIds || []).includes(task.id)'), "Project Detail restores exact task-ID filters from Overview");
-assert.ok(detail.includes('filterLabel={taskFilterLabel}'), "Project Detail explains the active metric filter inside TaskTree");
+assert.ok(detail.includes('filterLabel={taskFilterLabel}') && detail.includes('filter={taskFilter}'), "Project Detail passes filter and explanation into the canonical task tree");
+assert.ok(detail.includes("taskFilterIds: []"), "opening the all-tasks view clears stale metric IDs");
 
-assert.ok(detail.includes('<TaskTree projectId={p.id} filter={overdueTaskFilter} />'), "Project Detail passes its filter into the canonical task tree");
+assert.ok(detail.includes('<TaskTree projectId={p.id} filter={taskFilter} filterLabel={taskFilterLabel} />'), "Project Detail passes the metric filter into the canonical task tree");
 
 const taskTree = parts.slice(parts.indexOf("export function TaskTree"), parts.indexOf("function StatusChipSm"));
 assert.ok(taskTree.includes("&& matches(t)"), "task filters apply to table, board, calendar and timeline data");
 assert.ok(taskTree.includes("const visibleRoots = roots.filter((root) => visible(root))"), "tree view retains ancestors of matching overdue leaves");
-assert.ok(taskTree.includes('setView((current) => ({ ...current, taskFilter: null }))'), "task filter can be explicitly cleared");
+assert.ok(taskTree.includes("taskFilter: null, taskFilterIds: []"), "task filter can be explicitly cleared without keeping stale metric IDs");
 assert.ok(taskTree.includes('taskFilterIds: []'), "clearing a task filter also clears exact metric IDs");
 assert.ok(taskTree.includes('filterLabel || "تُعرض المهام المطابقة للفلتر داخل هذا المشروع."'), "task filter banner uses the matching filter description");
 
@@ -44,6 +45,7 @@ assert.ok(riskView.includes("riskHighOnly: checked"), "Risk view stores its filt
 const portfolio = screensA.slice(screensA.indexOf("export function Portfolio()"));
 assert.ok(portfolio.includes("const [delayedOnly, setDelayedOnly] = useState(false)"), "Portfolio has a delayed-only filter");
 assert.ok(portfolio.includes("!delayedOnly || delayed.includes(p)"), "delayed metric filters the project list, not only the status dropdown");
+assert.ok(portfolio.includes("[p.id, p.name, p.description, p.final_goal]"), "Portfolio search includes project ID as well as display text");
 assert.ok(portfolio.includes("setDelayedOnly(true)"), "delayed-project metric activates the filtered list");
 assert.ok(portfolio.includes("activeProjectsOnly: true"), "open task metric carries active-project scope to Tasks");
 assert.ok(portfolio.includes("riskHighOnly: true"), "high-risk portfolio metric opens the same high-risk filter");
