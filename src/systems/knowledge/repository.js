@@ -156,17 +156,35 @@ function hasTargetId(value, targetId) {
 
 export async function validateKnowledgeExternalLink(workspaceId, targetSystem, targetId) {
   const supportedSystems = new Set(["projects", "learning", "content", "habits", "finance", "home", "relationships", "travel", "inventory", "shopping"]);
-  if (!workspaceId || !supportedSystems.has(targetSystem) || !String(targetId || "").trim()) {
+  const normalizedTargetId = String(targetId || "").trim();
+  if (!workspaceId || !supportedSystems.has(targetSystem) || !normalizedTargetId) {
     return { valid: false, reason: "invalid-reference" };
   }
   if (!supabase) return { valid: false, reason: "supabase-client-unavailable" };
+
+  // Projects live in the canonical workspace_records repository, not workspace_data.
+  if (targetSystem === "projects") {
+    const { data, error } = await supabase
+      .from("workspace_records")
+      .select("id,data")
+      .eq("workspace_id", workspaceId)
+      .eq("system_id", "projects")
+      .eq("collection", "projects")
+      .eq("id", normalizedTargetId)
+      .eq("deleted", false)
+      .maybeSingle();
+    if (error) return { valid: false, reason: "lookup-failed", error };
+    const valid = !!data && !data.data?.deleted_at;
+    return { valid, reason: valid ? null : "target-not-found" };
+  }
+
   const { data, error } = await supabase
     .from("workspace_data")
     .select("data,part")
     .eq("workspace_id", workspaceId)
     .eq("system_id", targetSystem);
   if (error) return { valid: false, reason: "lookup-failed", error };
-  const found = (data || []).some((row) => hasTargetId(row.data, String(targetId).trim()));
+  const found = (data || []).some((row) => hasTargetId(row.data, normalizedTargetId));
   return { valid: found, reason: found ? null : "target-not-found" };
 }
 
@@ -198,29 +216,60 @@ export { hasKnowledgeContent };
 export async function listKnowledgeProjects(workspaceId) {
   if (!workspaceId || !supabase) return { ok: false, projects: [], reason: "workspace-or-client-unavailable" };
   const { data, error } = await supabase
-    .from("workspace_data")
-    .select("data")
+    .from("workspace_records")
+    .select("id,data")
     .eq("workspace_id", workspaceId)
     .eq("system_id", "projects")
-    .eq("part", "main")
-    .limit(1);
+    .eq("collection", "projects")
+    .eq("deleted", false);
   if (error) return { ok: false, projects: [], error };
-  const snapshot = data?.[0]?.data;
-  const raw = snapshot?.projects ?? snapshot;
-  const rows = Array.isArray(raw) ? raw : raw && typeof raw === "object" ? Object.values(raw) : [];
-  const projects = rows
-    .filter((item) => item && typeof item === "object" && item.id && item.name && !item.deleted_at && !item.archived_at && item.status !== "Archived")
-    .map((item) => ({ id: String(item.id), name: String(item.name), status: item.status || "" }))
+  const projects = (data || [])
+    .filter((row) => row && row.id && row.data && row.data.name
+      && !row.data.deleted_at && !row.data.archived_at
+      && row.data.status !== "Archived" && row.data.is_system !== true)
+    .map((row) => ({ id: String(row.id), name: String(row.data.name), status: row.data.status || "" }))
     .sort((a, b) => a.name.localeCompare(b.name, "ar"));
   return { ok: true, projects };
 }
 
-export async function listKnowledgeMeetings(workspaceId) {
+export async function listKnowledgeMeetings(workspaceId, projectId = null) {
   if (!workspaceId || !supabase) return { ok: false, meetings: [], reason: "workspace-or-client-unavailable" };
+
+  // A selected project must use this server-side filter; never fall back to a
+  // workspace-wide snapshot and filter it in the Projects browser.
+  const { data: scopedRows, error: scopedError } = await supabase.rpc("knowledge_list_project_meetings", {
+    p_workspace_id: workspaceId,
+    p_project_id: projectId ? String(projectId) : null,
+  });
+  if (!scopedError) {
+    const meetings = (Array.isArray(scopedRows) ? scopedRows : [])
+      .map((row) => row?.meeting || row)
+      .filter((item) => item && typeof item === "object" && item.id && item.title && !item.deleted_at);
+    return { ok: true, meetings, source: "knowledge-project-scoped-rpc" };
+  }
+  if (projectId) {
+    return {
+      ok: false,
+      meetings: [],
+      error: scopedError,
+      reason: missingObject(scopedError) ? "project-scoped-query-not-installed" : "project-scoped-query-failed",
+    };
+  }
+  if (!missingObject(scopedError)) return { ok: false, meetings: [], error: scopedError };
+
+  // Transitional fallback for the unfiltered view only. A project-specific read
+  // is never allowed to fall back to the workspace-wide snapshot.
   const normalized = await loadNormalizedKnowledge(workspaceId);
   if (normalized.available && normalized.data && !normalized.error) {
     const meetings = Array.isArray(normalized.data.meetings) ? normalized.data.meetings : [];
-    return { ok: true, meetings, source: "normalized" };
+    return {
+      ok: true,
+      meetings: meetings.map((item) => ({
+        ...item,
+        project_ref: item?.relatedSystem === "projects" ? item.relatedId || null : null,
+      })),
+      source: "normalized-legacy-fallback",
+    };
   }
   const { data, error } = await supabase
     .from("workspace_data")
@@ -232,5 +281,14 @@ export async function listKnowledgeMeetings(workspaceId) {
   if (error) return { ok: false, meetings: [], error };
   const raw = data?.data?.meetings;
   const meetings = Array.isArray(raw) ? raw : raw && typeof raw === "object" ? Object.values(raw) : [];
-  return { ok: true, meetings: meetings.filter((item) => item && typeof item === "object" && item.id && item.title && !item.deleted_at), source: "workspace_data" };
+  return {
+    ok: true,
+    meetings: meetings
+      .filter((item) => item && typeof item === "object" && item.id && item.title && !item.deleted_at)
+      .map((item) => ({
+        ...item,
+        project_ref: item?.relatedSystem === "projects" ? item.relatedId || null : null,
+      })),
+    source: "workspace_data-legacy-fallback",
+  };
 }
