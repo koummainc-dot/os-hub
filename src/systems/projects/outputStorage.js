@@ -56,3 +56,62 @@ export function outputFileMetadata({ file, objectPath, uploadedAt, checksum = nu
     checksum: checksum || null,
   };
 }
+
+
+/**
+ * Upload one Output file using an id that is created when the user selects it.
+ * If the network fails after Storage accepted the object, a retry can verify
+ * the same opaque path with a signed URL instead of creating a duplicate.
+ */
+export async function uploadOutputFileWithRetry({
+  storage,
+  workspaceId,
+  output,
+  pendingFile,
+  bucket = OUTPUT_STORAGE_BUCKET,
+}) {
+  const file = pendingFile?.file || null;
+  const fileId = String(pendingFile?.fileId || pendingFile?.file_id || "").trim();
+  const uploadedAt = pendingFile?.uploadedAt || pendingFile?.uploaded_at || null;
+  const validation = validateOutputUpload(file);
+  if (!validation.ok) throw new Error(validation.error);
+  if (!fileId || fileId.includes("/") || fileId.includes("..")) {
+    throw new Error("معرّف الملف المؤقت غير صالح.");
+  }
+  if (!storage || typeof storage.from !== "function") {
+    throw new Error("خدمة تخزين المخرجات غير متاحة.");
+  }
+  if (!output?.id || !output?.project_id) {
+    throw new Error("يجب حفظ سجل المخرج وربطه بالمشروع قبل رفع الملف.");
+  }
+
+  const objectPath = outputObjectPath({
+    workspaceId,
+    projectId: output.project_id,
+    outputId: output.id,
+    fileId,
+    filename: file.name,
+  });
+  const bucketApi = storage.from(bucket);
+  const { error } = await bucketApi.upload(objectPath, file, {
+    upsert: false,
+    contentType: file.type,
+  });
+
+  if (error) {
+    // The previous attempt may have reached Storage even if its response was
+    // lost. The random, stable fileId makes this path unique to this form item.
+    let alreadyUploaded = false;
+    try {
+      const existing = await bucketApi.createSignedUrl(objectPath, 60);
+      alreadyUploaded = !existing?.error && !!existing?.data?.signedUrl;
+    } catch {
+      alreadyUploaded = false;
+    }
+    if (!alreadyUploaded) {
+      throw new Error(error.message || "تعذر رفع الملف إلى مساحة التخزين.");
+    }
+  }
+
+  return outputFileMetadata({ file, objectPath, uploadedAt });
+}
