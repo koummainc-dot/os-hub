@@ -7,7 +7,8 @@ import { useP } from "./store.jsx";
 import * as D from "./domain.js";
 import { L, opts, STATUS_COLOR } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, ProjectName, ProjectForm, TaskTree, mOpts } from "./parts.jsx";
-import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView } from "./entities.jsx";
+import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView, DiscoveryView } from "./entities.jsx";
+import { normalizeKnowledgeFollowup, stableKnowledgeFollowupId, findKnowledgeFollowupTask } from "../knowledge/followupIdentity.js";
 import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
 
@@ -89,7 +90,7 @@ function ProjectWorkspaceNav({ groups, activeGroupId, activeTab, onGroupChange, 
     <div className="projects-workspace-nav-mobile">
       <label className="projects-workspace-nav-label" htmlFor="projects-workspace-section">قسم المشروع</label>
       <select id="projects-workspace-section" value={activeTab} onChange={(e) => onTabChange(e.target.value)}>
-        {groups.flatMap((group) => group.tabs.map((item) => <option key={item.id} value={item.id}>{group.label} — {item.label}</option>))}
+        {groups.flatMap((group) => group.tabs.filter((item) => !item.hidden).map((item) => <option key={item.id} value={item.id}>{group.label} — {item.label}</option>))}
       </select>
     </div>
     <div className="projects-workspace-nav-desktop">
@@ -99,7 +100,7 @@ function ProjectWorkspaceNav({ groups, activeGroupId, activeTab, onGroupChange, 
           <span aria-hidden="true">›</span>
         </button>
         <div className="projects-workspace-nav-items">
-          {group.tabs.map((item) => <button
+          {group.tabs.filter((item) => !item.hidden).map((item) => <button
             key={item.id}
             type="button"
             className={"projects-workspace-nav-item" + (item.id === activeTab ? " is-active" : "")}
@@ -124,14 +125,18 @@ function ProjectDetail() {
   const counts = { tasks: m.leafTotal, outputs: m.outputsCount, risks: m.openRisks, issues: m.openIssues, decisions: m.decisionsCount, prds: data.prds.filter((x) => x.project_id === p.id).length };
   const tabGroups = [
     { id: "overview", label: "نظرة عامة", defaultTab: "overview", tabs: [{ id: "overview", label: "نظرة عامة" }] },
-    { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "tasks", label: "المهام", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }] },
+    { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "discovery", label: "الاكتشاف" }, { id: "tasks", label: "المهام", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }, { id: "timeline", label: "الخط الزمني" }] },
     { id: "goals", label: "الأهداف", defaultTab: "okr", tabs: [{ id: "okr", label: "الأهداف (OKR)" }] },
-    { id: "delivery", label: "التسليم", defaultTab: "outputs", tabs: [{ id: "outputs", label: "المخرجات", count: counts.outputs }, { id: "work", label: "العمل والوقت" }, { id: "timeline", label: "الخط الزمني" }, { id: "related", label: "المراجع" }] },
+    { id: "delivery", label: "التسليم", defaultTab: "outputs", tabs: [{ id: "outputs", label: "المخرجات", count: counts.outputs }, { id: "work", label: "العمل والوقت" }] },
     { id: "governance", label: "الحوكمة", defaultTab: "risks", tabs: [{ id: "risks", label: "المخاطر", count: counts.risks }, { id: "issues", label: "المشاكل", count: counts.issues }, { id: "decisions", label: "القرارات", count: counts.decisions }] },
+    { id: "knowledge", label: "المعرفة والمراجع", defaultTab: "meetings", tabs: [{ id: "meetings", label: "الاجتماعات" }, { id: "resources", label: "المراجع والملفات" }, { id: "related", label: "المراجع (مسار قديم)", hidden: true }] },
+    { id: "finance", label: "المالية", defaultTab: "finance", tabs: [{ id: "finance", label: "الملف المالي" }] },
+    { id: "results", label: "النتائج", defaultTab: "wins", tabs: [{ id: "wins", label: "الإنجازات" }, { id: "updates", label: "تحديثات المشروع" }] },
     { id: "collaboration", label: "التعاون", defaultTab: "people", tabs: [{ id: "people", label: "الفريق" }, { id: "activity", label: "النشاط" }] },
   ];
-  // Keep these stable tab IDs for existing deep links while grouping the UI by workflow.
+  // Keep legacy "related" links resolvable; the visible resource tab is the canonical navigation entry.
   const activeGroup = tabGroups.find((group) => group.tabs.some((item) => item.id === tab)) || tabGroups[0];
+  const navActiveTab = tab === "related" ? "resources" : tab;
   const setGroup = (groupId) => { const group = tabGroups.find((item) => item.id === groupId); if (group) setTab(group.defaultTab); };
   const canE = can("project.edit", p);
   return (
@@ -149,12 +154,13 @@ function ProjectDetail() {
       <ProjectWorkspaceNav
         groups={tabGroups}
         activeGroupId={activeGroup.id}
-        activeTab={tab}
+        activeTab={navActiveTab}
         onGroupChange={setGroup}
         onTabChange={setTab}
       />
       {tab === "overview" && <Overview p={p} m={m} />}
       {tab === "tasks" && <TaskTree projectId={p.id} />}
+      {tab === "discovery" && <DiscoveryView projectId={p.id} />}
       {tab === "timeline" && <ProjectTimeline p={p} />}
       {tab === "outputs" && <OutputsView projectId={p.id} />}
       {tab === "work" && <WorkTab p={p} />}
@@ -164,7 +170,12 @@ function ProjectDetail() {
       {tab === "decisions" && <DecisionsView projectId={p.id} />}
       {tab === "people" && <PeopleTab p={p} canE={can("project.members", p)} />}
       {tab === "okr" && <ProjectOkr p={p} />}
-      {tab === "related" && <RelatedTab p={p} canE={canE} />}
+      {tab === "meetings" && <RelatedTab p={p} canE={canE} section="meetings" />}
+      {tab === "resources" && <RelatedTab p={p} canE={canE} section="resources" />}
+      {tab === "related" && <RelatedTab p={p} canE={canE} section="all" />}
+      {tab === "finance" && <ProjectFinanceTab p={p} />}
+      {tab === "wins" && <ProjectWinsTab p={p} />}
+      {tab === "updates" && <ProjectUpdatesTab p={p} />}
       {tab === "activity" && <div style={S.card}>{data.activity.filter((a) => a.entity_id === p.id || (a.entity === "tasks" && idx.byId[a.entity_id] && idx.byId[a.entity_id].project_id === p.id)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40).map((a) => <div key={a.id} style={{ fontSize: 12, padding: "4px 0", color: C.dim }}>{dateOf(a.at)} · {nameOf(a.actor_id)} · {a.action} {a.summary}</div>)}{!data.activity.some((a) => a.entity_id === p.id) && <span style={{ fontSize: 12, color: C.muted }}>لا نشاط مسجَّل</span>}</div>}
       {edit && <ProjectForm initial={p} onClose={() => setEdit(false)} />}
     </div>
@@ -198,11 +209,11 @@ function Overview({ p, m }) {
         <div style={{ fontSize: 12, color: C.dim, marginTop: 10, lineHeight: 1.9 }}>الموعد: {p.target_date ? `${fmt(p.target_date)} (${m.daysRemaining < 0 ? "تجاوز " + -m.daysRemaining + " يوم" : "باقٍ " + m.daysRemaining + " يوم"})` : "غير محدد"}<br />متأخرة: {m.overdueLeafCount} · مخاطر مفتوحة: {m.openRisks} (عالية {m.highOpenRisks}) · مشاكل: {m.openIssues} (حرجة {m.criticalOpenIssues})</div>
       </div>
       <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>الوقت والتكلفة</div>
-        <div style={{ fontSize: 12.5, lineHeight: 2 }}>التقدير: {fmtMinutes(m.estimated)} · الفعلي: {fmtMinutes(m.actual)}<br />{m.timeRatio != null ? <>نسبة الوقت: <b style={{ color: m.timeRatio > 1 ? C.bad : C.ok }}>{Math.round(m.timeRatio * 100)}%</b></> : "لا تقديرات لحساب النسبة"}<br />الميزانية المخطَّطة: {p.budget_planned != null ? `${p.budget_planned} ${p.budget_currency || ""}` : "—"} <span style={{ fontSize: 10.5, color: C.muted }}>(الفعلي يُربط بنظام المال لاحقاً)</span></div></div>
+        <div style={{ fontSize: 12.5, lineHeight: 2 }}>التقدير: {fmtMinutes(m.estimated)} · الفعلي: {fmtMinutes(m.actual)}<br />{m.timeRatio != null ? <>نسبة الوقت: <b style={{ color: m.timeRatio > 1 ? C.bad : C.ok }}>{Math.round(m.timeRatio * 100)}%</b></> : "لا تقديرات لحساب النسبة"}<br />الميزانية المخطَّطة: {p.budget_planned != null ? `${p.budget_planned} ${p.budget_currency || ""}` : "—"}</div><button type="button" onClick={() => setView({ ...view, tab: "finance" })} style={{ marginTop: 9, border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", font: "inherit", textDecoration: "underline" }}>فتح الملف المالي الفعلي في Finance OS ↗</button></div>
       <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>التتبّع (Traceability)</div>
         {cov ? <><Progress value={cov.ratio} /><div style={{ fontSize: 12, color: C.dim, marginTop: 6 }}>{cov.unlinked.length} مهمة بلا مواصفة أو اكتشاف{settings.traceabilityPolicy !== "off" ? "" : " (السياسة مُعطّلة)"}</div></> : <span style={{ fontSize: 12, color: C.muted }}>لا مهام</span>}</div>
       <div style={{ ...S.card, gridColumn: "1 / -1" }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>الهدف والوصف</div><div style={{ fontSize: 13, lineHeight: 1.9, whiteSpace: "pre-wrap" }}>{p.final_goal || "—"}{p.description ? "\n\n" + p.description : ""}</div></div>
-      {lateTasks.length > 0 && <div style={{ ...S.card, gridColumn: "1 / -1" }}><div style={{ fontSize: 13, fontWeight: 700, color: C.bad, marginBottom: 6 }}>مهام متأخرة ({lateTasks.length})</div>{lateTasks.slice(0, 8).map((t) => <div key={t.id} style={{ fontSize: 12.5, padding: "3px 0" }}>⏰ {t.title} — {fmtShort(t.due_date)} <Who id={t.assignee_id} size={15} /></div>)}</div>}
+      {lateTasks.length > 0 && <div style={{ ...S.card, gridColumn: "1 / -1" }}><div style={{ fontSize: 13, fontWeight: 700, color: C.bad, marginBottom: 6 }}>مهام متأخرة ({lateTasks.length})</div>{lateTasks.slice(0, 8).map((t) => <div key={t.id} style={{ fontSize: 12.5, padding: "3px 0", display: "flex", alignItems: "center", gap: 8 }}><button type="button" onClick={() => openTask(t.id)} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textAlign: "start", font: "inherit", textDecoration: "underline" }}>⏰ {t.title}</button><span>— {fmtShort(t.due_date)}</span><Who id={t.assignee_id} size={15} /></div>)}</div>
     </div>
   );
 }
@@ -280,12 +291,47 @@ function ProjectOkr({ p }) {
     </div>; })}
   </div>;
 }
-function RelatedTab({ p, canE }) {
+function ProjectFinanceTab({ p }) {
+  const { shell } = useP();
+  const available = typeof shell?.go === "function";
+  return <section style={S.card}>
+    <Head title="الملف المالي للمشروع" sub="Finance OS هو المصدر المعتمد للميزانية الفعلية والحركات والإيرادات والمصروفات والعائد." />
+    <p style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.9, margin: "6px 0 14px" }}>Projects يحتفظ بمرجع المشروع فقط. لن تُنشأ هنا نسخة من الحركات أو الأرقام المالية؛ افتح الملف المالي في Finance OS لإعداد الملف وربط الحركات الموجودة بصلاحياته الأصلية.</p>
+    <Btn kind="primary" disabled={!available} onClick={() => shell.go("system", "finance", "projects", { projectRef: p.id, fromSystem: "projects" })}>فتح أو إعداد الملف المالي ↗</Btn>
+    <div style={{ fontSize: 11, color: C.muted, marginTop: 9 }}>إعداد الملف المالي يتطلب صلاحية كتابة في Finance OS، أما العرض فيتبع صلاحية Finance المستقلة.</div>
+  </section>;
+}
+function ProjectWinsTab({ p }) {
+  const { data, idx, setPage, openTask } = useP();
+  const wins = data.wins.filter((win) => String(win.project_id || "") === String(p.id)).sort((a, b) => String(b.achieved_on || "").localeCompare(String(a.achieved_on || "")));
+  return <div style={{ display: "grid", gap: 10 }}>
+    <Head title="إنجازات المشروع" sub={`${wins.length} إنجاز مرتبط بهذا المشروع`} right={<Btn onClick={() => setPage("wins")}>فتح سجل الإنجازات ↗</Btn>} />
+    {!wins.length ? <Empty icon="🏆" title="لا توجد إنجازات مرتبطة بعد" sub="سجّل الإنجاز من سجل Projects العام واربطه بهذا المشروع." /> : wins.map((win) => <article key={win.id} style={S.card}>
+      <b>{win.title}</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{win.achieved_on || "بلا تاريخ"}</div>
+      {win.description && <p style={{ fontSize: 12, lineHeight: 1.8 }}>{win.description}</p>}
+      {(win.task_ids || (win.task_id ? [win.task_id] : [])).map((id) => idx.byId[id]).filter(Boolean).map((task) => <button type="button" key={task.id} onClick={() => openTask(task.id)} style={{ border: 0, padding: 0, marginInlineEnd: 8, color: C.info, background: "transparent", cursor: "pointer", textDecoration: "underline" }}>↗ {task.title}</button>)}
+    </article>)}
+  </div>;
+}
+function ProjectUpdatesTab({ p }) {
+  const { data, setPage } = useP();
+  const updates = data.updates.filter((update) => String(update.project_id || "") === String(p.id)).sort((a, b) => String(b.period_end || "").localeCompare(String(a.period_end || "")));
+  return <div style={{ display: "grid", gap: 10 }}>
+    <Head title="تحديثات المشروع" sub={`${updates.length} تحديث مرتبط بهذا المشروع`} right={<Btn onClick={() => setPage("updates")}>فتح سجل التحديثات ↗</Btn>} />
+    {!updates.length ? <Empty icon="📣" title="لا توجد تحديثات بعد" sub="يمكن إنشاء تحديث من سجل النتائج والتقارير وربطه بهذا المشروع." /> : updates.map((update) => <article key={update.id} style={S.card}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><b style={{ flex: 1 }}>{update.title || "تحديث المشروع"}</b><Chip color={update.status === "Published" ? C.ok : C.muted}>{update.status === "Published" ? "منشور" : "مسودة"}</Chip></div>
+      <div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{update.period_start || "—"} → {update.period_end || "—"}{update.published_at ? " · نُشر " + fmtShort(update.published_at.slice(0, 10)) : ""}</div>
+      {update.snapshot && <div style={{ fontSize: 12, marginTop: 7 }}>التقدم وقت النشر: {update.snapshot.progress == null ? "—" : Math.round(update.snapshot.progress * 100) + "%"} · {update.snapshot.leafCompleted ?? "—"}/{update.snapshot.leafTotal ?? "—"} · مخاطر مفتوحة {update.snapshot.openRisks ?? "—"} · مشاكل مفتوحة {update.snapshot.openIssues ?? "—"}</div>}
+      {update.sections?.highlights && <p style={{ fontSize: 12, lineHeight: 1.8, whiteSpace: "pre-wrap", marginBottom: 0 }}>{update.sections.highlights}</p>}
+    </article>)}
+  </div>;
+}
+function RelatedTab({ p, canE, section = "all" }) {
   const { A: act, toast, ws, data, can, me, today, setPage } = useP();
   const links = p.links || [];
   const [f, setF] = useState(false);
   const [meetings, setMeetings] = useState([]);
-  const [loadingMeetings, setLoadingMeetings] = useState(true);
+  const [loadingMeetings, setLoadingMeetings] = useState(section !== "resources");
   const [meetingError, setMeetingError] = useState("");
   const [creatingFollowup, setCreatingFollowup] = useState("");
   const creatingFollowupsRef = useRef(new Set());
@@ -303,7 +349,7 @@ function RelatedTab({ p, canE }) {
       setLoadingMeetings(false);
     }
   };
-  useEffect(() => { refreshMeetings(); }, [ws?.id]);
+  useEffect(() => { if (section !== "resources") refreshMeetings(); }, [ws?.id, section]);
 
   const linkedMeetings = meetings
     .filter((meeting) => !meeting.archived && meeting.status !== "archived")
@@ -311,7 +357,8 @@ function RelatedTab({ p, canE }) {
     .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
 
   async function createFollowupTask(meeting, followup, index) {
-    const key = String(meeting.id) + ":" + index;
+    const followupIdentity = stableKnowledgeFollowupId(meeting.id, followup);
+    const key = followupIdentity || String(meeting.id) + ":" + index;
     if (creatingFollowupsRef.current.has(key)) return;
     if (p.archived_at || p.status === "Archived") {
       toast("استعد المشروع قبل إنشاء مهام متابعة جديدة.");
@@ -321,14 +368,12 @@ function RelatedTab({ p, canE }) {
       toast("ليس لديك صلاحية إنشاء مهام في هذا المشروع.");
       return;
     }
-    const existing = data.tasks.find((task) =>
-      task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index
-    );
+    const existing = findKnowledgeFollowupTask(data.tasks, meeting.id, followup, index);
     if (existing) {
       toast("هذه المتابعة مرتبطة بالفعل بمهمة: " + existing.title);
       return;
     }
-    const title = String(followup || "").trim();
+    const title = normalizeKnowledgeFollowup(followup).title;
     if (!title || typeof act.saveTask !== "function") return;
     creatingFollowupsRef.current.add(key);
     setCreatingFollowup(key);
@@ -342,6 +387,8 @@ function RelatedTab({ p, canE }) {
         due_date: meeting.date && meeting.date >= today ? meeting.date : "",
         source_meeting_id: meeting.id,
         source_meeting_title: meeting.title || "",
+        source_followup_id: followupIdentity,
+        source_followup_title: title,
         source_followup_index: index,
       }, true);
       if (saved) toast("✅ أُنشئت مهمة متابعة مرتبطة باجتماع Knowledge OS.");
@@ -354,7 +401,7 @@ function RelatedTab({ p, canE }) {
   }
 
   return <div style={{ display: "grid", gap: 12 }}>
-    <section style={S.card}>
+    {section !== "resources" && <section style={S.card}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <b style={{ fontSize: 13 }}>اجتماعات مرتبطة بالمشروع</b>
         <Chip>{linkedMeetings.length}</Chip>
@@ -378,10 +425,12 @@ function RelatedTab({ p, canE }) {
             {Array.isArray(meeting.attendees) && meeting.attendees.length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>المشاركون: {meeting.attendees.join("، ")}</div>}
             {meeting.decisions && <div style={{ fontSize: 12, lineHeight: 1.8, marginTop: 5 }}><b>القرارات:</b> {meeting.decisions}</div>}
             {followups.length > 0 && <div style={{ marginTop: 7, fontSize: 12 }}><b>بنود المتابعة</b><ul style={{ margin: "4px 0", paddingInlineStart: 20 }}>{followups.map((followup, index) => {
-              const existing = data.tasks.find((task) => task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index);
-              const key = String(meeting.id) + ":" + index;
-              return <li key={index} style={{ marginBottom: 6 }}>
-                <div>{String(followup)}</div>
+              const details = normalizeKnowledgeFollowup(followup);
+              const existing = findKnowledgeFollowupTask(data.tasks, meeting.id, followup, index);
+              const key = stableKnowledgeFollowupId(meeting.id, followup) || String(meeting.id) + ":" + index;
+              if (!details.title) return null;
+              return <li key={key} style={{ marginBottom: 6 }}>
+                <div>{details.title}</div>
                 {existing ? <div style={{ fontSize: 11, color: C.ok, marginTop: 2 }}>✓ مهمة مرتبطة: {existing.title}</div>
                   : !p.archived_at && p.status !== "Archived" && can("task.write", p) ? <Btn small disabled={creatingFollowup === key} onClick={() => createFollowupTask(meeting, followup, index)}>{creatingFollowup === key ? "جارٍ الإنشاء…" : "تحويل إلى مهمة"}</Btn>
                     : <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{p.archived_at || p.status === "Archived" ? "استعد المشروع لإنشاء مهمة متابعة." : "لا تملك صلاحية إنشاء مهام في هذا المشروع."}</div>}
@@ -389,8 +438,8 @@ function RelatedTab({ p, canE }) {
             })}</ul></div>}
           </article>;
         })}
-    </section>
-    <section style={S.card}>
+    </section>}
+    {section !== "meetings" && <section style={S.card}>
       <b style={{ fontSize: 13 }}>روابط ومراجع خارجية</b>
       <div style={{ fontSize: 12, color: C.muted, margin: "6px 0 8px" }}>تظل الروابط الخارجية مملوكة للمشروع.</div>
       {links.map((l, i) => <div key={i} style={{ marginBottom: 10 }}>
@@ -400,6 +449,6 @@ function RelatedTab({ p, canE }) {
       {!links.length && <span style={{ fontSize: 12, color: C.muted }}>لا مراجع</span>}
       {canE && <div style={{ marginTop: 10 }}><Btn small onClick={() => setF(true)}>➕ رابط</Btn></div>}
       {f && <FormModal title="رابط مرجعي" initial={{}} onClose={() => setF(false)} fields={[{ key: "title", label: "العنوان" }, { key: "url", label: "الرابط", type: "url", required: true }]} onSubmit={async (v) => { await act.saveProject({ ...p, links: [...links, v] }, false); setF(false); }} />}
-    </section>
+    </section>}
   </div>;
 }
