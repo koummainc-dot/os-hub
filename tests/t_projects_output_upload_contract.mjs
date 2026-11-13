@@ -117,7 +117,7 @@ await assert.rejects(
 );
 const taskSheet = parts.slice(parts.indexOf("export function TaskSheet"), parts.indexOf("export function SessionForm"));
 assert.ok(taskSheet.includes("uploadOutputFileWithRetry"), "Task Sheet outputs use the canonical private Storage upload helper");
-assert.ok(taskSheet.includes("set(\"__pendingFiles\", files.map((file) => ({ file, fileId: uid()"), "Task Sheet preserves a stable ID for each selected file");
+assert.ok(taskSheet.includes("set(\"__pendingFiles\", [...(values.__pendingFiles || []), ...files.map((file) => ({ file, fileId: uid()"), "Task Sheet appends selections and preserves a stable ID for each selected file");
 assert.ok(taskSheet.includes("createSignedUrl(file.object_path, 60)"), "Task Sheet downloads private files with short-lived signed URLs");
 assert.ok(taskSheet.includes("الملفات التي اكتمل ربطها محفوظة") && taskSheet.includes("أعد الضغط على «حفظ»"), "Task Sheet explains which work was preserved and how to resume a failed upload");
 assert.ok(!taskSheet.includes("رفع الملفات غير متاح في هذا الإصدار"), "Task Sheet no longer incorrectly claims file upload is unavailable");
