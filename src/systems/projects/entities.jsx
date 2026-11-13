@@ -174,11 +174,14 @@ export function OutputsView({ projectId }) {
 }
 // ═════ Risks (+ 5×5 matrix) ═════
 export function RisksView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, settings, confirm, openProject, idx, openTask, view } = useP();
-  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState(view.focusRecord?.kind === "risk" ? "all" : "open"); const [closing, setClosing] = useState(null); const [reopening, setReopening] = useState(null); const [creatingMitigation, setCreatingMitigation] = useState({}); const convertingRiskIds = useRef(new Set());
+  const { data, A: act, can, projectsById, people, toast, settings, confirm, openProject, idx, openTask, view, setView } = useP();
+  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState(view.focusRecord?.kind === "risk" ? "all" : view.riskStatusFilter || "open"); const [highOnly, setHighOnly] = useState(view.riskHighOnly === true); const [closing, setClosing] = useState(null); const [reopening, setReopening] = useState(null); const [creatingMitigation, setCreatingMitigation] = useState({}); const convertingRiskIds = useRef(new Set());
   const base = data.risks.filter((r) => !projectId || r.project_id === projectId);
-  const list = base.filter((r) => (st === "all" ? true : st === "open" ? D.isOpenRisk(r) : r.status === st)).sort((a, b) => D.riskScore(b) - D.riskScore(a));
-  useEffect(() => { if (view.focusRecord?.kind === "risk") setSt("all"); }, [view.focusRecord?.kind, view.focusRecord?.id]);
+  const list = base.filter((r) =>
+    (st === "all" ? true : st === "open" ? D.isOpenRisk(r) : r.status === st)
+    && (!highOnly || (D.isOpenRisk(r) && D.riskScore(r) >= settings.riskHigh))
+  ).sort((a, b) => D.riskScore(b) - D.riskScore(a));
+  useEffect(() => { if (view.focusRecord?.kind === "risk") { setSt("all"); setHighOnly(false); } }, [view.focusRecord?.kind, view.focusRecord?.id]);
   useRecordFocus(view, "risk", projectId, list.length);
   const canNew = projectId ? can("risk.write", projectsById[projectId]) : data.projects.some((p) => can("risk.write", p));
   const lvlColor = (r) => ({ High: C.bad, Medium: C.warn, Low: C.ok })[D.riskLevel(r, settings)];
@@ -213,7 +216,9 @@ export function RisksView({ projectId }) {
       {!projectId && <Head title="المخاطر والمشاكل والقرارات" sub="" />}
       <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
         {canNew && <Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ خطر</Btn>}<Seg small value={mode} onChange={setMode} options={[{ v: "list", l: "قائمة" }, { v: "matrix", l: "مصفوفة 5×5" }]} />
-        <select style={{ ...S.sel, width: 130 }} value={st} onChange={(e) => setSt(e.target.value)}><option value="open">المفتوحة</option><option value="all">الكل</option>{opts(L.riskStatus).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select>
+        <select aria-label="حالة المخاطر" style={{ ...S.sel, width: 130 }} value={st} onChange={(e) => { setSt(e.target.value); setView((current) => ({ ...current, riskStatusFilter: e.target.value })); }}><option value="open">المفتوحة</option><option value="all">الكل</option>{opts(L.riskStatus).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select>
+        <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12 }}><input type="checkbox" checked={highOnly} onChange={(e) => { const checked = e.target.checked; setHighOnly(checked); setSt(checked ? "open" : st); setView((current) => ({ ...current, riskHighOnly: checked, riskStatusFilter: checked ? "open" : current.riskStatusFilter })); }} />المخاطر العالية المفتوحة فقط</label>
+        {(highOnly || st !== "open") && <Btn small onClick={() => { setSt("open"); setHighOnly(false); setView((current) => ({ ...current, riskStatusFilter: "open", riskHighOnly: false })); }}>مسح الفلاتر</Btn>}
       </div>
       {mode === "matrix" ? (
         <div style={S.card}><div style={{ display: "grid", gridTemplateColumns: "40px repeat(5,1fr)", gap: 4 }}>
