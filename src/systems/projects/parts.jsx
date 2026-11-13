@@ -4,7 +4,7 @@ import { C, Btn, Chip, Dot, Avatar, Progress, SideSheet, FormModal, Tabs, Empty,
 import { fmt, fmtShort, fmtMinutes, diffDays, dateOf } from "../../core/dates.js";
 import { uid } from "../../core/records.jsx";
 import { supabase } from "../../core/supabase.js";
-import { OUTPUT_STORAGE_BUCKET, outputObjectPath, validateOutputUpload, uploadOutputFileWithRetry } from "./outputStorage.js";
+import { OUTPUT_STORAGE_BUCKET, validateOutputUpload, findOutputUploadIntent, uploadOutputFilesWithRecovery } from "./outputStorage.js";
 import { useP } from "./store.jsx";
 import * as D from "./domain.js";
 import { L, opts, PRIORITY_COLOR, STATUS_COLOR, SEV_COLOR } from "./lookups.js";
@@ -205,47 +205,46 @@ export function TaskSheet() {
       approved_by: v.approval === "Final" ? me : null,
       approved_at: v.approval === "Final" ? new Date().toISOString() : null,
       files: mergeOutputFiles(existing?.files || [], v.files || [], savedProgress),
+      upload_intents: Array.isArray(v.upload_intents) ? v.upload_intents : (existing?.upload_intents || []),
     };
     delete rec.__pendingFiles;
 
     // The canonical Output row must exist before the private Storage RLS policy permits upload.
-    await act.put("outputs", rec, project);
+    const savedOutput = await act.put("outputs", rec, project);
+    if (!savedOutput || (pendingFiles.length && savedOutput._syncPending)) {
+      throw new Error("لم يؤكد الخادم حفظ سجل المخرج؛ لم يبدأ رفع الملفات. تحقق من الاتصال ثم أعد المحاولة.");
+    }
+    rec = savedOutput;
     try {
       if (pendingFiles.length && !ws?.id) throw new Error("المساحة الحالية غير متاحة لرفع الملفات.");
-      for (const pendingFile of pendingFiles) {
-        const objectPath = outputObjectPath({
-          workspaceId: ws.id,
-          projectId: rec.project_id,
-          outputId: rec.id,
-          fileId: pendingFile.fileId,
-          filename: pendingFile.file?.name,
-        });
-        if ((rec.files || []).some((file) => file && typeof file === "object" && file.object_path === objectPath)) continue;
-        const metadata = await uploadOutputFileWithRetry({
+      if (pendingFiles.length) {
+        rec = await uploadOutputFilesWithRecovery({
           storage: supabase.storage,
           workspaceId: ws.id,
           output: rec,
-          pendingFile,
+          pendingFiles,
+          saveOutput: async (next) => {
+            const saved = await act.put("outputs", next, project);
+            if (!saved || saved._syncPending) throw new Error("لم يؤكد الخادم حفظ نية الرفع أو بيانات الملف؛ أعد المحاولة قبل رفع أي ملف.");
+            outputUploadProgressRef.current.set(saved.id, saved.files || []);
+            return saved;
+          },
         });
-        const next = { ...rec, files: mergeOutputFiles(rec.files || [], [metadata]) };
-        // Persist each file immediately so a later failure can be resumed safely.
-        await act.put("outputs", next, project);
-        rec = next;
-        outputUploadProgressRef.current.set(rec.id, rec.files);
       }
       outputUploadProgressRef.current.delete(rec.id);
       toast(pendingFiles.length ? "✅ تم حفظ المخرج ورفع الملفات بأمان" : existing ? "✅ تم تحديث المخرج" : "✅ تم إنشاء المخرج وربطه بالمهمة");
       setOutputForm(null);
     } catch (error) {
+      const latestFiles = outputUploadProgressRef.current.get(rec.id) || rec.files || [];
       const failedName = pendingFiles.find((pendingFile) => {
         const file = pendingFile?.file;
         if (!file) return false;
-        return !rec.files.some((saved) => saved?.name === file.name && saved?.size_bytes === file.size);
+        return !latestFiles.some((saved) => saved?.name === file.name && saved?.size_bytes === file.size);
       })?.file?.name;
       throw new Error(
         "تم حفظ سجل المخرج. " +
         (failedName ? "تعذر رفع أو ربط الملف «" + failedName + "». " : "تعذر إكمال رفع الملفات. ") +
-        "الملفات التي اكتمل ربطها محفوظة؛ أعد الضغط على «حفظ» لإكمال المحاولة دون تكرار الملفات. " +
+        "الملفات التي اكتمل ربطها محفوظة، ونوايا الملفات غير المكتملة محفوظة داخل سجل المخرج. بعد إعادة التحميل افتح تعديل المخرج وأعد اختيار الملف نفسه لإكمال الربط دون إنشاء نسخة. " +
         (error?.message || "فشل الرفع")
       );
     }
@@ -311,13 +310,19 @@ export function TaskSheet() {
         <div style={{ gridColumn: "1 / -1", marginTop: 8, border: "1px solid " + C.line, borderRadius: 8, padding: 10 }}>
           <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, marginBottom: 6 }}>📎 ملفات المخرج</div>
           {(values.files || []).map((file, index) => <div key={file.object_path || index} style={{ fontSize: 11.5, color: C.dim, marginBottom: 4 }}>✓ {typeof file === "string" ? file : file.name || "ملف"}{file.size_bytes ? " · " + Math.ceil(file.size_bytes / 1024) + " KB" : ""}</div>)}
+          {(values.upload_intents || []).length > 0 && <div style={{ marginBottom: 8, padding: 8, borderRadius: 6, background: "rgba(245,158,11,0.08)", fontSize: 11.5, color: C.warn }}>ملفات محفوظة تنتظر الاستكمال: {(values.upload_intents || []).map((intent) => `${intent.name} (${Math.ceil((intent.size_bytes || 0) / 1024)} KB)`).join("، ")}. أعد اختيار الملف نفسه؛ سنستخدم معرّف ومسار الرفع المحفوظين.</div>}
           <input type="file" multiple onChange={(event) => {
             const files = Array.from(event.target.files || []);
             const invalid = files.map(validateOutputUpload).find((result) => !result.ok);
             if (invalid) { toast("⛔ " + invalid.error); event.target.value = ""; return; }
-            set("__pendingFiles", [...(values.__pendingFiles || []), ...files.map((file) => ({ file, fileId: uid(), uploadedAt: new Date().toISOString() }))]);
+            const pending = [...(values.__pendingFiles || [])];
+            const additions = files.filter((file) => !pending.some((item) => item.file?.name === file.name && item.file?.size === file.size && item.file?.lastModified === file.lastModified)).map((file) => {
+              const intent = findOutputUploadIntent(values.upload_intents, file);
+              return { file, fileId: intent?.file_id || uid(), uploadedAt: intent?.uploaded_at || new Date().toISOString() };
+            });
+            set("__pendingFiles", [...pending, ...additions]);
           }} accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.txt,.csv,.json,.zip,.docx,.xlsx,.pptx" />
-          {(values.__pendingFiles || []).length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>ملفات محددة: {(values.__pendingFiles || []).map((item) => item.file?.name).filter(Boolean).join("، ")}. عند فشل الاتصال، أعد الضغط على «حفظ» لإكمال الرفع دون تكرار الملفات.</div>}
+          {(values.__pendingFiles || []).length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>ملفات محددة: {(values.__pendingFiles || []).map((item) => item.file?.name).filter(Boolean).join("، ")}. إذا فشل الربط، سيبقى معرّف الرفع محفوظًا بعد إعادة تحميل الصفحة.</div>}
         </div>
       )} />}
       {edit && <TaskForm initial={t} onClose={() => setEdit(false)} />}
