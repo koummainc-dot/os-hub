@@ -31,7 +31,7 @@ The full phase/gate/decision/feature map is now recorded in **[`master-spec-stat
 - **Knowledge:** separate Meetings and project-owned References tabs; new task links use stable follow-up identity with legacy index/title fallback.
 - **Finance:** context handoff to Finance OS; Finance selects its existing profile or pre-fills its own form; no finance profile/transaction is written by Projects.
 - **Results:** project-scoped Wins and Updates read views; canonical records remain in Projects.
-- **Overview & Portfolio:** actionable Project Overview metrics open Tasks/Timeline/Work or exact Risk/Issue lists; traceability opens the exact unlinked task IDs. Portfolio supports Cards/Table/Board/Timeline/Calendar, project-ID search, combined filters, Project create permission, metric drill-downs, a Timeline today marker and explicit Not Measurable state. Project Header has permission-gated shortcuts to canonical create sections. Saved Views and Finance Link Status remain deferred on their owners' contracts.
+- **Overview & Portfolio:** actionable Project Overview metrics open Tasks/Timeline/Work or exact Risk/Issue lists; traceability opens the exact unlinked task IDs. Portfolio supports Cards/Table/Board/Timeline/Calendar, project-ID search, combined filters, Project create permission, metric drill-downs, a Timeline today marker and explicit Not Measurable state. Project Header has permission-gated create actions that open the existing canonical Task/Output/PRD/Risk/Issue/Decision/Resource form directly. Saved Views and Finance Link Status remain deferred on their owners' contracts.
 - **Style:** remaining blue focus/selection/hover values checked in the stylesheet were aligned to the shared orange accent. Shared component consolidation and manual visual approval remain open.
 
 ## Open release blockers
@@ -39,7 +39,7 @@ The full phase/gate/decision/feature map is now recorded in **[`master-spec-stat
 - Canonical Knowledge `project_ref`, old reference backfill and server-side follow-up idempotency remain blocked by data-contract/no-loss work.
 - Finance read model, sync states, currency mismatch handling, transaction attribution and real role-specific visibility are not implemented/proven.
 - Saved Views (D-06), Unified Inbox (D-07), Milestone model (D-08), language scope (D-09) and legacy KR/Task migration (D-12) remain open or deferred.
-- Project Header shortcuts navigate to canonical creation sections but do not yet directly open each create modal; Portfolio Saved Views/Finance Link Status and richer Calendar events remain open; Activity aggregation, Weekly Review privacy and immutable Update Snapshot/Addendum E2E are not fully accepted.
+- Project Header shortcuts now open the canonical create modals directly; automated contract coverage is added, while live Preview acceptance remains pending; Portfolio Saved Views/Finance Link Status and richer Calendar events remain open; Activity aggregation, Weekly Review privacy and immutable Update Snapshot/Addendum E2E are not fully accepted.
 - Manual 360px/tablet/desktop RTL, keyboard/accessibility, offline/conflict/retry, performance and browser Back/deep-link acceptance remain unverified.
 - Real-data Create → Reload → Edit → Reload → Archive/Restore → Reload and at least two authorized accounts plus one restricted account remain unrun.
 - No production migration, rollback rehearsal, owner release approval or production deployment has occurred.
@@ -52,4 +52,4 @@ The full phase/gate/decision/feature map is now recorded in **[`master-spec-stat
 - No duplicate Milestone, Saved View, Inbox or finance ledger model was introduced.
 
 ## Next work batch
-Continue only the safe, code-only parts of Phase 2/3: open create modals directly from the Project Header shortcuts where supported, reconcile Task Sheet/Outputs Storage messaging and retry states, and add remaining exact-record/empty/error/permission assertions. Do not add Saved Views persistence, Milestones, Finance Link Status or Knowledge/Finance schema changes until their D-06/D-08/G4/G5 gates are resolved.
+Continue only the safe, code-only parts of Phase 2/3: verify the seven Project Header quick-create flows in Preview, reconcile Task Sheet/Outputs Storage messaging and retry states, and add remaining exact-record/empty/error/permission assertions. Do not add Saved Views persistence, Milestones, Finance Link Status or Knowledge/Finance schema changes until their D-06/D-08/G4/G5 gates are resolved.
