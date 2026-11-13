@@ -35,10 +35,10 @@ export function findKnowledgeFollowupTask(tasks, meetingId, value, legacyIndex) 
   return rows.find((task) => String(task.source_meeting_id ?? "") === meeting
       && identity && String(task.source_followup_id ?? "") === identity)
     || rows.find((task) => String(task.source_meeting_id ?? "") === meeting
+      && task.source_followup_id == null
+      && title && normalizeText(task.source_followup_title ?? task.title) === title)
+    || rows.find((task) => String(task.source_meeting_id ?? "") === meeting
       && legacyIndex != null && task.source_followup_id == null
       && Number(task.source_followup_index) === Number(legacyIndex))
-    || rows.find((task) => String(task.source_meeting_id ?? "") === meeting
-      && task.source_followup_id == null && task.source_followup_index == null
-      && title && normalizeText(task.source_followup_title ?? task.title) === title)
     || null;
 }
