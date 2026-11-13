@@ -26,6 +26,12 @@ assert.ok(detail.includes('filterLabel={taskFilterLabel}') && detail.includes('f
 assert.ok(overview.includes("taskFilterIds: []"), "opening the all-tasks view clears stale metric IDs");
 
 assert.ok(detail.includes('<TaskTree projectId={p.id} filter={taskFilter} filterLabel={taskFilterLabel} />'), "Project Detail passes the metric filter into the canonical task tree");
+assert.ok(detail.includes("＋ إضافة") && detail.includes('can("task.write", p)'), "Project Header exposes the contextual add menu when the user can create records");
+for (const [permission,tab] of [["task.write","tasks"],["output.write","outputs"],["prd.write","prds"],["risk.write","risks"],["issue.write","issues"],["decision.write","decisions"]]) {
+  assert.ok(detail.includes(`can("${permission}", p)`) && detail.includes(`tab: "${tab}"`), `Project Header contextual add menu routes ${permission} to its canonical section`);
+}
+assert.ok(detail.includes("canE && <button") && detail.includes('tab: "resources"'), "Project Header only exposes project-owned reference creation to project editors");
+
 
 const taskTree = parts.slice(parts.indexOf("export function TaskTree"), parts.indexOf("function StatusChipSm"));
 assert.ok(taskTree.includes("&& matches(t)"), "task filters apply to table, board, calendar and timeline data");
