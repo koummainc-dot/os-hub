@@ -77,6 +77,57 @@ for each row execute function public.knowledge_sync_external_links();
 
 revoke all on function public.knowledge_sync_external_links() from public, anon, authenticated;
 
+-- The table can also be written directly through PostgREST. Apply the same
+-- Projects visibility rule in RLS so callers cannot bypass the item trigger.
+drop policy if exists knowledge_external_links_insert on public.knowledge_external_links;
+create policy knowledge_external_links_insert on public.knowledge_external_links
+for insert to authenticated
+with check (
+  public.ws_access_level(workspace_id, 'knowledge', 'main') = 'edit'
+  and (
+    target_system <> 'projects'
+    or (
+      public.ws_access_level(workspace_id, 'projects', 'projects') in ('view','edit')
+      and exists (
+        select 1
+          from public.workspace_records p
+         where p.workspace_id = knowledge_external_links.workspace_id
+           and p.system_id = 'projects'
+           and p.collection = 'projects'
+           and p.id = knowledge_external_links.target_id
+           and p.deleted = false
+           and p.data->>'deleted_at' is null
+           and (p.visible_to is null or auth.uid() = any(p.visible_to))
+      )
+    )
+  )
+);
+
+drop policy if exists knowledge_external_links_update on public.knowledge_external_links;
+create policy knowledge_external_links_update on public.knowledge_external_links
+for update to authenticated
+using (public.ws_access_level(workspace_id, 'knowledge', 'main') = 'edit')
+with check (
+  public.ws_access_level(workspace_id, 'knowledge', 'main') = 'edit'
+  and (
+    target_system <> 'projects'
+    or (
+      public.ws_access_level(workspace_id, 'projects', 'projects') in ('view','edit')
+      and exists (
+        select 1
+          from public.workspace_records p
+         where p.workspace_id = knowledge_external_links.workspace_id
+           and p.system_id = 'projects'
+           and p.collection = 'projects'
+           and p.id = knowledge_external_links.target_id
+           and p.deleted = false
+           and p.data->>'deleted_at' is null
+           and (p.visible_to is null or auth.uid() = any(p.visible_to))
+      )
+    )
+  )
+);
+
 create or replace function public.knowledge_list_project_meetings(
   p_workspace_id uuid,
   p_project_id text default null
