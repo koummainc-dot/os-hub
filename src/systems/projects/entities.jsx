@@ -129,9 +129,10 @@ export function OutputsView({ projectId }) {
       toast(pendingFiles.length ? "✅ تم حفظ المخرج ورفع الملفات بأمان" : "✅ تم الحفظ");
       setForm(null);
     } catch (error) {
+      const latestFiles = uploadProgressRef.current.get(rec.id) || rec.files || [];
       const fileName = pendingFiles.find((item) => {
         const candidate = item?.file;
-        return candidate && !rec.files.some((saved) => saved?.name === candidate.name && saved?.size_bytes === candidate.size);
+        return candidate && !latestFiles.some((saved) => saved?.name === candidate.name && saved?.size_bytes === candidate.size);
       })?.file?.name;
       throw new Error(
         "تم حفظ سجل المخرج كمسودة. " +
@@ -194,7 +195,7 @@ export function OutputsView({ projectId }) {
             const files = Array.from(e.target.files || []);
             const errors = files.map(validateOutputUpload).filter((x) => !x.ok).map((x) => x.error);
             if (errors.length) { toast("⛔ " + errors[0]); e.target.value = ""; return; }
-            set("__pendingFiles", files.map((file) => ({ file, fileId: uid(), uploadedAt: nowIso() })));
+            set("__pendingFiles", [...(values.__pendingFiles || []), ...files.map((file) => ({ file, fileId: uid(), uploadedAt: nowIso() }))]);
           }} accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.txt,.csv,.json,.zip,.docx,.xlsx,.pptx" />
           {(values.__pendingFiles || []).length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>ملفات جاهزة للرفع: {(values.__pendingFiles || []).map((item) => item.file?.name).filter(Boolean).join("، ")}. عند تعذر الاتصال، أعد الضغط على «حفظ» لإكمال المحاولة دون تكرار الملفات.</div>}
         </div>
