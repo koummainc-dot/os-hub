@@ -14,8 +14,8 @@ declare
     'projects_guard_prd_verified_requirement_evidence_trg'
   ];
   trigger_name text;
-  deferrable boolean;
-  initially_deferred boolean;
+  trigger_is_deferrable boolean;
+  trigger_is_initially_deferred boolean;
   function_oid oid;
   function_def text;
 begin
@@ -36,7 +36,7 @@ begin
   end loop;
 
   select t.tgdeferrable,t.tginitdeferred
-    into deferrable,initially_deferred
+    into trigger_is_deferrable,trigger_is_initially_deferred
     from pg_trigger t
     join pg_class c on c.oid=t.tgrelid
     join pg_namespace n on n.oid=c.relnamespace
@@ -44,7 +44,7 @@ begin
      and c.relname='workspace_records'
      and t.tgname='projects_guard_task_issue_references_trg'
      and not t.tgisinternal;
-  if not coalesce(deferrable,false) or not coalesce(initially_deferred,false) then
+  if not coalesce(trigger_is_deferrable,false) or not coalesce(trigger_is_initially_deferred,false) then
     raise exception 'Task ↔ Issue guard must remain DEFERRABLE INITIALLY DEFERRED';
   end if;
 
