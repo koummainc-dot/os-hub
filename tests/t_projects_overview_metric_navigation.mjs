@@ -48,7 +48,10 @@ for (const [kind, start, end] of entityQuickCreates) {
   const startAt = entities.indexOf(start);
   const endAt = entities.indexOf(end, startAt + start.length);
   const section = entities.slice(startAt, endAt < 0 ? undefined : endAt);
-  assert.ok(section.includes(`view.quickCreate !== "${kind}"`) && section.includes("if (canNew) setForm({ project_id: projectId })") && section.includes("quickCreate: null"), `${kind} opens its existing permission-gated canonical form`);
+  const createForm = kind === "output"
+    ? section.includes("if (canNew) setForm({ id: uid(), project_id: projectId })")
+    : section.includes("if (canNew) setForm({ project_id: projectId })");
+  assert.ok(section.includes(`view.quickCreate !== "${kind}"`) && createForm && section.includes("quickCreate: null"), `${kind} opens its existing permission-gated canonical form`);
 }
 const related = screensB.slice(screensB.indexOf("function RelatedTab"));
 assert.ok(related.includes('view.quickCreate !== "resource"') && related.includes("setF(true)") && related.includes("quickCreate: null"), "Resources opens its existing project-link form");
