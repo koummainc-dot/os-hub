@@ -297,7 +297,7 @@ export function Tasks() {
 // ═════ Portfolio ═════
 // Cross-project portfolio view; derived only from existing workspace records.
 export function Portfolio() {
-  const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, setView, people, can } = useP();
+  const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, setView, people, can, view } = useP();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("active");
   const [newProjectOpen, setNewProjectOpen] = useState(false);
@@ -422,7 +422,7 @@ export function Portfolio() {
               <td style={{ padding: 9 }}>{people.find((person) => person.id === p.lead_id)?.name || "—"}</td>
               <td style={{ padding: 9, minWidth: 110 }}>{(p.members || []).length ? <span>{p.members.slice(0, 2).map((member) => people.find((person) => person.id === member.member_id)?.name || "عضو").join("، ")}{p.members.length > 2 ? " +" + (p.members.length - 2) : ""}</span> : "—"}</td>
               <td style={{ padding: 9 }}>{L.priority[p.priority] || p.priority || "—"}</td>
-              <td style={{ padding: 9 }}>{issueCount}</td><td style={{ padding: 9 }}>{riskCount}</td>
+              <td style={{ padding: 9 }}><button type="button" onClick={() => setView({ ...view, projectId: p.id, tab: "issues", issueStatusFilter: "open", issueSeverityFilter: "", focusRecord: null })} style={{ border: 0, background: "transparent", padding: 0, color: issueCount ? C.info : C.muted, cursor: "pointer", textDecoration: issueCount ? "underline" : "none", font: "inherit" }}>{issueCount}</button></td><td style={{ padding: 9 }}><button type="button" onClick={() => setView({ ...view, projectId: p.id, tab: "risks", riskStatusFilter: "open", riskHighOnly: false, focusRecord: null })} style={{ border: 0, background: "transparent", padding: 0, color: riskCount ? C.info : C.muted, cursor: "pointer", textDecoration: riskCount ? "underline" : "none", font: "inherit" }}>{riskCount}</button></td>
             </tr>;
           })}</tbody>
         </table>
@@ -441,7 +441,7 @@ export function Portfolio() {
             const left = timelinePosition(start), width = Math.max(1.5, timelinePosition(finish) - left);
             return <div key={p.id} style={{ display: "grid", gridTemplateColumns: "190px 1fr", gap: 10, alignItems: "center", marginBottom: 9 }}>
               <button type="button" onClick={() => openProject(p.id)} style={{ border: 0, background: "transparent", padding: 0, font: "inherit", textAlign: "start", color: C.info, cursor: "pointer", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</button>
-              <div style={{ position: "relative", height: 25, borderRadius: 6, background: "rgba(0,0,0,.04)" }}><div title={fmtShort(start) + " → " + fmtShort(finish)} style={{ position: "absolute", insetInlineStart: left + "%", width: width + "%", top: 3, height: 19, borderRadius: 5, background: metrics[p.id]?.health === "Red" ? "rgba(239,68,68,.2)" : metrics[p.id]?.health === "Orange" ? "rgba(239,159,39,.22)" : "rgba(16,185,129,.18)", border: "1px solid " + (metrics[p.id]?.health === "Red" ? C.bad : metrics[p.id]?.health === "Orange" ? C.orange : C.ok) }} /></div>
+              <div style={{ position: "relative", height: 25, borderRadius: 6, background: "rgba(0,0,0,.04)" }}><div title={fmtShort(start) + " → " + fmtShort(finish)} style={{ position: "absolute", insetInlineStart: left + "%", width: width + "%", top: 3, height: 19, borderRadius: 5, background: metrics[p.id]?.health === "Red" ? "rgba(239,68,68,.2)" : metrics[p.id]?.health === "Orange" ? "rgba(239,159,39,.22)" : "rgba(16,185,129,.18)", border: "1px solid " + (metrics[p.id]?.health === "Red" ? C.bad : metrics[p.id]?.health === "Orange" ? C.orange : C.ok) }} />{today >= timelineMin && today <= timelineMax && <div title="اليوم" style={{ position: "absolute", insetInlineStart: timelinePosition(today) + "%", top: 0, bottom: 0, width: 2, background: A, zIndex: 2 }} />}</div>
             </div>;
           })}
         </div>}
@@ -476,10 +476,11 @@ export function Portfolio() {
               </div>
               {p.description && <div style={{ color: C.dim, fontSize: 11.5, marginTop: 8, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.description}</div>}
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}><Progress value={m.progress == null ? null : m.progress} /><b style={{ fontSize: 11, minWidth: 36, textAlign: "end" }}>{m.progress == null ? "غير قابل للقياس" : Math.round(m.progress) + "%"}</b></div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginTop: 11, paddingTop: 9, borderTop: "1px solid " + C.line }}>
-                <div><div style={{ fontSize: 15, fontWeight: 700 }}>{open}</div><div style={{ color: C.muted, fontSize: 10 }}>مهام مفتوحة</div></div>
-                <div><div style={{ fontSize: 15, fontWeight: 700, color: overdue ? C.bad : C.text }}>{overdue}</div><div style={{ color: C.muted, fontSize: 10 }}>متأخرة</div></div>
-                <div><div style={{ fontSize: 15, fontWeight: 700 }}>{issueCount + riskCount}</div><div style={{ color: C.muted, fontSize: 10 }}>مشاكل ومخاطر</div></div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6, marginTop: 11, paddingTop: 9, borderTop: "1px solid " + C.line }}>
+                <div><button type="button" onClick={(e) => { e.stopPropagation(); setView({ ...view, projectId: p.id, tab: "tasks", taskFilter: null, taskFilterIds: [], focusRecord: null }); }} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", fontSize: 15, fontWeight: 700 }}>{open}</button><div style={{ color: C.muted, fontSize: 10 }}>مهام مفتوحة</div></div>
+                <div><button type="button" onClick={(e) => { e.stopPropagation(); setView({ ...view, projectId: p.id, tab: "tasks", taskFilter: "overdue", focusRecord: null }); }} style={{ border: 0, background: "transparent", padding: 0, color: overdue ? C.bad : C.text, cursor: "pointer", fontSize: 15, fontWeight: 700 }}>{overdue}</button><div style={{ color: C.muted, fontSize: 10 }}>متأخرة</div></div>
+                <div><button type="button" onClick={(e) => { e.stopPropagation(); setView({ ...view, projectId: p.id, tab: "issues", issueStatusFilter: "open", issueSeverityFilter: "", focusRecord: null }); }} style={{ border: 0, background: "transparent", padding: 0, color: issueCount ? C.info : C.text, cursor: "pointer", fontSize: 15, fontWeight: 700 }}>{issueCount}</button><div style={{ color: C.muted, fontSize: 10 }}>مشاكل</div></div>
+                <div><button type="button" onClick={(e) => { e.stopPropagation(); setView({ ...view, projectId: p.id, tab: "risks", riskStatusFilter: "open", riskHighOnly: false, focusRecord: null }); }} style={{ border: 0, background: "transparent", padding: 0, color: riskCount ? C.info : C.text, cursor: "pointer", fontSize: 15, fontWeight: 700 }}>{riskCount}</button><div style={{ color: C.muted, fontSize: 10 }}>مخاطر</div></div>
               </div>
             </div>;
           })}
