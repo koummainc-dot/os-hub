@@ -36,9 +36,18 @@ for (const [kind, tab] of [["task","tasks"],["output","outputs"],["prd","prds"],
 }
 assert.ok(detail.includes('closest("details")?.removeAttribute("open")'), "quick-create closes the contextual menu after selection");
 assert.ok(taskTree.includes('view.quickCreate !== "task"') && taskTree.includes("setForm({})") && taskTree.includes("quickCreate: null"), "Tasks opens its existing TaskForm from the contextual action");
-for (const [kind, start] of [["output", "export function OutputsView"],["risk", "export function RisksView"],["issue", "export function IssuesView"],["decision", "export function DecisionsView"],["prd", "export function PrdsView"]]) {
-  const section = entities.slice(entities.indexOf(start));
-  assert.ok(section.includes(`view.quickCreate !== "${kind}"`) && section.includes("setForm({ project_id: projectId })") && section.includes("quickCreate: null"), `${kind} opens its existing canonical form`);
+const entityQuickCreates = [
+  ["output", "export function OutputsView", "export function RisksView"],
+  ["risk", "export function RisksView", "export function IssuesView"],
+  ["issue", "export function IssuesView", "export function DecisionsView"],
+  ["decision", "export function DecisionsView", "export function PrdsView"],
+  ["prd", "export function PrdsView", "function PrdEditor"]
+];
+for (const [kind, start, end] of entityQuickCreates) {
+  const startAt = entities.indexOf(start);
+  const endAt = entities.indexOf(end, startAt + start.length);
+  const section = entities.slice(startAt, endAt < 0 ? undefined : endAt);
+  assert.ok(section.includes(`view.quickCreate !== "${kind}"`) && section.includes("if (canNew) setForm({ project_id: projectId })") && section.includes("quickCreate: null"), `${kind} opens its existing permission-gated canonical form`);
 }
 const related = screensB.slice(screensB.indexOf("function RelatedTab"), screensB.indexOf("function ProjectFinanceTab"));
 assert.ok(related.includes('view.quickCreate !== "resource"') && related.includes("setF(true)") && related.includes("quickCreate: null"), "Resources opens its existing project-link form");
