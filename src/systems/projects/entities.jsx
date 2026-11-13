@@ -96,10 +96,11 @@ export function OutputsView({ projectId }) {
   const submit = async (v) => {
     const project = projectsById[v.project_id]; const prev = v.id ? data.outputs.find((o) => o.id === v.id) : null;
     const pendingFiles = Array.from(v.__pendingFiles || []);
-    delete rec.__pendingFiles;
+    const recordValues = { ...v };
+    delete recordValues.__pendingFiles;
     const savedProgress = uploadProgressRef.current.get(v.id) || [];
     let rec = {
-      ...v,
+      ...recordValues,
       id: v.id || uid(),
       files: mergeOutputFiles(prev?.files || [], v.files || [], savedProgress),
     };
