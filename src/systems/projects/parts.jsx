@@ -1,8 +1,10 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { A, S } from "../../core/ui.jsx";
 import { C, Btn, Chip, Dot, Avatar, Progress, SideSheet, FormModal, Tabs, Empty, Field } from "../../core/kit.jsx";
 import { fmt, fmtShort, fmtMinutes, diffDays, dateOf } from "../../core/dates.js";
 import { uid } from "../../core/records.jsx";
+import { supabase } from "../../core/supabase.js";
+import { OUTPUT_STORAGE_BUCKET, outputObjectPath, validateOutputUpload, uploadOutputFileWithRetry } from "./outputStorage.js";
 import { useP } from "./store.jsx";
 import * as D from "./domain.js";
 import { L, opts, PRIORITY_COLOR, STATUS_COLOR, SEV_COLOR } from "./lookups.js";
@@ -162,15 +164,27 @@ function MoveTreeButton({ t, onDone }) {
 
 // ── Task detail sheet ───────────────────────────────────────────────
 export function TaskSheet() {
-  const { view, closeTask, idx, data, A: act, can, projectsById, today, runningTimer, nameOf, toast, openProject, openDiscovery, setPage, settings, me } = useP();
+  const { view, closeTask, idx, data, A: act, can, projectsById, today, runningTimer, nameOf, toast, openProject, openDiscovery, setPage, settings, me, ws } = useP();
   const t = view.taskId ? (idx.byId[view.taskId] || null) : null; const [tab, setTab] = useState("details"); const [edit, setEdit] = useState(false); const [sessForm, setSessForm] = useState(false); const [cancelReason, setCancelReason] = useState(null); const [outputForm, setOutputForm] = useState(null);
+  const outputUploadProgressRef = useRef(new Map());
   useEffect(() => { setTab("details"); }, [view.taskId]);
-  if (!view.taskId) return null; if (!t) return null;
+  if (!view.taskId) return null;
+  if (!t) return <SideSheet title="المهمة غير متاحة" onClose={closeTask}><Empty icon="🔎" title="تعذر العثور على المهمة" sub="قد تكون المهمة حُذفت أو لم تعد متاحة في مساحة العمل الحالية. أغلق هذه النافذة ثم افتح المهمة من قائمة المشروع مرة أخرى." /></SideSheet>;
   const project = projectsById[t.project_id]; const d = idx.derived[t.id]; const leaf = d.isLeaf; const canW = can("task.write", project);
   const sessions = data.sessions.filter((s) => s.task_id === t.id || idx.descendants(t.id).includes(s.task_id)).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   const outs = data.outputs.filter((o) => o.task_id === t.id); const linkedIssues = data.issues.filter((i) => (i.task_ids || []).includes(t.id) || (t.issue_ids || []).includes(i.id)); const linkedKrs = data.krs.filter((k) => (k.task_ids || []).some((id) => id === t.id || idx.descendants(id).includes(t.id))); const linkedDecisions = data.decisions.filter((x) => (x.affected_task_ids || []).includes(t.id) || (x.implementation_task_ids || []).includes(t.id)); const linkedRisks = data.risks.filter((x) => (x.task_ids || []).includes(t.id)); const linkedWins = data.wins.filter((x) => x.task_id === t.id || (x.task_ids || []).includes(t.id)); const linkedUpdates = data.updates.filter((x) => (x.related_task_ids || []).includes(t.id)); const linkedDiscoveries = data.discovery.filter((x) => (x.resolution_links || []).some((link) => link.kind === "task" && link.id === t.id) || (t.discovery_ids || []).includes(x.id)); const canOut = can("output.write", project); const status = leaf ? t.status : d.status;
   const acts = data.activity.filter((a) => a.entity_id === t.id).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 15);
   const tabs = [{ id: "details", label: "التفاصيل" }, { id: "time", label: "الوقت", count: sessions.length }, { id: "outputs", label: "المخرجات", count: outs.length }, { id: "links", label: "الروابط" }, { id: "activity", label: "النشاط" }];
+  const mergeOutputFiles = (...groups) => {
+    const merged = new Map();
+    for (const file of groups.flat()) {
+      if (!file) continue;
+      const key = typeof file === "string" ? "legacy:" + file : file.object_path || "file:" + (file.name || "");
+      if (!merged.has(key)) merged.set(key, file);
+    }
+    return [...merged.values()];
+  };
+
   async function saveOutput(v) {
     if (!String(v.name || "").trim()) throw new Error("اسم المخرج مطلوب");
     const prd = v.prd_id ? data.prds.find((x) => x.id === v.prd_id) : null;
@@ -179,9 +193,76 @@ export function TaskSheet() {
     const existing = v.id ? data.outputs.find((x) => x.id === v.id) : null;
     if (existing?.approval === "Final") throw new Error("المخرج النهائي مقفل؛ أنشئ مخرجاً جديداً بدل تعديل النسخة المعتمدة.");
     if (v.approval === "Final" && !can("output.approve", project)) throw new Error("لا تملك صلاحية اعتماد المخرج نهائياً");
-    await act.put("outputs", { ...v, id: v.id || uid(), project_id: t.project_id, task_id: t.id, approval: v.approval || "Draft", approved_by: v.approval === "Final" ? me : null, approved_at: v.approval === "Final" ? new Date().toISOString() : null }, project);
-    toast(existing ? "✅ تم تحديث المخرج" : "✅ تم إنشاء المخرج وربطه بالمهمة");
-    setOutputForm(null);
+    const pendingFiles = Array.from(v.__pendingFiles || []);
+    const savedProgress = outputUploadProgressRef.current.get(v.id) || [];
+    let rec = {
+      ...v,
+      id: v.id || uid(),
+      project_id: t.project_id,
+      task_id: t.id,
+      approval: v.approval || "Draft",
+      approved_by: v.approval === "Final" ? me : null,
+      approved_at: v.approval === "Final" ? new Date().toISOString() : null,
+      files: mergeOutputFiles(existing?.files || [], v.files || [], savedProgress),
+    };
+    delete rec.__pendingFiles;
+
+    // The canonical Output row must exist before the private Storage RLS policy permits upload.
+    await act.put("outputs", rec, project);
+    try {
+      if (pendingFiles.length && !ws?.id) throw new Error("المساحة الحالية غير متاحة لرفع الملفات.");
+      for (const pendingFile of pendingFiles) {
+        const objectPath = outputObjectPath({
+          workspaceId: ws.id,
+          projectId: rec.project_id,
+          outputId: rec.id,
+          fileId: pendingFile.fileId,
+          filename: pendingFile.file?.name,
+        });
+        if ((rec.files || []).some((file) => file && typeof file === "object" && file.object_path === objectPath)) continue;
+        const metadata = await uploadOutputFileWithRetry({
+          storage: supabase.storage,
+          workspaceId: ws.id,
+          output: rec,
+          pendingFile,
+        });
+        const next = { ...rec, files: mergeOutputFiles(rec.files || [], [metadata]) };
+        // Persist each file immediately so a later failure can be resumed safely.
+        await act.put("outputs", next, project);
+        rec = next;
+        outputUploadProgressRef.current.set(rec.id, rec.files);
+      }
+      outputUploadProgressRef.current.delete(rec.id);
+      toast(pendingFiles.length ? "✅ تم حفظ المخرج ورفع الملفات بأمان" : existing ? "✅ تم تحديث المخرج" : "✅ تم إنشاء المخرج وربطه بالمهمة");
+      setOutputForm(null);
+    } catch (error) {
+      const failedName = pendingFiles.find((pendingFile) => {
+        const file = pendingFile?.file;
+        if (!file) return false;
+        return !rec.files.some((saved) => saved?.name === file.name && saved?.size_bytes === file.size);
+      })?.file?.name;
+      throw new Error(
+        "تم حفظ سجل المخرج. " +
+        (failedName ? "تعذر رفع أو ربط الملف «" + failedName + "». " : "تعذر إكمال رفع الملفات. ") +
+        "الملفات التي اكتمل ربطها محفوظة؛ أعد الضغط على «حفظ» لإكمال المحاولة دون تكرار الملفات. " +
+        (error?.message || "فشل الرفع")
+      );
+    }
+  }
+
+  async function downloadOutputFile(file) {
+    try {
+      if (typeof file === "string") {
+        window.open(file, "_blank", "noopener,noreferrer");
+        return;
+      }
+      const { data: signed, error } = await supabase.storage.from(OUTPUT_STORAGE_BUCKET).createSignedUrl(file.object_path, 60);
+      if (error) throw error;
+      if (!signed?.signedUrl) throw new Error("تعذر إنشاء رابط تنزيل مؤقت.");
+      window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toast("⛔ تعذر تنزيل الملف: " + (error?.message || "فشل التنزيل"));
+    }
   }
   return (
     <SideSheet title={t.title} onClose={closeTask} footer={<>
@@ -202,7 +283,7 @@ export function TaskSheet() {
           <div>التقدير: {fmtMinutes(d.estimated)} · الفعلي: {fmtMinutes(d.actual)} · الفرق: {d.estimated ? fmtMinutes(Math.abs(d.variance)) + (d.variance > 0 ? " زيادة" : " توفير") : "—"}</div>
           {t.description && <div style={{ whiteSpace: "pre-wrap", marginTop: 6 }}>{t.description}</div>}
           {t.cancelled_reason && <div style={{ color: C.bad }}>سبب الإلغاء: {t.cancelled_reason}</div>}
-          {t.result_note && <div style={{ background: "rgba(16,185,129,0.07)", padding: "8px 10px", borderRadius: 8, marginTop: 6 }}><b>النتيجة السريعة:</b> {t.result_note}{canOut && <div style={{ marginTop: 6 }}>{outs.some((o) => o.source_result_task_id === t.id || (o.name === t.title && o.notes === t.result_note)) ? <Chip color={C.ok}>يوجد مخرج لهذه النتيجة بالفعل</Chip> : <Btn small onClick={() => setOutputForm({ name: t.title, type: "Other", approval: "Draft", url: /^https?:/.test(t.result_note) ? t.result_note : "", notes: t.result_note, source_result_task_id: t.id })}>📦 مراجعة وإنشاء مخرج من النتيجة</Btn>}</div>}</div>}
+          {t.result_note && <div style={{ background: "rgba(16,185,129,0.07)", padding: "8px 10px", borderRadius: 8, marginTop: 6 }}><b>النتيجة السريعة:</b> {t.result_note}{canOut && <div style={{ marginTop: 6 }}>{outs.some((o) => o.source_result_task_id === t.id || (o.name === t.title && o.notes === t.result_note)) ? <Chip color={C.ok}>يوجد مخرج لهذه النتيجة بالفعل</Chip> : <Btn small onClick={() => setOutputForm({ id: uid(), name: t.title, type: "Other", approval: "Draft", url: /^https?:/.test(t.result_note) ? t.result_note : "", notes: t.result_note, source_result_task_id: t.id })}>📦 مراجعة وإنشاء مخرج من النتيجة</Btn>}</div>}</div>}
           {!leaf && <div style={{ marginTop: 6 }}>الأوراق: {d.leafDone}/{d.leafTotal} مكتملة</div>}
         </div>
       )}
@@ -214,7 +295,7 @@ export function TaskSheet() {
           {sessForm && <SessionForm taskId={t.id} onClose={() => setSessForm(false)} />}
         </div>
       )}
-      {tab === "outputs" && <div>{canOut && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setOutputForm({ name: t.title, type: "Other", approval: "Draft" })}>➕ إضافة مخرج لهذه المهمة</Btn></div>}{!outs.length ? <Empty icon="📦" title="لا مخرجات مرتبطة" sub="أنشئ المخرج هنا وسيُربط بالمشروع والمهمة تلقائياً." /> : outs.map((o) => <div key={o.id} style={{ ...S.card, padding: "9px 11px", marginBottom: 7 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><b style={{ flex: 1 }}>📦 {o.name}</b><Chip color={o.approval === "Final" ? C.ok : o.approval === "Review" ? C.warn : C.muted}>{L.approval[o.approval] || o.approval}</Chip><Chip>{o.type}</Chip>{canOut && o.approval !== "Final" && <Btn small onClick={() => setOutputForm(o)}>تعديل</Btn>}{o.approval === "Final" && <Chip color={C.ok}>🔒 نهائي — مقفل</Chip>}</div>{o.url ? <a href={o.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.info, wordBreak: "break-all" }}>{o.url}</a> : <div style={{ fontSize: 11, color: C.muted }}>لم يُضف رابط بعد — رفع الملفات غير متاح في هذا الإصدار.</div>}{o.prd_id && <div style={{ fontSize: 11.5, color: C.dim }}>المواصفة: {(data.prds.find((x) => x.id === o.prd_id) || {}).title || "—"}</div>}{o.notes && <div style={{ fontSize: 12, color: C.dim, whiteSpace: "pre-wrap" }}>{o.notes}</div>}</div>)}</div>}
+      {tab === "outputs" && <div>{canOut && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setOutputForm({ id: uid(), name: t.title, type: "Other", approval: "Draft" })}>➕ إضافة مخرج لهذه المهمة</Btn></div>}{!outs.length ? <Empty icon="📦" title="لا مخرجات مرتبطة" sub="أنشئ المخرج هنا وسيُربط بالمشروع والمهمة تلقائياً." /> : outs.map((o) => <div key={o.id} style={{ ...S.card, padding: "9px 11px", marginBottom: 7 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><b style={{ flex: 1 }}>📦 {o.name}</b><Chip color={o.approval === "Final" ? C.ok : o.approval === "Review" ? C.warn : C.muted}>{L.approval[o.approval] || o.approval}</Chip><Chip>{o.type}</Chip>{canOut && o.approval !== "Final" && <Btn small onClick={() => setOutputForm(o)}>تعديل</Btn>}{o.approval === "Final" && <Chip color={C.ok}>🔒 نهائي — مقفل</Chip>}</div>{o.url && <a href={o.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.info, wordBreak: "break-all" }}>{o.url}</a>}{(o.files || []).length > 0 ? <div style={{ display: "grid", gap: 5, marginTop: 6 }}>{(o.files || []).map((file, index) => <button key={file.object_path || index} type="button" onClick={() => downloadOutputFile(file)} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", padding: 0, textAlign: "start", fontSize: 11.5 }}>📎 {typeof file === "string" ? file : (file.name || "ملف") + " · " + Math.ceil((file.size_bytes || 0) / 1024) + " KB"}</button>)}</div> : !o.url ? <div style={{ fontSize: 11, color: C.muted }}>لا يوجد ملف أو رابط مرفق بعد.</div> : null}{o.prd_id && <div style={{ fontSize: 11.5, color: C.dim }}>المواصفة: {(data.prds.find((x) => x.id === o.prd_id) || {}).title || "—"}</div>}{o.notes && <div style={{ fontSize: 12, color: C.dim, whiteSpace: "pre-wrap" }}>{o.notes}</div>}</div>)}</div>}
       {tab === "links" && (
         <div style={{ fontSize: 13, lineHeight: 2 }}>
           <div>المواصفة: {t.prd_id ? (() => { const prd = data.prds.find((p) => p.id === t.prd_id); return prd ? <button type="button" onClick={() => { closeTask(); openProject(prd.project_id, "prds", { kind: "prd", id: prd.id }); }} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>{prd.title} ↗</button> : "مواصفة غير متاحة"; })() : "—"}</div>
@@ -225,7 +306,19 @@ export function TaskSheet() {
       )}
       {tab === "activity" && (!acts.length ? <Empty icon="🕘" title="لا نشاط مسجَّل" /> : acts.map((a) => <div key={a.id} style={{ fontSize: 12, padding: "4px 0", color: C.dim }}>{dateOf(a.at, settings.timezone)} · {nameOf(a.actor_id)} · {a.action} {a.summary}</div>))}
       {outputForm && <FormModal title={outputForm.id ? "تعديل المخرج المرتبط بالمهمة" : "إضافة مخرج للمهمة"} wide initial={{ type: "Other", approval: "Draft", ...outputForm }} onClose={() => setOutputForm(null)} onSubmit={saveOutput} fields={[{ key: "name", label: "اسم المخرج", required: true, span: 2 }, { key: "type", label: "النوع", type: "select", allowEmpty: false, options: [{ v: "Design", l: "تصميم" }, { v: "Code", l: "كود" }, { v: "Document", l: "مستند" }, { v: "Sample", l: "عينة" }, { v: "Video", l: "فيديو" }, { v: "Other", l: "أخرى" }] }, { key: "prd_id", label: "المواصفة التي يحققها", type: "select", emptyLabel: "— بلا —", options: data.prds.filter((x) => x.project_id === t.project_id).map((x) => ({ v: x.id, l: x.title })) },
-        { key: "prd_requirement_id", label: "المتطلب الذي يحققه", type: "select", emptyLabel: "— بلا متطلب —", options: (v) => { const prd = data.prds.find((x) => x.id === v.prd_id); return (prd?.requirements || []).filter((r) => r.status !== "Deprecated").map((r) => ({ v: r.id, l: r.title })); } }, { key: "approval", label: "حالة الاعتماد", type: "select", allowEmpty: false, options: opts(L.approval) }, { key: "url", label: "الرابط", type: "url" }, { key: "notes", label: "ملاحظات", type: "textarea", rows: 2 }]} />}
+        { key: "prd_requirement_id", label: "المتطلب الذي يحققه", type: "select", emptyLabel: "— بلا متطلب —", options: (v) => { const prd = data.prds.find((x) => x.id === v.prd_id); return (prd?.requirements || []).filter((r) => r.status !== "Deprecated").map((r) => ({ v: r.id, l: r.title })); } }, { key: "approval", label: "حالة الاعتماد", type: "select", allowEmpty: false, options: opts(L.approval) }, { key: "url", label: "الرابط", type: "url" }, { key: "notes", label: "ملاحظات", type: "textarea", rows: 2 }]} children={(values, set) => (
+        <div style={{ gridColumn: "1 / -1", marginTop: 8, border: "1px solid " + C.line, borderRadius: 8, padding: 10 }}>
+          <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, marginBottom: 6 }}>📎 ملفات المخرج</div>
+          {(values.files || []).map((file, index) => <div key={file.object_path || index} style={{ fontSize: 11.5, color: C.dim, marginBottom: 4 }}>✓ {typeof file === "string" ? file : file.name || "ملف"}{file.size_bytes ? " · " + Math.ceil(file.size_bytes / 1024) + " KB" : ""}</div>)}
+          <input type="file" multiple onChange={(event) => {
+            const files = Array.from(event.target.files || []);
+            const invalid = files.map(validateOutputUpload).find((result) => !result.ok);
+            if (invalid) { toast("⛔ " + invalid.error); event.target.value = ""; return; }
+            set("__pendingFiles", files.map((file) => ({ file, fileId: uid(), uploadedAt: new Date().toISOString() })));
+          }} accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.txt,.csv,.json,.zip,.docx,.xlsx,.pptx" />
+          {(values.__pendingFiles || []).length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>ملفات محددة: {(values.__pendingFiles || []).map((item) => item.file?.name).filter(Boolean).join("، ")}. عند فشل الاتصال، أعد الضغط على «حفظ» لإكمال الرفع دون تكرار الملفات.</div>}
+        </div>
+      )} />}
       {edit && <TaskForm initial={t} onClose={() => setEdit(false)} />}
       {cancelReason !== null && <FormModal title="إلغاء المهمة" fields={[{ key: "r", label: "سبب الإلغاء", required: true, type: "textarea" }]} initial={{ r: "" }} onClose={() => setCancelReason(null)} onSubmit={async (v) => { await act.setTaskStatus(t, "Cancelled", v.r); setCancelReason(null); }} />}
     </SideSheet>
