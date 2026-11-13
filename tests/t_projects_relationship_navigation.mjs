@@ -87,8 +87,10 @@ assert.ok(projectScreens.includes('import { listKnowledgeMeetings } from "../kno
   projectScreens.includes('source_meeting_id: meeting.id') &&
   projectScreens.includes('source_followup_index: index'),
   "Project Detail must read its linked meetings from Knowledge OS and preserve meeting provenance when creating follow-up tasks");
-assert.ok(projectScreens.includes('task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index'),
-  "Project Detail meeting follow-ups must not create duplicate tasks after a task already exists");
+assert.ok(projectScreens.includes('findKnowledgeFollowupTask(data.tasks, meeting.id, followup, index)') &&
+  projectScreens.includes('source_followup_id: followupIdentity') &&
+  projectScreens.includes('source_followup_index: index'),
+  "Project Detail meeting follow-ups must reuse stable source identity and retain the legacy index fallback");
 
 const governancePage = projectIndex.slice(projectIndex.indexOf("function GovernancePage()"), projectIndex.indexOf("const SCREENS"));
 assert.ok(projectIndex.includes('issues: GovernancePage') &&
