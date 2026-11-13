@@ -349,6 +349,8 @@ export function Templates() {
 }
 
 // ═════ Meetings (owned by Knowledge OS) ═════
+const meetingProjectRef = (meeting) => String(meeting?.project_ref || (meeting?.relatedSystem === "projects" ? meeting?.relatedId || "" : ""));
+
 export function Meetings() {
   const { data, setPage, ws, projectsById, A: act, toast, me, today, can } = useP();
   const [meetings, setMeetings] = useState([]);
@@ -358,27 +360,28 @@ export function Meetings() {
   const [creatingFollowup, setCreatingFollowup] = useState("");
   const creatingFollowupsRef = useRef(new Set());
 
-  const refresh = async () => {
+  const refresh = async (selectedProjectId = projectFilter) => {
     if (!ws?.id) { setMeetings([]); setLoading(false); return; }
     setLoading(true); setLoadError("");
     try {
-      const result = await listKnowledgeMeetings(ws.id);
+      const result = await listKnowledgeMeetings(ws.id, selectedProjectId === "all" ? null : selectedProjectId);
       if (!result.ok) throw result.error || new Error("تعذر تحميل اجتماعات المعرفة.");
       setMeetings(result.meetings || []);
     } catch (error) {
       setLoadError(error?.message || "تعذر تحميل اجتماعات المعرفة.");
     } finally { setLoading(false); }
   };
-  useEffect(() => { refresh(); }, [ws?.id]);
+  useEffect(() => { refresh(projectFilter); }, [ws?.id, projectFilter]);
 
+  // Project-specific results have already been filtered by Knowledge on the server.
   const visible = useMemo(() => meetings
     .filter((m) => !m.archived && m.status !== "archived")
-    .filter((m) => projectFilter === "all" || (m.relatedSystem === "projects" && String(m.relatedId) === String(projectFilter)))
-    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))), [meetings, projectFilter]);
-  const linkedCount = meetings.filter((m) => m.relatedSystem === "projects" && projectsById[m.relatedId]).length;
-  const orphanCount = meetings.filter((m) => m.relatedSystem === "projects" && m.relatedId && !projectsById[m.relatedId]).length;
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))), [meetings]);
+  const linkedCount = meetings.filter((m) => meetingProjectRef(m) && projectsById[meetingProjectRef(m)]).length;
+  const orphanCount = meetings.filter((m) => meetingProjectRef(m) && !projectsById[meetingProjectRef(m)]).length;
   const archivedCount = meetings.filter((m) => {
-    const p = m.relatedSystem === "projects" ? projectsById[m.relatedId] : null;
+    const projectId = meetingProjectRef(m);
+    const p = projectId ? projectsById[projectId] : null;
     return !!p && (!!p.archived_at || p.status === "Archived");
   }).length;
 
@@ -386,7 +389,8 @@ export function Meetings() {
     const followupIdentity = stableKnowledgeFollowupId(meeting.id, followup);
     const key = followupIdentity || String(meeting.id) + ":" + index;
     if (creatingFollowupsRef.current.has(key)) return;
-    const project = meeting.relatedSystem === "projects" ? projectsById[meeting.relatedId] : null;
+    const projectId = meetingProjectRef(meeting);
+    const project = projectId ? projectsById[projectId] : null;
     if (!project || project.archived_at || project.status === "Archived") {
       toast("اربط الاجتماع بمشروع نشط قبل إنشاء مهام المتابعة.");
       return;
@@ -438,8 +442,9 @@ export function Meetings() {
     : loadError ? <div role="alert" style={{...S.card,padding:24,textAlign:"center"}}><div style={{color:C.bad,marginBottom:10}}>{loadError}</div><Btn onClick={refresh}>إعادة المحاولة</Btn></div>
     : !visible.length ? <Empty icon="🗓️" title={projectFilter==="all"?"لا توجد اجتماعات محفوظة في Knowledge OS":"لا توجد اجتماعات مرتبطة بهذا المشروع"} sub="افتح اجتماعًا في Knowledge OS واربطه بالمشروع من حقل «المشروع المرتبط»." />
     : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>{visible.map(m=>{
-      const project=m.relatedSystem==="projects"?projectsById[m.relatedId]:null;
-      const orphan=m.relatedSystem==="projects"&&!!m.relatedId&&!project;
+      const projectId=meetingProjectRef(m);
+      const project=projectId?projectsById[projectId]:null;
+      const orphan=!!projectId&&!project;
       const archived=!!project&&(!!project.archived_at||project.status==="Archived");
       const followups=Array.isArray(m.followups)?m.followups:[];
       return <article key={m.id} style={{...S.card,padding:14}}>
