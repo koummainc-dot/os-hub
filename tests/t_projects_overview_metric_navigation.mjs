@@ -54,6 +54,11 @@ for (const mode of ['v: "table"', 'v: "board"', 'v: "timeline"', 'v: "calendar"'
 assert.ok(portfolio.includes(': mode === "table"') && portfolio.includes(': mode === "board"') && portfolio.includes(': mode === "timeline"') && portfolio.includes(': mode === "calendar"'), "all required Portfolio presentations have render paths");
 for (const filter of ["typeFilter", "healthFilter", "leadFilter", "teamFilter", "priorityFilter", "visibilityFilter", "dateFrom", "dateTo", "highRiskOnly"]) assert.ok(portfolio.includes(filter), `Portfolio supports the ${filter} filter`);
 assert.ok(portfolio.includes("timelinePosition(finish)") && portfolio.includes("timelineDates"), "Project Timeline uses project start/target dates");
+assert.ok(portfolio.includes('today >= timelineMin && today <= timelineMax') && portfolio.includes('title="اليوم"'), "Project Timeline marks the current day within the visible range");
+assert.ok(portfolio.includes('projectId: p.id, tab: "issues", issueStatusFilter: "open"'), "Portfolio issue counts navigate to the selected project issue list");
+assert.ok(portfolio.includes('projectId: p.id, tab: "risks", riskStatusFilter: "open"'), "Portfolio risk counts navigate to the selected project risk list");
+assert.ok(portfolio.includes('projectId: p.id, tab: "tasks", taskFilter: "overdue"'), "Portfolio card overdue counts open only the selected project's overdue tasks");
+
 assert.ok(portfolio.includes("calendarDates") && portfolio.includes("p.target_date === date"), "Project Calendar uses target dates and opens exact projects");
 assert.ok(portfolio.includes("p.members || []"), "Team filter reads the canonical Project.members relation");
 assert.ok(portfolio.includes('right={can("project.create") && <Btn kind="primary"'), "Portfolio exposes a permission-gated Project create action");
