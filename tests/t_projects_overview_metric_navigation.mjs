@@ -35,6 +35,15 @@ assert.ok(portfolio.includes("!delayedOnly || delayed.includes(p)"), "delayed me
 assert.ok(portfolio.includes("setDelayedOnly(true)"), "delayed-project metric activates the filtered list");
 assert.ok(portfolio.includes("activeProjectsOnly: true"), "open task metric carries active-project scope to Tasks");
 assert.ok(portfolio.includes("riskHighOnly: true"), "high-risk portfolio metric opens the same high-risk filter");
+assert.ok(portfolio.includes('const [mode, setMode] = useState("cards")'), "Portfolio has an explicit view mode");
+for (const mode of ['v: "table"', 'v: "board"', 'v: "timeline"', 'v: "calendar"']) assert.ok(portfolio.includes(mode), `Portfolio exposes ${mode} view`);
+assert.ok(portfolio.includes(': mode === "table"') && portfolio.includes(': mode === "board"') && portfolio.includes(': mode === "timeline"') && portfolio.includes(': mode === "calendar"'), "all required Portfolio presentations have render paths");
+for (const filter of ["typeFilter", "healthFilter", "leadFilter", "teamFilter", "priorityFilter", "visibilityFilter", "dateFrom", "dateTo", "highRiskOnly"]) assert.ok(portfolio.includes(filter), `Portfolio supports the ${filter} filter`);
+assert.ok(portfolio.includes("timelinePosition(finish)") && portfolio.includes("timelineDates"), "Project Timeline uses project start/target dates");
+assert.ok(portfolio.includes("calendarDates") && portfolio.includes("p.target_date === date"), "Project Calendar uses target dates and opens exact projects");
+assert.ok(portfolio.includes("p.members || []"), "Team filter reads the canonical Project.members relation");
+assert.ok(portfolio.includes("إلغاء فلتر المشاريع المتأخرة") === false, "delayed-only indicator is represented by the combined filter reset");
+
 
 const tasks = screensA.slice(screensA.indexOf("export function Tasks()"), screensA.indexOf("// ═════ Portfolio"));
 assert.ok(tasks.includes("view.activeProjectsOnly === true"), "Tasks restores the active-project scope from Portfolio navigation");
