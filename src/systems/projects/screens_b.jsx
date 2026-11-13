@@ -123,6 +123,7 @@ function ProjectDetail() {
   if (!p) return <div><Btn onClick={() => setView({ projectId: null, tab: "overview" })}>← المشاريع</Btn><Empty icon="🔎" title="المشروع غير موجود أو محجوب" /></div>;
   const m = metrics[p.id]; const tab = view.tab; const setTab = (t) => setView({ ...view, tab: t });
   const counts = { tasks: m.leafTotal, outputs: m.outputsCount, risks: m.openRisks, issues: m.openIssues, decisions: m.decisionsCount, prds: data.prds.filter((x) => x.project_id === p.id).length };
+  const overdueTaskFilter = view.taskFilter === "overdue" ? (task) => D.isOverdueLeaf(task, idx, today) : undefined;
   const tabGroups = [
     { id: "overview", label: "نظرة عامة", defaultTab: "overview", tabs: [{ id: "overview", label: "نظرة عامة" }] },
     { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "discovery", label: "الاكتشاف" }, { id: "tasks", label: "المهام", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }, { id: "timeline", label: "الخط الزمني" }] },
@@ -159,7 +160,7 @@ function ProjectDetail() {
         onTabChange={setTab}
       />
       {tab === "overview" && <Overview p={p} m={m} />}
-      {tab === "tasks" && <TaskTree projectId={p.id} />}
+      {tab === "tasks" && <TaskTree projectId={p.id} filter={overdueTaskFilter} />}
       {tab === "discovery" && <DiscoveryView projectId={p.id} />}
       {tab === "timeline" && <ProjectTimeline p={p} />}
       {tab === "outputs" && <OutputsView projectId={p.id} />}
@@ -206,7 +207,14 @@ function Overview({ p, m }) {
             </div>
           ))}
         </div>}
-        <div style={{ fontSize: 12, color: C.dim, marginTop: 10, lineHeight: 1.9 }}>الموعد: {p.target_date ? `${fmt(p.target_date)} (${m.daysRemaining < 0 ? "تجاوز " + -m.daysRemaining + " يوم" : "باقٍ " + m.daysRemaining + " يوم"})` : "غير محدد"}<br />متأخرة: {m.overdueLeafCount} · مخاطر مفتوحة: {m.openRisks} (عالية {m.highOpenRisks}) · مشاكل: {m.openIssues} (حرجة {m.criticalOpenIssues})</div>
+        <div style={{ fontSize: 12, color: C.dim, marginTop: 10, lineHeight: 1.9 }}>
+          الموعد: {p.target_date ? `${fmt(p.target_date)} (${m.daysRemaining < 0 ? "تجاوز " + -m.daysRemaining + " يوم" : "باقٍ " + m.daysRemaining + " يوم"})` : "غير محدد"}
+          <br />متأخرة: <button type="button" onClick={() => setView({ ...view, tab: "tasks", taskFilter: "overdue", focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{m.overdueLeafCount}</button>
+          · مخاطر مفتوحة: <button type="button" onClick={() => setView({ ...view, tab: "risks", riskStatusFilter: "open", riskHighOnly: false, focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{m.openRisks}</button>
+          (عالية <button type="button" onClick={() => setView({ ...view, tab: "risks", riskStatusFilter: "open", riskHighOnly: true, focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{m.highOpenRisks}</button>)
+          · مشاكل: <button type="button" onClick={() => setView({ ...view, tab: "issues", issueStatusFilter: "open", issueSeverityFilter: "", focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{m.openIssues}</button>
+          (حرجة <button type="button" onClick={() => setView({ ...view, tab: "issues", issueStatusFilter: "open", issueSeverityFilter: "Critical", focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{m.criticalOpenIssues}</button>)
+        </div>
       </div>
       <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>الوقت والتكلفة</div>
         <div style={{ fontSize: 12.5, lineHeight: 2 }}>التقدير: {fmtMinutes(m.estimated)} · الفعلي: {fmtMinutes(m.actual)}<br />{m.timeRatio != null ? <>نسبة الوقت: <b style={{ color: m.timeRatio > 1 ? C.bad : C.ok }}>{Math.round(m.timeRatio * 100)}%</b></> : "لا تقديرات لحساب النسبة"}<br />الميزانية المخطَّطة: {p.budget_planned != null ? `${p.budget_planned} ${p.budget_currency || ""}` : "—"}</div><button type="button" onClick={() => setView({ ...view, tab: "finance" })} style={{ marginTop: 9, border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", font: "inherit", textDecoration: "underline" }}>فتح الملف المالي الفعلي في Finance OS ↗</button></div>
