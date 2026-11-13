@@ -297,10 +297,21 @@ export function Tasks() {
 // ═════ Portfolio ═════
 // Cross-project portfolio view; derived only from existing workspace records.
 export function Portfolio() {
-  const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, setView } = useP();
+  const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, setView, people } = useP();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("active");
+  const [mode, setMode] = useState("cards");
   const [delayedOnly, setDelayedOnly] = useState(false);
+  const [typeFilter, setTypeFilter] = useState("");
+  const [healthFilter, setHealthFilter] = useState("");
+  const [leadFilter, setLeadFilter] = useState("");
+  const [teamFilter, setTeamFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
+  const [visibilityFilter, setVisibilityFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [highRiskOnly, setHighRiskOnly] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(today.slice(0, 7));
   const projects = data.projects.filter((p) => !p.is_system && !p.deleted_at);
   const openProjects = projects.filter((p) => !p.archived_at && !["Completed", "Cancelled"].includes(p.status));
   const completed = projects.filter((p) => p.status === "Completed" && !p.archived_at);
@@ -312,11 +323,40 @@ export function Portfolio() {
     .filter((p) => status === "all" || (status === "active" ? openProjects.includes(p) : status === "completed" ? completed.includes(p) : !!p.archived_at))
     .filter((p) => !query || [p.name, p.description, p.final_goal].some((v) => String(v || "").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
     .filter((p) => !delayedOnly || delayed.includes(p))
+    .filter((p) => !typeFilter || String(p.type || "") === typeFilter)
+    .filter((p) => !healthFilter || metrics[p.id]?.health === healthFilter)
+    .filter((p) => !leadFilter || String(p.lead_id || "") === leadFilter)
+    .filter((p) => !teamFilter || (p.members || []).some((member) => String(member.member_id || member.user_id || member.id || "") === teamFilter))
+    .filter((p) => !priorityFilter || String(p.priority || "Medium") === priorityFilter)
+    .filter((p) => !visibilityFilter || String(p.visibility || "workspace") === visibilityFilter)
+    .filter((p) => !dateFrom || (!!p.target_date && p.target_date >= dateFrom))
+    .filter((p) => !dateTo || (!!p.target_date && p.target_date <= dateTo))
+    .filter((p) => !highRiskOnly || data.risks.some((risk) => risk.project_id === p.id && D.isOpenRisk(risk) && D.riskScore(risk) >= settings.riskHigh))
     .sort((a, b) => {
       const rank = { Red: 0, Orange: 1, Yellow: 2, Green: 3, OnHold: 4, NotEvaluated: 5 };
       return (rank[metrics[a.id]?.health] ?? 9) - (rank[metrics[b.id]?.health] ?? 9) || String(a.target_date || "9999").localeCompare(String(b.target_date || "9999"));
     });
   const taskCount = idx.list.filter((t) => idx.isLeaf(t.id) && openProjects.some((p) => p.id === t.project_id) && ["todo", "active"].includes(D.cat(t.status))).length;
+  const typeOptions = [...new Set(projects.map((p) => String(p.type || "")).filter(Boolean))].sort();
+  const priorityOptions = [...new Set(projects.map((p) => String(p.priority || "Medium")))].sort();
+  const visibilityOptions = [...new Set(projects.map((p) => String(p.visibility || "workspace")))].sort();
+  const healthOptions = [...new Set(projects.map((p) => metrics[p.id]?.health).filter(Boolean))].sort();
+  const filtersActive = !!(query || typeFilter || healthFilter || leadFilter || teamFilter || priorityFilter || visibilityFilter || dateFrom || dateTo || highRiskOnly || delayedOnly);
+  const clearFilters = () => {
+    setQuery(""); setStatus("active"); setDelayedOnly(false); setTypeFilter(""); setHealthFilter("");
+    setLeadFilter(""); setTeamFilter(""); setPriorityFilter(""); setVisibilityFilter("");
+    setDateFrom(""); setDateTo(""); setHighRiskOnly(false);
+  };
+  const [calendarYear, calendarMonthNumber] = calendarMonth.split("-").map(Number);
+  const calendarLead = dow(calendarMonth + "-01");
+  const calendarDays = monthDays(calendarYear, calendarMonthNumber);
+  const calendarDates = Array.from({ length: calendarDays }, (_, index) => calendarMonth + "-" + String(index + 1).padStart(2, "0"));
+  const timelineDates = visible.flatMap((p) => [p.start_date || p.target_date, p.target_date || p.start_date]).filter(Boolean).sort();
+  const timelineMin = timelineDates[0] || "";
+  const timelineMax = timelineDates[timelineDates.length - 1] || "";
+  const timelineSpan = timelineMin ? Math.max(1, diffDays(timelineMax, timelineMin) + 1) : 1;
+  const timelinePosition = (date) => Math.max(0, Math.min(100, diffDays(date, timelineMin) / timelineSpan * 100));
+  const boardStatuses = [...new Set(visible.map((p) => p.status || "Planned"))];
   return (
     <div>
       <Head title="محفظة المشاريع" sub="نظرة موحّدة على حالة المشاريع والأهداف والمخاطر عبر مساحة العمل." />
@@ -340,12 +380,85 @@ export function Portfolio() {
           <select aria-label="تصفية المشاريع" style={{ ...S.sel, minWidth: 150 }} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="active">النشطة</option><option value="completed">المكتملة</option><option value="archived">المؤرشفة</option><option value="all">كل المشاريع</option>
           </select>
+          <Seg small value={mode} onChange={setMode} options={[{ v: "cards", l: "بطاقات" }, { v: "table", l: "جدول" }, { v: "board", l: "لوحة" }, { v: "timeline", l: "خط زمني" }, { v: "calendar", l: "تقويم" }]} />
           <span style={{ color: C.muted, fontSize: 11 }}>{visible.length} مشروع</span>
-          {delayedOnly && <Btn small onClick={() => setDelayedOnly(false)}>إلغاء فلتر المشاريع المتأخرة</Btn>}
+          {filtersActive && <Btn small onClick={clearFilters}>مسح الفلاتر</Btn>}
+        </div>
+        <details style={{ marginTop: 9 }}>
+          <summary style={{ cursor: "pointer", fontSize: 12, color: C.dim }}>فلاتر مركبة {filtersActive ? "· مفعّلة" : ""}</summary>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 8, marginTop: 9 }}>
+            <label style={{ fontSize: 11, color: C.muted }}>النوع<select aria-label="نوع المشروع" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}><option value="">كل الأنواع</option>{typeOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+            <label style={{ fontSize: 11, color: C.muted }}>الصحة<select aria-label="صحة المشروع" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={healthFilter} onChange={(e) => setHealthFilter(e.target.value)}><option value="">كل الحالات الصحية</option>{healthOptions.map((value) => <option key={value} value={value}>{D.HEALTH_META[value]?.label || value}</option>)}</select></label>
+            <label style={{ fontSize: 11, color: C.muted }}>القائد<select aria-label="قائد المشروع" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={leadFilter} onChange={(e) => setLeadFilter(e.target.value)}><option value="">كل القادة</option>{people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>
+            <label style={{ fontSize: 11, color: C.muted }}>عضو الفريق<select aria-label="عضو الفريق" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}><option value="">كل الفرق</option>{people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>
+            <label style={{ fontSize: 11, color: C.muted }}>الأولوية<select aria-label="أولوية المشروع" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}><option value="">كل الأولويات</option>{priorityOptions.map((value) => <option key={value} value={value}>{L.priority[value] || value}</option>)}</select></label>
+            <label style={{ fontSize: 11, color: C.muted }}>الرؤية<select aria-label="رؤية المشروع" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={visibilityFilter} onChange={(e) => setVisibilityFilter(e.target.value)}><option value="">كل مستويات الرؤية</option>{visibilityOptions.map((value) => <option key={value} value={value}>{value === "private" ? "خاص" : value === "workspace" ? "مساحة العمل" : value}</option>)}</select></label>
+            <label style={{ fontSize: 11, color: C.muted }}>الموعد من<input aria-label="الموعد من" type="date" style={{ ...S.inp, width: "100%", marginTop: 3 }} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></label>
+            <label style={{ fontSize: 11, color: C.muted }}>الموعد إلى<input aria-label="الموعد إلى" type="date" style={{ ...S.inp, width: "100%", marginTop: 3 }} value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} /></label>
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 8 }}>
+            <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 11.5 }}><input type="checkbox" checked={highRiskOnly} onChange={(e) => setHighRiskOnly(e.target.checked)} />مشاريع بها مخاطر عالية مفتوحة</label>
+            {delayedOnly && <span style={{ fontSize: 11, color: C.warn }}>فلتر المشاريع المتأخرة مفعّل</span>}
+          </div>
+        </details>
+        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>حالة الربط المالي وطرق العرض المحفوظة ستظهر عند اكتمال عقد Finance read model وقرار Saved Views.</div>
+      </div>
+      {!visible.length ? <Empty icon="🗂️" title="لا توجد مشاريع مطابقة" sub="غيّر الفلتر أو عبارة البحث لعرض مشاريع أخرى." />
+      : mode === "table" ? <div style={{ ...S.card, padding: 0, overflowX: "auto" }}>
+        <table style={{ width: "100%", minWidth: 940, borderCollapse: "collapse", fontSize: 12 }}>
+          <thead><tr style={{ background: "rgba(0,0,0,0.03)" }}>{["المشروع","الحالة","الصحة","التقدم","الموعد","القائد","الأولوية","المشاكل","المخاطر"].map((heading) => <th key={heading} style={{ padding: 9, textAlign: "start", color: C.muted, fontSize: 10.5, whiteSpace: "nowrap" }}>{heading}</th>)}</tr></thead>
+          <tbody>{visible.map((p) => {
+            const m = metrics[p.id] || {};
+            const issueCount = data.issues.filter((issue) => issue.project_id === p.id && D.isOpenIssue(issue)).length;
+            const riskCount = data.risks.filter((risk) => risk.project_id === p.id && D.isOpenRisk(risk)).length;
+            return <tr key={p.id} style={{ borderTop: "1px solid " + C.line }}>
+              <td style={{ padding: 9 }}><button type="button" onClick={() => openProject(p.id)} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", font: "inherit", fontWeight: 700, textAlign: "start" }}>{p.name}</button><div style={{ color: C.muted, fontSize: 10.5 }}>{p.type || "—"}</div></td>
+              <td style={{ padding: 9, whiteSpace: "nowrap" }}>{L.projectStatus[p.status] || p.status || "—"}</td>
+              <td style={{ padding: 9 }}><HealthBadge m={m} compact /></td>
+              <td style={{ padding: 9, minWidth: 120 }}><Progress value={m.progress == null ? null : m.progress} /></td>
+              <td style={{ padding: 9, whiteSpace: "nowrap" }}>{p.target_date ? fmtShort(p.target_date) : "—"}</td>
+              <td style={{ padding: 9 }}>{people.find((person) => person.id === p.lead_id)?.name || "—"}</td>
+              <td style={{ padding: 9 }}>{L.priority[p.priority] || p.priority || "—"}</td>
+              <td style={{ padding: 9 }}>{issueCount}</td><td style={{ padding: 9 }}>{riskCount}</td>
+            </tr>;
+          })}</tbody>
+        </table>
+      </div>
+      : mode === "board" ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, overflowX: "auto", alignItems: "start" }}>
+        {boardStatuses.map((projectStatus) => <section key={projectStatus} style={{ ...S.card, padding: 9, minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>{L.projectStatus[projectStatus] || projectStatus}<Chip>{visible.filter((p) => p.status === projectStatus).length}</Chip></div>
+          {visible.filter((p) => p.status === projectStatus).map((p) => <button key={p.id} type="button" onClick={() => openProject(p.id)} style={{ ...S.card, display: "block", width: "100%", padding: 9, marginBottom: 7, textAlign: "start", cursor: "pointer" }}><div style={{ display: "flex", gap: 7, alignItems: "center" }}><b style={{ flex: 1, fontSize: 12 }}>{p.name}</b><HealthBadge m={metrics[p.id] || {}} compact /></div><div style={{ fontSize: 10.5, color: C.muted, marginTop: 5 }}>{p.target_date ? "الموعد " + fmtShort(p.target_date) : "بلا موعد"} · {Math.round(metrics[p.id]?.progress || 0)}%</div></button>)}
+          {!visible.some((p) => p.status === projectStatus) && <span style={{ color: C.muted, fontSize: 11 }}>لا مشاريع</span>}
+        </section>)}
+      </div>
+      : mode === "timeline" ? <div style={{ ...S.card, overflowX: "auto" }}>
+        {!timelineDates.length ? <Empty icon="🗓️" title="لا توجد مشاريع مؤرخة" sub="أضف تاريخ بداية أو موعدًا مستهدفًا للمشروع." /> : <div style={{ minWidth: 760 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: C.muted, marginBottom: 9 }}><span>{fmtShort(timelineMin)}</span><span>{fmtShort(timelineMax)}</span></div>
+          {visible.filter((p) => p.start_date || p.target_date).map((p) => {
+            const start = p.start_date || p.target_date, finish = p.target_date || p.start_date;
+            const left = timelinePosition(start), width = Math.max(1.5, timelinePosition(finish) - left);
+            return <div key={p.id} style={{ display: "grid", gridTemplateColumns: "190px 1fr", gap: 10, alignItems: "center", marginBottom: 9 }}>
+              <button type="button" onClick={() => openProject(p.id)} style={{ border: 0, background: "transparent", padding: 0, font: "inherit", textAlign: "start", color: C.info, cursor: "pointer", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</button>
+              <div style={{ position: "relative", height: 25, borderRadius: 6, background: "rgba(0,0,0,.04)" }}><div title={fmtShort(start) + " → " + fmtShort(finish)} style={{ position: "absolute", insetInlineStart: left + "%", width: width + "%", top: 3, height: 19, borderRadius: 5, background: metrics[p.id]?.health === "Red" ? "rgba(239,68,68,.2)" : metrics[p.id]?.health === "Orange" ? "rgba(239,159,39,.22)" : "rgba(16,185,129,.18)", border: "1px solid " + (metrics[p.id]?.health === "Red" ? C.bad : metrics[p.id]?.health === "Orange" ? C.orange : C.ok) }} /></div>
+            </div>;
+          })}
+        </div>}
+      </div>
+      : mode === "calendar" ? <div style={S.card}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><Btn small onClick={() => { const next = new Date(Date.UTC(calendarYear, calendarMonthNumber - 2, 1)); setCalendarMonth(next.toISOString().slice(0, 7)); }}>→</Btn><b>{MONTH_NAMES[calendarMonthNumber - 1]} {calendarYear}</b><Btn small onClick={() => { const next = new Date(Date.UTC(calendarYear, calendarMonthNumber, 1)); setCalendarMonth(next.toISOString().slice(0, 7)); }}>←</Btn></div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 4 }}>
+          {["أحد","اثنين","ثلاثاء","أربعاء","خميس","جمعة","سبت"].map((day) => <div key={day} style={{ fontSize: 10.5, color: C.muted, textAlign: "center" }}>{day}</div>)}
+          {Array.from({ length: calendarLead }, (_, index) => <div key={"blank-" + index} />)}
+          {calendarDates.map((date) => {
+            const dayProjects = visible.filter((p) => p.target_date === date);
+            return <div key={date} style={{ minHeight: 76, minWidth: 0, border: "1px solid " + (date === today ? A : C.line), borderRadius: 6, padding: 4, background: date === today ? "rgba(239,159,39,.06)" : "transparent" }}>
+              <div style={{ fontSize: 10, color: C.muted }}>{Number(date.slice(-2))}</div>
+              {dayProjects.slice(0, 3).map((p) => <button key={p.id} type="button" onClick={() => openProject(p.id)} style={{ display: "block", width: "100%", marginTop: 3, border: 0, borderRadius: 4, padding: "2px 4px", background: "rgba(239,159,39,.12)", color: C.text, fontSize: 10, textAlign: "start", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</button>)}
+              {dayProjects.length > 3 && <div style={{ fontSize: 9, color: C.muted }}>+{dayProjects.length - 3}</div>}
+            </div>;
+          })}
         </div>
       </div>
-      {!visible.length ? <Empty icon="🗂️" title="لا توجد مشاريع مطابقة" sub="غيّر الفلتر أو عبارة البحث لعرض مشاريع أخرى." /> :
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 10 }}>
+      : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 10 }}>
           {visible.map((p) => {
             const m = metrics[p.id] || {};
             const tasks = idx.list.filter((t) => idx.isLeaf(t.id) && t.project_id === p.id);
