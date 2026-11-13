@@ -116,22 +116,23 @@ The table below records only the strongest current evidence. “Automated” mea
 **Current PR-head Preview:** `https://os-9jx6o8k5k-koumma.vercel.app` — deployment is READY for docs-only head `085d63068bc5e78d939ba5ed05536debce9aa696`. The earlier code-evidence Preview is listed below for commit `8218791...`. READY confirms deployment status, not manual browser acceptance.
 
 
-**Commit:** `689cd1be328efa8ec03b59b7e2e990cebfc44fd2`
+**Latest verified code/test commit:** `8218791d9a151b26b07fbb5331ad8210c792fcb0`  
+**Successful workflow evidence was rerun on the docs-only descendant:** `085d63068bc5e78d939ba5ed05536debce9aa696` (same implementation tree).
 
 | Evidence | Result |
 |---|---|
-| GitHub CI workflow | **SUCCESS** — run `43408583917` |
-| Verify app | **SUCCESS** — run `43408584004` |
-| Finance Family Center Checks | **SUCCESS** — run `43408584067` |
-| Finance PostgreSQL smoke | **SUCCESS** — run `43408584030` |
-| Spiritual PostgreSQL smoke | **SUCCESS** — job passed in CI run `43408583917` |
-| Projects domain | **PASS 66 / FAIL 0** |
-| Template write/rollback contract | **PASS 4 / FAIL 0** |
-| Projects relationship navigation | **PASS** |
-| Projects relationship permission, traceability, PRD, output, risk and decision contracts | **PASS** in automated suite |
-| Knowledge stable follow-up identity/reorder test | **PASS** |
-| Projects navigation/integration contract | **PASS** |
-| Vercel Preview | **READY** — deployment `dpl_6oMwjUSnyqYMAgy4WFzKhBxzpymA`, URL `https://os-8jmikhbot-koumma.vercel.app` |
+| GitHub CI workflow | **SUCCESS** — run `43460714320` |
+| Verify app | **SUCCESS** — run `43460714316` |
+| Finance Family Center Checks | **SUCCESS** — run `43460714386` |
+| Finance PostgreSQL smoke | **SUCCESS** — run `43460714292` |
+| Spiritual PostgreSQL smoke | **SUCCESS** — job passed in CI run `43460714320` |
+| Full OS suite (informational CI job) | **SUCCESS** |
+| Production build / Finance acceptance | **SUCCESS** |
+| Projects domain | **PASS 66 / FAIL 0** (as recorded by the earlier test report; latest workflow also passed the full test job) |
+| Template write/rollback contract | **PASS 4 / FAIL 0** (as recorded by the earlier test report) |
+| Projects relationship/navigation/permission and follow-up identity contracts | **PASS** in automated suite |
+| Output upload retry contract | **PASS (mock/contract only)**; live Supabase Storage/RLS remains unverified |
+| Code-evidence Preview for commit `8218791...` | **READY** — `https://os-jygby3wwv-koumma.vercel.app` |
 | Manual 360px/tablet RTL, keyboard/accessibility and browser Back | **NOT RUN** |
 | Two authorized accounts + one restricted account | **NOT RUN** |
 | Production migration rehearsal/rollback | **NOT RUN** |
