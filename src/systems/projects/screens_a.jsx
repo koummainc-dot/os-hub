@@ -326,7 +326,7 @@ export function Portfolio() {
         <Stat label="مشاريع متأخرة" value={delayed.length} color={delayed.length ? C.bad : C.ok} onClick={() => { setStatus("active"); setDelayedOnly(true); }} />
         <Stat label="مهام مفتوحة" value={taskCount} color={C.violet} onClick={() => { setView((current) => ({ ...current, activeProjectsOnly: true })); setPage("tasks"); }} />
         <Stat label="مشاكل حرجة" value={criticalIssues.length} color={criticalIssues.length ? C.bad : C.ok} onClick={() => { setView((v) => ({ ...v, issueSeverityFilter: "Critical", issueStatusFilter: "open" })); setPage("issues"); }} />
-        <Stat label="مخاطر عالية" value={highRisks.length} color={highRisks.length ? C.orange : C.ok} onClick={() => setPage("risks")} />
+        <Stat label="مخاطر عالية" value={highRisks.length} color={highRisks.length ? C.orange : C.ok} onClick={() => { setView((current) => ({ ...current, riskStatusFilter: "open", riskHighOnly: true })); setPage("risks"); }} />
       </div>
       {objectives.length > 0 && <div style={{ ...S.card, marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 9 }}><b style={{ fontSize: 13 }}>الأهداف النشطة (OKR)</b><span style={{ flex: 1 }} /><Btn small onClick={() => setPage("okrs")}>إدارة الأهداف</Btn></div>
