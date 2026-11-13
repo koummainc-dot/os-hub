@@ -188,9 +188,12 @@ export function Week() {
 
 // ═════ My Tasks ═════
 export function Tasks() {
-  const { me, data, idx, people, projectsById, today, A: act, R, can, openTask, setPage } = useP();
+  const { me, data, idx, people, projectsById, today, A: act, R, can, openTask, setPage, view, setView } = useP();
+  const activeProjectsOnly = view.activeProjectsOnly === true;
   const [mode, setMode] = useState("list"); const [who, setWho] = useState("all"); const [q, setQ] = useState(""); const [proj, setProj] = useState(""); const [st, setSt] = useState("open"); const [blocked, setBlocked] = useState(false); const [form, setForm] = useState(false); const [quickAdd, setQuickAdd] = useState(false); const [month, setMonth] = useState(today.slice(0, 7)); const [selected, setSelected] = useState(() => new Set()); const [inlineId, setInlineId] = useState(null);
-  const list = idx.list.filter((t) => idx.isLeaf(t.id) && !projectsById[t.project_id]?.archived_at).filter((t) => (who === "all" ? true : who === "none" ? !t.assignee_id : t.assignee_id === who)).filter((t) => !proj || t.project_id === proj).filter((t) => (st === "all" ? true : st === "open" ? ["todo", "active"].includes(D.cat(t.status)) : D.cat(t.status) === st)).filter((t) => !blocked || t.blocked).filter((t) => !q || t.title.toLowerCase().includes(q.toLowerCase()));
+  const list = idx.list.filter((t) => idx.isLeaf(t.id) && !projectsById[t.project_id]?.archived_at)
+    .filter((t) => !activeProjectsOnly || (!!projectsById[t.project_id] && !projectsById[t.project_id].is_system && !["Completed", "Cancelled"].includes(projectsById[t.project_id].status)))
+    .filter((t) => (who === "all" ? true : who === "none" ? !t.assignee_id : t.assignee_id === who)).filter((t) => !proj || t.project_id === proj).filter((t) => (st === "all" ? true : st === "open" ? ["todo", "active"].includes(D.cat(t.status)) : D.cat(t.status) === st)).filter((t) => !blocked || t.blocked).filter((t) => !q || t.title.toLowerCase().includes(q.toLowerCase()));
   const sorted = [...list].sort((a, b) => (a.due_date || "9999").localeCompare(b.due_date || "9999"));
   const selectedVisible = sorted.filter((t) => selected.has(t.id));
   const toggleSelected = (id) => setSelected((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
@@ -207,7 +210,8 @@ export function Tasks() {
         <select style={{ ...S.sel, width: 150 }} value={proj} onChange={(e) => setProj(e.target.value)}><option value="">كل المشاريع</option>{projOpts(data.projects).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select>
         <select style={{ ...S.sel, width: 120 }} value={st} onChange={(e) => setSt(e.target.value)}><option value="open">مفتوحة</option><option value="done">مكتملة</option><option value="cancelled">ملغاة</option><option value="all">الكل</option></select>
         <label style={{ fontSize: 12, display: "flex", gap: 5, alignItems: "center" }}><input type="checkbox" checked={blocked} onChange={(e) => setBlocked(e.target.checked)} />المتعطّلة فقط</label>
-        {(q || who !== me || proj || st !== "open" || blocked) && <Btn small onClick={() => { setQ(""); setWho(me); setProj(""); setSt("open"); setBlocked(false); }}>مسح الفلاتر</Btn>}
+        {activeProjectsOnly && <span style={{ fontSize: 11, color: C.muted }}>مهام المشاريع النشطة فقط</span>}
+        {(q || who !== "all" || proj || st !== "open" || blocked || activeProjectsOnly) && <Btn small onClick={() => { setQ(""); setWho("all"); setProj(""); setSt("open"); setBlocked(false); setView((current) => ({ ...current, activeProjectsOnly: false })); }}>مسح الفلاتر</Btn>}
       </SearchBar>
       {selectedVisible.length > 0 && <div style={{ ...S.card, padding: "8px 10px", marginBottom: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", position: "sticky", top: 4, zIndex: 5 }}>
         <b style={{ fontSize: 12 }}>تم تحديد {selectedVisible.length}</b>
