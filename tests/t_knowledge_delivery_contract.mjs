@@ -33,7 +33,7 @@ assert.ok(worker.includes('status: "sent"'));
 assert.ok(preview.includes("workspace_data"));
 assert.ok(preview.includes("pg_column_size(data)"));
 assert.ok(!/\b(insert\s+into\s+public\.workspace_data|\bdelete\s+from\s+public\.workspace_data|\bupdate\s+public\.workspace_data)/i.test(preview));
-assert.ok(projects.includes("source_meeting_id === meeting.id && Number(task.source_followup_index) === index"), "meeting follow-up conversion must find an existing task by meeting and action index");
+assert.ok(projects.includes("findKnowledgeFollowupTask(data.tasks, meeting.id, followup, index)") && projects.includes("source_followup_id: followupIdentity") && projects.includes("source_followup_index: index"), "meeting follow-up conversion must reuse stable identity and retain the legacy index fallback");
 assert.ok(projects.includes("creatingFollowupsRef.current.has(key)"), "same-session duplicate submissions must be blocked while a write is in flight");
 assert.ok(projects.includes("creatingFollowupsRef.current.add(key)") && projects.includes("creatingFollowupsRef.current.delete(key)"), "in-flight duplicate guard must be released after success or failure");
 assert.ok(projects.includes("source_meeting_id: meeting.id") && projects.includes("source_followup_index: index"), "created task must retain its source meeting and follow-up identity");
