@@ -6,9 +6,11 @@ import {
   validateOutputUpload,
   outputObjectPath,
   outputFileMetadata,
+  uploadOutputFileWithRetry,
 } from "../src/systems/projects/outputStorage.js";
 
 const entities = fs.readFileSync(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
+const parts = fs.readFileSync(new URL("../src/systems/projects/parts.jsx", import.meta.url), "utf8");
 const outputs = entities.slice(entities.indexOf("export function OutputsView"));
 const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 const projectsIndex = fs.readFileSync(new URL("../src/systems/projects/index.jsx", import.meta.url), "utf8");
@@ -18,7 +20,8 @@ assert.ok(outputs.includes("files || []"), "Outputs already has a canonical file
 assert.ok(outputs.includes("label: \"الملفات\""), "Output details expose attached-file metadata");
 assert.ok(!outputs.includes("data:URL") && !outputs.includes("base64"), "Direct upload must not be faked by embedding base64/data URLs in records");
 assert.ok(!outputs.includes("localStorage"), "Outputs upload contract must not introduce a second local-only persistence path");
-assert.ok(outputs.includes("supabase.storage.from(OUTPUT_STORAGE_BUCKET).upload"), "Outputs use the Supabase Storage upload boundary");
+assert.ok(outputs.includes("uploadOutputFileWithRetry"), "Outputs use the shared retry-safe Supabase Storage upload boundary");
+assert.ok(!outputs.includes("remove(uploaded.map"), "A failed later file does not blindly delete earlier files that may already be linked");
 assert.ok(outputs.includes("createSignedUrl"), "Private Output files use signed URLs rather than public bucket URLs");
 assert.ok(migration.includes("projects_outputs_select") && migration.includes("projects_outputs_insert") && migration.includes("projects_outputs_delete"), "Storage migration defines the three required private-object policies");
 assert.ok(!migration.includes("create policy projects_outputs_update"), "Storage migration deliberately forbids object UPDATE/upsert");
@@ -53,6 +56,67 @@ assert.deepEqual(metadata, {
   uploaded_at: "2026-11-07T00:00:00.000Z",
   checksum: null,
 }, "Output records persist metadata only, not binary/base64 content");
+
+const retryFile = { name: "retry.pdf", type: "application/pdf", size: 2048 };
+const retryItem = { file: retryFile, fileId: "retry-stable-id", uploadedAt: "2026-11-13T15:00:00.000Z" };
+const retryOutput = { id: "output-retry", project_id: "project-1", files: [] };
+const uploadedPaths = [];
+const successfulStorage = {
+  from(bucket) {
+    assert.equal(bucket, OUTPUT_STORAGE_BUCKET);
+    return {
+      async upload(path, file, options) {
+        uploadedPaths.push(path);
+        assert.equal(options.upsert, false, "Storage object uploads never overwrite");
+        assert.equal(file, retryFile);
+        return { data: { path }, error: null };
+      },
+      async createSignedUrl() { return { data: { signedUrl: "https://signed.example/file" }, error: null }; },
+    };
+  },
+};
+const firstUpload = await uploadOutputFileWithRetry({
+  storage: successfulStorage, workspaceId: "ws-1", output: retryOutput, pendingFile: retryItem,
+});
+assert.equal(firstUpload.object_path, uploadedPaths[0], "first upload returns metadata for the exact opaque Storage path");
+const existingObjectStorage = {
+  from() {
+    return {
+      async upload(path) {
+        uploadedPaths.push(path);
+        return { data: null, error: { message: "object already exists" } };
+      },
+      async createSignedUrl(path) {
+        return { data: { signedUrl: "https://signed.example/retry" }, error: null };
+      },
+    };
+  },
+};
+const retriedUpload = await uploadOutputFileWithRetry({
+  storage: existingObjectStorage, workspaceId: "ws-1", output: retryOutput, pendingFile: retryItem,
+});
+assert.equal(retriedUpload.object_path, firstUpload.object_path, "retry reuses the same stable object path instead of creating a duplicate");
+assert.equal(uploadedPaths[1], uploadedPaths[0], "retry never changes the file's opaque id/path");
+const failedStorage = {
+  from() {
+    return {
+      async upload() { return { data: null, error: { message: "network unavailable" } }; },
+      async createSignedUrl() { return { data: null, error: { message: "object not found" } }; },
+    };
+  },
+};
+await assert.rejects(
+  () => uploadOutputFileWithRetry({ storage: failedStorage, workspaceId: "ws-1", output: retryOutput, pendingFile: retryItem }),
+  /network unavailable/,
+  "a failed upload without an existing object remains a visible retryable error",
+);
+const taskSheet = parts.slice(parts.indexOf("export function TaskSheet"), parts.indexOf("export function SessionForm"));
+assert.ok(taskSheet.includes("uploadOutputFileWithRetry"), "Task Sheet outputs use the canonical private Storage upload helper");
+assert.ok(taskSheet.includes("set(\"__pendingFiles\", files.map((file) => ({ file, fileId: uid()"), "Task Sheet preserves a stable ID for each selected file");
+assert.ok(taskSheet.includes("createSignedUrl(file.object_path, 60)"), "Task Sheet downloads private files with short-lived signed URLs");
+assert.ok(taskSheet.includes("الملفات التي اكتمل ربطها محفوظة") && taskSheet.includes("أعد الضغط على «حفظ»"), "Task Sheet explains which work was preserved and how to resume a failed upload");
+assert.ok(!taskSheet.includes("رفع الملفات غير متاح في هذا الإصدار"), "Task Sheet no longer incorrectly claims file upload is unavailable");
+assert.ok(taskSheet.includes('title="المهمة غير متاحة"'), "Task Sheet has a clear state for stale task deep links");
 
 assert.ok(styles.includes("html, body, #root { min-width: 0 !important; overflow-x: hidden; }"), "Responsive baseline prevents Projects from forcing viewport overflow");
 assert.ok(styles.includes("table { min-width: 640px; }"), "Dense Projects tables retain a bounded horizontal-scroll fallback");
