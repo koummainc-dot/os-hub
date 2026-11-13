@@ -407,7 +407,7 @@ export function Portfolio() {
       {!visible.length ? <Empty icon="🗂️" title="لا توجد مشاريع مطابقة" sub="غيّر الفلتر أو عبارة البحث لعرض مشاريع أخرى." />
       : mode === "table" ? <div style={{ ...S.card, padding: 0, overflowX: "auto" }}>
         <table style={{ width: "100%", minWidth: 940, borderCollapse: "collapse", fontSize: 12 }}>
-          <thead><tr style={{ background: "rgba(0,0,0,0.03)" }}>{["المشروع","الحالة","الصحة","التقدم","الموعد","القائد","الأولوية","المشاكل","المخاطر"].map((heading) => <th key={heading} style={{ padding: 9, textAlign: "start", color: C.muted, fontSize: 10.5, whiteSpace: "nowrap" }}>{heading}</th>)}</tr></thead>
+          <thead><tr style={{ background: "rgba(0,0,0,0.03)" }}>{["المشروع","الحالة","الصحة","التقدم","الموعد","الأيام المتبقية","القائد","الفريق","الأولوية","المشاكل","المخاطر"].map((heading) => <th key={heading} style={{ padding: 9, textAlign: "start", color: C.muted, fontSize: 10.5, whiteSpace: "nowrap" }}>{heading}</th>)}</tr></thead>
           <tbody>{visible.map((p) => {
             const m = metrics[p.id] || {};
             const issueCount = data.issues.filter((issue) => issue.project_id === p.id && D.isOpenIssue(issue)).length;
@@ -418,7 +418,9 @@ export function Portfolio() {
               <td style={{ padding: 9 }}><HealthBadge m={m} compact /></td>
               <td style={{ padding: 9, minWidth: 120 }}><Progress value={m.progress == null ? null : m.progress} /><div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{m.progress == null ? "غير قابل للقياس" : Math.round(m.progress) + "%"}</div></td>
               <td style={{ padding: 9, whiteSpace: "nowrap" }}>{p.target_date ? fmtShort(p.target_date) : "—"}</td>
+              <td style={{ padding: 9, whiteSpace: "nowrap" }}>{m.daysRemaining == null ? "—" : m.daysRemaining < 0 ? "متأخر " + -m.daysRemaining + " يوم" : "باقٍ " + m.daysRemaining + " يوم"}</td>
               <td style={{ padding: 9 }}>{people.find((person) => person.id === p.lead_id)?.name || "—"}</td>
+              <td style={{ padding: 9, minWidth: 110 }}>{(p.members || []).length ? <span>{p.members.slice(0, 2).map((member) => people.find((person) => person.id === member.member_id)?.name || "عضو").join("، ")}{p.members.length > 2 ? " +" + (p.members.length - 2) : ""}</span> : "—"}</td>
               <td style={{ padding: 9 }}>{L.priority[p.priority] || p.priority || "—"}</td>
               <td style={{ padding: 9 }}>{issueCount}</td><td style={{ padding: 9 }}>{riskCount}</td>
             </tr>;
