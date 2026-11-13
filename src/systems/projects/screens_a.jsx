@@ -322,7 +322,7 @@ export function Portfolio() {
   const objectives = data.objectives.filter((o) => o.status === "Active");
   const visible = projects
     .filter((p) => status === "all" || (status === "active" ? openProjects.includes(p) : status === "completed" ? completed.includes(p) : !!p.archived_at))
-    .filter((p) => !query || [p.name, p.description, p.final_goal].some((v) => String(v || "").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
+    .filter((p) => !query || [p.id, p.name, p.description, p.final_goal].some((v) => String(v || "").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
     .filter((p) => !delayedOnly || delayed.includes(p))
     .filter((p) => !typeFilter || String(p.type || "") === typeFilter)
     .filter((p) => !healthFilter || metrics[p.id]?.health === healthFilter)
