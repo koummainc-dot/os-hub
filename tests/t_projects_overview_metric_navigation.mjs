@@ -34,7 +34,7 @@ assert.ok(taskTree.includes("taskFilter: null, taskFilterIds: []"), "task filter
 assert.ok(taskTree.includes('taskFilterIds: []'), "clearing a task filter also clears exact metric IDs");
 assert.ok(taskTree.includes('filterLabel || "تُعرض المهام المطابقة للفلتر داخل هذا المشروع."'), "task filter banner uses the matching filter description");
 
-assert.ok(taskTree.includes("لا توجد مهام متأخرة حاليًا في هذا المشروع"), "empty overdue filter has a truthful empty state");
+assert.ok(taskTree.includes('view.taskFilter === "overdue" ? "لا توجد مهام متأخرة حاليًا في هذا المشروع."') && taskTree.includes('view.taskFilter === "ids" ? "لا توجد مهام بلا مواصفة أو اكتشاف حاليًا."'), "empty overdue and traceability filters have truthful filter-specific empty states");
 
 const riskView = entities.slice(entities.indexOf("export function RisksView"), entities.indexOf("export function IssuesView"));
 assert.ok(riskView.includes("view.riskHighOnly === true"), "Risk view restores the high-risk filter from navigation state");
