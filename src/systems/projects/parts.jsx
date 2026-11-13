@@ -76,6 +76,12 @@ export function TaskTree({ projectId, tasks, readOnly, filter, filterLabel = nul
   const { idx, A: act, can, today, people, openTask, projectsById, toast, view, setView } = useP(); const project = projectsById[projectId];
   const [open, setOpen] = useState({}); const [form, setForm] = useState(null); const [menu, setMenu] = useState(null); const [dragId, setDragId] = useState(null);
   const canWrite = !readOnly && can("task.write", project);
+  useEffect(() => {
+    if (view.quickCreate !== "task") return;
+    if (canWrite) setForm({});
+    else toast("ليس لديك صلاحية إنشاء مهام في هذا المشروع.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view.quickCreate, canWrite, setView, toast]);
   const roots = idx.roots.filter((t) => t.project_id === projectId);
   const [mode, setMode] = useState("list");
   const [month, setMonth] = useState(today.slice(0, 7));
