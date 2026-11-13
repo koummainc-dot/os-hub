@@ -15,10 +15,11 @@ function Btn({children,secondary=false,...props}){return <button {...props} styl
 function Card({children,style={}}){return <div style={{background:"#fff",border:"1px solid "+LINE,borderRadius:14,padding:15,...style}}>{children}</div>}
 function Metric({label,value,detail}){return <div style={{background:BG,border:"1px solid "+LINE,borderRadius:10,padding:11,minWidth:0}}><div style={{fontSize:11,color:MUTED,marginBottom:5}}>{label}</div><b style={{fontSize:16,overflowWrap:"anywhere"}}>{value}</b>{detail&&<div style={{fontSize:10,color:MUTED,marginTop:4}}>{detail}</div>}</div>}
 
-export default function FinanceProjects({ws,access,isDemo=false,currencies=[]}){
+export default function FinanceProjects({ws,access,isDemo=false,currencies=[],initialProjectRef=null}){
  const [projects,setProjects]=useState([]),[sourceProjects,setSourceProjects]=useState([]),[transactions,setTransactions]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
  const [error,setError]=useState(""),[notice,setNotice]=useState(""),[showForm,setShowForm]=useState(false),[editingId,setEditingId]=useState(null),[selectedId,setSelectedId]=useState(null);
  const [form,setForm]=useState(emptyForm()),[linkTxId,setLinkTxId]=useState("");
+ const [handledInitialProjectRef,setHandledInitialProjectRef]=useState("");
  const canEdit=!isDemo&&(access?.level==="edit"||access?.manage||access?.owner);
  const load=useCallback(async()=>{
   if(!ws?.id||isDemo){setLoading(false);return;}
@@ -39,6 +40,28 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[]}){
   finally{setLoading(false);}
  },[ws?.id,isDemo]);
  useEffect(()=>{load();},[load]);
+ useEffect(()=>{
+  const ref=String(initialProjectRef||"");
+  if(!ref||loading||handledInitialProjectRef===ref)return;
+  const linkedProfile=projects.find(p=>String(p.project_ref||"")===ref);
+  if(linkedProfile){
+   setSelectedId(linkedProfile.id);
+   setShowForm(false);
+   setNotice("تم فتح الملف المالي المرتبط بالمشروع.");
+  }else{
+   const source=sourceProjects.find(p=>String(p.id)===ref);
+   if(source&&canEdit){
+    const currency=source.currency&&currencies.some(c=>c.currency===source.currency&&c.is_active)?source.currency:(currencies.find(c=>c.is_active)?.currency||"EGP");
+    setEditingId(null);
+    setForm({...emptyForm(),name:source.name,project_ref:ref,currency});
+    setShowForm(true);
+    setNotice("تم تمرير المشروع من Projects OS. أكمل إعداد الملف المالي هنا ثم احفظه في Finance OS.");
+   }else if(!source){
+    setError("تعذّر العثور على المشروع المصدر أو قراءته من Projects OS؛ لم يتم إنشاء أو تعديل أي سجل مالي.");
+   }
+  }
+  setHandledInitialProjectRef(ref);
+ },[initialProjectRef,loading,handledInitialProjectRef,projects,sourceProjects,canEdit,currencies]);
  const sourceProjectById=useMemo(()=>new Map(sourceProjects.map(p=>[p.id,p])),[sourceProjects]);
  const displayProjectName=(p)=>sourceProjectById.get(p.project_ref)?.name||p.name;
  const selected=projects.find(p=>p.id===selectedId)||projects[0]||null;
