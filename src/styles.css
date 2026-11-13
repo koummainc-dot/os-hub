@@ -103,7 +103,7 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible{
-  outline:2px solid rgba(37,99,235,.18)!important;
+  outline:2px solid rgba(239,159,39,.22)!important;
   outline-offset:1px!important;
 }
 input,select,textarea{
@@ -118,7 +118,7 @@ input:hover,select:hover,textarea:hover{
 }
 input:focus,select:focus,textarea:focus{
   border-color:var(--accent)!important;
-  box-shadow:0 0 0 2px rgba(37,99,235,.08)!important;
+  box-shadow:0 0 0 2px rgba(239,159,39,.12)!important;
 }
 
 /* Surfaces / cards */
@@ -140,7 +140,7 @@ input:focus,select:focus,textarea:focus{
 }
 .cui-control:focus-within{
   border-color:var(--accent)!important;
-  box-shadow:0 0 0 2px rgba(37,99,235,.08)!important;
+  box-shadow:0 0 0 2px rgba(239,159,39,.12)!important;
 }
 
 /* Common Tailwind-like utility colors used by the app: normalize them */
@@ -175,7 +175,7 @@ input:focus,select:focus,textarea:focus{
 [data-selected="true"]{
   background:var(--accent-soft)!important;
   color:var(--accent)!important;
-  border-color:#BFDBFE!important;
+  border-color:var(--accent)!important;
 }
 .active,
 .is-active,
@@ -263,7 +263,7 @@ button[data-primary="true"]:hover,
 .btn-primary:hover,
 .primary:hover,
 button.bg-primary:hover{
-  background:#1D4ED8!important;
+  background:#D88A1B!important;
   color:#fff!important;
 }
 
