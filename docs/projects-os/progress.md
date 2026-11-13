@@ -7,13 +7,13 @@
 - Production database: unchanged; no new production migration, RLS change or production deployment in this pass.
 
 ## Latest verified code baseline
-- Latest implementation and test evidence commit: `c3a72b5a0c1330fa102876fa78ce15e146e2a5f3`.
+- Latest implementation and test evidence commit: `8218791d9a151b26b07fbb5331ad8210c792fcb0`.
 - GitHub CI: **SUCCESS**; Verify app: **SUCCESS**; Finance Family Center Checks: **SUCCESS**; Finance PostgreSQL smoke: **SUCCESS**; Spiritual PostgreSQL smoke: **SUCCESS**.
-- Full OS test suite, existing regression suite, Finance acceptance, production build and Project Header quick-create contract tests passed on this commit.
+- Full OS test suite, existing regression suite, Finance acceptance, production build, Project Header quick-create contracts and retry-safe Output upload contract passed on this code commit.
 - Projects domain assertions: **66 PASS / 0 FAIL**; template write/rollback contract: **4 PASS / 0 FAIL**.
-- Overview/Portfolio metric-navigation, exact filter, seven permission-gated quick-create flows, stable Knowledge follow-up and navigation/integration contracts passed.
-- Vercel Preview: **READY** — `https://os-1k7tpqwyg-koumma.vercel.app`.
-- Automated results do not constitute manual Preview interaction, RTL/accessibility, real-data lifecycle, or three-account acceptance.
+- Overview/Portfolio navigation, seven permission-gated quick-create flows, stable Knowledge follow-up, and Task Sheet/Outputs file-upload retry contracts passed.
+- Vercel Preview: **READY** — `https://os-jygby3wwv-koumma.vercel.app`.
+- This is automated/code evidence only: actual user file upload/download, Storage RLS permissions, mobile RTL, and real-data lifecycle still require manual Preview acceptance.
 
 ## Master specification coverage
 The full phase/gate/decision/feature map is now recorded in **[`master-spec-status.md`](./master-spec-status.md)**. It maps:
@@ -26,7 +26,7 @@ The full phase/gate/decision/feature map is now recorded in **[`master-spec-stat
 ### Current implementation summary
 - **Navigation:** global route groups, unified Governance, legacy routes and missing Core `myWork` registration.
 - **Workspace:** responsive desktop/mobile navigation with retained historical project tab IDs.
-- **Planning:** project-scoped Discovery filtering/prefill; existing PRD/Requirement/Task/Output and KR domain contracts retained.
+- **Planning & Outputs:** project-scoped Discovery filtering/prefill; existing PRD/Requirement/Task/Output and KR contracts retained. Task Sheet and Outputs share the existing private `projects-outputs` Storage helper; stable per-file IDs and object paths make retries idempotent; metadata is persisted after each completed file; downloads use short-lived signed URLs; a failed later file leaves earlier links and the Draft record available for retry.
 - **Governance:** global unified route and project tabs; risk/issue/decision traceability and lifecycle contracts remain passing.
 - **Knowledge:** separate Meetings and project-owned References tabs; new task links use stable follow-up identity with legacy index/title fallback.
 - **Finance:** context handoff to Finance OS; Finance selects its existing profile or pre-fills its own form; no finance profile/transaction is written by Projects.
@@ -39,7 +39,7 @@ The full phase/gate/decision/feature map is now recorded in **[`master-spec-stat
 - Canonical Knowledge `project_ref`, old reference backfill and server-side follow-up idempotency remain blocked by data-contract/no-loss work.
 - Finance read model, sync states, currency mismatch handling, transaction attribution and real role-specific visibility are not implemented/proven.
 - Saved Views (D-06), Unified Inbox (D-07), Milestone model (D-08), language scope (D-09) and legacy KR/Task migration (D-12) remain open or deferred.
-- Project Header shortcuts now open the canonical create modals directly; automated contract coverage is added, while live Preview acceptance remains pending; Portfolio Saved Views/Finance Link Status and richer Calendar events remain open; Activity aggregation, Weekly Review privacy and immutable Update Snapshot/Addendum E2E are not fully accepted.
+- Project Header shortcuts now open canonical create modals directly; automated contracts pass, while live Preview acceptance remains pending. Task Sheet and Outputs upload failures now retain completed files and support retry against the same Storage object path; real file upload/download and Storage RLS permission acceptance remain unverified. Portfolio Saved Views/Finance Link Status and richer Calendar events remain open; Activity aggregation, Weekly Review privacy and immutable Update Snapshot/Addendum E2E are not fully accepted.
 - Manual 360px/tablet/desktop RTL, keyboard/accessibility, offline/conflict/retry, performance and browser Back/deep-link acceptance remain unverified.
 - Real-data Create → Reload → Edit → Reload → Archive/Restore → Reload and at least two authorized accounts plus one restricted account remain unrun.
 - No production migration, rollback rehearsal, owner release approval or production deployment has occurred.
@@ -52,4 +52,4 @@ The full phase/gate/decision/feature map is now recorded in **[`master-spec-stat
 - No duplicate Milestone, Saved View, Inbox or finance ledger model was introduced.
 
 ## Next work batch
-Continue only the safe, code-only parts of Phase 2/3: verify the seven Project Header quick-create flows in Preview, reconcile Task Sheet/Outputs Storage messaging and retry states, and add remaining exact-record/empty/error/permission assertions. Do not add Saved Views persistence, Milestones, Finance Link Status or Knowledge/Finance schema changes until their D-06/D-08/G4/G5 gates are resolved.
+Next acceptance batch: manually verify all seven Project Header quick-create flows and the Task Sheet/Outputs upload → retry → signed-download path in Preview using real files and accounts with different permissions; then run the real-data Create → Reload → Edit → Reload → Archive/Restore → Reload cycle and exact bidirectional links. Keep Saved Views persistence, Milestones, Finance Link Status and Knowledge/Finance schema changes blocked until their D-06/D-08/G4/G5 gates and owner decisions are resolved.
