@@ -157,3 +157,19 @@ Close the remaining safe, code-only gaps from Phase 2/3 without adding schema:
 - do not add Saved Views persistence, Milestones, Finance Link Status or Knowledge/Finance server data models until their D-06/D-08/G4/G5 contracts are decided.
 
 In parallel, request the Knowledge and Finance owners' current API/schema/RLS contracts for the blocked read-model work. Production changes remain gated.
+
+
+---
+
+## Latest status addendum — 2026-11-13
+
+**This addendum supersedes any earlier statement in this file that says Knowledge Meetings are still loaded workspace-wide and filtered in the Projects browser.**
+
+- Latest tested code head: `d6797bccc9202d4cb23b35a405235d73317cd0c5`.
+- Vercel Preview: **READY** — https://os-1l5h0dtoh-koumma.vercel.app (same exact commit).
+- GitHub checks all **SUCCESS** on this commit: CI `43504831970`; Verify app `43504832011`; Finance Family Center `43504832300`; Finance SQL `43504832115`; Knowledge SQL `43504832110`; Projects SQL `43504832081`; Ventures SQL `43504832090`.
+- Knowledge ↔ Projects uses Knowledge-owned `knowledge_external_links` as the canonical Project relation and a server-scoped `knowledge_list_project_meetings(workspace_id, project_id)` read. Selected-project reads fail closed if the RPC is missing; both Knowledge access and the selected Project's visibility are checked.
+- Disposable PostgreSQL smoke passes create, reassign, unlink, Project A/B filtering, invalid-Project rejection, missing Knowledge/Projects permission, and a second identity that cannot read or link to private Project A through either the Knowledge save trigger or direct external-link write.
+- Projects Meetings refresh/retry buttons call `refresh()` without passing the click event; the JS contract covers this regression.
+- **Still PARTIAL:** authenticated Preview acceptance with two real accounts; real Follow-up→Task duplicate/reload check; other Projects hard gates (real data lifecycle, Outputs Storage, responsive/accessibility, role privacy and migration reconciliation).
+- Production remains unchanged: no migration, data backfill, write, merge, or Production deployment was performed. Verify the Preview's Supabase target and isolate test data before manual writes.
