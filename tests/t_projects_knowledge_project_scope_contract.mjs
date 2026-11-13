@@ -14,4 +14,7 @@ assert.match(migration, /create or replace function public\.knowledge_list_proje
 assert.match(migration, /knowledge_external_links/, "Migration must canonicalize external project links");
 assert.doesNotMatch(migration, /update\s+public\.workspace_records|delete\s+from\s+public\.workspace_records/i, "Migration must not backfill or delete Projects production records");
 
+assert.doesNotMatch(projectsScreen.slice(projectsScreen.indexOf("export function Meetings()"), projectsScreen.indexOf("// ═════ Settings")), /onClick=\{refresh\}/, "Manual refresh/retry buttons must not pass the click event as a project ID");
+assert.match(projectsScreen, /onClick=\{\(\) => refresh\(\)\}/, "Manual refresh and retry must call refresh without a click-event argument");
+
 console.log("t_projects_knowledge_project_scope_contract: OK");
