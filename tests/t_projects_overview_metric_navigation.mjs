@@ -19,6 +19,7 @@ assert.ok(overview.includes('tab: "work", focusRecord: null'), "estimated and ac
 assert.ok(overview.includes('taskFilter: "ids", taskFilterIds: unlinkedTaskIds'), "traceability metric opens only the unlinked tasks");
 
 
+const taskTree = parts.slice(parts.indexOf("export function TaskTree"), parts.indexOf("function StatusChipSm"));
 const detail = screensB.slice(screensB.indexOf("function ProjectDetail()"), screensB.indexOf("function Overview("));
 assert.ok(detail.includes('view.taskFilter === "overdue"') && detail.includes("D.isOverdueLeaf(task, idx, today)"), "Project Detail translates the overdue filter using the canonical domain rule");
 assert.ok(detail.includes('view.taskFilter === "ids"') && detail.includes('(view.taskFilterIds || []).includes(task.id)'), "Project Detail restores exact task-ID filters from Overview");
@@ -53,7 +54,6 @@ const related = screensB.slice(screensB.indexOf("function RelatedTab"), screensB
 assert.ok(related.includes('view.quickCreate !== "resource"') && related.includes("setF(true)") && related.includes("quickCreate: null"), "Resources opens its existing project-link form");
 
 
-const taskTree = parts.slice(parts.indexOf("export function TaskTree"), parts.indexOf("function StatusChipSm"));
 assert.ok(taskTree.includes("&& matches(t)"), "task filters apply to table, board, calendar and timeline data");
 assert.ok(taskTree.includes("const visibleRoots = roots.filter((root) => visible(root))"), "tree view retains ancestors of matching overdue leaves");
 assert.ok(taskTree.includes("taskFilter: null, taskFilterIds: []"), "task filter can be explicitly cleared without keeping stale metric IDs");
