@@ -106,7 +106,7 @@ export function OutputsView({ projectId }) {
     if (rec.approval === "Final" && (pendingFiles.length || (rec.upload_intents || []).length)) {
       throw new Error("لا يمكن اعتماد المخرج نهائيًا قبل اكتمال رفع كل الملفات وربط Metadata الخاصة بها.");
     }
-    if (rec.approval === "Final" && (!prev || prev.approval !== "Final"))}
+    if (rec.approval === "Final" && (!prev || prev.approval !== "Final")) {
       if (!can("output.approve", project)) throw new Error("اعتماد المخرج النهائي للقائد أو المراجع فقط");
       if (!rec.url && !rec.files.length && !pendingFiles.length && !(await confirm("المخرج النهائي بلا ملف أو رابط. المتابعة؟"))) return false;
       rec.approved_by = me; rec.approved_at = nowIso();
