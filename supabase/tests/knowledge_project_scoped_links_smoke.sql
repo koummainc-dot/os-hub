@@ -2,10 +2,16 @@
 
 -- The project records are written by Projects, while Meetings remain Knowledge-owned.
 -- This test exercises the canonical external link table and the server-side project filter.
-insert into public.workspace_records(workspace_id,system_id,collection,id,data,deleted)
+-- Two authenticated identities are used below. Project A is visible only to the
+-- first identity; Project B is visible to every member with Projects read access.
+insert into auth.users(id)
+values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+on conflict (id) do nothing;
+
+insert into public.workspace_records(workspace_id,system_id,collection,id,data,deleted,visible_to)
 values
- ('11111111-1111-4111-8111-111111111111','projects','projects','project-a','{"name":"Project A"}',false),
- ('11111111-1111-4111-8111-111111111111','projects','projects','project-b','{"name":"Project B"}',false);
+ ('11111111-1111-4111-8111-111111111111','projects','projects','project-a','{"name":"Project A"}',false,array['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid]),
+ ('11111111-1111-4111-8111-111111111111','projects','projects','project-b','{"name":"Project B"}',false,null);
 
 set role authenticated;
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',false);
@@ -171,6 +177,49 @@ begin
   begin
     perform * from public.knowledge_list_project_meetings('11111111-1111-4111-8111-111111111111',null);
     raise exception 'Expected denied Knowledge meeting read';
+  exception when sqlstate '42501' then
+    null;
+  end;
+end
+$assert$;
+
+-- A second identity has Knowledge edit and Projects view, but Project A is
+-- explicitly private to the first identity through workspace_records.visible_to.
+select set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',false);
+select set_config('test.access_level','edit',false);
+select set_config('test.projects_access_level','view',false);
+do $assert$
+declare
+  meeting_count integer;
+begin
+  select count(*) into meeting_count
+    from public.knowledge_list_project_meetings('11111111-1111-4111-8111-111111111111','project-b');
+  if meeting_count<>1 then
+    raise exception 'Second identity should see the meeting for its visible Project B; got %',meeting_count;
+  end if;
+
+  begin
+    perform * from public.knowledge_list_project_meetings('11111111-1111-4111-8111-111111111111','project-a');
+    raise exception 'Second identity unexpectedly read the private Project A meeting through Projects';
+  exception when sqlstate '42501' then
+    null;
+  end;
+
+  begin
+    insert into public.knowledge_items(id,workspace_id,item_type,title,metadata,created_by,updated_by)
+    values ('meeting-private-forged','11111111-1111-4111-8111-111111111111','meeting','Private Project Forgery',
+            '{"relatedSystem":"projects","relatedId":"project-a"}',auth.uid(),auth.uid());
+    raise exception 'Second identity unexpectedly linked a Knowledge meeting to private Project A';
+  exception when sqlstate '42501' then
+    null;
+  end;
+
+  begin
+    insert into public.knowledge_external_links
+      (workspace_id,item_id,target_system,target_id,relation_type,created_by)
+    values
+      ('11111111-1111-4111-8111-111111111111','meeting-general','projects','project-a','supports',auth.uid());
+    raise exception 'Second identity bypassed Project A visibility through direct external-link insert';
   exception when sqlstate '42501' then
     null;
   end;
