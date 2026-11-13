@@ -191,6 +191,7 @@ export function TaskSheet() {
     if (prd && prd.project_id !== t.project_id) throw new Error("المواصفة يجب أن تتبع نفس مشروع المهمة");
     if (v.prd_requirement_id && (!prd || !(prd.requirements || []).some((x) => x.id === v.prd_requirement_id))) throw new Error("المتطلب المختار لا ينتمي إلى المواصفة المحددة");
     const existing = v.id ? data.outputs.find((x) => x.id === v.id) : null;
+    if (!canOut) throw new Error("ليس لديك صلاحية إضافة مخرجات إلى هذه المهمة.");
     if (existing?.approval === "Final") throw new Error("المخرج النهائي مقفل؛ أنشئ مخرجاً جديداً بدل تعديل النسخة المعتمدة.");
     if (v.approval === "Final" && !can("output.approve", project)) throw new Error("لا تملك صلاحية اعتماد المخرج نهائياً");
     const pendingFiles = Array.from(v.__pendingFiles || []);
@@ -314,7 +315,7 @@ export function TaskSheet() {
             const files = Array.from(event.target.files || []);
             const invalid = files.map(validateOutputUpload).find((result) => !result.ok);
             if (invalid) { toast("⛔ " + invalid.error); event.target.value = ""; return; }
-            set("__pendingFiles", files.map((file) => ({ file, fileId: uid(), uploadedAt: new Date().toISOString() })));
+            set("__pendingFiles", [...(values.__pendingFiles || []), ...files.map((file) => ({ file, fileId: uid(), uploadedAt: new Date().toISOString() }))]);
           }} accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.txt,.csv,.json,.zip,.docx,.xlsx,.pptx" />
           {(values.__pendingFiles || []).length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>ملفات محددة: {(values.__pendingFiles || []).map((item) => item.file?.name).filter(Boolean).join("، ")}. عند فشل الاتصال، أعد الضغط على «حفظ» لإكمال الرفع دون تكرار الملفات.</div>}
         </div>
