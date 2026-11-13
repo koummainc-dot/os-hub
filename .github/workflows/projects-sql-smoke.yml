@@ -12,6 +12,9 @@ on:
       - "supabase/tests/projects_persistence_lifecycle_smoke.sql"
       - "tests/projects_sql_bootstrap.sql"
       - ".github/workflows/projects-sql-smoke.yml"
+      - "src/systems/projects/**"
+      - "tests/t_projects_output_upload_contract.mjs"
+      - "docs/projects-os/**"
   push:
     branches: [main, codex/projects-os-relationship-workflows]
     paths:
