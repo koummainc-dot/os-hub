@@ -31,6 +31,17 @@ for (const [permission,tab] of [["task.write","tasks"],["output.write","outputs"
   assert.ok(detail.includes(`can("${permission}", p)`) && detail.includes(`tab: "${tab}"`), `Project Header contextual add menu routes ${permission} to its canonical section`);
 }
 assert.ok(detail.includes("canE && <button") && detail.includes('tab: "resources"'), "Project Header only exposes project-owned reference creation to project editors");
+for (const [kind, tab] of [["task","tasks"],["output","outputs"],["prd","prds"],["risk","risks"],["issue","issues"],["decision","decisions"],["resource","resources"]]) {
+  assert.ok(detail.includes(`openQuickCreate("${kind}", "${tab}"`), `Project Header ${kind} action targets its canonical form`);
+}
+assert.ok(detail.includes('closest("details")?.removeAttribute("open")'), "quick-create closes the contextual menu after selection");
+assert.ok(taskTree.includes('view.quickCreate !== "task"') && taskTree.includes("setForm({})") && taskTree.includes("quickCreate: null"), "Tasks opens its existing TaskForm from the contextual action");
+for (const [kind, start] of [["output", "export function OutputsView"],["risk", "export function RisksView"],["issue", "export function IssuesView"],["decision", "export function DecisionsView"],["prd", "export function PrdsView"]]) {
+  const section = entities.slice(entities.indexOf(start));
+  assert.ok(section.includes(`view.quickCreate !== "${kind}"`) && section.includes("setForm({ project_id: projectId })") && section.includes("quickCreate: null"), `${kind} opens its existing canonical form`);
+}
+const related = screensB.slice(screensB.indexOf("function RelatedTab"), screensB.indexOf("function ProjectFinanceTab"));
+assert.ok(related.includes('view.quickCreate !== "resource"') && related.includes("setF(true)") && related.includes("quickCreate: null"), "Resources opens its existing project-link form");
 
 
 const taskTree = parts.slice(parts.indexOf("export function TaskTree"), parts.indexOf("function StatusChipSm"));
