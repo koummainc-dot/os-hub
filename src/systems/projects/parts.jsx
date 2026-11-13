@@ -133,7 +133,7 @@ export function TaskTree({ projectId, tasks, readOnly, filter, filterLabel = nul
       </div>
       <div style={{ display: mode === "list" ? "block" : "none" }}>
         {canWrite && <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>يمكنك استخدام «＋ فرعية» أو خيارات المهمة لنقلها؛ السحب الاختياري يحافظ على ترتيب الشجرة.</div>}
-        {visibleRoots.length === 0 && <Empty icon={filter ? "🔎" : "✅"} title={filter ? "لا توجد مهام تطابق هذا الفلتر" : "لا توجد مهام بعد"} sub={filterLabel ? "لا توجد مهام تطابق هذا الفلتر حاليًا." : filter ? "لا توجد مهام مطابقة حاليًا في هذا المشروع." : "أضف أول مهمة أو أنشئ المشروع من قالب جاهز."} />}
+        {visibleRoots.length === 0 && <Empty icon={filter ? "🔎" : "✅"} title={filter ? "لا توجد مهام تطابق هذا الفلتر" : "لا توجد مهام بعد"} sub={filter ? view.taskFilter === "overdue" ? "لا توجد مهام متأخرة حاليًا في هذا المشروع." : view.taskFilter === "ids" ? "لا توجد مهام بلا مواصفة أو اكتشاف حاليًا." : "لا توجد مهام مطابقة حاليًا في هذا المشروع." : "أضف أول مهمة أو أنشئ المشروع من قالب جاهز."} />}
         <div style={{ ...S.card, padding: 0, overflow: "hidden", display: visibleRoots.length ? "block" : "none" }}
           onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => { const id = e.dataTransfer.getData("text/plain"); if (id && e.target === e.currentTarget) await act.reparent(id, null); }}>
           {visibleRoots.map((t) => <Row key={t.id} t={t} depth={0} />)}
