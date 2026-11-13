@@ -1,30 +1,62 @@
 # Projects OS — Master Refactor Decision Log
 
-## D-01 — Accent token
-**Technical alignment applied:** shared focus, selected, and primary-hover states use the existing OS accent `#EF9F27`.
+Source: `Projects_OS_v5_Unified_Refactor_Spec.md`, §22. This log records the current state of every decision; it does not imply product approval where noted.
 
-**Status:** product/brand approval remains open until the unified screen is reviewed.
+## D-01 — Final Accent
+**Applied technically:** shared focus/selection/hover values checked in this pass use Core accent `#EF9F27`; the contract test rejects old blue accent declarations.
 
-## D-04 — Knowledge meeting follow-up identity
-**Implementation:** new Projects follow-up tasks store `source_followup_id`. An explicit ID on the Knowledge follow-up is canonical. Legacy text-only follow-ups use a normalized content-derived identity. `source_followup_index` remains as a read-compatibility field for existing tasks.
+**Open:** Product Owner / Design approval after unified screen review and shared-component alignment.
 
-**Safety:** old references are not backfilled or rewritten in the Knowledge snapshot. The lookup checks stable ID first, then the legacy index, then a legacy title match.
+## D-02 — Finance Project Profile cardinality
+**Current:** Projects sends `projectRef` to Finance; Finance opens a matching profile or pre-fills its own profile form.
 
-**Open:** dry-run mapping of existing Knowledge meetings/follow-ups, duplicate-text review, and migration plan are still required before adding canonical IDs to old Knowledge records. This client-side ID does not provide server-side uniqueness for concurrent requests.
+**Open / blocked:** audit existing duplicate profiles and choose one-to-one vs explicit active-primary selection before adding uniqueness constraints. Current UI handoff must not be read as proof that profile cardinality is resolved.
 
-## D-05 / D-11 — Project-scoped Knowledge reads
-**Status: blocked by current data contract.** The repository loads a workspace-level normalized Knowledge snapshot. UI filtering after that load is not server-side scoping and must not be treated as a security boundary. A project-filtered RPC/query and its RLS contract require inventory of the normalized snapshot and legacy `workspace_data` fallback first.
+## D-03 — Resource ownership
+**Current:** Projects-owned external links remain on the Project record; Knowledge owns Meetings and Knowledge resources; Outputs owns its attachments.
 
-## D-10 — Finance handoff
-**Implementation:** Projects opens the canonical Finance Projects page with an ephemeral `projectRef`. Finance either opens the existing Finance Project Profile or pre-fills its own form. No Finance record is auto-created and no transaction is copied.
+**Open:** decide which local file/reference types are truly Projects-owned and define the unified resource card contract. Do not copy Knowledge content into Projects.
 
-**Status:** integration path implemented; role-based tests and explicit user save remain required.
+## D-04 — Stable Follow-up ID
+**Current:** newly linked Projects tasks store `source_followup_id`; explicit Knowledge ID is preferred, text-only legacy items use normalized content identity; legacy index/title fallback remains readable. Reorder/identity tests pass.
 
-## D-08 — Milestones
-**Status: open.** The current timeline continues to visualize dated leaf Tasks. No second Milestone model/table has been introduced pending the decision between Project Milestones and Task subtype.
+**Open:** Knowledge must own and persist the canonical ID. No Knowledge records were backfilled. Review duplicate legacy text items and define server-side uniqueness/idempotency for concurrent retries.
 
-## Navigation compatibility
-Keep existing project tab IDs and legacy global `issues` / `decisions` route IDs while rendering them through unified Governance and keeping the old project `related` deep link resolvable.
+## D-05 — Canonical Knowledge `project_ref`
+**Status: BLOCKED.** Current association still depends on existing/legacy relation fields including `relatedId`. Inventory `knowledge_external_links` and historical data, map old references, and review the Knowledge-owned API/RLS before migration.
 
-## Data safety
-No Projects, Finance, or Knowledge schema migration, RLS change, production DB write, data deletion, or production deployment is part of this commit.
+## D-06 — Saved Views
+**Status: DEFERRED/BLOCKED.** Existing search/filter views remain. Personal Saved Views with optional Workspace sharing need a Core storage contract and permission model. Do not add Projects-local persistence.
+
+## D-07 — Unified Inbox
+**Status: DEFERRED.** Platform Notification owns notification/inbox records; Projects must not copy Knowledge reminders or invitations. Wait for the shared Notification contract.
+
+## D-08 — Milestone model
+**Status: OPEN/BLOCKED.** Choose one model only: standalone Project Milestones or a defined Task subtype. Current timeline remains based on dated leaf Tasks; no duplicate Milestone entity/table was added.
+
+## D-09 — Language switch
+**Current:** Arabic-first/RTL is retained.
+
+**Open:** Product Owner to define whether English/language switch is in V1 and how it follows existing platform i18n/locale persistence.
+
+## D-10 — Finance budget handoff
+**Current:** Projects opens Finance with ephemeral `projectRef`; Finance opens an existing profile or pre-fills Finance-owned form; Finance save is an explicit user action. Planned budget is not silently written to Finance.
+
+**Open:** approve whether planned budget may be transferred once on initial profile creation, and how later changes remain separated from Finance-owned values. Finance read-model and sync states remain a separate requirement.
+
+## D-11 — Knowledge resource query
+**Status: BLOCKED.** `listKnowledgeMeetings` still reads a workspace-level snapshot and filters client-side. This is not a security boundary. Knowledge-owned server-scoped query/RLS and permission tests are required.
+
+## D-12 — Legacy KR/Task paths
+**Status: BLOCKED.** Existing explicit `task_ids` and derived KR→Project→Task contracts remain covered by domain tests. No legacy field was changed or backfilled.
+
+**Open:** complete readers/writers inventory and no-loss report for `objective_id`, `task_ids`, project/KR link fields, and historical task groups before changing or removing any legacy relation.
+
+---
+
+## Standing safety decisions
+- No production DB migration, RLS policy change, destructive data operation or production deploy in this pass.
+- Finance remains owner of Finance Project Profiles and transactions.
+- Knowledge remains owner of Meetings, Resources and source follow-ups.
+- Projects stores only its own records and cross-system references.
+- Do not introduce duplicate storage to make a screen appear complete.
