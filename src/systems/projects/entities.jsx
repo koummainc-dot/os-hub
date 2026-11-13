@@ -41,11 +41,17 @@ function RecordDetailModal({ title, fields, onClose }) {
 
 // ═════ Outputs ═════
 export function OutputsView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, confirm, lookups, idx, openTask, openProject, setPage, view, ws, me } = useP();
+  const { data, A: act, can, projectsById, people, toast, confirm, lookups, idx, openTask, openProject, setPage, view, setView, ws, me } = useP();
   const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [type, setType] = useState(""); const [ap, setAp] = useState(""); const [q, setQ] = useState("");
   const list = data.outputs.filter((o) => (!projectId || o.project_id === projectId) && (!type || o.type === type) && (!ap || o.approval === ap) && (!q || o.name.toLowerCase().includes(q.toLowerCase())));
   useRecordFocus(view, "output", projectId, list.length);
   const canNew = projectId ? can("output.write", projectsById[projectId]) : data.projects.some((p) => can("output.write", p));
+  useEffect(() => {
+    if (view.quickCreate !== "output") return;
+    if (canNew) setForm({ project_id: projectId });
+    else toast("ليس لديك صلاحية إضافة مخرجات لهذا المشروع.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view.quickCreate, canNew, projectId, setView, toast]);
 
   const uploadOutputFiles = async (output, files) => {
     const selected = Array.from(files || []).filter(Boolean);
@@ -184,6 +190,12 @@ export function RisksView({ projectId }) {
   useEffect(() => { if (view.focusRecord?.kind === "risk") { setSt("all"); setHighOnly(false); } }, [view.focusRecord?.kind, view.focusRecord?.id]);
   useRecordFocus(view, "risk", projectId, list.length);
   const canNew = projectId ? can("risk.write", projectsById[projectId]) : data.projects.some((p) => can("risk.write", p));
+  useEffect(() => {
+    if (view.quickCreate !== "risk") return;
+    if (canNew) setForm({ project_id: projectId });
+    else toast("ليس لديك صلاحية إضافة مخاطر لهذا المشروع.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view.quickCreate, canNew, projectId, setView, toast]);
   const lvlColor = (r) => ({ High: C.bad, Medium: C.warn, Low: C.ok })[D.riskLevel(r, settings)];
   async function changeStatus(r, to) {
     const p = projectsById[r.project_id];
@@ -265,6 +277,12 @@ export function IssuesView({ projectId }) {
   const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [st, setSt] = useState(view.focusRecord?.kind === "issue" ? "all" : view.issueStatusFilter || "open"); const [sev, setSev] = useState(view.issueSeverityFilter || ""); const [resolving, setResolving] = useState(null); const [reopening, setReopening] = useState(null); const [repairing, setRepairing] = useState({});
   const list = data.issues.filter((i) => (!projectId || i.project_id === projectId) && (st === "all" ? true : st === "open" ? D.isOpenIssue(i) : i.status === st) && (!sev || i.severity === sev)).sort((a, b) => ["Critical", "High", "Medium", "Low"].indexOf(a.severity) - ["Critical", "High", "Medium", "Low"].indexOf(b.severity));
   const canNew = projectId ? can("issue.write", projectsById[projectId]) : data.projects.some((p) => can("issue.write", p));
+  useEffect(() => {
+    if (view.quickCreate !== "issue") return;
+    if (canNew) setForm({ project_id: projectId });
+    else toast("ليس لديك صلاحية إضافة مشاكل لهذا المشروع.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view.quickCreate, canNew, projectId, setView, toast]);
   useEffect(() => { if (view.focusRecord?.kind === "issue") { setSt("all"); setSev(""); setView((current) => ({ ...current, issueStatusFilter: "all", issueSeverityFilter: "" })); } }, [view.focusRecord?.kind, view.focusRecord?.id]);
   useRecordFocus(view, "issue", projectId, list.length);
   const repairTasks = (issue) => [...new Set([...(issue.task_ids || []), ...idx.list.filter((t) => (t.issue_ids || []).includes(issue.id)).map((t) => t.id)])].map((id) => idx.byId[id]).filter(Boolean);
@@ -318,11 +336,17 @@ export function IssuesView({ projectId }) {
 
 // ═════ Decisions ═════
 export function DecisionsView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, openDiscovery, view } = useP();
+  const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, openDiscovery, view, setView } = useP();
   const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [creating, setCreating] = useState({});
   const list = data.decisions.filter((d) => !projectId || d.project_id === projectId).sort((a, b) => (b.decided_at || "").localeCompare(a.decided_at || ""));
   useRecordFocus(view, "decision", projectId, list.length);
   const canNew = projectId ? can("decision.write", projectsById[projectId]) : data.projects.some((p) => can("decision.write", p));
+  useEffect(() => {
+    if (view.quickCreate !== "decision") return;
+    if (canNew) setForm({ project_id: projectId });
+    else toast("ليس لديك صلاحية إضافة قرارات لهذا المشروع.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view.quickCreate, canNew, projectId, setView, toast]);
   return (
     <div>
       {canNew && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ قرار</Btn></div>}
@@ -370,11 +394,17 @@ export function DecisionsView({ projectId }) {
 
 // ═════ PRDs ═════
 export function PrdsView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, me, PRD_TEMPLATE, idx, confirm, nameOf, view } = useP();
+  const { data, A: act, can, projectsById, people, toast, me, PRD_TEMPLATE, idx, confirm, nameOf, view, setView } = useP();
   const [sel, setSel] = useState(null); const [form, setForm] = useState(null); const [detail, setDetail] = useState(null);
   const list = data.prds.filter((p) => !projectId || p.project_id === projectId);
   useEffect(() => { if (view.focusRecord?.kind === "prd") { const target = data.prds.find((p) => p.id === view.focusRecord.id); if (target && (!projectId || target.project_id === projectId)) setSel(target.id); } }, [view.focusRecord, data.prds, projectId]);
   const canNew = projectId ? can("prd.write", projectsById[projectId]) : data.projects.some((p) => can("prd.write", p) && !p.is_system);
+  useEffect(() => {
+    if (view.quickCreate !== "prd") return;
+    if (canNew) setForm({ project_id: projectId });
+    else toast("ليس لديك صلاحية إضافة مواصفات لهذا المشروع.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view.quickCreate, canNew, projectId, setView, toast]);
   const openPrd = sel ? data.prds.find((p) => p.id === sel) : null;
   return (
     <div>
