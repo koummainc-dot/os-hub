@@ -23,7 +23,15 @@ Source: `Projects_OS_v5_Unified_Refactor_Spec.md`, §22. This log records the cu
 **Open:** Knowledge must own and persist the canonical ID. No Knowledge records were backfilled. Review duplicate legacy text items and define server-side uniqueness/idempotency for concurrent retries.
 
 ## D-05 — Canonical Knowledge `project_ref`
-**Status: BLOCKED.** Current association still depends on existing/legacy relation fields including `relatedId`. Inventory `knowledge_external_links` and historical data, map old references, and review the Knowledge-owned API/RLS before migration.
+**Status: PARTIAL — contract and implementation are now defined on the Projects PR branch; Production migration remains unapplied.**
+
+- Knowledge remains the owner of Meeting/Resource records. The canonical Project relation is a Knowledge-owned `knowledge_external_links` row: `target_system='projects'`, `target_id=workspace_records.id`, `relation_type='related'`.
+- Knowledge item `metadata.relatedSystem/relatedId` remains a compatibility input/output for the current editor and older records; a Knowledge-owned trigger synchronizes it to the canonical link table on insert/update.
+- The Knowledge-owned `knowledge_list_project_meetings(workspace_id, project_id)` returns a `project_ref` field from the canonical link, with legacy metadata as a read-only fallback.
+- The Projects picker/validator reads the canonical Projects `workspace_records` table under RLS. No Knowledge content is copied into Projects. Current Production Knowledge inventory has zero items/external links, so no backfill was needed or performed.
+- Evidence: `supabase/migrations/20261113210000_knowledge_project_scoped_links.sql` and `supabase/tests/knowledge_project_scoped_links_smoke.sql`; Knowledge SQL workflow `43502229776` passed.
+
+**Still open:** Production migration/rollback approval, real two-account RLS acceptance, and confirmation from the owner that this canonical relation contract is the intended long-term API.
 
 ## D-06 — Saved Views
 **Status: DEFERRED/BLOCKED.** Existing search/filter views remain. Personal Saved Views with optional Workspace sharing need a Core storage contract and permission model. Do not add Projects-local persistence.
@@ -45,7 +53,14 @@ Source: `Projects_OS_v5_Unified_Refactor_Spec.md`, §22. This log records the cu
 **Open:** approve whether planned budget may be transferred once on initial profile creation, and how later changes remain separated from Finance-owned values. Finance read-model and sync states remain a separate requirement.
 
 ## D-11 — Knowledge resource query
-**Status: BLOCKED.** `listKnowledgeMeetings` still reads a workspace-level snapshot and filters client-side. This is not a security boundary. Knowledge-owned server-scoped query/RLS and permission tests are required.
+**Status: PARTIAL — server-side project-scoped query implemented on the PR branch and verified in isolated PostgreSQL; Production remains unchanged.**
+
+- `listKnowledgeMeetings(workspaceId, projectId)` calls the Knowledge-owned `knowledge_list_project_meetings` RPC.
+- A selected Project is filtered in SQL under Knowledge RLS and a separate Projects view/visibility check. The Projects screen no longer filters a workspace-wide meeting array locally.
+- A project-specific request fails closed if the scoped RPC is missing or fails; only the all-meetings transitional view can use the old normalized/workspace snapshot fallback.
+- Evidence: `supabase/tests/knowledge_project_scoped_links_smoke.sql` passes link create/reassign/unlink, isolated project results, invalid target rejection, missing Projects permission denial and missing Knowledge permission denial.
+
+**Still open:** Production migration/rollback approval and real two-account account-level RLS acceptance.
 
 ## D-12 — Legacy KR/Task paths
 **Status: BLOCKED.** Existing explicit `task_ids` and derived KR→Project→Task contracts remain covered by domain tests. No legacy field was changed or backfilled.
