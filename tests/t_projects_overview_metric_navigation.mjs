@@ -12,15 +12,27 @@ assert.ok(overview.includes('tab: "risks", riskStatusFilter: "open", riskHighOnl
 assert.ok(overview.includes('tab: "risks", riskStatusFilter: "open", riskHighOnly: true'), "high-risk count opens the high open-risk filter");
 assert.ok(overview.includes('tab: "issues", issueStatusFilter: "open", issueSeverityFilter: ""'), "open issue count opens the open issue list");
 assert.ok(overview.includes('tab: "issues", issueStatusFilter: "open", issueSeverityFilter: "Critical"'), "critical issue count opens the critical issue filter");
+assert.ok(overview.includes("const unlinkedTaskIds = (cov?.unlinked || []).map((task) => task.id)"), "traceability navigation is based on the exact unlinked task IDs");
+assert.ok(overview.includes('onClick={() => openTasksView()}') && overview.includes("فتح المهام"), "progress and leaf task counts open the project task list");
+assert.ok(overview.includes('tab: "timeline", taskFilter: null'), "target date metric opens the project Timeline");
+assert.ok(overview.includes('tab: "work", focusRecord: null'), "estimated and actual time metrics open Work");
+assert.ok(overview.includes('taskFilter: "ids", taskFilterIds: unlinkedTaskIds'), "traceability metric opens only the unlinked tasks");
+
 
 const detail = screensB.slice(screensB.indexOf("function ProjectDetail()"), screensB.indexOf("function Overview("));
 assert.ok(detail.includes("const overdueTaskFilter = view.taskFilter === \"overdue\" ? (task) => D.isOverdueLeaf(task, idx, today) : undefined"), "Project Detail translates the task filter state using the domain overdue rule");
+assert.ok(detail.includes('view.taskFilter === "ids"') && detail.includes('(view.taskFilterIds || []).includes(task.id)'), "Project Detail restores exact task-ID filters from Overview");
+assert.ok(detail.includes('filterLabel={taskFilterLabel}'), "Project Detail explains the active metric filter inside TaskTree");
+
 assert.ok(detail.includes('<TaskTree projectId={p.id} filter={overdueTaskFilter} />'), "Project Detail passes its filter into the canonical task tree");
 
 const taskTree = parts.slice(parts.indexOf("export function TaskTree"), parts.indexOf("function StatusChipSm"));
 assert.ok(taskTree.includes("&& matches(t)"), "task filters apply to table, board, calendar and timeline data");
 assert.ok(taskTree.includes("const visibleRoots = roots.filter((root) => visible(root))"), "tree view retains ancestors of matching overdue leaves");
 assert.ok(taskTree.includes('setView((current) => ({ ...current, taskFilter: null }))'), "task filter can be explicitly cleared");
+assert.ok(taskTree.includes('taskFilterIds: []'), "clearing a task filter also clears exact metric IDs");
+assert.ok(taskTree.includes('filterLabel || "تُعرض المهام المطابقة للفلتر داخل هذا المشروع."'), "task filter banner uses the matching filter description");
+
 assert.ok(taskTree.includes("لا توجد مهام متأخرة حاليًا في هذا المشروع"), "empty overdue filter has a truthful empty state");
 
 const riskView = entities.slice(entities.indexOf("export function RisksView"), entities.indexOf("export function IssuesView"));
