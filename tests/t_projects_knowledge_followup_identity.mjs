@@ -11,5 +11,5 @@ assert.equal(normalizeKnowledgeFollowup({ title: "  مراجعة   العقد " 
 const stableTask = { id: "task-1", title: "إرسال العرض", source_meeting_id: meetingId, source_followup_id: stableKnowledgeFollowupId(meetingId, "إرسال العرض") };
 assert.equal(findKnowledgeFollowupTask([stableTask], meetingId, reordered[1], 1)?.id, "task-1");
 const legacyTask = { id: "legacy-1", title: "تأكيد الموعد", source_meeting_id: meetingId, source_followup_index: 0 };
-assert.equal(findKnowledgeFollowupTask([legacyTask], meetingId, "تأكيد الموعد", 0)?.id, "legacy-1");
+assert.equal(findKnowledgeFollowupTask([legacyTask], meetingId, "تأكيد الموعد", 1)?.id, "legacy-1", "legacy tasks are matched by source title after a follow-up reorder");
 console.log("t_projects_knowledge_followup_identity: OK");
