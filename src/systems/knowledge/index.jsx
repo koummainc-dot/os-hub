@@ -265,7 +265,7 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
         try{
           const {data:projectRow,error:projectError}=await supabase.from("workspace_records").select("data,visible_to").eq("workspace_id",api.workspaceId).eq("system_id","projects").eq("collection","projects").eq("id",meeting.relatedId).eq("deleted",false).maybeSingle();
           if(projectError||!projectRow?.data?.lead_id)continue;
-          await emitCoreNotification({workspace_id:api.workspaceId,recipient_id:projectRow.data.lead_id,source_system:"projects",entity_collection:"projects",entity_id:meeting.relatedId,event_type:"knowledge_meeting_scheduled",title:"اجتماع جديد مرتبط بالمشروع: "+(meeting.title||"اجتماع"),body:"الموعد: "+meeting.date+(meeting.startTime?" · "+meeting.startTime:""),dedupe_key:"knowledge-meeting:"+meeting.id+":"+meeting.date+":"+(meeting.startTime||""),deep_link:{system:"knowledge",tab:"meetings",recordId:meeting.id}});
+          await emitCoreNotification({workspace_id:api.workspaceId,recipient_id:projectRow.data.lead_id,source_system:"projects",entity_collection:"projects",entity_id:meeting.relatedId,event_type:"knowledge_meeting_scheduled",title:"اجتماع جديد مرتبط بالمشروع: "+(meeting.title||"اجتماع"),body:"الموعد: "+meeting.date+(meeting.startTime?" · "+meeting.startTime:""),dedupe_key:"knowledge-meeting:"+meeting.id+":"+meeting.date+":"+(meeting.startTime||""),deep_link:{system:"knowledge",tab:"meetings",recordId:meeting.id,focusItemId:meeting.id,focusItemKind:"meeting"}});
         }catch(notificationError){console.warn("Knowledge meeting notification failed",notificationError);}
       }
       return true;
