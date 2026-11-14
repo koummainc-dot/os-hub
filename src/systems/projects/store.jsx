@@ -84,7 +84,45 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
   const stamp = useCallback((rec) => ({ ...rec, created_by: rec.created_by || me, updated_by_member: me }), [me]);
 
   // ── generic writes (child records inherit project privacy)
-  const putIn = useCallback((coll, rec, project) => { const r = stamp(rec); if (project) r._vis = visFor(project); return R.put(coll, r); }, [R, stamp, visFor]);
+  const putIn = useCallback(async (coll, rec, project) => {
+    const previous = (data[coll] || []).find((item) => item.id === rec.id) || null;
+    const next = stamp(rec); if (project) next._vis = visFor(project);
+    const saved = await R.put(coll, next);
+    if (!saved || !ws?.id || isDemo) return saved;
+    const projectRecord = projectsById[saved.project_id] || (coll === "projects" ? saved : project);
+    const recipients = [];
+    const add = (recipient, eventType, title, tab, kind) => {
+      if (recipient && recipient !== me) recipients.push({ recipient, eventType, title, tab, kind });
+    };
+    if (coll === "tasks" && saved.assignee_id && (!previous || previous.assignee_id !== saved.assignee_id)) {
+      add(saved.assignee_id, "task_assigned", "أُسندت إليك مهمة: " + saved.title, "tasks", "task");
+    }
+    if (coll === "prds" && saved.status === "Ready for Review" && (previous?.status !== saved.status || JSON.stringify(previous?.reviewer_ids || []) !== JSON.stringify(saved.reviewer_ids || []))) {
+      (saved.reviewer_ids || []).forEach((id) => add(id, "prd_review_requested", "مواصفة بانتظار مراجعتك: " + (saved.title || "PRD"), "prds", "prd"));
+    }
+    if (coll === "outputs" && saved.approval === "Review" && previous?.approval !== "Review") {
+      add(projectRecord?.lead_id, "output_review_requested", "مخرج بانتظار مراجعة المشروع: " + (saved.name || "مخرج"), "outputs", "output");
+    }
+    if (coll === "risks" && saved.owner_id && D.isOpenRisk(saved) && Number(saved.probability || 0) * Number(saved.impact || 0) >= 12 && (previous?.owner_id !== saved.owner_id || previous?.status !== saved.status)) {
+      add(saved.owner_id, "high_risk_assigned", "خطر مرتفع يحتاج متابعتك: " + saved.title, "risks", "risk");
+    }
+    if (coll === "issues" && saved.owner_id && saved.severity === "Critical" && D.isOpenIssue(saved) && (previous?.owner_id !== saved.owner_id || previous?.severity !== saved.severity || previous?.status !== saved.status)) {
+      add(saved.owner_id, "critical_issue_assigned", "مشكلة حرجة تحتاج متابعتك: " + saved.title, "issues", "issue");
+    }
+    for (const item of recipients) {
+      const dedupe = [item.eventType, saved.id, item.recipient, saved.updated_at || saved.v || "latest"].join(":");
+      try {
+        await emitCoreNotification({
+          workspace_id: ws.id, recipient_id: item.recipient, source_system: "projects",
+          entity_collection: coll, entity_id: saved.id, event_type: item.eventType,
+          title: item.title, body: projectRecord?.name ? "المشروع: " + projectRecord.name : "",
+          dedupe_key: dedupe,
+          deep_link: { system: "projects", projectId: saved.project_id || saved.id, tab: item.tab, recordKind: item.kind, recordId: saved.id, taskId: item.kind === "task" ? saved.id : undefined },
+        });
+      } catch (error) { console.warn("Core notification emit failed", error); }
+    }
+    return saved;
+  }, [R, stamp, visFor, data, ws?.id, isDemo, projectsById, me]);
   const del = useCallback(async (coll, id, label) => { await R.softDelete(coll, id, me); act(coll, id, "deleted", label); toast("🗑 نُقل إلى السلة — يمكن استرجاعه من الإعدادات"); }, [R, me, act, toast]);
 
   // ensure the General system project exists (editors)
