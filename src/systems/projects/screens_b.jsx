@@ -457,7 +457,7 @@ function RelatedTab({ p, canE, section = "all" }) {
     if (!ws?.id) { setMeetings([]); setLoadingMeetings(false); return; }
     setLoadingMeetings(true); setMeetingError("");
     try {
-      const result = await listKnowledgeMeetings(ws.id);
+      const result = await listKnowledgeMeetings(ws.id, p.id);
       if (!result.ok) throw result.error || new Error("تعذر تحميل اجتماعات المعرفة.");
       setMeetings(result.meetings || []);
     } catch (error) {
@@ -466,16 +466,19 @@ function RelatedTab({ p, canE, section = "all" }) {
       setLoadingMeetings(false);
     }
   };
-  useEffect(() => { if (section !== "resources") refreshMeetings(); }, [ws?.id, section]);
+  useEffect(() => { if (section !== "resources") refreshMeetings(); }, [ws?.id, p.id, section]);
 
   const linkedMeetings = meetings
     .filter((meeting) => !meeting.archived && meeting.status !== "archived")
-    .filter((meeting) => meeting.relatedSystem === "projects" && String(meeting.relatedId) === String(p.id))
     .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
 
   async function createFollowupTask(meeting, followup, index) {
     const followupIdentity = stableKnowledgeFollowupId(meeting.id, followup);
-    const key = followupIdentity || String(meeting.id) + ":" + index;
+    if (!followupIdentity) {
+      toast("لا يمكن تحويل المتابعة لأن هويتها الثابتة غير متاحة.");
+      return;
+    }
+    const key = followupIdentity;
     if (creatingFollowupsRef.current.has(key)) return;
     if (p.archived_at || p.status === "Archived") {
       toast("استعد المشروع قبل إنشاء مهام متابعة جديدة.");
@@ -495,7 +498,10 @@ function RelatedTab({ p, canE, section = "all" }) {
     creatingFollowupsRef.current.add(key);
     setCreatingFollowup(key);
     try {
+      const sourceRecordId = followupIdentity;
       const saved = await act.saveTask({
+        id: "knowledge_meeting_task_" + encodeURIComponent(sourceRecordId),
+        source_record_id: sourceRecordId,
         title,
         project_id: p.id,
         assignee_id: me,
