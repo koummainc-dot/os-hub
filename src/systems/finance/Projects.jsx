@@ -15,7 +15,7 @@ function Btn({children,secondary=false,...props}){return <button {...props} styl
 function Card({children,style={}}){return <div style={{background:"#fff",border:"1px solid "+LINE,borderRadius:14,padding:15,...style}}>{children}</div>}
 function Metric({label,value,detail}){return <div style={{background:BG,border:"1px solid "+LINE,borderRadius:10,padding:11,minWidth:0}}><div style={{fontSize:11,color:MUTED,marginBottom:5}}>{label}</div><b style={{fontSize:16,overflowWrap:"anywhere"}}>{value}</b>{detail&&<div style={{fontSize:10,color:MUTED,marginTop:4}}>{detail}</div>}</div>}
 
-export default function FinanceProjects({ws,access,isDemo=false,currencies=[],initialProjectRef=null}){
+export default function FinanceProjects({ws,access,isDemo=false,currencies=[],initialProjectRef=null,onCreateTransaction=null}){
  const [projects,setProjects]=useState([]),[sourceProjects,setSourceProjects]=useState([]),[transactions,setTransactions]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
  const [error,setError]=useState(""),[notice,setNotice]=useState(""),[showForm,setShowForm]=useState(false),[editingId,setEditingId]=useState(null),[selectedId,setSelectedId]=useState(null);
  const [form,setForm]=useState(emptyForm()),[linkTxId,setLinkTxId]=useState("");
@@ -93,7 +93,7 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12}}><Metric label="صافي الربح" value={money(p.net_profit_base,p.base_currency||"EGP")}/><Metric label="ROI" value={p.roi_measurable?Number(p.roi_pct).toLocaleString("ar-EG")+"%":"غير قابل للقياس"}/></div>
    </button>)}</div>}
   </Card>
-  {selected&&<Card><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"start",flexWrap:"wrap"}}><div><h3 style={{margin:0}}>{displayProjectName(selected)}</h3><p style={{fontSize:11,color:MUTED,margin:"5px 0 0"}}>{sourceProjectById.get(selected.project_ref)?"مرتبط بقسم Projects OS":"يتطلب ربطًا بمشروع من Projects OS"} · {TYPE_LABEL[selected.project_type]||selected.project_type} · {selected.start_date}{selected.end_date?" → "+selected.end_date:""} · {selected.scope==="Business"?"تجاري":"شخصي"}</p></div>{canEdit&&<Btn secondary onClick={()=>startEdit(selected)}>تعديل بيانات المشروع</Btn>}</div>
+  {selected&&<Card><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"start",flexWrap:"wrap"}}><div><h3 style={{margin:0}}>{displayProjectName(selected)}</h3><p style={{fontSize:11,color:MUTED,margin:"5px 0 0"}}>{sourceProjectById.get(selected.project_ref)?"مرتبط بقسم Projects OS":"يتطلب ربطًا بمشروع من Projects OS"} · {TYPE_LABEL[selected.project_type]||selected.project_type} · {selected.start_date}{selected.end_date?" → "+selected.end_date:""} · {selected.scope==="Business"?"تجاري":"شخصي"}</p></div>{canEdit&&<div style={{display:"flex",gap:7,flexWrap:"wrap"}}><Btn onClick={()=>onCreateTransaction?.(selected)}>＋ تسجيل حركة</Btn><Btn secondary onClick={()=>startEdit(selected)}>تعديل بيانات المشروع</Btn></div>}</div>
    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:9,marginTop:14}}>
     <Metric label="إجمالي الإيرادات" value={money(selected.revenue_base,selected.base_currency||"EGP")} detail={"عملة الأساس: "+(selected.base_currency||"EGP")}/>
     <Metric label="إجمالي المصروفات" value={money(selected.expenses_base,selected.base_currency||"EGP")}/>
