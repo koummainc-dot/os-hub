@@ -365,6 +365,8 @@ function ProjectFinanceTab({ p }) {
     return () => { active = false; };
   }, [ws?.id, p.id, isDemo, reloadKey]);
   const profile = profiles.length === 1 ? profiles[0] : null;
+  const linkedTransactions = Array.isArray(profile?.transactions) ? profile.transactions : [];
+  const transactionLabel = (transaction) => transaction.pnl_effect === "Income" ? "دخل" : transaction.pnl_effect === "ExpenseReduction" ? "تخفيض مصروف" : transaction.pnl_effect === "Expense" ? "مصروف" : transaction.type || "حركة";
   const money = (value, currency = "EGP") => {
     if (value === null || value === undefined || value === "") return "غير متاح";
     try { return new Intl.NumberFormat("ar-EG", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(value)); }
@@ -405,11 +407,37 @@ function ProjectFinanceTab({ p }) {
         <Stat label="الميزانية" value={profile.budget == null ? "غير محددة" : money(profile.budget, profile.currency)} />
         <Stat label="استهلاك الميزانية" value={profile.budget_used_pct == null ? "غير متاح" : Number(profile.budget_used_pct).toLocaleString("ar-EG") + "%"} />
         <Stat label="ROI" value={profile.roi_measurable ? Number(profile.roi_pct).toLocaleString("ar-EG") + "%" : "غير قابل للقياس"} />
+        <Stat label="الحركات المرتبطة" value={linkedTransactions.length.toLocaleString("ar-EG")} />
       </div>
       {Number(profile.unvalued_transactions || 0) > 0 && <div role="status" style={{ marginTop: 10, padding: 9, borderRadius: 7, background: "rgba(245,158,11,.10)", color: C.warn, fontSize: 11.5, lineHeight: 1.8 }}>توجد {profile.unvalued_transactions} حركة بلا قيمة بعملة الأساس. قد تكون بحاجة إلى مراجعة سعر الصرف أو تقييم العملة؛ لم تُحتسب هذه القيم كصفر.</div>}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", color: C.muted, fontSize: 10.5, marginTop: 9 }}>
         <span>ملف Finance: {profile.id}</span>
         <span>آخر تحديث للملف: {profile.updated_at ? dateOf(profile.updated_at) : "غير متاح"}</span>
+      </div>
+      <div style={{ borderTop: "1px solid " + C.line, marginTop: 12, paddingTop: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 7 }}>
+          <b style={{ fontSize: 12.5 }}>الحركات المالية المرتبطة</b>
+          <Chip>{linkedTransactions.length}</Chip>
+          <span style={{ flex: 1 }} />
+          <Btn small onClick={openFinance} disabled={!available}>عرض الكل في Finance ↗</Btn>
+        </div>
+        {!linkedTransactions.length
+          ? <div style={{ color: C.muted, fontSize: 11.5 }}>لا توجد حركات مرتبطة بهذا الملف المالي.</div>
+          : <div style={{ display: "grid", gap: 0 }}>
+            {linkedTransactions.slice(0, 10).map((transaction) => <div key={transaction.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, alignItems: "center", padding: "7px 0", borderTop: "1px solid " + C.line }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                  <b style={{ fontSize: 11.5 }}>{transaction.name || transaction.purpose || "حركة مالية"}</b>
+                  <Chip color={transaction.status === "Reversed" ? C.bad : transaction.pnl_effect === "Income" ? C.ok : C.muted}>{transaction.status === "Reversed" ? "معكوسة" : transactionLabel(transaction)}</Chip>
+                </div>
+                <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3 }}>{transaction.local_date || "بلا تاريخ"}{transaction.purpose && transaction.name ? " · " + transaction.purpose : ""}</div>
+                {transaction.base_missing && <div style={{ fontSize: 10.5, color: C.warn, marginTop: 3 }}>لم تُقيّم بعد بعملة الأساس ({profile.base_currency || "EGP"})</div>}
+                {!transaction.base_missing && transaction.base_amount != null && <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3 }}>قيمة الأساس: {money(transaction.base_amount, transaction.base_currency || profile.base_currency)}</div>}
+              </div>
+              <b style={{ fontSize: 11.5, whiteSpace: "nowrap" }}>{money(transaction.amount, transaction.currency || profile.currency)}</b>
+            </div>)}
+            {linkedTransactions.length > 10 && <div style={{ fontSize: 10.5, color: C.muted, paddingTop: 7 }}>يعرض آخر 10 حركات من أصل {linkedTransactions.length}; افتح Finance لعرض السجل الكامل.</div>}
+          </div>}
       </div>
     </div>}
   </section>;
