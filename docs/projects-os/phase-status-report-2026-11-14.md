@@ -4,7 +4,7 @@
 **المرجع الوظيفي الحاكم:** `Projects_OS_v5_Unified_Refactor_Spec.md` — الإصدار 5.0، §19 للمراحل و§18 لمعايير القبول  
 **المستودع:** `koummainc-dot/os-hub`  
 **الفرع:** `feat/projects-v5-phase1-navigation`  
-**آخر Commit تمت مراجعته:** `44c598c90c62e56d31f0da0b08956ea78775b454`  
+**آخر Commit تمت مراجعته:** `5c95ab8236168110ff9f9947c930e168dd47663d`  
 **PR:** #188 — مفتوح، Draft، غير مدمج  
 **قاعدة مهمة:** هذا التقرير لا يمنح موافقة على Migration أو نشر Production. لا تغيير إنتاجي ضمن هذه المراجعة.
 
