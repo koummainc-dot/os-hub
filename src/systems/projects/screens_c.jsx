@@ -104,15 +104,21 @@ export function Okrs() {
 export function Updates() {
   const { data, A: act, can, projectsById, metrics, today, settings, people, me, toast, confirm, idx, nameOf, projectProgress, view, setView } = useP();
   const [form, setForm] = useState(null); const [sel, setSel] = useState(null);
+  const [projectFilter, setProjectFilter] = useState("all"); const [statusFilter, setStatusFilter] = useState("all"); const [query, setQuery] = useState("");
   const writableProjects = data.projects.filter((p) => !p.is_system && can("update.write", p));
   useEffect(() => {
     if (view?.quickCreate !== "update") return;
     const projectId = String(view.projectId || "");
     const project = writableProjects.find((item) => item.id === projectId);
-    setForm(project ? { project_id: project.id } : {});
+    if (projectId && !project) toast("لا تملك صلاحية إنشاء تحديث لهذا المشروع.");
+    else setForm(project ? { project_id: project.id } : {});
     setView((current) => ({ ...current, quickCreate: null }));
-  }, [view?.quickCreate, view?.projectId, writableProjects.length, setView]);
-  const list = [...data.updates].sort((a, b) => (b.period_end || "").localeCompare(a.period_end || ""));
+  }, [view?.quickCreate, view?.projectId, writableProjects, setView, toast]);
+  const list = [...data.updates]
+    .filter((update) => projectFilter === "all" || (projectFilter === "portfolio" ? !update.project_id : String(update.project_id || "") === projectFilter))
+    .filter((update) => statusFilter === "all" || String(update.status || "Draft") === statusFilter)
+    .filter((update) => !query || [update.title, update.sections?.highlights, update.sections?.lows].some((value) => String(value || "").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
+    .sort((a, b) => String(b.period_end || "").localeCompare(String(a.period_end || "")));
   function draft(projectId) {
     const p = projectsById[projectId]; const m = metrics[projectId]; const pe = today; const ps = addDays(today, -14);
     const wins = data.wins.filter((w) => (!w.project_id || w.project_id === projectId) && w.achieved_on >= ps);
@@ -128,8 +134,13 @@ export function Updates() {
   return (
     <div>
       <Head title="تحديثات أصحاب المصلحة" sub={`${list.length} تحديث`} right={writableProjects.length > 0 && <Btn kind="primary" onClick={() => setForm({})}>➕ تحديث جديد</Btn>} />
-      {!list.length ? <Empty icon="📣" title="لا تحديثات" sub="يُولَّد المسودة من الإنجازات والمهام والمخاطر والأرقام الحية، وتُجمَّد عند النشر." /> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 10 }}>{list.map((u) => <div key={u.id} onClick={() => setSel(u.id)} style={{ ...S.card, cursor: "pointer", padding: "11px 13px" }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 13.5 }}>📣 {u.title || "تحديث"}</b><Chip color={u.status === "Published" ? C.ok : C.muted}>{u.status === "Published" ? "منشور" : "مسودة"}</Chip></div><div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}><ProjectName id={u.project_id} /> · {fmtShort(u.period_start)} → {fmtShort(u.period_end)} · {L.updateType[u.audience] || ""}</div>{u.lead_assessment && <Chip color={u.lead_assessment === "On Track" ? C.ok : u.lead_assessment === "At Risk" ? C.warn : C.bad} style={{ marginTop: 6 }}>{L.assessment[u.lead_assessment]}</Chip>}</div>)}</div>}
-      {form && <FormModal title="تحديث جديد" initial={{ audience: "Management", project_id: data.projects.find((p) => !p.is_system)?.id }} onClose={() => setForm(null)} fields={[{ key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(writableProjects) }, { key: "audience", label: "الجمهور", type: "select", allowEmpty: false, options: opts(L.updateType) }, { key: "title", label: "العنوان" }]} onSubmit={async (v) => { const d = draft(v.project_id); const rec = { id: uid(), ...d, audience: v.audience, title: v.title || `تحديث ${projectsById[v.project_id].name} — ${fmtShort(today)}`, status: "Draft", lead_assessment: "On Track", author_id: me }; const s = await act.put("updates", rec, projectsById[v.project_id]); setForm(null); if (s) setSel(s.id); }} />}
+      <SearchBar value={query} onChange={setQuery} placeholder="ابحث في التحديثات…">
+        <select aria-label="تصفية التحديثات حسب المشروع" style={{ ...S.sel, width: 175 }} value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}><option value="all">كل المشاريع</option><option value="portfolio">المحفظة</option>{data.projects.filter((project) => !project.is_system).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>
+        <select aria-label="تصفية التحديثات حسب الحالة" style={{ ...S.sel, width: 130 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">كل الحالات</option><option value="Draft">مسودة</option><option value="Published">منشور</option></select>
+        {(query || projectFilter !== "all" || statusFilter !== "all") && <Btn small onClick={() => { setQuery(""); setProjectFilter("all"); setStatusFilter("all"); }}>مسح الفلاتر</Btn>}
+      </SearchBar>
+      {!list.length ? <Empty icon="📣" title="لا توجد تحديثات مطابقة" sub="غيّر البحث أو الفلاتر لإظهار سجلات أخرى." /> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 10 }}>{list.map((u) => <div key={u.id} onClick={() => setSel(u.id)} style={{ ...S.card, cursor: "pointer", padding: "11px 13px" }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 13.5 }}>📣 {u.title || "تحديث"}</b><Chip color={u.status === "Published" ? C.ok : C.muted}>{u.status === "Published" ? "منشور" : "مسودة"}</Chip></div><div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}><ProjectName id={u.project_id} /> · {fmtShort(u.period_start)} → {fmtShort(u.period_end)} · {L.updateType[u.audience] || ""}</div>{u.lead_assessment && <Chip color={u.lead_assessment === "On Track" ? C.ok : u.lead_assessment === "At Risk" ? C.warn : C.bad} style={{ marginTop: 6 }}>{L.assessment[u.lead_assessment]}</Chip>}</div>)}</div>}
+      {form && <FormModal title="تحديث جديد" initial={{ audience: "Management", project_id: form.project_id || data.projects.find((p) => !p.is_system)?.id }} onClose={() => setForm(null)} fields={[{ key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(writableProjects) }, { key: "audience", label: "الجمهور", type: "select", allowEmpty: false, options: opts(L.updateType) }, { key: "title", label: "العنوان" }]} onSubmit={async (v) => { const d = draft(v.project_id); const rec = { id: uid(), ...d, audience: v.audience, title: v.title || `تحديث ${projectsById[v.project_id].name} — ${fmtShort(today)}`, status: "Draft", lead_assessment: "On Track", author_id: me }; const s = await act.put("updates", rec, projectsById[v.project_id]); setForm(null); if (s) setSel(s.id); }} />}
       {openUp && <UpdateEditor u={openUp} onClose={() => setSel(null)} />}
     </div>
   );
@@ -157,20 +168,30 @@ function UpdateEditor({ u, onClose }) {
 
 // ═════ Wins ═════
 export function Wins() {
-  const { data, A: act, me, today, idx, can, people, projectsById, toast, weekStartStr, openTask, openProject, setPage, view, setView } = useP(); const [form, setForm] = useState(null); const [who, setWho] = useState("all"); const canWriteWins = can("win.write");
+  const { data, A: act, me, today, idx, can, people, projectsById, toast, weekStartStr, openTask, openProject, setPage, view, setView } = useP();
+  const [form, setForm] = useState(null); const [who, setWho] = useState("all");
+  const [projectFilter, setProjectFilter] = useState("all"); const [query, setQuery] = useState("");
+  const canWriteWins = can("win.write");
   useEffect(() => {
     if (view?.quickCreate !== "win") return;
     const projectId = String(view.projectId || "");
-    if (canWriteWins && projectId && projectsById[projectId]) setForm({ project_id: projectId });
+    const project = projectId ? projectsById[projectId] : null;
+    if (projectId && (!project || !can("win.write", project))) toast("لا تملك صلاحية تسجيل إنجاز لهذا المشروع.");
+    else if (projectId) setForm({ project_id: projectId });
     else if (canWriteWins) setForm({});
     else toast("لا تملك صلاحية تسجيل إنجاز.");
     setView((current) => ({ ...current, quickCreate: null }));
-  }, [view?.quickCreate, view?.projectId, canWriteWins, projectsById, setView, toast]);
-  const list = data.wins.filter((w) => who === "all" || w.member_id === who).sort((a, b) => b.achieved_on.localeCompare(a.achieved_on));
+  }, [view?.quickCreate, view?.projectId, canWriteWins, projectsById, can, setView, toast]);
+  const list = data.wins
+    .filter((win) => who === "all" || win.member_id === who)
+    .filter((win) => projectFilter === "all" || String(win.project_id || "") === projectFilter)
+    .filter((win) => !query || [win.title, win.description].some((value) => String(value || "").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
+    .sort((a, b) => String(b.achieved_on || "").localeCompare(String(a.achieved_on || "")));
   const sugg = idx.list.filter((t) => idx.isLeaf(t.id) && D.cat(t.status) === "done" && t.assignee_id === me && t.completed_at && t.completed_at.slice(0, 10) >= weekStartStr && !data.wins.some((w) => w.task_id === t.id || (w.task_ids || []).includes(t.id))).slice(0, 6);
   return (
     <div>
-      <Head title="الإنجازات" sub={`${list.length} إنجاز`} right={<><select style={{ ...S.sel, width: 150 }} value={who} onChange={(e) => setWho(e.target.value)}><option value="all">الكل</option>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>{canWriteWins && <Btn kind="primary" onClick={() => setForm({})}>➕ إنجاز</Btn>}</>} />
+      <Head title="الإنجازات" sub={`${list.length} إنجاز`} right={<><select aria-label="تصفية الإنجازات حسب العضو" style={{ ...S.sel, width: 150 }} value={who} onChange={(e) => setWho(e.target.value)}><option value="all">كل الأعضاء</option>{people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select><select aria-label="تصفية الإنجازات حسب المشروع" style={{ ...S.sel, width: 170 }} value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}><option value="all">كل المشاريع</option>{data.projects.filter((project) => !project.is_system).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>{canWriteWins && <Btn kind="primary" onClick={() => setForm({})}>➕ إنجاز</Btn>}</>} />
+      <SearchBar value={query} onChange={setQuery} placeholder="ابحث في الإنجازات…" />
       {canWriteWins && sugg.length > 0 && <div style={{ ...S.card, marginBottom: 12, border: `1px dashed ${C.ok}` }}><div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>💡 اقتراحات من مهامك المكتملة هذا الأسبوع</div>{sugg.map((t) => <div key={t.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "3px 0", fontSize: 13 }}><span style={{ flex: 1 }}>✔ {t.title}</span><Btn small onClick={() => act.put("wins", { id: uid(), title: t.title, achieved_on: t.completed_at.slice(0, 10), member_id: me, project_id: t.project_id, task_id: t.id, task_ids: [t.id], visibility: "team" }).then(() => toast("🏆 سُجّل إنجاز"))}>🏆 سجّل</Btn></div>)}</div>}
       {!list.length ? <Empty icon="🏆" title="لا إنجازات بعد" sub="احتفِ بما أنجزته — وتظهر الإنجازات في المراجعة الأسبوعية." /> : <div style={{ ...S.card, padding: "4px 14px" }}>{list.map((w) => <div key={w.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${C.line}` }}><span style={{ fontSize: 18 }}>🏆</span><div style={{ flex: 1 }}><div style={{ fontSize: 13.5, fontWeight: 700 }}>{w.title}</div>{w.description && <div style={{ fontSize: 12, color: C.dim }}>{w.description}</div>}<div style={{ fontSize: 11, color: C.muted, display: "flex", gap: 8 }}>{fmt(w.achieved_on)} <Who id={w.member_id} size={15} />{w.project_id && <ProjectName id={w.project_id} />}{(w.task_ids || (w.task_id ? [w.task_id] : [])).map((id) => idx.byId[id]).filter(Boolean).map((t) => <Btn key={t.id} small onClick={() => openTask(t.id)}>☑ {t.title}</Btn>)}{w.objective_id && <Btn small onClick={() => setPage("okrs")}>🎯 الهدف</Btn>}{w.output_ids?.length > 0 && <Btn small onClick={() => w.project_id && openProject(w.project_id, "outputs")}>📦 {w.output_ids.length} مخرج ↗</Btn>}</div></div>{canWriteWins && (w.member_id === me || can("admin")) && <><Btn small onClick={() => setForm(w)}>✎</Btn><Btn small danger onClick={() => act.del("wins", w.id, w.title)}>🗑</Btn></>}</div>)}</div>}
       {form && <FormModal title={form.id ? "تعديل الإنجاز" : "إنجاز جديد"} initial={{ achieved_on: today, member_id: me, visibility: "team", ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { const rec = { ...v, id: v.id || uid() }; rec.task_ids = [...new Set([...(v.task_ids || []), ...(v.task_id ? [v.task_id] : [])])]; const kr = rec.kr_id ? data.krs.find((x) => x.id === rec.kr_id) : null; if (rec.kr_id && !kr) throw new Error("النتيجة الرئيسية المرتبطة غير موجودة."); if (kr && !rec.objective_id) rec.objective_id = kr.objective_id; if (kr && kr.objective_id !== rec.objective_id) throw new Error("النتيجة الرئيسية لا تنتمي إلى الهدف المختار."); const linkedTasks = rec.task_ids.map((id) => idx.byId[id]).filter(Boolean); const linkedOutputs = (rec.output_ids || []).map((id) => data.outputs.find((x) => x.id === id)).filter(Boolean); const projectIds = [...new Set([...linkedTasks.map((x) => x.project_id), ...linkedOutputs.map((x) => x.project_id), ...(rec.project_id ? [rec.project_id] : [])])]; if (projectIds.length > 1) throw new Error("يجب أن تنتمي المهام والمخرجات المرتبطة بالإنجاز إلى المشروع نفسه."); if (!rec.project_id && projectIds.length === 1) rec.project_id = projectIds[0]; if (linkedOutputs.some((x) => x.approval !== "Final")) throw new Error("يجب أن تكون المخرجات المرتبطة بالإنجاز معتمدة نهائيًا."); await act.put("wins", rec); setForm(null); toast("🏆 تم"); }} fields={[{ key: "title", label: "الإنجاز", required: true }, { key: "achieved_on", label: "التاريخ", type: "date", required: true }, { key: "project_id", label: "المشروع", type: "select", emptyLabel: "— بلا —", options: projOpts(data.projects) }, { key: "objective_id", label: "الهدف", type: "select", emptyLabel: "— بلا —", options: data.objectives.map((x) => ({ v: x.id, l: x.name })) }, { key: "kr_id", label: "النتيجة الرئيسية", type: "select", emptyLabel: "— بلا —", options: (v) => data.krs.filter((x) => !v.objective_id || x.objective_id === v.objective_id).map((x) => ({ v: x.id, l: x.name })) }, { key: "task_ids", label: "المهام التي ساهمت", type: "multi", options: (v) => idx.list.filter((x) => !v.project_id || x.project_id === v.project_id).map((x) => ({ v: x.id, l: x.title })) }, { key: "output_ids", label: "المخرجات التي تثبت الإنجاز", type: "multi", options: (v) => data.outputs.filter((x) => x.approval === "Final" && (!v.project_id || x.project_id === v.project_id)).map((x) => ({ v: x.id, l: x.name })) }, { key: "description", label: "تفاصيل", type: "textarea", rows: 2 }]} />}
