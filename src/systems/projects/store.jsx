@@ -656,7 +656,6 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       patchIds("milestones", data.milestones.filter((r) => r.project_id === source.project_id), ["related_task_ids"], can("project.edit", sourceProject));
       data.krs.filter((kr) => Array.isArray(kr.task_ids) && kr.task_ids.some((id) => moved.has(id))).forEach((kr) => {
         const targetAllowed = (kr.project_ids || []).includes(targetProjectId);
-        const sourceAllowed = (kr.project_ids || []).includes(source.project_id);
         const removeIds = targetAllowed ? [] : plan.ids;
         if (!removeIds.length) return;
         if (!can("okr.write")) throw new Error("لا تملك صلاحية تحديث مجموعات المهام المرتبطة بالنتائج الرئيسية.");
@@ -664,7 +663,6 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       });
       const prdCount = plan.patches.filter((next, i) => data.tasks.find((t) => t.id === plan.ids[i])?.prd_id && !next.prd_id).length;
       const discoveryCount = plan.patches.reduce((n, next, i) => n + ((data.tasks.find((t) => t.id === plan.ids[i])?.discovery_ids || []).length - (next.discovery_ids || []).length), 0);
-      const sourceLinks = referencePatches.reduce((n, patch) => n + ["task_ids", "affected_task_ids", "implementation_task_ids", "related_task_ids"].reduce((sum, field) => sum + ((patch.before[field] || []).filter((id) => moved.has(id)).length), 0), 0);
       const prompt = "نقل " + plan.ids.length + " مهمة من «" + sourceProject.name + "» إلى «" + target.name + "»؟\n"
         + "• " + outputPatches.length + " مخرج سينتقل مع المهام.\n"
         + "• " + referencePatches.length + " سجل Governance/OKR/Milestone ستُحدّث روابطه لمنع بقاء روابط عابرة للمشاريع.\n"
