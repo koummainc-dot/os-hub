@@ -4,7 +4,7 @@
 **المرجع الوظيفي الحاكم:** `Projects_OS_v5_Unified_Refactor_Spec.md` — الإصدار 5.0، §19 للمراحل و§18 لمعايير القبول  
 **المستودع:** `koummainc-dot/os-hub`  
 **الفرع:** `feat/projects-v5-phase1-navigation`  
-**آخر Commit تمت مراجعته:** `b5f4bd37b4270fd74648c032ea826385cad573f8`  
+**آخر Commit تمت مراجعته:** `20b725e0589e927800f000c3aaa56e47c57b4418`  
 **PR:** #188 — مفتوح، Draft، غير مدمج  
 **قاعدة مهمة:** هذا التقرير لا يمنح موافقة على Migration أو نشر Production. لا تغيير إنتاجي ضمن هذه المراجعة.
 
@@ -99,9 +99,9 @@
 **المتبقي لإغلاقها:**
 1. اختبار إجراءات Project Header السبعة يدويًا داخل Preview، والتأكد من تعبئة Project الصحيح والحفظ.
 2. Saved Views — القرار D-06: تحديد هل الحفظ شخصي أم مشترك قبل إضافة تخزين دائم.
-3. Finance Link Status وحالات الربط/العملة/المزامنة في واجهة المشروع.
+3. **Finance Link Status:** تم تنفيذ قراءة حالة الربط من Finance-owned `fin_projects_get` داخل Portfolio مع حالات Linked / Not linked / Multiple / Currency mismatch / Permission / Error، وإضافة فلتر وعرض الحالة. المتبقي هو القبول الحي فقط.
 4. تفعيل تغيير حالة Board بالسحب، أو توثيق استبعاده من هذا الإصدار بقرار واضح.
-5. إثراء Calendar بالأحداث التي تحددها المواصفة، لا الاكتفاء بفتح السجل.
+5. **Calendar:** تم إثراؤه بأحداث Risk review / Issue discovery / Decision / Win إضافة إلى Project/Task/PRD/Output/Knowledge Meeting. المتبقي هو القبول الحي فقط.
 6. قبول UX فعلي للفلاتر والعدادات والـdrill-down على بيانات QA.
 
 ### Phase 3 — Planning & Traceability
@@ -176,7 +176,7 @@
 - Finance SQL smoke على آخر Commit ناجح.
 
 **المتبقي لإغلاقها:**
-1. اختبار إنشاء معاملة Finance وربطها بمشروع باستخدام مسار التطبيق/RPC الحقيقي من البداية للنهاية؛ هذا المسار لم يُعتمد بعد.
+1. **مسار إنشاء معاملة Finance:** تم تنفيذ handoff مباشر من Project Finance إلى Finance Transactions مع تمرير `projectRef`؛ Finance يقرأ الملف المالي الوحيد المرتبط ويجهز نموذج الحركة مسبقًا، ثم يستخدم `fin_post_transaction_with_splits` و`fin_project_transaction_link` كما هو معتمد. المتبقي هو القبول الحي من الواجهة/RPC.
 2. حسم D-02: هل لكل Project ملف Finance نشط أساسي واحد، أم اختيار Primary Profile صريح؟ لا تضف Unique constraint قبل جرد التكرارات والقرار.
 3. حسم D-10: متى تنتقل الميزانية المخططة من Projects إلى Finance، وما الذي يظل مملوكًا لكل نظام بعد النقل؟
 4. إظهار حالات Not Linked / Linked / Stale / Error / Permission Denied / Currency Mismatch بوضوح.
@@ -206,6 +206,15 @@
 9. إغلاق G0–G7، وتوثيق نتائج كل اختبار وقرار المنتج، ثم موافقة المالك وRelease Notes ونشر متدرج.
 
 ---
+
+## Latest implementation batch — 2026-11-14
+
+تمت مواصلة التنفيذ بدون Production writes أو migrations، مع إغلاق برمجي لثلاث فجوات كانت في قائمة Features:
+- Portfolio أصبح يعرض Finance Link Status من الـFinance-owned read model، بما في ذلك اختلاف العملة وتعدد الملفات وعدم توفر الصلاحية/الخطأ، مع فلتر للحالة.
+- Portfolio Calendar أصبح يعرض Risk review وIssue discovery وDecision وWin بالإضافة إلى الأحداث الموجودة سابقًا، وكل حدث يفتح السجل الأصلي داخل النظام المالك.
+- Project Finance أصبح يوفّر زر تسجيل حركة مباشر، وFinance Transactions يستقبل `projectRef` ويفتح نموذج الحركة مع `finance_project_id` واسم المشروع، دون إنشاء Finance record من Projects.
+
+**لا تُعتبر هذه التغييرات مقبولة نهائيًا بعد؛ اختبارات Preview والـQA الحية مؤجلة إلى دفعة الاختبارات النهائية كما تم الاتفاق.**
 
 ## 3. بوابات الاعتماد G0–G7
 
