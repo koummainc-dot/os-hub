@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { supabase } from "../../core/supabase.js";
+import { listProjectHealthTransitions } from "../../core/projectHealth.js";
 import { A, S } from "../../core/ui.jsx";
 import { C, Btn, Chip, Head, Stat, Empty, Progress, Seg, Board, SearchBar, Tabs, FormModal, Modal, Field } from "../../core/kit.jsx";
 import { fmt, fmtShort, fmtMinutes, addDays, diffDays, monthDays, MONTH_NAMES, dow, dateOf } from "../../core/dates.js";
@@ -207,8 +208,47 @@ function ProjectDetail() {
     </div>
   );
 }
+function ProjectHealthHistory({ projectId, workspaceId }) {
+  const [expanded,setExpanded]=useState(false);
+  const [rows,setRows]=useState([]);
+  const [status,setStatus]=useState("idle");
+  useEffect(()=>{
+    let active=true;
+    if(!expanded||!workspaceId||!projectId){setRows([]);setStatus("idle");return ()=>{active=false;};}
+    setStatus("loading");
+    listProjectHealthTransitions(workspaceId,projectId,30).then(result=>{
+      if(!active)return;
+      setRows(result.ok?result.rows:[]);
+      setStatus(result.ok?"ready":"error");
+    }).catch(()=>{if(active){setRows([]);setStatus("error");}});
+    return ()=>{active=false;};
+  },[expanded,workspaceId,projectId]);
+  const label=(value)=>D.HEALTH_META[value]?.label||value||"بداية التتبع";
+  const reasonLabel=(item)=>D.REASON_LABEL[item?.code]||item?.code||"تغير المؤشرات";
+  return <div style={{marginTop:10,borderTop:"1px solid "+C.line,paddingTop:8}}>
+    <button type="button" aria-expanded={expanded} onClick={()=>setExpanded(value=>!value)}
+      style={{border:0,background:"transparent",padding:"3px 0",color:C.info,cursor:"pointer",font:"inherit",fontSize:11.5,textDecoration:"underline"}}>
+      {expanded?"إخفاء سجل تغيّر الصحة":"عرض سجل تغيّر الصحة"} ↗
+    </button>
+    {expanded&&<div style={{marginTop:8,display:"grid",gap:7}}>
+      {status==="loading"&&<span style={{fontSize:11,color:C.muted}}>جارٍ تحميل سجل الانتقالات…</span>}
+      {status==="error"&&<span role="alert" style={{fontSize:11,color:C.bad}}>تعذر تحميل سجل الصحة أو لا توجد صلاحية لقراءته.</span>}
+      {status==="ready"&&!rows.length&&<span style={{fontSize:11,color:C.muted}}>لا توجد انتقالات مسجلة بعد؛ ستظهر بعد دورة الرصد المحلية الأولى.</span>}
+      {rows.map(row=><div key={row.id} style={{borderInlineStart:"2px solid "+(D.HEALTH_META[row.next_state]?.color||C.line),paddingInlineStart:8,fontSize:11.5}}>
+        <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
+          <b>{row.is_baseline?"بدء الرصد":label(row.previous_state)+" ← "+label(row.next_state)}</b>
+          <span style={{color:C.muted}}>{row.occurred_at?new Date(row.occurred_at).toLocaleString("ar-EG"):"—"}</span>
+        </div>
+        {Array.isArray(row.reasons)&&row.reasons.length>0&&<div style={{color:C.muted,marginTop:3}}>
+          {row.reasons.map(reasonLabel).join(" · ")}
+        </div>}
+      </div>)}
+    </div>}
+  </div>;
+}
+
 function Overview({ p, m }) {
-  const { data, idx, today, settings, A: act, can, nameOf, projectProgress, view, setView, openTask } = useP(); const cov = D.coverageOf(p, idx);
+  const { data, idx, today, settings, A: act, can, nameOf, projectProgress, view, setView, openTask, ws } = useP(); const cov = D.coverageOf(p, idx);
   const unlinkedTaskIds = (cov?.unlinked || []).map((task) => task.id);
   const openTasksView = (extra = {}) => setView({ ...view, tab: "tasks", taskFilter: null, taskFilterIds: [], focusRecord: null, ...extra });
   const lateTasks = idx.list.filter((t) => t.project_id === p.id && D.isOverdueLeaf(t, idx, today));
@@ -234,6 +274,7 @@ function Overview({ p, m }) {
             </div>
           ))}
         </div>}
+        <ProjectHealthHistory projectId={p.id} workspaceId={ws?.id} />
         <div style={{ fontSize: 12, color: C.dim, marginTop: 10, lineHeight: 1.9 }}>
           الموعد: <button type="button" onClick={() => setView({ ...view, tab: "timeline", taskFilter: null, focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{p.target_date ? `${fmt(p.target_date)} (${m.daysRemaining < 0 ? "تجاوز " + -m.daysRemaining + " يوم" : "باقٍ " + m.daysRemaining + " يوم"})` : "غير محدد"}</button>
           <br />متأخرة: <button type="button" onClick={() => setView({ ...view, tab: "tasks", taskFilter: "overdue", focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{m.overdueLeafCount}</button>
