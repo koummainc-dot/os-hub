@@ -5,6 +5,7 @@ const helper = await readFile(new URL("../src/core/notifications.js", import.met
 const projectsFinance = await readFile(new URL("../src/systems/projects/screens_b.jsx", import.meta.url), "utf8");
 const inboxMigration = await readFile(new URL("../supabase/migrations/20261114274000_core_project_integration_failure_notifications.sql", import.meta.url), "utf8");
 const baseInbox = await readFile(new URL("../supabase/migrations/20261114240000_core_notifications_inbox.sql", import.meta.url), "utf8");
+const knowledgeViewEvents = await readFile(new URL("../supabase/migrations/20261114275000_core_project_view_notification_events.sql", import.meta.url), "utf8");
 
 for (const [key, eventType, tab] of [
   ["finance", "finance_sync_failed", "finance"],
@@ -38,6 +39,11 @@ assert.ok(inboxMigration.includes("finance_sync_failed") &&
 assert.ok(inboxMigration.includes("public.ws_access_level(v_ws,'projects','projects') not in ('view','edit')") &&
   inboxMigration.includes("core_projects_member_has_section(v_ws,v_recipient,'projects')"),
   "both sender and recipient must independently have Projects read access");
+assert.ok(knowledgeViewEvents.includes("'knowledge_meeting_scheduled'") &&
+  knowledgeViewEvents.includes("'knowledge_meeting_followups_added'"),
+  "Knowledge meeting lifecycle events may be emitted by Project viewers as well as Project editors");
+assert.ok(knowledgeViewEvents.includes("elsif public.ws_access_level(v_ws,v_system,v_collection) is distinct from 'edit'"),
+  "the Knowledge exception must not weaken the edit requirement for any other event");
 assert.ok(inboxMigration.includes("elsif public.ws_access_level(v_ws,v_system,v_collection) is distinct from 'edit'"),
   "normal user-authored Core notifications must continue requiring edit access");
 assert.ok(baseInbox.includes("source_record_forbidden") || baseInbox.includes("NOTIFICATION_SOURCE_FORBIDDEN"),
