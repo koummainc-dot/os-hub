@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { supabase } from "../../core/supabase.js";
 
 const GREEN="#059669",INK="#17211D",MUTED="#718078",LINE="#E4EBE6",BG="#F5F8F5";
@@ -18,28 +18,34 @@ function Metric({label,value,detail}){return <div style={{background:BG,border:"
 export default function FinanceProjects({ws,access,isDemo=false,currencies=[],initialProjectRef=null,initialBudget=null,initialCurrency=null,initialBudgetUpdatedAt=null,onCreateTransaction=null}){
  const [projects,setProjects]=useState([]),[sourceProjects,setSourceProjects]=useState([]),[transactions,setTransactions]=useState([]),[primaryProfiles,setPrimaryProfiles]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
  const [error,setError]=useState(""),[notice,setNotice]=useState(""),[showForm,setShowForm]=useState(false),[editingId,setEditingId]=useState(null),[selectedId,setSelectedId]=useState(null);
+ const [syncMeta,setSyncMeta]=useState(null),[syncStatus,setSyncStatus]=useState("loading");
+ const lastGoodSync=useRef(null);
  const [form,setForm]=useState(emptyForm()),[linkTxId,setLinkTxId]=useState("");
  const [budgetHandoff,setBudgetHandoff]=useState(null);
  const [handledInitialProjectRef,setHandledInitialProjectRef]=useState("");
  const canEdit=!isDemo&&(access?.level==="edit"||access?.manage||access?.owner);
  const load=useCallback(async()=>{
   if(!ws?.id||isDemo){setLoading(false);return;}
-  setLoading(true);setError("");
+  setLoading(true);setError("");setSyncStatus(lastGoodSync.current?"syncing":"loading");
   try{
    const [p,t,os,primary]=await Promise.all([
-    supabase.rpc("fin_projects_get",{p_ws:ws.id}),
+    supabase.rpc("fin_projects_sync_get",{p_ws:ws.id}),
     supabase.from("finance_transactions").select("id,name,type,amount,currency,local_date,status,pnl_effect,base_missing").eq("workspace_id",ws.id).eq("status","Posted").in("type",["Income","Expense"]).order("local_date",{ascending:false}).limit(300),
     supabase.from("workspace_records").select("id,data,deleted,updated_at").eq("workspace_id",ws.id).eq("system_id","projects").eq("collection","projects").eq("deleted",false).order("updated_at",{ascending:false}).limit(500),
     supabase.rpc("fin_project_primary_list",{p_ws:ws.id})
    ]);
    if(p.error)throw p.error;
-   setProjects(Array.isArray(p.data)?p.data:[]);
-   setPrimaryProfiles(primary.error?[]:(Array.isArray(primary.data)?primary.data:[]));
+   const readModel=p.data||{};
+   const rows=Array.isArray(readModel.projects)?readModel.projects:[];
+   const meta={as_of:readModel.as_of||null,last_synced_at:readModel.last_synced_at||null,sync_status:readModel.sync_status||"fresh"};
+   lastGoodSync.current=meta;setSyncMeta(meta);setSyncStatus("fresh");
+   setProjects(rows);
+   setPrimaryProfiles(primary.error?primaryProfiles:(Array.isArray(primary.data)?primary.data:[]));
    setSourceProjects(os.error?[]:(os.data||[]).filter(r=>!r.deleted&&!r.data?.is_system).map(r=>({id:r.id,name:r.data?.name||r.data?.title||"",type:r.data?.type||"Other",status:r.data?.status||"Planning",currency:r.data?.budget_currency||r.data?.currency||""})).filter(r=>r.name));
    if(t.error){setTransactions([]);setError("تم تحميل المشاريع، لكن تعذّر تحميل قائمة الحركات لربطها: "+t.error.message);}
    else if(os.error){setTransactions(t.data||[]);setError("تعذّر قراءة مشاريع Projects OS. تأكد من صلاحية الوصول إلى قسم المشاريع قبل إعداد الملف المالي.");}
    else setTransactions(t.data||[]);
-  }catch(e){setError(e?.message||"تعذّر تحميل المشاريع المالية");}
+  }catch(e){setError(e?.message||"تعذّر تحميل المشاريع المالية");setSyncStatus(lastGoodSync.current?"stale":"error");if(lastGoodSync.current)setSyncMeta(lastGoodSync.current);}
   finally{setLoading(false);}
  },[ws?.id,isDemo]);
  useEffect(()=>{load();},[load]);
@@ -117,6 +123,8 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
  if(isDemo)return <Card><h3 style={{marginTop:0}}>المشاريع المالية</h3><p style={{color:"#92400E",fontSize:13}}>وضع العرض التجريبي للقراءة فقط.</p></Card>;
  return <div style={{display:"grid",gap:14,direction:"rtl"}}>
   {notice&&<div role="status" style={{background:"#ECFDF3",color:"#067647",padding:11,borderRadius:10,fontSize:12}}>{notice}</div>}
+  {syncStatus==="stale"&&<div role="status" style={{background:"#FFFAEB",color:"#7A2E0E",border:"1px solid #FEDF89",padding:11,borderRadius:10,fontSize:12,lineHeight:1.8}}>تعذرت المزامنة الحالية. نحتفظ بآخر قراءة سليمة من Finance ولا نعرض أصفارًا بديلة. {error}<br/>آخر مزامنة ناجحة: {syncMeta?.last_synced_at?new Date(syncMeta.last_synced_at).toLocaleString("ar-EG"):"غير متاحة"} · As of: {syncMeta?.as_of?new Date(syncMeta.as_of).toLocaleString("ar-EG"):"غير متاح"}</div>}
+  {syncStatus==="fresh"&&syncMeta&&<div style={{fontSize:10.5,color:MUTED}}>Finance Sync: Fresh · آخر مزامنة {syncMeta.last_synced_at?new Date(syncMeta.last_synced_at).toLocaleString("ar-EG"):"—"} · As of {syncMeta.as_of?new Date(syncMeta.as_of).toLocaleString("ar-EG"):"—"}</div>}
   {error&&<div role="alert" style={{background:"#FEF3F2",color:"#B42318",padding:11,borderRadius:10,fontSize:12}}>{error}<button onClick={()=>setError("")} style={{float:"left",border:0,background:"transparent",cursor:"pointer"}}>×</button></div>}
   <Card><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",flexWrap:"wrap"}}><div><h3 style={{margin:0}}>المشاريع المالية</h3><p style={{margin:"6px 0 0",color:MUTED,fontSize:12,lineHeight:1.8}}>عدسة مالية مستقلة لكل مشروع، مرتبطة بدفتر الحركات دون إنشاء دفتر منفصل أو تكرار المعاملات.</p></div><div style={{display:"flex",gap:8}}><Btn secondary onClick={load} disabled={loading}>↻ تحديث</Btn>{canEdit&&<Btn disabled={!sourceProjects.length} onClick={startCreate}>＋ إعداد مالي لمشروع</Btn>}</div></div>
    {loading?<p style={{textAlign:"center",color:MUTED,padding:20}}>جارٍ تحميل المشاريع…</p>:!projects.length?<div style={{textAlign:"center",padding:30,color:MUTED}}><div style={{fontSize:28}}>📁</div><b>لا توجد ملفات مالية للمشاريع بعد</b><p style={{fontSize:12}}>إنشاء المشروع الأساسي يتم من قسم Projects OS. بعد إنشائه، ارجع هنا لإعداد ميزانيته وربط حركات الدخل والمصروف الموجودة بالفعل.</p>{canEdit&&<Btn disabled={!sourceProjects.length} onClick={startCreate}>إعداد أول ملف مالي</Btn>}</div>:<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,280px),1fr))",gap:10,marginTop:15}}>{projects.map(p=><button key={p.id} onClick={()=>{setSelectedId(p.id);setShowForm(false);}} style={{textAlign:"right",fontFamily:"inherit",cursor:"pointer",background:selected?.id===p.id?"#F0FAF4":"#fff",border:"1px solid "+(selected?.id===p.id?"#86D3AE":LINE),borderRadius:12,padding:13,color:INK}}>
