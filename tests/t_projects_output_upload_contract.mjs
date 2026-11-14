@@ -20,6 +20,7 @@ const outputs = entities.slice(entities.indexOf("export function OutputsView"));
 const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 const projectsIndex = fs.readFileSync(new URL("../src/systems/projects/index.jsx", import.meta.url), "utf8");
 const migration = fs.readFileSync(new URL("../supabase/migrations/20261107150000_projects_output_storage.sql", import.meta.url), "utf8");
+const pathParserHardening = fs.readFileSync(new URL("../supabase/migrations/20261114160000_projects_output_storage_invoker_hardening.sql", import.meta.url), "utf8");
 
 assert.ok(outputs.includes("files || []"), "Outputs already has a canonical file-metadata collection");
 assert.ok(outputs.includes("label: \"الملفات\""), "Output details expose attached-file metadata");
@@ -36,6 +37,10 @@ assert.ok(outputs.includes("createSignedUrl"), "Private Output files use signed 
 assert.ok(migration.includes("projects_outputs_select") && migration.includes("projects_outputs_insert") && migration.includes("projects_outputs_delete"), "Storage migration defines the three required private-object policies");
 assert.ok(!migration.includes("create policy projects_outputs_update"), "Storage migration deliberately forbids object UPDATE/upsert");
 assert.ok(migration.includes("collection = 'outputs'"), "Storage policies authorize against the persisted Output record");
+assert.match(pathParserHardening, /security invoker/i, "Storage path parser must not run with elevated privileges");
+assert.match(pathParserHardening, /set search_path = ''/i, "Storage path parser must pin an empty search_path");
+assert.match(pathParserHardening, /revoke all on function public\.projects_output_workspace_id\(text\) from public, anon/i, "Storage path parser is not executable by public or anonymous clients");
+assert.match(pathParserHardening, /grant execute on function public\.projects_output_workspace_id\(text\) to authenticated/i, "authenticated Storage RLS checks can call the path parser");
 
 assert.equal(OUTPUT_STORAGE_BUCKET, "projects-outputs", "Outputs use a dedicated private bucket name");
 assert.equal(OUTPUT_MAX_BYTES, 10 * 1024 * 1024, "Application upload limit is conservative and below the Supabase Free global maximum");
