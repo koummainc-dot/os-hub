@@ -16,7 +16,7 @@ function Card({children,style={}}){return <div style={{background:"#fff",border:
 function Metric({label,value,detail}){return <div style={{background:BG,border:"1px solid "+LINE,borderRadius:10,padding:11,minWidth:0}}><div style={{fontSize:11,color:MUTED,marginBottom:5}}>{label}</div><b style={{fontSize:16,overflowWrap:"anywhere"}}>{value}</b>{detail&&<div style={{fontSize:10,color:MUTED,marginTop:4}}>{detail}</div>}</div>}
 
 export default function FinanceProjects({ws,access,isDemo=false,currencies=[],initialProjectRef=null,initialBudget=null,initialCurrency=null,initialBudgetUpdatedAt=null,onCreateTransaction=null}){
- const [projects,setProjects]=useState([]),[sourceProjects,setSourceProjects]=useState([]),[transactions,setTransactions]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
+ const [projects,setProjects]=useState([]),[sourceProjects,setSourceProjects]=useState([]),[transactions,setTransactions]=useState([]),[primaryProfiles,setPrimaryProfiles]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
  const [error,setError]=useState(""),[notice,setNotice]=useState(""),[showForm,setShowForm]=useState(false),[editingId,setEditingId]=useState(null),[selectedId,setSelectedId]=useState(null);
  const [form,setForm]=useState(emptyForm()),[linkTxId,setLinkTxId]=useState("");
  const [budgetHandoff,setBudgetHandoff]=useState(null);
@@ -26,13 +26,15 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
   if(!ws?.id||isDemo){setLoading(false);return;}
   setLoading(true);setError("");
   try{
-   const [p,t,os]=await Promise.all([
+   const [p,t,os,primary]=await Promise.all([
     supabase.rpc("fin_projects_get",{p_ws:ws.id}),
     supabase.from("finance_transactions").select("id,name,type,amount,currency,local_date,status,pnl_effect,base_missing").eq("workspace_id",ws.id).eq("status","Posted").in("type",["Income","Expense"]).order("local_date",{ascending:false}).limit(300),
-    supabase.from("workspace_records").select("id,data,deleted,updated_at").eq("workspace_id",ws.id).eq("system_id","projects").eq("collection","projects").eq("deleted",false).order("updated_at",{ascending:false}).limit(500)
+    supabase.from("workspace_records").select("id,data,deleted,updated_at").eq("workspace_id",ws.id).eq("system_id","projects").eq("collection","projects").eq("deleted",false).order("updated_at",{ascending:false}).limit(500),
+    supabase.rpc("fin_project_primary_list",{p_ws:ws.id})
    ]);
    if(p.error)throw p.error;
    setProjects(Array.isArray(p.data)?p.data:[]);
+   setPrimaryProfiles(primary.error?[]:(Array.isArray(primary.data)?primary.data:[]));
    setSourceProjects(os.error?[]:(os.data||[]).filter(r=>!r.deleted&&!r.data?.is_system).map(r=>({id:r.id,name:r.data?.name||r.data?.title||"",type:r.data?.type||"Other",status:r.data?.status||"Planning",currency:r.data?.budget_currency||r.data?.currency||""})).filter(r=>r.name));
    if(t.error){setTransactions([]);setError("تم تحميل المشاريع، لكن تعذّر تحميل قائمة الحركات لربطها: "+t.error.message);}
    else if(os.error){setTransactions(t.data||[]);setError("تعذّر قراءة مشاريع Projects OS. تأكد من صلاحية الوصول إلى قسم المشاريع قبل إعداد الملف المالي.");}
@@ -91,6 +93,16 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
   setSaving(true);setError("");try{const p={workspace_id:ws.id,...form,id:editingId||undefined,name:sourceProject.name,project_type:projectType,status:projectStatus,budget:form.budget===""?null:String(form.budget),invested_capital:form.invested_capital===""?null:String(form.invested_capital),end_date:form.end_date||null,project_ref:sourceProject.id,area_ref:form.area_ref||null,notes:form.notes||null};
    const {data,error:err}=await supabase.rpc("fin_project_save",{p});if(err)throw err;setNotice(editingId?"تم تحديث الملف المالي.":"تم إعداد الملف المالي وربطه بمشروع Projects OS.");setSelectedId(data?.id||editingId);setShowForm(false);setBudgetHandoff(null);await load();
   }catch(e){setError(e?.message||"تعذّر حفظ المشروع.");}finally{setSaving(false);}}
+ async function setPrimaryProfile(profile){
+  if(!canEdit||saving||!profile?.id||!profile.project_ref)return;
+  setSaving(true);setError("");try{
+   const {data,error:err}=await supabase.rpc("fin_project_primary_set",{p:{workspace_id:ws.id,project_ref:profile.project_ref,finance_project_id:profile.id}});
+   if(err)throw err;
+   setNotice("تم تعيين الملف المالي الأساسي لهذا المشروع. يمكن أن تبقى الملفات الأخرى موجودة دون اختيار تلقائي.");
+   await load();
+  }catch(e){setError(e?.message||"تعذّر تعيين الملف المالي الأساسي.");}
+  finally{setSaving(false);}
+ }
  async function linkTransaction(e){e.preventDefault();if(!canEdit||saving||!selected||!linkTxId)return;setSaving(true);setError("");try{const {error:err}=await supabase.rpc("fin_project_transaction_link",{p:{workspace_id:ws.id,project_id:selected.id,transaction_id:linkTxId}});if(err)throw err;setLinkTxId("");setNotice("تم ربط الحركة بالمشروع؛ لم يتم إنشاء حركة مالية جديدة.");await load();}catch(e){setError(e?.message||"تعذّر ربط الحركة.");}finally{setSaving(false);}}
  async function unlinkTransaction(id){if(!canEdit||saving||!selected)return;setSaving(true);setError("");try{const {error:err}=await supabase.rpc("fin_project_transaction_unlink",{p:{workspace_id:ws.id,project_id:selected.id,transaction_id:id}});if(err)throw err;setNotice("تم فك ارتباط الحركة بالمشروع دون حذفها من الدفتر.");await load();}catch(e){setError(e?.message||"تعذّر فك الارتباط.");}finally{setSaving(false);}}
  if(isDemo)return <Card><h3 style={{marginTop:0}}>المشاريع المالية</h3><p style={{color:"#92400E",fontSize:13}}>وضع العرض التجريبي للقراءة فقط.</p></Card>;
@@ -99,7 +111,7 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
   {error&&<div role="alert" style={{background:"#FEF3F2",color:"#B42318",padding:11,borderRadius:10,fontSize:12}}>{error}<button onClick={()=>setError("")} style={{float:"left",border:0,background:"transparent",cursor:"pointer"}}>×</button></div>}
   <Card><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",flexWrap:"wrap"}}><div><h3 style={{margin:0}}>المشاريع المالية</h3><p style={{margin:"6px 0 0",color:MUTED,fontSize:12,lineHeight:1.8}}>عدسة مالية مستقلة لكل مشروع، مرتبطة بدفتر الحركات دون إنشاء دفتر منفصل أو تكرار المعاملات.</p></div><div style={{display:"flex",gap:8}}><Btn secondary onClick={load} disabled={loading}>↻ تحديث</Btn>{canEdit&&<Btn disabled={!sourceProjects.length} onClick={startCreate}>＋ إعداد مالي لمشروع</Btn>}</div></div>
    {loading?<p style={{textAlign:"center",color:MUTED,padding:20}}>جارٍ تحميل المشاريع…</p>:!projects.length?<div style={{textAlign:"center",padding:30,color:MUTED}}><div style={{fontSize:28}}>📁</div><b>لا توجد ملفات مالية للمشاريع بعد</b><p style={{fontSize:12}}>إنشاء المشروع الأساسي يتم من قسم Projects OS. بعد إنشائه، ارجع هنا لإعداد ميزانيته وربط حركات الدخل والمصروف الموجودة بالفعل.</p>{canEdit&&<Btn disabled={!sourceProjects.length} onClick={startCreate}>إعداد أول ملف مالي</Btn>}</div>:<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,280px),1fr))",gap:10,marginTop:15}}>{projects.map(p=><button key={p.id} onClick={()=>{setSelectedId(p.id);setShowForm(false);}} style={{textAlign:"right",fontFamily:"inherit",cursor:"pointer",background:selected?.id===p.id?"#F0FAF4":"#fff",border:"1px solid "+(selected?.id===p.id?"#86D3AE":LINE),borderRadius:12,padding:13,color:INK}}>
-    <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"start"}}><b>{displayProjectName(p)}</b><span style={{fontSize:10,background:p.status==="Active"?"#ECFDF3":"#F2F4F7",borderRadius:999,padding:"4px 7px",whiteSpace:"nowrap"}}>{STATUS_LABEL[p.status]||p.status}</span></div>
+    <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"start"}}><b>{displayProjectName(p)}</b><span style={{display:"flex",gap:5,alignItems:"center"}}>{primaryProfiles.some(row=>row.project_ref===p.project_ref&&row.finance_project_id===p.id)&&<span style={{fontSize:9,background:"#ECFDF3",color:"#067647",borderRadius:999,padding:"4px 7px"}}>أساسي</span>}<span style={{fontSize:10,background:p.status==="Active"?"#ECFDF3":"#F2F4F7",borderRadius:999,padding:"4px 7px",whiteSpace:"nowrap"}}>{STATUS_LABEL[p.status]||p.status}</span></span></div>
     <div style={{fontSize:11,color:MUTED,marginTop:5}}>{TYPE_LABEL[p.project_type]||p.project_type} · {p.scope==="Business"?"مشروع تجاري":"شخصي"} · {p.transactions?.length||0} حركة</div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12}}><Metric label="صافي الربح" value={money(p.net_profit_base,p.base_currency||"EGP")}/><Metric label="ROI" value={p.roi_measurable?Number(p.roi_pct).toLocaleString("ar-EG")+"%":"غير قابل للقياس"}/></div>
    </button>)}</div>}
