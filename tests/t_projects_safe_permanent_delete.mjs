@@ -4,6 +4,7 @@ const core = await readFile(new URL("../src/core/records.jsx", import.meta.url),
 const store = await readFile(new URL("../src/systems/projects/store.jsx", import.meta.url), "utf8");
 const screens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
 const migration = await readFile(new URL("../supabase/migrations/20261029213602_projects_purge_records_batch.sql", import.meta.url), "utf8");
+const extendedPurge = await readFile(new URL("../supabase/migrations/20261114269000_projects_purge_wins_milestones.sql", import.meta.url), "utf8");
 assert.ok(core.includes('supabase.rpc("projects_purge_records_batch"'), "purge must execute through transactional server RPC");
 assert.ok(core.includes('navigator.onLine === false'), "permanent deletion must not queue offline");
 assert.ok(core.includes('type: "drop", coll: collection, id'), "purged records must be removed from local state");
@@ -15,8 +16,8 @@ assert.ok(store.includes("جلسات الوقت التاريخية ستبقى م
 assert.ok(store.includes("ops.length > 1000"), "oversized purge must be rejected");
 assert.ok(screens.includes("act.permanentlyDeleteProject(rec)"), "trash UI must expose project permanent deletion");
 
-assert.ok(migration.includes("'milestones'") && migration.includes("'wins'"),
-  "the server purge RPC must allow every collection included in the project deletion batch");
+assert.ok(extendedPurge.includes("'milestones'") && extendedPurge.includes("'wins'"),
+  "the forward migration must extend the server purge RPC to every collection included in the project deletion batch");
 assert.match(migration, /security invoker/i, "purge RPC must use security invoker");
 assert.ok(migration.includes("auth.uid() is null"), "purge RPC must require authentication");
 assert.match(migration, /expected_updated_at/i, "purge RPC must check optimistic concurrency");
