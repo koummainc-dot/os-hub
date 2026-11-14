@@ -297,7 +297,7 @@ export function Tasks() {
 // ═════ Portfolio ═════
 // Cross-project portfolio view; derived only from existing workspace records.
 export function Portfolio() {
-  const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, setView, people, can, view } = useP();
+  const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, setView, people, can, view, A: act } = useP();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("active");
   const [newProjectOpen, setNewProjectOpen] = useState(false);
@@ -357,7 +357,7 @@ export function Portfolio() {
   const timelineMax = timelineDates[timelineDates.length - 1] || "";
   const timelineSpan = timelineMin ? Math.max(1, diffDays(timelineMax, timelineMin) + 1) : 1;
   const timelinePosition = (date) => Math.max(0, Math.min(100, diffDays(date, timelineMin) / timelineSpan * 100));
-  const boardStatuses = [...new Set(visible.map((p) => p.status || "Planned"))];
+  const boardStatuses = ["Idea", "Planned", "In Progress", "On Hold", "Completed", "Cancelled"];
   return (
     <div>
       <Head title="محفظة المشاريع" sub="نظرة موحّدة على حالة المشاريع والأهداف والمخاطر عبر مساحة العمل." right={can("project.create") && <Btn kind="primary" onClick={() => setNewProjectOpen(true)}>＋ مشروع جديد</Btn>} />
@@ -427,11 +427,30 @@ export function Portfolio() {
           })}</tbody>
         </table>
       </div>
-      : mode === "board" ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, overflowX: "auto", alignItems: "start" }}>
-        {boardStatuses.map((projectStatus) => <section key={projectStatus} style={{ ...S.card, padding: 9, minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>{L.projectStatus[projectStatus] || projectStatus}<Chip>{visible.filter((p) => p.status === projectStatus).length}</Chip></div>
-          {visible.filter((p) => p.status === projectStatus).map((p) => <button key={p.id} type="button" onClick={() => openProject(p.id)} style={{ ...S.card, display: "block", width: "100%", padding: 9, marginBottom: 7, textAlign: "start", cursor: "pointer" }}><div style={{ display: "flex", gap: 7, alignItems: "center" }}><b style={{ flex: 1, fontSize: 12 }}>{p.name}</b><HealthBadge m={metrics[p.id] || {}} compact /></div><div style={{ fontSize: 10.5, color: C.muted, marginTop: 5 }}>{p.target_date ? "الموعد " + fmtShort(p.target_date) : "بلا موعد"} · {metrics[p.id]?.progress == null ? "غير قابل للقياس" : Math.round(metrics[p.id].progress) + "%"}</div></button>)}
-          {!visible.some((p) => p.status === projectStatus) && <span style={{ color: C.muted, fontSize: 11 }}>لا مشاريع</span>}
-        </section>)}
+      : mode === "board" ? <div>
+        <Board
+          columns={boardStatuses.map((projectStatus) => ({
+            id: projectStatus,
+            label: L.projectStatus[projectStatus] || projectStatus,
+            color: D.STATUS_COLOR?.[projectStatus],
+            items: visible.filter((p) => !p.archived_at && p.status === projectStatus)
+          }))}
+          onMove={async (id, to) => {
+            const project = data.projects.find((p) => p.id === id);
+            if (!project || project.archived_at || !can("project.edit", project)) return;
+            if (project.status === to) return;
+            await act.setProjectStatus(project, to);
+          }}
+          renderCard={(p) => <div onClick={() => openProject(p.id)} style={{ ...S.card, padding: "9px 11px", cursor: "pointer" }}>
+            <div style={{ display: "flex", gap: 7, alignItems: "center" }}><b style={{ flex: 1, fontSize: 12 }}>{p.name}</b><HealthBadge m={metrics[p.id] || {}} compact /></div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 5 }}><PriorityChip p={p.priority} /><span style={{ fontSize: 10.5, color: C.muted }}>{p.target_date ? "الموعد " + fmtShort(p.target_date) : "بلا موعد"}</span></div>
+            <div style={{ marginTop: 6 }}><Progress value={metrics[p.id]?.progress == null ? null : metrics[p.id].progress} /></div>
+          </div>}
+        />
+        {visible.some((p) => p.archived_at) && <section style={{ ...S.card, marginTop: 10, padding: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>المشاريع المؤرشفة · للعرض فقط</div>
+          {visible.filter((p) => p.archived_at).map((p) => <button key={p.id} type="button" onClick={() => openProject(p.id)} style={{ display: "block", width: "100%", textAlign: "start", border: 0, borderTop: "1px solid " + C.line, background: "transparent", padding: "8px 2px", color: C.info, cursor: "pointer", font: "inherit" }}>{p.name}</button>)}
+        </section>}
       </div>
       : mode === "timeline" ? <div style={{ ...S.card, overflowX: "auto" }}>
         {!timelineDates.length ? <Empty icon="🗓️" title="لا توجد مشاريع مؤرخة" sub="أضف تاريخ بداية أو موعدًا مستهدفًا للمشروع." /> : <div style={{ minWidth: 760 }}>
@@ -452,11 +471,14 @@ export function Portfolio() {
           {["أحد","اثنين","ثلاثاء","أربعاء","خميس","جمعة","سبت"].map((day) => <div key={day} style={{ fontSize: 10.5, color: C.muted, textAlign: "center" }}>{day}</div>)}
           {Array.from({ length: calendarLead }, (_, index) => <div key={"blank-" + index} />)}
           {calendarDates.map((date) => {
-            const dayProjects = visible.filter((p) => p.target_date === date);
+            const dayEvents = [
+              ...visible.filter((p) => p.start_date === date).map((p) => ({ id: p.id + ":start", project: p, kind: "start" })),
+              ...visible.filter((p) => p.target_date === date).map((p) => ({ id: p.id + ":target", project: p, kind: "target" }))
+            ];
             return <div key={date} style={{ minHeight: 76, minWidth: 0, border: "1px solid " + (date === today ? A : C.line), borderRadius: 6, padding: 4, background: date === today ? "rgba(239,159,39,.06)" : "transparent" }}>
               <div style={{ fontSize: 10, color: C.muted }}>{Number(date.slice(-2))}</div>
-              {dayProjects.slice(0, 3).map((p) => <button key={p.id} type="button" onClick={() => openProject(p.id)} style={{ display: "block", width: "100%", marginTop: 3, border: 0, borderRadius: 4, padding: "2px 4px", background: "rgba(239,159,39,.12)", color: C.text, fontSize: 10, textAlign: "start", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</button>)}
-              {dayProjects.length > 3 && <div style={{ fontSize: 9, color: C.muted }}>+{dayProjects.length - 3}</div>}
+              {dayEvents.slice(0, 3).map((event) => <button key={event.id} type="button" onClick={() => openProject(event.project.id)} title={event.kind === "start" ? "بداية المشروع" : "الموعد المستهدف"} style={{ display: "block", width: "100%", marginTop: 3, border: 0, borderRadius: 4, padding: "2px 4px", background: event.kind === "start" ? "rgba(16,185,129,.12)" : "rgba(239,159,39,.12)", color: C.text, fontSize: 10, textAlign: "start", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.kind === "start" ? "▶ " : "🏁 "}{event.project.name}</button>)}
+              {dayEvents.length > 3 && <div style={{ fontSize: 9, color: C.muted }}>+{dayEvents.length - 3} أحداث</div>}
             </div>;
           })}
         </div>
