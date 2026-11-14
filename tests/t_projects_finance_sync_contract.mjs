@@ -16,8 +16,8 @@ assert.ok(projectsFinance.includes("lastGoodSync.current = null") && projectsFin
   "Project Finance must clear cached values when Finance read permission is revoked");
 assert.ok(portfolio.includes('setFinanceLinkState("stale")') && portfolio.includes('setFinanceLinkState("permission")'),
   "Portfolio must distinguish stale data from denied Finance access");
-assert.ok(financePage.includes('setSyncStatus("stale")') && financePage.includes('setSyncStatus("permission")'),
-  "Finance Projects must distinguish stale data from denied access");
+assert.ok(financePage.includes('setSyncStatus(lastGoodSync.current?"stale":"error")') && financePage.includes('setSyncStatus("permission")'),
+  "Finance Projects must distinguish transport staleness from denied access");
 assert.ok(financePage.includes("setProjects([]);setTransactions([]);setPrimaryProfiles([])"),
   "Finance Projects must invalidate sensitive cached rows after permission revocation");
 assert.ok(syncMigration.includes("'sync_status', 'fresh'") && syncMigration.includes("'contract_version', 1"),
