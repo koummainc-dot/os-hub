@@ -87,7 +87,7 @@ export function Dashboard() {
 
 // ═════ Today ═════
 export function Today() {
-  const { ws, me, data, idx, today, settings, A: act, can, alerts, people, nameOf, openTask, openProject, runningTimer, projectsById, toast, setPage, shell } = useP();
+  const { ws, me, data, idx, today, settings, A: act, can, alerts, people, nameOf, openTask, openProject, runningTimer, projectsById, toast, setPage, shell, online, queueItems = [], discardQueuedWrite, confirm } = useP();
   const feed = D.todayFeed(me, { idx, issues: data.issues, projects: data.projects, contacts: data.contacts, today, settings });
   const [homeCompletions, setHomeCompletions] = useState([]);
   const [todayMeetings, setTodayMeetings] = useState([]);
@@ -142,6 +142,14 @@ export function Today() {
   return (
     <div style={{ maxWidth: 900 }}>
       <Head title="اليوم" sub={`${dateLabel} · ${total ? total + " مهمة تنتظرك" : "لا مهام معلّقة — يوم هادئ 🌿"}`} right={can("task.write", projectsById[GENERAL_ID]) && <Btn kind="primary" onClick={() => setForm(true)}>➕ مهمة</Btn>} />
+      {(!online || queueItems.length > 0) && <Section title="حالة العمل دون اتصال" count={queueItems.length} color={queueItems.some((item) => item.conflict) ? C.bad : C.warn}>
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 7 }}>{online ? "الاتصال متاح؛ تتم مزامنة التعديلات الآمنة تلقائيًا." : "أنت دون اتصال. يمكن تعديل حقول المهمة الأساسية فقط؛ الإنشاءات والعلاقات والعمليات الذرية والملفات تحتاج اتصالًا."}</div>
+        {queueItems.filter((item) => !item.conflict).length > 0 && <div style={{ fontSize: 12, marginBottom: 6 }}>تعديلات محفوظة محليًا بانتظار المزامنة: {queueItems.filter((item) => !item.conflict).length}</div>}
+        {queueItems.filter((item) => item.conflict).map((item) => <div key={item.coll + "/" + item.rec.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderTop: "1px solid " + C.line, fontSize: 12 }}>
+          <span style={{ flex: 1 }}>تعارض في «{item.rec.title || item.rec.id}» — نسخة أحدث موجودة على الخادم. لم نستبدلها.</span>
+          <Btn small danger onClick={async () => { if (!(await confirm("إلغاء النسخة المحلية غير المتزامنة؟ ستبقى نسخة الخادم كما هي."))) return; discardQueuedWrite(item.coll, item.rec.id); toast("تم إلغاء التعديل المحلي المتعارض."); }}>إلغاء المحلي</Btn>
+        </div>)}
+      </Section>}
       {can("task.write", projectsById[GENERAL_ID]) && <div style={{ display: "flex", gap: 8, marginBottom: 12 }}><input style={S.inp} placeholder="أضف مهمة سريعة لهذا الأسبوع… (Enter)" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && quickAdd()} /><Btn kind="primary" onClick={quickAdd}>إضافة</Btn></div>}
       {alerts.length > 0 && <Section title="تنبيهات" count={alerts.length} color={C.warn}>{alerts.map((a) => <div key={a.key} style={{ display: "flex", gap: 8, alignItems: "center", padding: "5px 0", fontSize: 12.5, color: lvl[a.level] || C.dim }}><span>●</span><span style={{ flex: 1 }}>{a.text}</span>{a.project && <Btn small onClick={() => openProject(a.project, a.record?.kind === "prd" ? "prds" : a.record?.kind === "output" ? "outputs" : a.kind === "issue" ? "issues" : "overview", a.record || null)}>فتح</Btn>}</div>)}</Section>}
       <Section title="اجتماعات اليوم" count={todayMeetings.length} color={C.violet} action={<Btn small onClick={() => setPage("meetings")}>كل الاجتماعات</Btn>}>{meetingsState === "loading" ? <span style={{ fontSize: 12, color: C.muted }}>جارٍ تحميل الاجتماعات…</span> : meetingsState === "error" ? <span style={{ fontSize: 12, color: C.muted }}>تعذر تحميل اجتماعات المعرفة الآن. يمكنك إعادة المحاولة بفتح قسم الاجتماعات.</span> : !todayMeetings.length ? <span style={{ fontSize: 12, color: C.muted }}>لا توجد اجتماعات مسجلة لهذا اليوم.</span> : todayMeetings.map(meeting => <div key={meeting.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${C.line}` }}><span>🗓️</span><span style={{ flex: 1, fontSize: 12.5, minWidth: 0 }}>{meeting.title}</span><span style={{ color: C.muted, fontSize: 11, whiteSpace: "nowrap" }}>{meeting.startTime || meeting.start_time || meeting.time || "طوال اليوم"}</span><Btn small onClick={() => shell?.go?.("system", "knowledge", "meetings", { focusItemId: meeting.id, focusItemKind: "meeting" })}>فتح الاجتماع ↗</Btn></div>)}</Section>
