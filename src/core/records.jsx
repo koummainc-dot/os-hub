@@ -275,7 +275,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     } finally { replaying.current = false; }
   }, [isDemo, persist, toast, wsId, systemId, loadAll]);
 
-  const rebaseQueuedWrite = useCallback((coll, id) => {
+  const rebaseQueuedWrite = (coll, id) => {
     const items = readQueue();
     const index = items.findIndex((item) => item.coll === coll && item.rec?.id === id);
     if (index < 0) return { ok: false, reason: "queued-item-not-found" };
@@ -304,7 +304,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     writeQueue(items);
     dispatch({ type: "put", coll, rec: nextRec });
     return { ok: true, changedFields: result.changedFields };
-  }, [wsId, systemId]);
+  };
 
   useEffect(() => {
     if (isDemo) return;
