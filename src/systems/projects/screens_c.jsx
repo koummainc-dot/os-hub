@@ -9,6 +9,7 @@ import { L, opts, DEFAULT_LOOKUPS, LOOKUP_LABEL, UPDATE_SECTIONS, MEETING_TEMPLA
 import { Who, ProjectName, mOpts, projOpts, HealthBadge, StatusChip, TaskForm } from "./parts.jsx";
 import { TemplatePicker } from "./screens_b.jsx";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
+import { supabase } from "../../core/supabase.js";
 import { normalizeKnowledgeFollowup, stableKnowledgeFollowupId, findKnowledgeFollowupTask } from "../knowledge/followupIdentity.js";
 
 // ═════ OKRs ═════
@@ -450,7 +451,8 @@ export function Meetings() {
     creatingFollowupsRef.current.add(key);
     setCreatingFollowup(key);
     try {
-      const saved = await act.saveTask({
+      if (!supabase || typeof supabase.rpc !== "function") throw new Error("اتصال Projects غير متاح.");
+      const taskPayload = {
         title,
         project_id: project.id,
         assignee_id: me,
@@ -459,11 +461,21 @@ export function Meetings() {
         due_date: meeting.date && meeting.date >= today ? meeting.date : "",
         source_meeting_id: meeting.id,
         source_meeting_title: meeting.title || "",
-        source_followup_id: followupIdentity,
         source_followup_title: title,
         source_followup_index: index,
-      }, true);
-      if (saved) toast("✅ أُنشئت مهمة متابعة مرتبطة بالاجتماع والمشروع.");
+        created_by: me,
+        sort_order: Date.now(),
+      };
+      const { data: result, error } = await supabase.rpc("projects_create_followup_task", {
+        p_workspace_id: ws.id,
+        p_project_id: project.id,
+        p_followup_id: followupIdentity,
+        p_task: taskPayload,
+      });
+      if (error) throw error;
+      if (result?.duplicate) toast("ℹ️ هذه المتابعة مرتبطة بالفعل بمهمة؛ لم تُنشأ نسخة أخرى.");
+      else if (result?.created) toast("✅ أُنشئت مهمة متابعة مرتبطة بالاجتماع والمشروع.");
+      else toast("ℹ️ لم تُنشأ نسخة إضافية للمتابعة.");
     } catch (error) {
       toast("⛔ تعذّر إنشاء المهمة: " + (error?.message || "فشل الحفظ"));
     } finally {
