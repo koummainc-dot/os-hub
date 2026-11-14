@@ -602,33 +602,16 @@ export function Portfolio() {
         </details>
         <div style={{ marginTop: 10, paddingTop: 9, borderTop: "1px solid " + C.line }}>
           <div style={{ fontSize: 11.5, fontWeight: 700, marginBottom: 7 }}>أعمدة جدول المحفظة وترتيبها</div>
-          <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>{[["project","المشروع"],["status","الحالة"],["health","الصحة"],["progress","التقدم"],["target","الموعد"],["remaining","الأيام المتبقية"],["lead","القائد"],["team","الفريق"],["priority","الأولوية"],["finance","Finance"],["issues","المشاكل"],["risks","المخاطر"]].map(([key,label]) => <label key={key} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11 }}><input type="checkbox" checked={visibleColumns.includes(key)} onChange={(e) => setVisibleColumns((old) => e.target.checked ? [...old,key] : old.filter((x) => x !== key))} />{label}</label>)}</div>
+          <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>{[["project","المشروع"],["status","الحالة"],["health","الصحة"],["progress","التقدم"],["target","الموعد"],["remaining","الأيام المتبقية"],["lead","القائد"],["team","الفريق"],["priority","الأولوية"],["finance","Finance"],["issues","المشاكل"],["risks","المخاطر"]].map(([key,label]) => <label key={key} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11 }}><input type="checkbox" checked={visibleColumns.includes(key)} onChange={(e) => { if (key === "project" && !e.target.checked) return; setVisibleColumns((old) => e.target.checked ? [...old,key] : old.filter((x) => x !== key)); }} />{label}</label>)}</div>
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 7 }}>{columnOrder.filter((key) => visibleColumns.includes(key)).map((key) => <span key={key} style={{ display: "inline-flex", alignItems: "center", gap: 3, border: "1px solid " + C.line, borderRadius: 6, padding: "3px 5px", fontSize: 10.5 }}>{({project:"المشروع",status:"الحالة",health:"الصحة",progress:"التقدم",target:"الموعد",remaining:"الأيام المتبقية",lead:"القائد",team:"الفريق",priority:"الأولوية",finance:"Finance",issues:"المشاكل",risks:"المخاطر"})[key]}<button type="button" aria-label="تحريك العمود لليسار" onClick={() => moveColumn(key,-1)} style={{ border: 0, background: "transparent", cursor: "pointer" }}>←</button><button type="button" aria-label="تحريك العمود لليمين" onClick={() => moveColumn(key,1)} style={{ border: 0, background: "transparent", cursor: "pointer" }}>→</button></span>)}</div>
         </div>
         <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>طرق العرض تحفظ الفلاتر ونمط العرض والأعمدة وترتيبها في Core. المشاركة اختيارية وتخضع لصلاحيات مساحة العمل.</div>
       </div>
       {!visible.length ? <Empty icon="🗂️" title="لا توجد مشاريع مطابقة" sub="غيّر الفلتر أو عبارة البحث لعرض مشاريع أخرى." />
       : mode === "table" ? <div style={{ ...S.card, padding: 0, overflowX: "auto" }}>
-        <table style={{ width: "100%", minWidth: 940, borderCollapse: "collapse", fontSize: 12 }}>
-          <thead><tr style={{ background: "rgba(0,0,0,0.03)" }}>{["المشروع","الحالة","الصحة","التقدم","الموعد","الأيام المتبقية","القائد","الفريق","الأولوية","Finance","المشاكل","المخاطر"].map((heading) => <th key={heading} style={{ padding: 9, textAlign: "start", color: C.muted, fontSize: 10.5, whiteSpace: "nowrap" }}>{heading}</th>)}</tr></thead>
-          <tbody>{visible.map((p) => {
-            const m = metrics[p.id] || {};
-            const issueCount = data.issues.filter((issue) => issue.project_id === p.id && D.isOpenIssue(issue)).length;
-            const riskCount = data.risks.filter((risk) => risk.project_id === p.id && D.isOpenRisk(risk)).length;
-            return <tr key={p.id} style={{ borderTop: "1px solid " + C.line }}>
-              <td style={{ padding: 9 }}><button type="button" onClick={() => openProject(p.id)} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", font: "inherit", fontWeight: 700, textAlign: "start" }}>{p.name}</button><div style={{ color: C.muted, fontSize: 10.5 }}>{p.type || "—"}</div></td>
-              <td style={{ padding: 9, whiteSpace: "nowrap" }}>{L.projectStatus[p.status] || p.status || "—"}</td>
-              <td style={{ padding: 9 }}><HealthBadge m={m} compact /></td>
-              <td style={{ padding: 9, minWidth: 120 }}><Progress value={m.progress == null ? null : m.progress} /><div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{m.progress == null ? "غير قابل للقياس" : Math.round(m.progress) + "%"}</div></td>
-              <td style={{ padding: 9, whiteSpace: "nowrap" }}>{p.target_date ? fmtShort(p.target_date) : "—"}</td>
-              <td style={{ padding: 9, whiteSpace: "nowrap" }}>{m.daysRemaining == null ? "—" : m.daysRemaining < 0 ? "متأخر " + -m.daysRemaining + " يوم" : "باقٍ " + m.daysRemaining + " يوم"}</td>
-              <td style={{ padding: 9 }}>{people.find((person) => person.id === p.lead_id)?.name || "—"}</td>
-              <td style={{ padding: 9, minWidth: 110 }}>{(p.members || []).length ? <span>{p.members.slice(0, 2).map((member) => people.find((person) => person.id === member.member_id)?.name || "عضو").join("، ")}{p.members.length > 2 ? " +" + (p.members.length - 2) : ""}</span> : "—"}</td>
-              <td style={{ padding: 9 }}>{L.priority[p.priority] || p.priority || "—"}</td>
-              <td style={{ padding: 9, whiteSpace: "nowrap" }}><Chip color={financeStatusFor(p).color}>{financeStatusFor(p).label}</Chip></td>
-              <td style={{ padding: 9 }}><button type="button" onClick={() => setView({ ...view, projectId: p.id, tab: "issues", issueStatusFilter: "open", issueSeverityFilter: "", focusRecord: null })} style={{ border: 0, background: "transparent", padding: 0, color: issueCount ? C.info : C.muted, cursor: "pointer", textDecoration: issueCount ? "underline" : "none", font: "inherit" }}>{issueCount}</button></td><td style={{ padding: 9 }}><button type="button" onClick={() => setView({ ...view, projectId: p.id, tab: "risks", riskStatusFilter: "open", riskHighOnly: false, focusRecord: null })} style={{ border: 0, background: "transparent", padding: 0, color: riskCount ? C.info : C.muted, cursor: "pointer", textDecoration: riskCount ? "underline" : "none", font: "inherit" }}>{riskCount}</button></td>
-            </tr>;
-          })}</tbody>
+        <table style={{ width: "100%", minWidth: Math.max(680, activePortfolioColumns.length * 112), borderCollapse: "collapse", fontSize: 12 }}>
+          <thead><tr style={{ background: "rgba(0,0,0,0.03)" }}>{activePortfolioColumns.map((key) => <th key={key} style={{ padding: 9, textAlign: "start", color: C.muted, fontSize: 10.5, whiteSpace: "nowrap" }}>{portfolioColumnDefs[key].label}</th>)}</tr></thead>
+          <tbody>{visible.map((p) => { const m = metrics[p.id] || {}; return <tr key={p.id} style={{ borderTop: "1px solid " + C.line }}>{activePortfolioColumns.map((key) => <td key={key} style={{ padding: 9, whiteSpace: ["status","target","remaining","finance"].includes(key) ? "nowrap" : "normal" }}>{portfolioColumnDefs[key].render(p,m)}</td>)}</tr>; })}</tbody>
         </table>
       </div>
       : mode === "board" ? <div>
