@@ -9,7 +9,33 @@ const {makeEnv,sleep,appJs}=require('./harness');
   const setVal=async(el,v)=>{if(!el)throw new Error('Acceptance harness could not find the expected form control');const proto=el.tagName==='SELECT'?w.HTMLSelectElement.prototype:el.tagName==='TEXTAREA'?w.HTMLTextAreaElement.prototype:w.HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,v);el.dispatchEvent(new w.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));await sleep(60);};
   const nav=()=>all('aside button');
   const isSectionButton=(button,label)=>{const spans=button.querySelectorAll('span');return spans.length>=2&&spans[spans.length-1].textContent.trim()===label;};
-  const goSection=async(label)=>{const b=nav().find(x=>isSectionButton(x,label));if(!b)return false;b.click();await sleep(450);return true;};
+  const sectionGroups={
+    "الرئيسية":"مساحة اليوم","اليوم":"مساحة اليوم","مهامي":"مساحة اليوم","هذا الأسبوع":"مساحة اليوم",
+    "المشاريع":"المحفظة والمشاريع","المحفظة":"المحفظة والمشاريع",
+    "الاكتشاف":"التخطيط","المواصفات":"التخطيط","الأهداف (OKR)":"التخطيط",
+    "المهام":"التنفيذ","المخرجات":"التنفيذ",
+    "مركز الحوكمة":"الحوكمة","المخاطر والمشاكل والقرارات":"الحوكمة",
+    "الاجتماعات":"التعاون والمعرفة","الفريق":"التعاون والمعرفة","جهات الاتصال":"التعاون والمعرفة",
+    "الإنجازات":"النتائج والتقارير","التحديثات":"النتائج والتقارير","المراجعات الأسبوعية":"النتائج والتقارير",
+    "القوالب":"الإدارة","الإعدادات":"الإدارة"
+  };
+  const findSectionButton=(label)=>nav().find(x=>{
+    const t=x.textContent.trim();
+    return isSectionButton(x,label) || t===label || t.startsWith(label+" ");
+  });
+  const goSection=async(label)=>{
+    let b=findSectionButton(label);
+    if(!b){
+      const group=sectionGroups[label];
+      const g=group&&nav().find(x=>{
+        const t=x.textContent.trim();
+        return t===group || t.startsWith(group+" ") || t.includes(group);
+      });
+      if(g){g.click();await sleep(180);b=findSectionButton(label);}
+    }
+    if(!b)return false;b.click();await sleep(450);return true;
+  };
+  const clickProjectTab=async(label)=>{const b=all('button.projects-workspace-nav-item').find(x=>x.textContent.trim().startsWith(label));if(!b)return false;b.click();await sleep(180);return true;};
   const toToday=async()=>{const c=all('aside button').find(x=>x.textContent.includes('▾'));c&&c.click();await sleep(60);const t=all('aside button').find(x=>x.textContent.includes('اليوم (كل الأنظمة)'));t&&t.click();await sleep(80);};
   const openProjects=async()=>{
     await toToday();
@@ -27,7 +53,7 @@ const {makeEnv,sleep,appJs}=require('./harness');
 
   await click('جرّب الوضع التجريبي'); await sleep(200); ok(await openProjects(),'Projects OS opens before section acceptance');
   console.log('— sections render real content');
-  const markers={ 'الرئيسية':'صحة المشاريع','اليوم':'مستحقة اليوم','هذا الأسبوع':'اكتشافات قيد العمل','المشاريع':'تطبيق إدارة الوقت','مهامي':'مهمة ورقية','الاكتشاف':'ظهور التطبيق في نتائج المتجر','المواصفات':'مواصفة تطبيق إدارة الوقت','الأهداف (OKR)':'إطلاق منتج ناجح','المخرجات':'Wireframes','المخاطر والمشاكل والقرارات':'تعقيد المزامنة','الاجتماعات':'Knowledge OS','التحديثات':'تحديث الإدارة','الإنجازات':'اعتماد المواصفة','المراجعات الأسبوعية':'المراجعات الأسبوعية','جهات الاتصال':'ليلى المنصور','الفريق':'حِمل الأسبوع','القوالب':'قوالب المشاريع','الإعدادات':'المنطقة الزمنية' };
+  const markers={ 'الرئيسية':'صحة المشاريع','اليوم':'مستحقة اليوم','هذا الأسبوع':'اكتشافات قيد العمل','المشاريع':'تطبيق إدارة الوقت','مهامي':'مهمة ورقية','الاكتشاف':'ظهور التطبيق في نتائج المتجر','المواصفات':'مواصفة تطبيق إدارة الوقت','الأهداف (OKR)':'إطلاق منتج ناجح','المخرجات':'Wireframes','مركز الحوكمة':'تعقيد المزامنة','الاجتماعات':'Knowledge OS','التحديثات':'تحديث الإدارة','الإنجازات':'اعتماد المواصفة','المراجعات الأسبوعية':'المراجعات الأسبوعية','جهات الاتصال':'ليلى المنصور','الفريق':'حِمل الأسبوع','القوالب':'قوالب المشاريع','الإعدادات':'المنطقة الزمنية' };
   for(const [label,marker] of Object.entries(markers)){
     const good=await goSection(label); const has=txt().includes(marker);
     ok(good&&has,`section «${label}» shows «${marker}»`+(good?'':' (nav missing)'));
@@ -107,7 +133,9 @@ const {makeEnv,sleep,appJs}=require('./harness');
   if(tdlg){
     await click('حفظ',tdlg,200);
     ok(tdlg.textContent.includes('لا يمكن تخطي مستوى كامل'),'invalid task-tree indentation is rejected with a useful message');
-    await click('إلغاء',tdlg,100);
+    await click('إلغاء',tdlg,250);
+    await sleep(350);
+    ok(!doc.querySelector('[role="dialog"]'),'template editor closes before task UX navigation');
   }
 
   console.log('— Phase A task UX: quick add, inline edit, bulk actions, custom fields');
@@ -215,14 +243,14 @@ const {makeEnv,sleep,appJs}=require('./harness');
   if(nameIn) await setVal(nameIn,'مشروع اختبار القالب');
   await click('حفظ',doc.querySelector('[role=dialog]'),400);
   ok(txt().includes('مشروع اختبار القالب'),'project created and opened'); 
-  await click('التخطيط'); await sleep(100); await click('المهام'); await sleep(200); ok(txt().includes('الاكتشاف')&&txt().includes('كتابة المواصفة'),'template task tree copied (parents + children)');
+  ok(await clickProjectTab('المهام'),'template project task tab opens'); await sleep(200); ok(txt().includes('الاكتشاف')&&txt().includes('كتابة المواصفة'),'template task tree copied (parents + children)');
   ok(!!btn('＋ فرعية'),'child-task action is visible without opening the overflow menu');
   const checks=all('input[type=checkbox]'); ok(checks.length>10,'leaf checkboxes rendered ('+checks.length+')');
   console.log('— complete a task & progress');
-  if(checks[0]){ checks[0].click(); await sleep(250); await click('نظرة عامة'); await sleep(150); ok(/\d+\/\d+ مهمة/.test(txt()),'overview shows leaf counts after completing'); }
+  if(checks[0]){ checks[0].click(); await sleep(250); ok(await clickProjectTab('نظرة عامة'),'template project overview tab opens'); await sleep(150); ok(/\d+\/\d+ مهمة/.test(txt()),'overview shows leaf counts after completing'); }
   else ok(false,'a leaf checkbox is available for completion acceptance');
   console.log('— new task form');
-  await click('التخطيط'); await sleep(100); await click('المهام'); await sleep(150); await click('مهمة جديدة'); await sleep(150);
+  ok(await clickProjectTab('المهام'),'project task tab reopens before manual task creation'); await sleep(150); await click('➕ مهمة جديدة',doc.querySelector('main'),150);
   const dlg=doc.querySelector('[role=dialog]');
   ok(!!dlg&& !dlg.textContent.includes('المواصفة (PRD)'),'advanced task fields start collapsed');
   if(dlg){

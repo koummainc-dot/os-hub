@@ -1,4 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
+import { supabase } from "../../core/supabase.js";
+import { listProjectHealthTransitions } from "../../core/projectHealth.js";
+import { emitProjectIntegrationFailure } from "../../core/notifications.js";
 import { A, S } from "../../core/ui.jsx";
 import { C, Btn, Chip, Head, Stat, Empty, Progress, Seg, Board, SearchBar, Tabs, FormModal, Modal, Field } from "../../core/kit.jsx";
 import { fmt, fmtShort, fmtMinutes, addDays, diffDays, monthDays, MONTH_NAMES, dow, dateOf } from "../../core/dates.js";
@@ -7,9 +10,11 @@ import { useP } from "./store.jsx";
 import * as D from "./domain.js";
 import { L, opts, STATUS_COLOR } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, ProjectName, ProjectForm, TaskTree, mOpts } from "./parts.jsx";
-import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView } from "./entities.jsx";
+import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView, DiscoveryView } from "./entities.jsx";
+import { normalizeKnowledgeFollowup, stableKnowledgeFollowupId, findKnowledgeFollowupTask } from "../knowledge/followupIdentity.js";
 import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
-import { listKnowledgeMeetings } from "../knowledge/repository.js";
+import { listKnowledgeMeetings, listKnowledgeProjectResources, listKnowledgeAttachments } from "../knowledge/repository.js";
+import { OUTPUT_STORAGE_BUCKET } from "./outputStorage.js";
 
 export function Projects() {
   const { data, metrics, view, setView, setPage, can, A: act, templates, toast, people, openProject, today, settings, trash } = useP();
@@ -84,6 +89,37 @@ export function TemplatePicker({ onClose, tpl }) {
 }
 const countNodes = (nodes) => nodes.reduce((a, n) => a + 1 + countNodes(n.children || []), 0);
 
+function ProjectWorkspaceNav({ groups, activeGroupId, activeTab, onGroupChange, onTabChange }) {
+  return <nav className="projects-workspace-nav" aria-label="تنقل المشروع">
+    <div className="projects-workspace-nav-mobile">
+      <label className="projects-workspace-nav-label" htmlFor="projects-workspace-section">قسم المشروع</label>
+      <select id="projects-workspace-section" value={activeTab} onChange={(e) => onTabChange(e.target.value)}>
+        {groups.flatMap((group) => group.tabs.filter((item) => !item.hidden).map((item) => <option key={item.id} value={item.id}>{group.label} — {item.label}</option>))}
+      </select>
+    </div>
+    <div className="projects-workspace-nav-desktop">
+      {groups.map((group) => <section key={group.id} className="projects-workspace-nav-group">
+        <button type="button" className={"projects-workspace-nav-group-title" + (group.id === activeGroupId ? " is-active" : "")} onClick={() => onGroupChange(group.id)}>
+          <span>{group.label}</span>
+          <span aria-hidden="true">›</span>
+        </button>
+        <div className="projects-workspace-nav-items">
+          {group.tabs.filter((item) => !item.hidden).map((item) => <button
+            key={item.id}
+            type="button"
+            className={"projects-workspace-nav-item" + (item.id === activeTab ? " is-active" : "")}
+            onClick={() => onTabChange(item.id)}
+            aria-current={item.id === activeTab ? "page" : undefined}
+          >
+            <span>{item.label}</span>
+            {item.count != null && <span className="projects-workspace-nav-count">{item.count}</span>}
+          </button>)}
+        </div>
+      </section>)}
+    </div>
+  </nav>;
+}
+
 // ═════ Project detail ═════
 function ProjectDetail() {
   const { view, setView, projectsById, metrics, data, can, A: act, idx, today, people, nameOf, toast, sessionsDummy, openTask } = useP();
@@ -91,18 +127,33 @@ function ProjectDetail() {
   if (!p) return <div><Btn onClick={() => setView({ projectId: null, tab: "overview" })}>← المشاريع</Btn><Empty icon="🔎" title="المشروع غير موجود أو محجوب" /></div>;
   const m = metrics[p.id]; const tab = view.tab; const setTab = (t) => setView({ ...view, tab: t });
   const counts = { tasks: m.leafTotal, outputs: m.outputsCount, risks: m.openRisks, issues: m.openIssues, decisions: m.decisionsCount, prds: data.prds.filter((x) => x.project_id === p.id).length };
+  const taskFilter = view.taskFilter === "overdue"
+    ? (task) => D.isOverdueLeaf(task, idx, today)
+    : view.taskFilter === "ids"
+      ? (task) => (view.taskFilterIds || []).includes(task.id)
+      : undefined;
+  const taskFilterLabel = view.taskFilter === "overdue"
+    ? "تُعرض المهام المتأخرة فقط داخل هذا المشروع."
+    : view.taskFilter === "ids"
+      ? "تُعرض المهام التي لا ترتبط بمواصفة أو عنصر اكتشاف فقط."
+      : null;
   const tabGroups = [
     { id: "overview", label: "نظرة عامة", defaultTab: "overview", tabs: [{ id: "overview", label: "نظرة عامة" }] },
-    { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "tasks", label: "المهام", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }] },
+    { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "discovery", label: "الاكتشاف" }, { id: "tasks", label: "المهام", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }, { id: "milestones", label: "المعالم", count: data.milestones.filter((m) => m.project_id === p.id && !m.archived_at).length }, { id: "timeline", label: "Roadmap / Timeline" }] },
     { id: "goals", label: "الأهداف", defaultTab: "okr", tabs: [{ id: "okr", label: "الأهداف (OKR)" }] },
-    { id: "delivery", label: "التسليم", defaultTab: "outputs", tabs: [{ id: "outputs", label: "المخرجات", count: counts.outputs }, { id: "work", label: "العمل والوقت" }, { id: "timeline", label: "الخط الزمني" }, { id: "related", label: "المراجع" }] },
+    { id: "delivery", label: "التسليم", defaultTab: "outputs", tabs: [{ id: "outputs", label: "المخرجات", count: counts.outputs }, { id: "work", label: "العمل والوقت" }] },
     { id: "governance", label: "الحوكمة", defaultTab: "risks", tabs: [{ id: "risks", label: "المخاطر", count: counts.risks }, { id: "issues", label: "المشاكل", count: counts.issues }, { id: "decisions", label: "القرارات", count: counts.decisions }] },
+    { id: "knowledge", label: "المعرفة والمراجع", defaultTab: "meetings", tabs: [{ id: "meetings", label: "الاجتماعات" }, { id: "resources", label: "المراجع والملفات" }, { id: "related", label: "المراجع (مسار قديم)", hidden: true }] },
+    { id: "finance", label: "المالية", defaultTab: "finance", tabs: [{ id: "finance", label: "الملف المالي" }] },
+    { id: "results", label: "النتائج", defaultTab: "wins", tabs: [{ id: "wins", label: "الإنجازات" }, { id: "updates", label: "تحديثات المشروع" }] },
     { id: "collaboration", label: "التعاون", defaultTab: "people", tabs: [{ id: "people", label: "الفريق" }, { id: "activity", label: "النشاط" }] },
   ];
-  // Keep these stable tab IDs for existing deep links while grouping the UI by workflow.
+  // Keep legacy "related" links resolvable; the visible resource tab is the canonical navigation entry.
   const activeGroup = tabGroups.find((group) => group.tabs.some((item) => item.id === tab)) || tabGroups[0];
+  const navActiveTab = tab === "related" ? "resources" : tab;
   const setGroup = (groupId) => { const group = tabGroups.find((item) => item.id === groupId); if (group) setTab(group.defaultTab); };
   const canE = can("project.edit", p);
+  const openQuickCreate = (kind, targetTab, patch = {}) => setView({ ...view, ...patch, tab: targetTab, focusRecord: null, quickCreate: kind });
   return (
     <div>
       <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11.5 }}>
@@ -113,13 +164,32 @@ function ProjectDetail() {
       </div>
       <Head title={<>{p.name}{p.visibility === "private" && " 🔒"} {p.is_system && <Chip>مشروع النظام</Chip>}</>} sub={`${p.type || ""} · القائد: ${nameOf(p.lead_id)}${p.start_date ? " · " + fmtShort(p.start_date) : ""}${p.target_date ? " → " + fmtShort(p.target_date) : ""}`} right={!p.is_system && <>
         <StatusChip s={p.status} />
+        {(can("task.write", p) || can("output.write", p) || can("prd.write", p) || can("risk.write", p) || can("issue.write", p) || can("decision.write", p) || canE) && <details style={{ position: "relative" }}>
+          <summary style={{ listStyle: "none", border: "1px solid " + C.line, borderRadius: 8, padding: "7px 11px", cursor: "pointer", color: C.info, fontSize: 12.5, userSelect: "none" }}>＋ إضافة</summary>
+          <div style={{ position: "absolute", insetInlineEnd: 0, top: "calc(100% + 6px)", zIndex: 30, minWidth: 185, display: "grid", gap: 3, padding: 6, background: C.card, border: "1px solid " + C.line, borderRadius: 9, boxShadow: "0 10px 28px rgba(0,0,0,.14)" }}>
+            {can("task.write", p) && <button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); openQuickCreate("task", "tasks", { taskFilter: null, taskFilterIds: [] }); }} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ مهمة جديدة</button>}
+            {can("output.write", p) && <button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); openQuickCreate("output", "outputs"); }} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ مخرج</button>}
+            {can("prd.write", p) && <button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); openQuickCreate("prd", "prds"); }} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ مواصفة PRD</button>}
+            {can("risk.write", p) && <button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); openQuickCreate("risk", "risks", { riskStatusFilter: "all", riskHighOnly: false }); }} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ خطر</button>}
+            {can("issue.write", p) && <button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); openQuickCreate("issue", "issues", { issueStatusFilter: "all", issueSeverityFilter: "" }); }} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ مشكلة</button>}
+            {can("decision.write", p) && <button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); openQuickCreate("decision", "decisions"); }} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ قرار</button>}
+            {canE && <button type="button" onClick={(e) => { e.currentTarget.closest("details")?.removeAttribute("open"); openQuickCreate("resource", "resources"); }} style={{ border: 0, borderRadius: 6, background: "transparent", padding: "8px 9px", textAlign: "start", cursor: "pointer", color: C.text, font: "inherit" }}>＋ رابط أو مرجع</button>}
+          </div>
+        </details>}
         {canE && <select style={{ ...S.sel, width: 150 }} value="" onChange={(e) => e.target.value && act.setProjectStatus(p, e.target.value)}><option value="">تغيير الحالة…</option>{Object.keys(L.projectStatus).filter((s) => s !== p.status && s !== "Archived").map((s) => <option key={s} value={s}>{L.projectStatus[s]}</option>)}</select>}
         {canE && <Btn onClick={() => setEdit(true)}>✎ تعديل</Btn>}{can("project.archive", p) && (p.archived_at ? <Btn onClick={() => act.restoreProject(p)}>♻️ استرجاع</Btn> : <Btn onClick={() => act.archiveProject(p)}>🗄 أرشفة</Btn>)}{can("project.delete", p) && <Btn danger onClick={async () => { if (await act.deleteProject(p)) setView({ projectId: null, tab: "overview" }); }}>🗑</Btn>}</>} />
-      <Tabs tabs={tabGroups.map(({ id, label }) => ({ id, label }))} value={activeGroup.id} onChange={setGroup} small />
-      {activeGroup.tabs.length > 1 && <Tabs tabs={activeGroup.tabs} value={tab} onChange={setTab} small />}
+      <ProjectWorkspaceNav
+        groups={tabGroups}
+        activeGroupId={activeGroup.id}
+        activeTab={navActiveTab}
+        onGroupChange={setGroup}
+        onTabChange={setTab}
+      />
       {tab === "overview" && <Overview p={p} m={m} />}
-      {tab === "tasks" && <TaskTree projectId={p.id} />}
+      {tab === "tasks" && <TaskTree projectId={p.id} filter={taskFilter} filterLabel={taskFilterLabel} />}
+      {tab === "discovery" && <DiscoveryView projectId={p.id} />}
       {tab === "timeline" && <ProjectTimeline p={p} />}
+      {tab === "milestones" && <ProjectMilestones p={p} />}
       {tab === "outputs" && <OutputsView projectId={p.id} />}
       {tab === "work" && <WorkTab p={p} />}
       {tab === "prds" && <PrdsView projectId={p.id} />}
@@ -128,19 +198,65 @@ function ProjectDetail() {
       {tab === "decisions" && <DecisionsView projectId={p.id} />}
       {tab === "people" && <PeopleTab p={p} canE={can("project.members", p)} />}
       {tab === "okr" && <ProjectOkr p={p} />}
-      {tab === "related" && <RelatedTab p={p} canE={canE} />}
-      {tab === "activity" && <div style={S.card}>{data.activity.filter((a) => a.entity_id === p.id || (a.entity === "tasks" && idx.byId[a.entity_id] && idx.byId[a.entity_id].project_id === p.id)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40).map((a) => <div key={a.id} style={{ fontSize: 12, padding: "4px 0", color: C.dim }}>{dateOf(a.at)} · {nameOf(a.actor_id)} · {a.action} {a.summary}</div>)}{!data.activity.some((a) => a.entity_id === p.id) && <span style={{ fontSize: 12, color: C.muted }}>لا نشاط مسجَّل</span>}</div>}
+      {tab === "meetings" && <RelatedTab p={p} canE={canE} section="meetings" />}
+      {tab === "resources" && <RelatedTab p={p} canE={canE} section="resources" />}
+      {tab === "related" && <RelatedTab p={p} canE={canE} section="all" />}
+      {tab === "finance" && <ProjectFinanceTab p={p} />}
+      {tab === "wins" && <ProjectWinsTab p={p} />}
+      {tab === "updates" && <ProjectUpdatesTab p={p} />}
+      {tab === "activity" && <ProjectActivity p={p} />}
       {edit && <ProjectForm initial={p} onClose={() => setEdit(false)} />}
     </div>
   );
 }
+function ProjectHealthHistory({ projectId, workspaceId }) {
+  const [expanded,setExpanded]=useState(false);
+  const [rows,setRows]=useState([]);
+  const [status,setStatus]=useState("idle");
+  useEffect(()=>{
+    let active=true;
+    if(!expanded||!workspaceId||!projectId){setRows([]);setStatus("idle");return ()=>{active=false;};}
+    setStatus("loading");
+    listProjectHealthTransitions(workspaceId,projectId,30).then(result=>{
+      if(!active)return;
+      setRows(result.ok?result.rows:[]);
+      setStatus(result.ok?"ready":"error");
+    }).catch(()=>{if(active){setRows([]);setStatus("error");}});
+    return ()=>{active=false;};
+  },[expanded,workspaceId,projectId]);
+  const label=(value)=>D.HEALTH_META[value]?.label||value||"بداية التتبع";
+  const reasonLabel=(item)=>D.REASON_LABEL[item?.code]||item?.code||"تغير المؤشرات";
+  return <div style={{marginTop:10,borderTop:"1px solid "+C.line,paddingTop:8}}>
+    <button type="button" aria-expanded={expanded} onClick={()=>setExpanded(value=>!value)}
+      style={{border:0,background:"transparent",padding:"3px 0",color:C.info,cursor:"pointer",font:"inherit",fontSize:11.5,textDecoration:"underline"}}>
+      {expanded?"إخفاء سجل تغيّر الصحة":"عرض سجل تغيّر الصحة"} ↗
+    </button>
+    {expanded&&<div style={{marginTop:8,display:"grid",gap:7}}>
+      {status==="loading"&&<span style={{fontSize:11,color:C.muted}}>جارٍ تحميل سجل الانتقالات…</span>}
+      {status==="error"&&<span role="alert" style={{fontSize:11,color:C.bad}}>تعذر تحميل سجل الصحة أو لا توجد صلاحية لقراءته.</span>}
+      {status==="ready"&&!rows.length&&<span style={{fontSize:11,color:C.muted}}>لا توجد انتقالات مسجلة بعد؛ ستظهر بعد دورة الرصد المحلية الأولى.</span>}
+      {rows.map(row=><div key={row.id} style={{borderInlineStart:"2px solid "+(D.HEALTH_META[row.next_state]?.color||C.line),paddingInlineStart:8,fontSize:11.5}}>
+        <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
+          <b>{row.is_baseline?"بدء الرصد":label(row.previous_state)+" ← "+label(row.next_state)}</b>
+          <span style={{color:C.muted}}>{row.occurred_at?new Date(row.occurred_at).toLocaleString("ar-EG"):"—"}</span>
+        </div>
+        {Array.isArray(row.reasons)&&row.reasons.length>0&&<div style={{color:C.muted,marginTop:3}}>
+          {row.reasons.map(reasonLabel).join(" · ")}
+        </div>}
+      </div>)}
+    </div>}
+  </div>;
+}
+
 function Overview({ p, m }) {
-  const { data, idx, today, settings, A: act, can, nameOf, projectProgress, view, setView, openTask } = useP(); const cov = D.coverageOf(p, idx);
+  const { data, idx, today, settings, A: act, can, nameOf, projectProgress, view, setView, openTask, ws } = useP(); const cov = D.coverageOf(p, idx);
+  const unlinkedTaskIds = (cov?.unlinked || []).map((task) => task.id);
+  const openTasksView = (extra = {}) => setView({ ...view, tab: "tasks", taskFilter: null, taskFilterIds: [], focusRecord: null, ...extra });
   const lateTasks = idx.list.filter((t) => t.project_id === p.id && D.isOverdueLeaf(t, idx, today));
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 12 }}>
       <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>الصحة والتقدم</div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}><HealthBadge m={m} /><span style={{ fontSize: 12, color: C.dim }}>{m.leafCompleted}/{m.leafTotal} مهمة</span></div><Progress value={m.progress} height={9} />
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}><HealthBadge m={m} /><button type="button" onClick={() => openTasksView()} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit", fontSize: 12 }}>{m.leafCompleted}/{m.leafTotal} مهمة · فتح المهام</button></div><button type="button" aria-label="فتح مهام المشروع" onClick={() => openTasksView()} style={{ border: 0, padding: 0, background: "transparent", width: "100%", cursor: "pointer" }}><Progress value={m.progress} height={9} /></button>
         {(m.healthReasons || []).length > 0 && <div style={{ marginTop: 10 }}>
           {m.healthReasons.map((r) => (
             <div key={r.code} style={{ fontSize: 12, padding: "3px 0", color: D.HEALTH_META[r.level].color }}>
@@ -159,43 +275,103 @@ function Overview({ p, m }) {
             </div>
           ))}
         </div>}
-        <div style={{ fontSize: 12, color: C.dim, marginTop: 10, lineHeight: 1.9 }}>الموعد: {p.target_date ? `${fmt(p.target_date)} (${m.daysRemaining < 0 ? "تجاوز " + -m.daysRemaining + " يوم" : "باقٍ " + m.daysRemaining + " يوم"})` : "غير محدد"}<br />متأخرة: {m.overdueLeafCount} · مخاطر مفتوحة: {m.openRisks} (عالية {m.highOpenRisks}) · مشاكل: {m.openIssues} (حرجة {m.criticalOpenIssues})</div>
+        <ProjectHealthHistory projectId={p.id} workspaceId={ws?.id} />
+        <div style={{ fontSize: 12, color: C.dim, marginTop: 10, lineHeight: 1.9 }}>
+          الموعد: <button type="button" onClick={() => setView({ ...view, tab: "timeline", taskFilter: null, focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{p.target_date ? `${fmt(p.target_date)} (${m.daysRemaining < 0 ? "تجاوز " + -m.daysRemaining + " يوم" : "باقٍ " + m.daysRemaining + " يوم"})` : "غير محدد"}</button>
+          <br />متأخرة: <button type="button" onClick={() => setView({ ...view, tab: "tasks", taskFilter: "overdue", focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{m.overdueLeafCount}</button>
+          · مخاطر مفتوحة: <button type="button" onClick={() => setView({ ...view, tab: "risks", riskStatusFilter: "open", riskHighOnly: false, focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{m.openRisks}</button>
+          (عالية <button type="button" onClick={() => setView({ ...view, tab: "risks", riskStatusFilter: "open", riskHighOnly: true, focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{m.highOpenRisks}</button>)
+          · مشاكل: <button type="button" onClick={() => setView({ ...view, tab: "issues", issueStatusFilter: "open", issueSeverityFilter: "", focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{m.openIssues}</button>
+          (حرجة <button type="button" onClick={() => setView({ ...view, tab: "issues", issueStatusFilter: "open", issueSeverityFilter: "Critical", focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{m.criticalOpenIssues}</button>)
+        </div>
       </div>
       <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>الوقت والتكلفة</div>
-        <div style={{ fontSize: 12.5, lineHeight: 2 }}>التقدير: {fmtMinutes(m.estimated)} · الفعلي: {fmtMinutes(m.actual)}<br />{m.timeRatio != null ? <>نسبة الوقت: <b style={{ color: m.timeRatio > 1 ? C.bad : C.ok }}>{Math.round(m.timeRatio * 100)}%</b></> : "لا تقديرات لحساب النسبة"}<br />الميزانية المخطَّطة: {p.budget_planned != null ? `${p.budget_planned} ${p.budget_currency || ""}` : "—"} <span style={{ fontSize: 10.5, color: C.muted }}>(الفعلي يُربط بنظام المال لاحقاً)</span></div></div>
+        <div style={{ fontSize: 12.5, lineHeight: 2 }}>التقدير: <button type="button" onClick={() => setView({ ...view, tab: "work", focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{fmtMinutes(m.estimated)}</button> · الفعلي: <button type="button" onClick={() => setView({ ...view, tab: "work", focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{fmtMinutes(m.actual)}</button><br />{m.timeRatio != null ? <>نسبة الوقت: <button type="button" onClick={() => setView({ ...view, tab: "work", focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: m.timeRatio > 1 ? C.bad : C.ok, cursor: "pointer", textDecoration: "underline", font: "inherit", fontWeight: 700 }}>{Math.round(m.timeRatio * 100)}%</button></> : "لا تقديرات لحساب النسبة"}<br />الميزانية المخطَّطة: {p.budget_planned != null ? `${p.budget_planned} ${p.budget_currency || ""}` : "—"}</div><button type="button" onClick={() => setView({ ...view, tab: "finance" })} style={{ marginTop: 9, border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", font: "inherit", textDecoration: "underline" }}>فتح الملف المالي الفعلي في Finance OS ↗</button></div>
       <div style={S.card}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>التتبّع (Traceability)</div>
-        {cov ? <><Progress value={cov.ratio} /><div style={{ fontSize: 12, color: C.dim, marginTop: 6 }}>{cov.unlinked.length} مهمة بلا مواصفة أو اكتشاف{settings.traceabilityPolicy !== "off" ? "" : " (السياسة مُعطّلة)"}</div></> : <span style={{ fontSize: 12, color: C.muted }}>لا مهام</span>}</div>
+        {cov ? <><Progress value={cov.ratio} /><div style={{ fontSize: 12, color: C.dim, marginTop: 6 }}>{unlinkedTaskIds.length > 0 ? <button type="button" onClick={() => setView({ ...view, tab: "tasks", taskFilter: "ids", taskFilterIds: unlinkedTaskIds, focusRecord: null })} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit" }}>{cov.unlinked.length} مهمة بلا مواصفة أو اكتشاف · فتح المهام</button> : <span>كل المهام مرتبطة بمواصفة أو اكتشاف</span>}{settings.traceabilityPolicy !== "off" ? "" : " (السياسة مُعطّلة)"}</div></> : <span style={{ fontSize: 12, color: C.muted }}>لا مهام</span>}</div>
       <div style={{ ...S.card, gridColumn: "1 / -1" }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>الهدف والوصف</div><div style={{ fontSize: 13, lineHeight: 1.9, whiteSpace: "pre-wrap" }}>{p.final_goal || "—"}{p.description ? "\n\n" + p.description : ""}</div></div>
-      {lateTasks.length > 0 && <div style={{ ...S.card, gridColumn: "1 / -1" }}><div style={{ fontSize: 13, fontWeight: 700, color: C.bad, marginBottom: 6 }}>مهام متأخرة ({lateTasks.length})</div>{lateTasks.slice(0, 8).map((t) => <div key={t.id} style={{ fontSize: 12.5, padding: "3px 0" }}>⏰ {t.title} — {fmtShort(t.due_date)} <Who id={t.assignee_id} size={15} /></div>)}</div>}
+      {lateTasks.length > 0 && <div style={{ ...S.card, gridColumn: "1 / -1" }}><div style={{ fontSize: 13, fontWeight: 700, color: C.bad, marginBottom: 6 }}>مهام متأخرة ({lateTasks.length})</div>{lateTasks.slice(0, 8).map((t) => <div key={t.id} style={{ fontSize: 12.5, padding: "3px 0", display: "flex", alignItems: "center", gap: 8 }}><button type="button" onClick={() => openTask(t.id)} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textAlign: "start", font: "inherit", textDecoration: "underline" }}>⏰ {t.title}</button><span>— {fmtShort(t.due_date)}</span><Who id={t.assignee_id} size={15} /></div>)}</div>}
     </div>
   );
 }
+function ProjectMilestones({ p }) {
+  const { data, A: act, can, people, nameOf, openTask, today } = useP();
+  const [editing, setEditing] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const rows = data.milestones.filter((m) => m.project_id === p.id && (showArchived || !m.archived_at))
+    .sort((a, b) => String(a.due_date || "9999").localeCompare(String(b.due_date || "9999")));
+  const canWrite = can("project.edit", p);
+  const save = async (v) => {
+    const related = (v.related_task_ids || []).filter((id) => data.tasks.some((t) => t.id === id && t.project_id === p.id));
+    const rec = { ...v, id: v.id || "mile_" + uid(), project_id: p.id, related_task_ids: related, updated_at: new Date().toISOString() };
+    const result = await act.put("milestones", rec, p);
+    if (result) { act.act("milestones", rec.id, editing?.id ? "updated" : "created", rec.title); setEditing(null); }
+    return !!result;
+  };
+  const archive = async (m) => {
+    if (!window.confirm("أرشفة هذا المعلم؟ سيظل محفوظًا في السجل ولن يدخل في Roadmap النشط.")) return;
+    const saved = await act.put("milestones", { ...m, archived_at: new Date().toISOString() }, p);
+    if (saved) act.act("milestones", m.id, "archived", m.title);
+  };
+  return <div>
+    <Head title="معالم المشروع" sub="التزامات رئيسية مستقلة عن المهام؛ لا تدخل في حساب تقدم المهام." right={<>{canWrite && <Btn kind="primary" onClick={() => setEditing({ project_id: p.id, title: "", due_date: p.target_date || "", status: "Planned", owner_id: p.lead_id || "", description: "", related_task_ids: [] })}>＋ إضافة معلم</Btn>}<Btn onClick={() => setShowArchived((v) => !v)}>{showArchived ? "إخفاء المؤرشفة" : "عرض المؤرشفة"}</Btn></>} />
+    {!rows.length ? <Empty icon="🏁" title="لا توجد معالم بعد" sub="أضف معالم التسليم أو المراحل المهمة لتظهر في خطة المشروع." /> :
+      <div style={{ display: "grid", gap: 8 }}>{rows.map((m) => {
+        const overdue = m.due_date && m.due_date < today && m.status !== "Completed";
+        return <div key={m.id} style={{ ...S.card, padding: 12, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 10, alignItems: "center", opacity: m.archived_at ? .65 : 1 }}>
+          <div><div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><b>{m.title}</b><Chip color={m.status === "Completed" ? C.ok : overdue ? C.bad : C.warn}>{m.status === "Completed" ? "مكتمل" : overdue ? "متأخر" : m.status === "In Progress" ? "قيد التنفيذ" : "مخطط"}</Chip></div>
+            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>{m.due_date ? "الموعد: " + fmtShort(m.due_date) : "بلا موعد"} · المسؤول: {nameOf(m.owner_id)}</div>
+            {m.description && <div style={{ fontSize: 12, marginTop: 5, whiteSpace: "pre-wrap" }}>{m.description}</div>}
+            {!!(m.related_task_ids || []).length && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{m.related_task_ids.map((id) => { const t = data.tasks.find((x) => x.id === id && x.project_id === p.id); return t ? <button key={id} type="button" onClick={() => openTask(id)} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit", fontSize: 11.5 }}>↗ {t.title}</button> : null; })}</div>}
+          </div>
+          {canWrite && <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>{!m.archived_at && <><Btn small onClick={() => setEditing(m)}>تعديل</Btn><Btn small onClick={() => archive(m)}>أرشفة</Btn></>}{m.archived_at && <Btn small onClick={async () => { const saved = await act.put("milestones", { ...m, archived_at: null }, p); if (saved) act.act("milestones", m.id, "restored", m.title); }}>استعادة</Btn>}</div>}
+        </div>;
+      })}</div>}
+    {editing && <FormModal title={editing.id ? "تعديل المعلم" : "إضافة معلم"} wide initial={editing} onClose={() => setEditing(null)} fields={[
+      { key: "title", label: "اسم المعلم", required: true },
+      { key: "due_date", label: "تاريخ الاستحقاق", type: "date" },
+      { key: "status", label: "الحالة", type: "select", options: [{ v: "Planned", l: "مخطط" }, { v: "In Progress", l: "قيد التنفيذ" }, { v: "Completed", l: "مكتمل" }] },
+      { key: "owner_id", label: "المسؤول", type: "select", options: people.map((x) => ({ v: x.id, l: x.name })) },
+      { key: "description", label: "الوصف", type: "textarea" },
+    ]} onSubmit={save}>
+      {(values, set) => <div style={{ marginTop: 12 }}><b style={{ fontSize: 12 }}>المهام المرتبطة</b><div style={{ display: "grid", gap: 5, maxHeight: 180, overflowY: "auto", marginTop: 6 }}>{data.tasks.filter((t) => t.project_id === p.id && !t.archived_at).map((t) => <label key={t.id} style={{ display: "flex", gap: 7, alignItems: "center", fontSize: 12 }}><input type="checkbox" checked={(values.related_task_ids || []).includes(t.id)} onChange={(e) => set("related_task_ids", e.target.checked ? [...(values.related_task_ids || []), t.id] : (values.related_task_ids || []).filter((id) => id !== t.id))} />{t.title}</label>)}</div></div>}
+    </FormModal>}
+  </div>;
+}
 function ProjectTimeline({ p }) {
-  const { idx, today, openTask } = useP();
+  const { idx, today, openTask, data, openProject, view, setView } = useP();
   const tasks = idx.list.filter((t) => t.project_id === p.id && idx.isLeaf(t.id) && (t.start_date || t.due_date))
     .sort((a, b) => String(a.start_date || a.due_date).localeCompare(String(b.start_date || b.due_date)));
-  if (!tasks.length) return <Empty icon="🗓️" title="لا توجد مهام مؤرخة" sub="أضف تاريخ بداية أو موعداً للمهمة لتظهر في الخط الزمني." />;
-  const starts = tasks.map(t => t.start_date || t.due_date).sort();
-  const ends = tasks.map(t => t.due_date || t.start_date).sort();
-  const min = starts[0], max = ends[ends.length - 1];
+  const milestones = data.milestones.filter((m) => m.project_id === p.id && !m.archived_at && m.due_date)
+    .sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)));
+  const dated = [...tasks.map((t) => t.start_date || t.due_date), ...milestones.map((m) => m.due_date)].filter(Boolean).sort();
+  if (!dated.length) return <Empty icon="🗓️" title="لا توجد عناصر مؤرخة" sub="أضف مواعيد للمهام أو معالم المشروع لبناء Roadmap." />;
+  const min = dated[0], max = dated[dated.length - 1];
   const span = Math.max(1, diffDays(max, min) + 1);
   const pos = d => Math.max(0, Math.min(100, diffDays(d, min) / span * 100));
-  return <div style={{ ...S.card, overflowX: "auto" }}>
-    <div style={{ minWidth: 720 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", color: C.muted, fontSize: 10.5, marginBottom: 8 }}>
-        <span>{fmtShort(min)}</span><span>{fmtShort(max)}</span>
+  return <div style={{ display: "grid", gap: 12 }}>
+    {milestones.length > 0 && <div style={S.card}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>معالم المشروع</div>
+      {milestones.map((m) => <div key={m.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid " + C.line }}>
+        <span style={{ color: m.status === "Completed" ? C.ok : m.due_date < today ? C.bad : A }}>◆</span><b style={{ flex: 1, fontSize: 12.5 }}>{m.title}</b><span style={{ fontSize: 11.5, color: C.muted }}>{fmtShort(m.due_date)}</span><Chip color={m.status === "Completed" ? C.ok : C.warn}>{m.status === "Completed" ? "مكتمل" : m.status === "In Progress" ? "قيد التنفيذ" : "مخطط"}</Chip>
+      </div>)}
+      <button type="button" onClick={() => setView({ ...view, tab: "milestones" })} style={{ border: 0, background: "transparent", color: C.info, padding: "8px 0 0", cursor: "pointer", font: "inherit", fontSize: 12 }}>إدارة المعالم ↗</button>
+    </div>}
+    {tasks.length > 0 && <div style={{ ...S.card, overflowX: "auto" }}>
+      <div style={{ minWidth: 720 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", color: C.muted, fontSize: 10.5, marginBottom: 8 }}><span>{fmtShort(min)}</span><span>{fmtShort(max)}</span></div>
+        {tasks.map(t => {
+          const a=t.start_date||t.due_date, b=t.due_date||t.start_date, left=pos(a), width=Math.max(1.5,pos(b)-left), done=D.cat(t.status)==="done";
+          return <div key={t.id} style={{ display:"grid", gridTemplateColumns:"180px 1fr", gap:10, alignItems:"center", marginBottom:8 }}>
+            <button type="button" onClick={()=>openTask(t.id)} style={{ border:0, background:"transparent", padding:0, textAlign:"start", font: "inherit", fontSize:12, fontWeight:600, color:done?C.muted:C.text, cursor:"pointer", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.title}</button>
+            <div style={{ position:"relative", height:24, background:"rgba(0,0,0,.04)", borderRadius:6 }}>
+              <div onClick={()=>openTask(t.id)} title={fmt(a)+" → "+fmt(b)} style={{ position:"absolute", insetInlineStart:left+"%", width:width+"%", top:2, height:20, borderRadius:6, cursor:"pointer", background:done?"rgba(16,185,129,.22)":"rgba(99,102,241,.18)", border:"1px solid "+(done?C.ok:C.info) }} />
+              {today>=min && today<=max && <div style={{position:"absolute",insetInlineStart:pos(today)+"%",top:-2,bottom:-2,width:2,background:A}} />}
+            </div>
+          </div>;
+        })}
       </div>
-      {tasks.map(t => {
-        const a=t.start_date||t.due_date, b=t.due_date||t.start_date, left=pos(a), width=Math.max(1.5,pos(b)-left), done=D.cat(t.status)==="done";
-        return <div key={t.id} style={{ display:"grid", gridTemplateColumns:"180px 1fr", gap:10, alignItems:"center", marginBottom:8 }}>
-          <button type="button" onClick={()=>openTask(t.id)} style={{ border:0, background:"transparent", padding:0, textAlign:"start", font: "inherit", fontSize:12, fontWeight:600, color:done?C.muted:C.text, cursor:"pointer", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.title}</button>
-          <div style={{ position:"relative", height:24, background:"rgba(0,0,0,.04)", borderRadius:6 }}>
-            <div onClick={()=>openTask(t.id)} title={fmt(a)+" → "+fmt(b)} style={{ position:"absolute", insetInlineStart:left+"%", width:width+"%", top:2, height:20, borderRadius:6, cursor:"pointer", background:done?"rgba(16,185,129,.22)":"rgba(99,102,241,.18)", border:"1px solid "+(done?C.ok:C.info) }} />
-            {today>=min && today<=max && <div style={{position:"absolute",insetInlineStart:pos(today)+"%",top:-2,bottom:-2,width:2,background:A}} />}
-          </div>
-        </div>;
-      })}
-    </div>
+    </div>}
   </div>;
 }
 function WorkTab({ p }) {
@@ -244,38 +420,464 @@ function ProjectOkr({ p }) {
     </div>; })}
   </div>;
 }
-function RelatedTab({ p, canE }) {
-  const { A: act, toast, ws, data, can, me, today, setPage } = useP();
+function ProjectFinanceTab({ p }) {
+  const { shell, ws, isDemo, me } = useP();
+  const [profiles, setProfiles] = useState([]);
+  const [syncMeta, setSyncMeta] = useState(null);
+  const lastGoodSync = useRef(null);
+  const [state, setState] = useState("loading");
+  const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+  const available = typeof shell?.go === "function";
+  useEffect(() => {
+    let active = true;
+    if (isDemo || !ws?.id) {
+      setProfiles([]);
+      setState(isDemo ? "demo" : "error");
+      setError(isDemo ? "" : "تعذّر تحديد مساحة العمل الحالية.");
+      return () => { active = false; };
+    }
+    setState("loading");
+    setError("");
+    Promise.all([
+      supabase.rpc("fin_projects_sync_get", { p_ws: ws.id }),
+      supabase.rpc("fin_project_primary_list", { p_ws: ws.id }),
+    ]).then(([profileResult, primaryResult]) => {
+      if (!active) return;
+      if (profileResult.error) {
+        const message = String(profileResult.error.message || profileResult.error.details || profileResult.error.code || "");
+        const permissionDenied = profileResult.error.code === "42501" ||
+          (profileResult.error.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED|PERMISSION/i.test(message));
+        if (permissionDenied) {
+          // Never display a cached Finance snapshot after the server revokes access.
+          lastGoodSync.current = null;
+          setProfiles([]);
+          setSyncMeta(null);
+          setState("permission");
+        } else {
+          if (lastGoodSync.current) {
+            setState("stale");
+            setSyncMeta(lastGoodSync.current);
+          } else {
+            setState("error");
+            setProfiles([]);
+          }
+          void emitProjectIntegrationFailure({ workspaceId: ws?.id, project: p, actorId: me, integration: "finance" });
+        }
+        setError(message || "تعذّر تحديث الملخص المالي.");
+        return;
+      }
+      const payload = profileResult.data || {};
+      const rows = Array.isArray(payload.projects) ? payload.projects : [];
+      const meta = { as_of: payload.as_of || null, last_synced_at: payload.last_synced_at || null, sync_status: payload.sync_status || "fresh" };
+      lastGoodSync.current = meta;
+      setSyncMeta(meta);
+      const matches = rows.filter((profile) => String(profile.project_ref || "") === String(p.id));
+      const primary = !primaryResult.error && (Array.isArray(primaryResult.data) ? primaryResult.data : []).find((row) => String(row.project_ref) === String(p.id));
+      const primaryProfile = primary && matches.find((profile) => String(profile.id) === String(primary.finance_project_id));
+      if (primary && !primaryProfile) {
+        setProfiles([]); setState("primary-invalid"); setError("تعيين الملف الأساسي يشير إلى ملف غير موجود أو لم يعد مرتبطًا بهذا المشروع.");
+      } else if (primaryProfile) {
+        setProfiles([primaryProfile]); setState("linked"); setError("");
+      } else {
+        setProfiles(matches); setState(matches.length === 0 ? "not-linked" : matches.length === 1 ? "linked" : "multiple"); setError("");
+      }
+    }).catch((rpcError) => {
+      if (!active) return;
+      const message = String(rpcError?.message || rpcError || "تعذّر تحديث الملخص المالي.");
+      if (rpcError?.code === "42501" || /FORBIDDEN|UNAUTHENTICATED|permission denied/i.test(message)) {
+        lastGoodSync.current = null; setSyncMeta(null); setProfiles([]); setState("permission");
+      } else {
+        if (lastGoodSync.current) { setState("stale"); setSyncMeta(lastGoodSync.current); }
+        else { setState("error"); setProfiles([]); }
+        void emitProjectIntegrationFailure({ workspaceId: ws?.id, project: p, actorId: me, integration: "finance" });
+      }
+      setError(message);
+    });
+    return () => { active = false; };
+  }, [ws?.id, p.id, isDemo, reloadKey]);
+  const profile = profiles.length === 1 ? profiles[0] : null;
+  const linkedTransactions = Array.isArray(profile?.transactions) ? profile.transactions : [];
+  const transactionLabel = (transaction) => transaction.pnl_effect === "Income" ? "دخل" : transaction.pnl_effect === "ExpenseReduction" ? "تخفيض مصروف" : transaction.pnl_effect === "Expense" ? "مصروف" : transaction.type || "حركة";
+  const money = (value, currency = "EGP") => {
+    if (value === null || value === undefined || value === "") return "غير متاح";
+    try { return new Intl.NumberFormat("ar-EG", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(value)); }
+    catch { return String(value) + " " + currency; }
+  };
+  const openFinance = () => available && shell.go("system", "finance", "projects", { projectRef: p.id, fromSystem: "projects", suggestedBudget: p.budget ?? null, suggestedCurrency: p.budget_currency || p.currency || "EGP", suggestedBudgetUpdatedAt: p.updated_at || null });
+  const openFinanceTransaction = () => available && shell.go("system", "finance", "transactions", { projectRef: p.id, fromSystem: "projects", intent: "create-project-transaction" });
+  return <section style={{ display: "grid", gap: 10 }}>
+    <div style={S.card}>
+      <Head title="الملف المالي للمشروع" sub="البيانات المالية تظل مملوكة لـ Finance OS؛ هذا العرض للقراءة فقط." right={<Btn small onClick={() => setReloadKey((value) => value + 1)} disabled={state === "loading"}>↻ تحديث</Btn>} />
+      <div role="status" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "8px 0" }}>
+        {state === "loading" && <Chip color={C.muted}>جارٍ تحميل حالة الربط…</Chip>}
+        {state === "not-linked" && <Chip color={C.warn}>غير مرتبط</Chip>}
+        {state === "linked" && <Chip color={C.ok}>مرتبط · مُحدّث</Chip>}
+        {state === "stale" && <Chip color={C.warn}>بيانات قديمة · آخر Snapshot سليم</Chip>}
+        {state === "linked" && profile && <Btn kind="primary" small onClick={openFinanceTransaction} disabled={!available}>＋ تسجيل حركة للمشروع</Btn>}
+        {profile && Number(profile.unvalued_transactions || 0) > 0 && <Chip color={C.warn}>مراجعة تقييم العملة</Chip>}
+        {state === "multiple" && <Chip color={C.warn}>لم يُحدد ملف أساسي</Chip>}
+        {state === "primary-invalid" && <Chip color={C.bad}>تعيين أساسي غير صالح</Chip>}
+        {state === "permission" && <Chip color={C.bad}>لا توجد صلاحية عرض Finance</Chip>}
+        {state === "error" && <Chip color={C.bad}>تعذّر تحميل بيانات Finance</Chip>}
+        {state === "demo" && <Chip color={C.muted}>بيئة عرض تجريبي</Chip>}
+      </div>
+      {state === "loading" && <div style={{ color: C.muted, fontSize: 12 }}>يتم جلب الملخص من Finance دون إنشاء أو تعديل أي سجل.</div>}
+      {state === "not-linked" && <div style={{ color: C.dim, fontSize: 12.5, lineHeight: 1.9 }}>لا يوجد ملف مالي مرتبط بهذا المشروع. يمكنك إعداده من Finance؛ سيظل إنشاء الملف وحفظه وربط الحركات من صلاحيات Finance نفسها.</div>}
+      {state === "multiple" && <div role="alert" style={{ color: C.warn, fontSize: 12.5, lineHeight: 1.9 }}>يوجد أكثر من ملف مالي يحمل مرجع المشروع نفسه ({profiles.length}) دون تعيين أساسي. افتح Finance واختر الملف الأساسي صراحةً؛ لن تُدمج الأرقام ولن يتم الاختيار تلقائيًا.</div>}
+      {state === "primary-invalid" && <div role="alert" style={{ color: C.bad, fontSize: 12.5, lineHeight: 1.9 }}>{error} افتح Finance وأعد تعيين الملف الأساسي.</div>}
+      {state === "permission" && <div role="alert" style={{ color: C.bad, fontSize: 12.5, lineHeight: 1.9 }}>تعذّر عرض الملخص لأن صلاحية Finance للقراءة غير متاحة لهذا الحساب. لا تعرض Projects أرقامًا تقديرية بدل البيانات المحمية.</div>}
+      {state === "error" && <div role="alert" style={{ color: C.bad, fontSize: 12.5, lineHeight: 1.9 }}>تعذّر تحميل بيانات Finance. {error}</div>}
+      {state === "stale" && <div role="status" style={{ color: C.warn, fontSize: 12, lineHeight: 1.9 }}>تعذّرت المزامنة الأخيرة، لذلك نحتفظ بآخر Snapshot صالح ولا نستبدله بأرقام صفرية أو فارغة. {error}<br/>آخر مزامنة ناجحة: {syncMeta?.last_synced_at ? new Date(syncMeta.last_synced_at).toLocaleString("ar-EG") : "غير متاحة"} · As of: {syncMeta?.as_of ? new Date(syncMeta.as_of).toLocaleString("ar-EG") : "غير متاح"}</div>}
+      {state === "demo" && <div style={{ color: C.muted, fontSize: 12 }}>البيانات المالية الحقيقية لا تُعرض في بيئة Demo.</div>}
+      {(state === "not-linked" || state === "multiple" || state === "primary-invalid" || state === "error" || state === "permission") && <Btn kind="primary" disabled={!available} onClick={openFinance}>فتح Finance OS ↗</Btn>}
+      {syncMeta && <div style={{ color: state === "stale" ? C.warn : C.muted, fontSize: 10.5, marginTop: 8 }}>Sync: {state === "stale" ? "Stale — آخر Snapshot صالح محفوظ" : "Fresh"} · آخر مزامنة: {syncMeta.last_synced_at ? new Date(syncMeta.last_synced_at).toLocaleString("ar-EG") : "—"} · As of: {syncMeta.as_of ? new Date(syncMeta.as_of).toLocaleString("ar-EG") : "—"}</div>}
+      <div style={{ color: C.muted, fontSize: 10.5, marginTop: 8 }}>لا يتم إنشاء Finance Profile أو Transaction أو تعديلهما من Projects. لا تُعرض قيمة صفرية عندما لا يوجد ملف مالي.</div>
+    </div>
+    {profile && <div style={S.card}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+        <div><b style={{ fontSize: 13 }}>{profile.name || p.name}</b><div style={{ fontSize: 10.5, color: C.muted, marginTop: 3 }}>{profile.status || "—"} · آخر حركة مالية: {profile.last_activity || "لا توجد حركة مسجلة"} · عملة الأساس: {profile.base_currency || "EGP"}</div></div>
+        <Btn small onClick={openFinance} disabled={!available}>إدارة في Finance ↗</Btn>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 8, marginTop: 12 }}>
+        <Stat label="الإيرادات" value={money(profile.revenue_base, profile.base_currency)} />
+        <Stat label="المصروفات" value={money(profile.expenses_base, profile.base_currency)} />
+        <Stat label="صافي الربح" value={money(profile.net_profit_base, profile.base_currency)} />
+        <Stat label="الميزانية" value={profile.budget == null ? "غير محددة" : money(profile.budget, profile.currency)} />
+        <Stat label="استهلاك الميزانية" value={profile.budget_used_pct == null ? "غير متاح" : Number(profile.budget_used_pct).toLocaleString("ar-EG") + "%"} />
+        <Stat label="ROI" value={profile.roi_measurable ? Number(profile.roi_pct).toLocaleString("ar-EG") + "%" : "غير قابل للقياس"} />
+        <Stat label="الحركات المرتبطة" value={linkedTransactions.length.toLocaleString("ar-EG")} />
+      </div>
+      {Number(profile.unvalued_transactions || 0) > 0 && <div role="status" style={{ marginTop: 10, padding: 9, borderRadius: 7, background: "rgba(245,158,11,.10)", color: C.warn, fontSize: 11.5, lineHeight: 1.8 }}>توجد {profile.unvalued_transactions} حركة بلا قيمة بعملة الأساس. قد تكون بحاجة إلى مراجعة سعر الصرف أو تقييم العملة؛ لم تُحتسب هذه القيم كصفر.</div>}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", color: C.muted, fontSize: 10.5, marginTop: 9 }}>
+        <span>ملف Finance: {profile.id}</span>
+        <span>آخر تحديث للملف: {profile.updated_at ? dateOf(profile.updated_at) : "غير متاح"}</span>
+      </div>
+      <div style={{ borderTop: "1px solid " + C.line, marginTop: 12, paddingTop: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 7 }}>
+          <b style={{ fontSize: 12.5 }}>الحركات المالية المرتبطة</b>
+          <Chip>{linkedTransactions.length}</Chip>
+          <span style={{ flex: 1 }} />
+          <Btn small onClick={openFinance} disabled={!available}>عرض الكل في Finance ↗</Btn>
+        </div>
+        {!linkedTransactions.length
+          ? <div style={{ color: C.muted, fontSize: 11.5 }}>لا توجد حركات مرتبطة بهذا الملف المالي.</div>
+          : <div style={{ display: "grid", gap: 0 }}>
+            {linkedTransactions.slice(0, 10).map((transaction) => <div key={transaction.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, alignItems: "center", padding: "7px 0", borderTop: "1px solid " + C.line }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                  <b style={{ fontSize: 11.5 }}>{transaction.name || transaction.purpose || "حركة مالية"}</b>
+                  <Chip color={transaction.status === "Reversed" ? C.bad : transaction.pnl_effect === "Income" ? C.ok : C.muted}>{transaction.status === "Reversed" ? "معكوسة" : transactionLabel(transaction)}</Chip>
+                </div>
+                <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3 }}>{transaction.local_date || "بلا تاريخ"}{transaction.purpose && transaction.name ? " · " + transaction.purpose : ""}</div>
+                {transaction.base_missing && <div style={{ fontSize: 10.5, color: C.warn, marginTop: 3 }}>لم تُقيّم بعد بعملة الأساس ({profile.base_currency || "EGP"})</div>}
+                {!transaction.base_missing && transaction.base_amount != null && <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3 }}>قيمة الأساس: {money(transaction.base_amount, transaction.base_currency || profile.base_currency)}</div>}
+              </div>
+              <b style={{ fontSize: 11.5, whiteSpace: "nowrap" }}>{money(transaction.amount, transaction.currency || profile.currency)}</b>
+            </div>)}
+            {linkedTransactions.length > 10 && <div style={{ fontSize: 10.5, color: C.muted, paddingTop: 7 }}>يعرض آخر 10 حركات من أصل {linkedTransactions.length}; افتح Finance لعرض السجل الكامل.</div>}
+          </div>}
+      </div>
+    </div>}
+  </section>;
+}
+function ProjectActivity({ p }) {
+  const { data, idx, nameOf, openTask, openProject, setPage, ws, shell } = useP();
+  const [financeTransactions, setFinanceTransactions] = useState([]);
+  const [financeState, setFinanceState] = useState("idle");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [actorFilter, setActorFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    let active = true;
+    if (!ws?.id) {
+      setFinanceTransactions([]);
+      setFinanceState("error");
+      return () => { active = false; };
+    }
+    setFinanceState("loading");
+    supabase.rpc("fin_projects_get", { p_ws: ws.id }).then(({ data: profiles, error }) => {
+      if (!active) return;
+      if (error) {
+        setFinanceTransactions([]);
+        setFinanceState(error.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(String(error.message || "")) ? "permission" : "error");
+        return;
+      }
+      const linkedProfiles = (Array.isArray(profiles) ? profiles : []).filter((profile) => String(profile.project_ref || "") === String(p.id));
+      const unique = new Map();
+      linkedProfiles.forEach((profile) => (Array.isArray(profile.transactions) ? profile.transactions : []).forEach((transaction) => {
+        if (!transaction?.id) return;
+        unique.set(String(transaction.id), {
+          id: String(transaction.id),
+          profileId: profile.id,
+          profileName: profile.name || p.name,
+          name: transaction.name || transaction.purpose || "حركة مالية",
+          purpose: transaction.purpose || "",
+          type: transaction.type || "",
+          pnlEffect: transaction.pnl_effect || "",
+          status: transaction.status || "",
+          amount: transaction.amount,
+          currency: transaction.currency || profile.currency || "EGP",
+          baseAmount: transaction.base_amount,
+          baseCurrency: transaction.base_currency || profile.base_currency || "EGP",
+          baseMissing: transaction.base_missing === true,
+          localDate: transaction.local_date || "",
+        });
+      }));
+      setFinanceTransactions([...unique.values()]);
+      setFinanceState("ready");
+    }).catch(() => {
+      if (active) { setFinanceTransactions([]); setFinanceState("error"); }
+    });
+    return () => { active = false; };
+  }, [ws?.id, p.id]);
+  const taskIds = new Set(idx.list.filter((task) => String(task.project_id || "") === String(p.id)).map((task) => task.id));
+  const sessionIds = new Set(data.sessions.filter((session) => session.project_id === p.id || taskIds.has(session.task_id)).map((session) => session.id));
+  const projectKrs = data.krs.filter((kr) => (kr.project_ids || []).includes(p.id));
+  const projectKrIds = new Set(projectKrs.map((kr) => kr.id));
+  const projectObjectiveIds = new Set(data.objectives.filter((objective) => projectKrs.some((kr) => kr.objective_id === objective.id)).map((objective) => objective.id));
+  const ids = {
+    projects: new Set([p.id]),
+    tasks: taskIds,
+    milestones: new Set(data.milestones.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    outputs: new Set(data.outputs.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    sessions: sessionIds,
+    risks: new Set(data.risks.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    issues: new Set(data.issues.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    decisions: new Set(data.decisions.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    prds: new Set(data.prds.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    discovery: new Set(data.discovery.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    wins: new Set(data.wins.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    updates: new Set(data.updates.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    reviews: new Set(data.reviews.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    objectives: projectObjectiveIds,
+    krs: projectKrIds,
+    checkins: new Set(data.checkins.filter((record) => projectKrIds.has(record.kr_id)).map((record) => record.id)),
+    financeTransactions: new Set(financeTransactions.map((transaction) => transaction.id)),
+  };
+  const aliases = { project: "projects", task: "tasks", milestone: "milestones", output: "outputs", session: "sessions", risk: "risks", issue: "issues", decision: "decisions", prd: "prds", discovery_item: "discovery", win: "wins", update: "updates", review: "reviews", objective: "objectives", key_result: "krs", checkin: "checkins", finance_transaction: "financeTransactions" };
+  const labels = { projects: "المشروع", tasks: "مهمة", milestones: "معلم", outputs: "مخرج", sessions: "جلسة عمل", risks: "خطر", issues: "مشكلة", decisions: "قرار", prds: "مواصفة", discovery: "اكتشاف", wins: "إنجاز", updates: "تحديث", reviews: "مراجعة", objectives: "هدف", krs: "نتيجة رئيسية", checkins: "تحديث نتيجة", financeTransactions: "حركة Finance" };
+  const financeActivity = financeTransactions.map((transaction) => ({
+    id: "finance:" + transaction.id,
+    entity: "finance_transaction",
+    entity_id: transaction.id,
+    at: transaction.localDate ? transaction.localDate + "T12:00:00" : "",
+    actor_id: "finance-system",
+    systemActor: "Finance OS",
+    action: transaction.status === "Reversed" ? "حركة معكوسة" : "حركة مرتبطة بالمشروع",
+    summary: transaction.name + " · " + transaction.amount + " " + transaction.currency + (transaction.baseMissing ? " · غير مقيّمة بعملة الأساس" : ""),
+  }));
+  const sourceActivity = [
+    ...data.activity.filter((event) => {
+      const collection = aliases[event.entity] || event.entity;
+      return !!ids[collection]?.has(String(event.entity_id));
+    }),
+    ...financeActivity,
+  ].sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  const typeOptions = [...new Set(sourceActivity.map((event) => aliases[event.entity] || event.entity).filter(Boolean))];
+  const actorOptions = [...new Set([...sourceActivity.map((event) => String(event.actor_id || "")).filter(Boolean), ...(financeTransactions.length ? ["finance-system"] : [])])];
+  const activity = sourceActivity.filter((event) => {
+    const collection = aliases[event.entity] || event.entity;
+    const day = String(event.at || "").slice(0, 10);
+    const text = [event.action, event.summary, event.systemActor || nameOf(event.actor_id), labels[collection] || collection].join(" ").toLocaleLowerCase();
+    return (typeFilter === "all" || collection === typeFilter)
+      && (actorFilter === "all" || String(event.actor_id || "") === actorFilter)
+      && (!dateFrom || day >= dateFrom)
+      && (!dateTo || day <= dateTo)
+      && (!query || text.includes(query.toLocaleLowerCase()));
+  }).slice(0, 100);
+  const navigate = (event) => {
+    const collection = aliases[event.entity] || event.entity;
+    const id = event.entity_id;
+    if (collection === "tasks") return openTask(id);
+    if (collection === "milestones") return openProject(p.id, "milestones");
+    if (collection === "outputs") return openProject(p.id, "outputs", { kind: "output", id });
+    if (collection === "risks") return openProject(p.id, "risks", { kind: "risk", id });
+    if (collection === "issues") return openProject(p.id, "issues", { kind: "issue", id });
+    if (collection === "decisions") return openProject(p.id, "decisions", { kind: "decision", id });
+    if (collection === "prds") return openProject(p.id, "prds", { kind: "prd", id });
+    if (collection === "discovery") return openProject(p.id, "discovery", { kind: "discovery", id });
+    if (collection === "sessions") return openProject(p.id, "work");
+    if (collection === "financeTransactions") return shell?.go?.("system", "finance", "projects", { projectRef: p.id, fromSystem: "projects" });
+    if (collection === "wins") return setPage("wins");
+    if (collection === "updates") return setPage("updates");
+    if (collection === "reviews") return setPage("reviews");
+    if (collection === "objectives" || collection === "krs" || collection === "checkins") return setPage("okrs");
+    if (collection === "projects") return openProject(p.id, "overview");
+  };
+  const clearFilters = () => { setTypeFilter("all"); setActorFilter("all"); setDateFrom(""); setDateTo(""); setQuery(""); };
+  const hasFilters = typeFilter !== "all" || actorFilter !== "all" || dateFrom || dateTo || query;
+  return <div style={S.card}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <b style={{ fontSize: 13 }}>سجل نشاط المشروع</b><Chip>{activity.length}</Chip>
+      <span style={{ flex: 1 }} />
+      <span style={{ fontSize: 10.5, color: C.muted }}>يشمل سجلات Projects والحركات المالية المتاحة</span>
+    </div>
+    {financeState === "loading" && <div role="status" style={{ fontSize: 10.5, color: C.muted, marginBottom: 7 }}>جارٍ تحميل الحركات المالية المرتبطة…</div>}
+    {financeState === "permission" && <div role="status" style={{ fontSize: 10.5, color: C.warn, marginBottom: 7 }}>لم تُحمّل حركات Finance بسبب صلاحية القراءة؛ بقية Activity تعمل بصورة مستقلة.</div>}
+    {financeState === "error" && <div role="status" style={{ fontSize: 10.5, color: C.muted, marginBottom: 7 }}>تعذّر تحميل حركات Finance؛ لم تُستبدل بأرقام تقديرية.</div>}
+    <SearchBar value={query} onChange={setQuery} placeholder="ابحث في النشاط…">
+      <select aria-label="تصفية النشاط حسب النوع" style={{ ...S.sel, width: 150 }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+        <option value="all">كل أنواع النشاط</option>{typeOptions.map((type) => <option key={type} value={type}>{labels[type] || type}</option>)}
+      </select>
+      <select aria-label="تصفية النشاط حسب العضو" style={{ ...S.sel, width: 150 }} value={actorFilter} onChange={(e) => setActorFilter(e.target.value)}>
+        <option value="all">كل الأعضاء والمصادر</option>{actorOptions.map((actor) => <option key={actor} value={actor}>{actor === "finance-system" ? "Finance OS" : nameOf(actor)}</option>)}
+      </select>
+      <input aria-label="النشاط من تاريخ" type="date" style={{ ...S.inp, width: 145 }} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+      <input aria-label="النشاط إلى تاريخ" type="date" style={{ ...S.inp, width: 145 }} value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} />
+      {hasFilters && <Btn small onClick={clearFilters}>مسح الفلاتر</Btn>}
+    </SearchBar>
+    {!activity.length ? <Empty icon="🕘" title={sourceActivity.length ? "لا توجد أحداث مطابقة" : "لا نشاط مسجّل"} sub={sourceActivity.length ? "غيّر عوامل التصفية أو امسحها لعرض النشاط." : "ستظهر هنا تغييرات المشروع والمهام والمخرجات والحوكمة والأهداف والتقارير."} /> :
+      activity.map((event) => <button type="button" key={event.id} onClick={() => navigate(event)} style={{ display: "flex", width: "100%", gap: 8, alignItems: "flex-start", border: 0, borderTop: "1px solid " + C.line, padding: "8px 2px", textAlign: "start", background: "transparent", color: C.text, cursor: "pointer", font: "inherit" }}>
+        <span style={{ minWidth: 72, fontSize: 10.5, color: C.muted }}>{dateOf(event.at)}</span>
+        <span style={{ flex: 1, fontSize: 12, lineHeight: 1.7 }}><b>{labels[aliases[event.entity] || event.entity] || event.entity}</b> · {event.action} {event.summary}</span>
+        <span style={{ fontSize: 10.5, color: C.muted }}>{event.systemActor || nameOf(event.actor_id)} ↗</span>
+      </button>)}
+  </div>;
+}
+
+function ProjectWinsTab({ p }) {
+  const { data, idx, setPage, openTask, view, setView, can } = useP();
+  const wins = data.wins.filter((win) => String(win.project_id || "") === String(p.id)).sort((a, b) => String(b.achieved_on || "").localeCompare(String(a.achieved_on || "")));
+  const canCreate = can("win.write", p);
+  const openCreate = () => { setView({ ...view, quickCreate: "win", projectId: p.id }); setPage("wins"); };
+  return <div style={{ display: "grid", gap: 10 }}>
+    <Head title="إنجازات المشروع" sub={`${wins.length} إنجاز مرتبط بهذا المشروع`} right={<div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><Btn onClick={() => setPage("wins")}>سجل الإنجازات ↗</Btn>{canCreate && <Btn kind="primary" onClick={openCreate}>＋ إنجاز</Btn>}</div>} />
+    {!wins.length ? <Empty icon="🏆" title="لا توجد إنجازات مرتبطة بعد" sub={canCreate ? "سجّل إنجازًا لهذا المشروع؛ سيُفتح نموذج الإنجازات الأصلي مع المشروع محددًا." : "لا توجد إنجازات مرتبطة بهذا المشروع."} /> : wins.map((win) => <article key={win.id} style={S.card}>
+      <b>{win.title}</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{win.achieved_on || "بلا تاريخ"}</div>
+      {win.description && <p style={{ fontSize: 12, lineHeight: 1.8 }}>{win.description}</p>}
+      {(win.task_ids || (win.task_id ? [win.task_id] : [])).map((id) => idx.byId[id]).filter(Boolean).map((task) => <button type="button" key={task.id} onClick={() => openTask(task.id)} style={{ border: 0, padding: 0, marginInlineEnd: 8, color: C.info, background: "transparent", cursor: "pointer", textDecoration: "underline" }}>↗ {task.title}</button>)}
+    </article>)}
+  </div>;
+}
+function ProjectUpdatesTab({ p }) {
+  const { data, setPage, view, setView, can } = useP();
+  const updates = data.updates.filter((update) => String(update.project_id || "") === String(p.id)).sort((a, b) => String(b.period_end || "").localeCompare(String(a.period_end || "")));
+  const canCreate = can("update.write", p);
+  const openCreate = () => { setView({ ...view, quickCreate: "update", projectId: p.id }); setPage("updates"); };
+  return <div style={{ display: "grid", gap: 10 }}>
+    <Head title="تحديثات المشروع" sub={`${updates.length} تحديث مرتبط بهذا المشروع`} right={<div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><Btn onClick={() => setPage("updates")}>سجل التحديثات ↗</Btn>{canCreate && <Btn kind="primary" onClick={openCreate}>＋ تحديث</Btn>}</div>} />
+    {!updates.length ? <Empty icon="📣" title="لا توجد تحديثات بعد" sub={canCreate ? "أنشئ مسودة تحديث لهذا المشروع باستخدام نموذج التقارير الأصلي." : "لا توجد تحديثات مرتبطة بهذا المشروع."} /> : updates.map((update) => <article key={update.id} style={S.card}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><b style={{ flex: 1 }}>{update.title || "تحديث المشروع"}</b><Chip color={update.status === "Published" ? C.ok : C.muted}>{update.status === "Published" ? "منشور" : "مسودة"}</Chip></div>
+      <div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{update.period_start || "—"} → {update.period_end || "—"}{update.published_at ? " · نُشر " + fmtShort(update.published_at.slice(0, 10)) : ""}</div>
+      {update.snapshot && <div style={{ fontSize: 12, marginTop: 7 }}>التقدم وقت النشر: {update.snapshot.progress == null ? "—" : Math.round(update.snapshot.progress * 100) + "%"} · {update.snapshot.leafCompleted ?? "—"}/{update.snapshot.leafTotal ?? "—"} · مخاطر مفتوحة {update.snapshot.openRisks ?? "—"} · مشاكل مفتوحة {update.snapshot.openIssues ?? "—"}</div>}
+      {update.sections?.highlights && <p style={{ fontSize: 12, lineHeight: 1.8, whiteSpace: "pre-wrap", marginBottom: 0 }}>{update.sections.highlights}</p>}
+    </article>)}
+  </div>;
+}
+function RelatedTab({ p, canE, section = "all" }) {
+  const { A: act, toast, ws, data, can, me, today, setPage, setView, openProject, shell } = useP();
   const links = p.links || [];
   const [f, setF] = useState(false);
   const [meetings, setMeetings] = useState([]);
-  const [loadingMeetings, setLoadingMeetings] = useState(true);
+  const [loadingMeetings, setLoadingMeetings] = useState(section !== "resources");
   const [meetingError, setMeetingError] = useState("");
+  const [resources, setResources] = useState([]);
+  const [loadingResources, setLoadingResources] = useState(section !== "meetings");
+  const [resourceError, setResourceError] = useState("");
+  const [resourceAttachments, setResourceAttachments] = useState({});
+  const [loadingResourceAttachments, setLoadingResourceAttachments] = useState({});
+  const [expandedResources, setExpandedResources] = useState({});
   const [creatingFollowup, setCreatingFollowup] = useState("");
   const creatingFollowupsRef = useRef(new Set());
+  useEffect(() => {
+    if (view.quickCreate !== "resource" || section !== "resources") return;
+    if (canE) setF(true);
+    else toast("ليس لديك صلاحية إضافة مراجع لهذا المشروع.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view.quickCreate, section, canE, setView, toast]);
 
   const refreshMeetings = async () => {
     if (!ws?.id) { setMeetings([]); setLoadingMeetings(false); return; }
     setLoadingMeetings(true); setMeetingError("");
     try {
-      const result = await listKnowledgeMeetings(ws.id);
+      const result = await listKnowledgeMeetings(ws.id, p.id);
       if (!result.ok) throw result.error || new Error("تعذر تحميل اجتماعات المعرفة.");
       setMeetings(result.meetings || []);
     } catch (error) {
       setMeetingError(error?.message || "تعذر تحميل اجتماعات المعرفة.");
+      void emitProjectIntegrationFailure({ workspaceId: ws?.id, project: p, actorId: me, integration: "knowledge_meetings" });
     } finally {
       setLoadingMeetings(false);
     }
   };
-  useEffect(() => { refreshMeetings(); }, [ws?.id]);
+  useEffect(() => { if (section !== "resources") refreshMeetings(); }, [ws?.id, p.id, section]);
+
+  const refreshResources = async () => {
+    if (!ws?.id || section === "meetings") { setResources([]); setLoadingResources(false); return; }
+    setLoadingResources(true);
+    setResourceError("");
+    setResourceAttachments({});
+    setExpandedResources({});
+    try {
+      const result = await listKnowledgeProjectResources(ws.id, p.id);
+      if (!result.ok) throw result.error || new Error("تعذّر تحميل موارد Knowledge لهذا المشروع.");
+      setResources(result.resources || []);
+    } catch (error) {
+      setResources([]);
+      setResourceError(error?.message || "تعذّر تحميل موارد Knowledge لهذا المشروع.");
+      void emitProjectIntegrationFailure({ workspaceId: ws?.id, project: p, actorId: me, integration: "knowledge_resources" });
+    } finally {
+      setLoadingResources(false);
+    }
+  };
+  useEffect(() => { if (section !== "meetings") refreshResources(); }, [ws?.id, p.id, section]);
+
+  const toggleKnowledgeAttachments = async (item) => {
+    const isExpanded = !!expandedResources[item.id];
+    setExpandedResources((current) => ({ ...current, [item.id]: !isExpanded }));
+    if (isExpanded || Object.prototype.hasOwnProperty.call(resourceAttachments, item.id)) return;
+    setLoadingResourceAttachments((current) => ({ ...current, [item.id]: true }));
+    const result = await listKnowledgeAttachments(ws.id, item.id);
+    if (!result.ok) {
+      void emitProjectIntegrationFailure({ workspaceId: ws?.id, project: p, actorId: me, integration: "knowledge_resources" });
+    }
+    setResourceAttachments((current) => ({
+      ...current,
+      [item.id]: result.ok
+        ? { attachments: result.attachments || [], error: null }
+        : { attachments: [], error: result.error?.message || "تعذّر تحميل مرفقات المصدر." },
+    }));
+    setLoadingResourceAttachments((current) => ({ ...current, [item.id]: false }));
+  };
+
+  const openOutputAttachment = async (file) => {
+    if (typeof file === "string") {
+      if (file.startsWith("https://") || file.startsWith("http://")) window.open(file, "_blank", "noopener,noreferrer");
+      else toast("هذا الملف القديم لا يحتوي على رابط تنزيل قابل للفتح.");
+      return;
+    }
+    if (file?.url && !file?.object_path) {
+      window.open(file.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (!file?.object_path) { toast("لا يوجد مسار ملف صالح للتنزيل."); return; }
+    try {
+      const { data: signed, error } = await supabase.storage.from(OUTPUT_STORAGE_BUCKET).createSignedUrl(file.object_path, 60);
+      if (error) throw error;
+      if (!signed?.signedUrl) throw new Error("تعذّر إنشاء رابط تنزيل مؤقت.");
+      window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) { toast("⛔ تعذّر تنزيل مرفق المخرج: " + (error?.message || "فشل التنزيل")); }
+  };
+
+  const projectOutputsWithFiles = data.outputs
+    .filter((output) => String(output.project_id || "") === String(p.id))
+    .filter((output) => (output.files || []).length || (output.upload_intents || []).length)
+    .sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
 
   const linkedMeetings = meetings
     .filter((meeting) => !meeting.archived && meeting.status !== "archived")
-    .filter((meeting) => meeting.relatedSystem === "projects" && String(meeting.relatedId) === String(p.id))
     .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
 
   async function createFollowupTask(meeting, followup, index) {
-    const key = String(meeting.id) + ":" + index;
+    const followupIdentity = stableKnowledgeFollowupId(meeting.id, followup);
+    if (!followupIdentity) {
+      toast("لا يمكن تحويل المتابعة لأن هويتها الثابتة غير متاحة.");
+      return;
+    }
+    const key = followupIdentity;
     if (creatingFollowupsRef.current.has(key)) return;
     if (p.archived_at || p.status === "Archived") {
       toast("استعد المشروع قبل إنشاء مهام متابعة جديدة.");
@@ -285,30 +887,44 @@ function RelatedTab({ p, canE }) {
       toast("ليس لديك صلاحية إنشاء مهام في هذا المشروع.");
       return;
     }
-    const existing = data.tasks.find((task) =>
-      task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index
-    );
+    const existing = findKnowledgeFollowupTask(data.tasks, meeting.id, followup, index);
     if (existing) {
       toast("هذه المتابعة مرتبطة بالفعل بمهمة: " + existing.title);
       return;
     }
-    const title = String(followup || "").trim();
+    const title = normalizeKnowledgeFollowup(followup).title;
     if (!title || typeof act.saveTask !== "function") return;
     creatingFollowupsRef.current.add(key);
     setCreatingFollowup(key);
     try {
-      const saved = await act.saveTask({
-        title,
-        project_id: p.id,
-        assignee_id: me,
-        status: "Not Started",
-        planning_bucket: "Inbox",
-        due_date: meeting.date && meeting.date >= today ? meeting.date : "",
-        source_meeting_id: meeting.id,
-        source_meeting_title: meeting.title || "",
-        source_followup_index: index,
-      }, true);
-      if (saved) toast("✅ أُنشئت مهمة متابعة مرتبطة باجتماع Knowledge OS.");
+      const sourceRecordId = followupIdentity;
+      if (!supabase || typeof supabase.rpc !== "function") throw new Error("اتصال Projects غير متاح.");
+      const { data: result, error } = await supabase.rpc("projects_create_followup_task", {
+        p_workspace_id: ws.id,
+        p_project_id: p.id,
+        p_followup_id: sourceRecordId,
+        p_task: {
+          source: "knowledge_meeting",
+          source_record_id: sourceRecordId,
+          source_followup_id: sourceRecordId,
+          title,
+          project_id: p.id,
+          assignee_id: me,
+          status: "Not Started",
+          planning_bucket: "Inbox",
+          due_date: meeting.date && meeting.date >= today ? meeting.date : "",
+          source_meeting_id: meeting.id,
+          source_meeting_title: meeting.title || "",
+          source_followup_title: title,
+          source_followup_index: index,
+          created_by: me,
+          sort_order: Date.now(),
+        },
+      });
+      if (error) throw error;
+      if (result?.duplicate) toast("ℹ️ هذه المتابعة مرتبطة بالفعل بمهمة؛ لم تُنشأ نسخة أخرى.");
+      else if (result?.created) toast("✅ أُنشئت مهمة متابعة مرتبطة باجتماع Knowledge OS.");
+      else toast("ℹ️ لم تُنشأ نسخة إضافية للمتابعة.");
     } catch (error) {
       toast("⛔ تعذّر إنشاء المهمة: " + (error?.message || "فشل الحفظ"));
     } finally {
@@ -318,7 +934,7 @@ function RelatedTab({ p, canE }) {
   }
 
   return <div style={{ display: "grid", gap: 12 }}>
-    <section style={S.card}>
+    {section !== "resources" && <section style={S.card}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <b style={{ fontSize: 13 }}>اجتماعات مرتبطة بالمشروع</b>
         <Chip>{linkedMeetings.length}</Chip>
@@ -336,16 +952,19 @@ function RelatedTab({ p, canE }) {
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <b style={{ fontSize: 13, flex: 1 }}>🗓️ {meeting.title}</b>
               <Chip color={C.info}>{meeting.date || "بدون تاريخ"}</Chip>
+              <Btn small onClick={() => shell?.go?.("system", "knowledge", "meetings", { focusItemId: meeting.id, focusItemKind: "meeting" })}>فتح الاجتماع الأصلي ↗</Btn>
               {meeting.startTime && <span style={{ fontSize: 11, color: C.muted }}>{meeting.startTime}{meeting.endTime ? "–" + meeting.endTime : ""}</span>}
             </div>
             {meeting.summary && <div style={{ fontSize: 12, lineHeight: 1.8, marginTop: 5, whiteSpace: "pre-wrap" }}>{meeting.summary}</div>}
             {Array.isArray(meeting.attendees) && meeting.attendees.length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>المشاركون: {meeting.attendees.join("، ")}</div>}
             {meeting.decisions && <div style={{ fontSize: 12, lineHeight: 1.8, marginTop: 5 }}><b>القرارات:</b> {meeting.decisions}</div>}
             {followups.length > 0 && <div style={{ marginTop: 7, fontSize: 12 }}><b>بنود المتابعة</b><ul style={{ margin: "4px 0", paddingInlineStart: 20 }}>{followups.map((followup, index) => {
-              const existing = data.tasks.find((task) => task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index);
-              const key = String(meeting.id) + ":" + index;
-              return <li key={index} style={{ marginBottom: 6 }}>
-                <div>{String(followup)}</div>
+              const details = normalizeKnowledgeFollowup(followup);
+              const existing = findKnowledgeFollowupTask(data.tasks, meeting.id, followup, index);
+              const key = stableKnowledgeFollowupId(meeting.id, followup) || String(meeting.id) + ":" + index;
+              if (!details.title) return null;
+              return <li key={key} style={{ marginBottom: 6 }}>
+                <div>{details.title}</div>
                 {existing ? <div style={{ fontSize: 11, color: C.ok, marginTop: 2 }}>✓ مهمة مرتبطة: {existing.title}</div>
                   : !p.archived_at && p.status !== "Archived" && can("task.write", p) ? <Btn small disabled={creatingFollowup === key} onClick={() => createFollowupTask(meeting, followup, index)}>{creatingFollowup === key ? "جارٍ الإنشاء…" : "تحويل إلى مهمة"}</Btn>
                     : <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{p.archived_at || p.status === "Archived" ? "استعد المشروع لإنشاء مهمة متابعة." : "لا تملك صلاحية إنشاء مهام في هذا المشروع."}</div>}
@@ -353,8 +972,74 @@ function RelatedTab({ p, canE }) {
             })}</ul></div>}
           </article>;
         })}
-    </section>
-    <section style={S.card}>
+    </section>}
+    {section !== "meetings" && <section style={S.card}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <b style={{ fontSize: 13 }}>موارد Knowledge المرتبطة</b>
+        <Chip>{resources.length}</Chip>
+        <span style={{ flex: 1 }} />
+        <Btn small onClick={refreshResources} disabled={loadingResources}>تحديث</Btn>
+      </div>
+      <div style={{ fontSize: 11.5, color: C.muted, margin: "6px 0 9px" }}>هذه السجلات ومرفقاتها تظل مملوكة لـ Knowledge. يعرض Projects المراجع ويطلب روابط تنزيل مؤقتة دون نسخ المحتوى.</div>
+      {loadingResources ? <div style={{ fontSize: 12, color: C.muted }}>جارٍ تحميل موارد المشروع…</div>
+        : resourceError ? <div role="alert" style={{ color: C.bad, fontSize: 12 }}>{resourceError} <Btn small onClick={refreshResources}>إعادة المحاولة</Btn></div>
+        : !resources.length ? <div style={{ fontSize: 12, color: C.muted }}>لا توجد مصادر أو ملاحظات من Knowledge مرتبطة بهذا المشروع.</div>
+        : resources.map((item) => {
+          const attachmentState = resourceAttachments[item.id];
+          const expanded = !!expandedResources[item.id];
+          return <article key={item.id} style={{ borderTop: "1px solid " + C.line, padding: "9px 0" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <b style={{ flex: 1, fontSize: 12.5 }}>{item.kind === "note" ? "📝 " : "🔖 "}{item.title}</b>
+              <Chip color={item.kind === "note" ? C.violet : C.info}>{item.kind === "note" ? "ملاحظة" : "مصدر"}</Chip>
+              <span style={{ fontSize: 10.5, color: C.muted }}>Knowledge · {item.updatedAt ? String(item.updatedAt).slice(0, 10) : "—"}</span>
+            </div>
+            {item.summary && <div style={{ color: C.dim, fontSize: 12, lineHeight: 1.8, marginTop: 5, whiteSpace: "pre-wrap" }}>{item.summary}</div>}
+            {item.url && <a href={item.url} target="_blank" rel="noreferrer" style={{ color: C.info, fontSize: 11.5, display: "inline-block", marginTop: 4, wordBreak: "break-all" }}>فتح المصدر الأصلي ↗</a>}
+            <div style={{ marginTop: 7 }}>
+              <Btn small onClick={() => toggleKnowledgeAttachments(item)} disabled={!!loadingResourceAttachments[item.id]}>
+                {loadingResourceAttachments[item.id] ? "جارٍ تحميل المرفقات…" : expanded ? "إخفاء المرفقات" : "عرض مرفقات Knowledge"}
+              </Btn>
+            </div>
+            {expanded && loadingResourceAttachments[item.id] && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>جارٍ إنشاء روابط تنزيل مؤقتة…</div>}
+            {expanded && attachmentState?.error && <div role="alert" style={{ fontSize: 11.5, color: C.bad, marginTop: 6 }}>{attachmentState.error}</div>}
+            {expanded && attachmentState && !attachmentState.error && !attachmentState.attachments.length && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>لا توجد مرفقات لهذا المصدر.</div>}
+            {expanded && attachmentState?.attachments?.length > 0 && <div style={{ display: "grid", gap: 5, marginTop: 7 }}>
+              {attachmentState.attachments.map((attachment) => <div key={attachment.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5 }}>
+                <span aria-hidden="true">📎</span>
+                {attachment.signedUrl
+                  ? <a href={attachment.signedUrl} target="_blank" rel="noreferrer" style={{ color: C.info, flex: 1, wordBreak: "break-word" }}>{attachment.file_name} ↗</a>
+                  : <span style={{ color: C.muted, flex: 1 }}>{attachment.file_name} · رابط التنزيل غير متاح</span>}
+                <span style={{ color: C.muted }}>{attachment.byte_size ? Math.ceil(attachment.byte_size / 1024) + " KB" : ""}</span>
+              </div>)}
+            </div>}
+          </article>;
+        })}
+    </section>}
+    {section !== "meetings" && projectOutputsWithFiles.length > 0 && <section style={S.card}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <b style={{ fontSize: 13 }}>مرفقات المخرجات</b>
+        <Chip>{projectOutputsWithFiles.reduce((count, output) => count + (output.files || []).length, 0)}</Chip>
+        <span style={{ flex: 1 }} />
+        <Btn small onClick={() => openProject(p.id, "outputs")}>كل المخرجات ↗</Btn>
+      </div>
+      <div style={{ fontSize: 11.5, color: C.muted, margin: "6px 0 8px" }}>تظل الملفات في سجل Output الأصلي ومخزن Projects؛ لا تُنشأ منها نسخ داخل Resources.</div>
+      {projectOutputsWithFiles.map((output) => <div key={output.id} style={{ borderTop: "1px solid " + C.line, padding: "8px 0" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <b style={{ flex: 1, fontSize: 12 }}>{output.name}</b>
+          <Chip color={output.approval === "Final" ? C.ok : C.muted}>{L.approval[output.approval] || output.approval || "—"}</Chip>
+          <Btn small onClick={() => openProject(p.id, "outputs", { kind: "output", id: output.id })}>فتح المخرج ↗</Btn>
+        </div>
+        {(output.files || []).map((file, index) => <div key={typeof file === "string" ? file + index : file.object_path || file.name || index} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5, fontSize: 11.5 }}>
+          <span style={{ color: C.muted }}>📎</span>
+          <button type="button" onClick={() => openOutputAttachment(file)} style={{ flex: 1, border: 0, padding: 0, textAlign: "start", background: "transparent", color: C.info, cursor: "pointer", overflowWrap: "anywhere" }}>
+            {typeof file === "string" ? file.split("/").pop() : file.name || "ملف مخرج"}
+          </button>
+          <span style={{ color: C.muted }}>{typeof file === "object" && file.size_bytes ? Math.ceil(file.size_bytes / 1024) + " KB" : ""}</span>
+        </div>)}
+        {(output.upload_intents || []).length > 0 && <div style={{ color: C.warn, fontSize: 11, marginTop: 5 }}>{output.upload_intents.length} ملف في انتظار استكمال الرفع أو ربط البيانات.</div>}
+      </div>)}
+    </section>}
+    {section !== "meetings" && <section style={S.card}>
       <b style={{ fontSize: 13 }}>روابط ومراجع خارجية</b>
       <div style={{ fontSize: 12, color: C.muted, margin: "6px 0 8px" }}>تظل الروابط الخارجية مملوكة للمشروع.</div>
       {links.map((l, i) => <div key={i} style={{ marginBottom: 10 }}>
@@ -364,6 +1049,6 @@ function RelatedTab({ p, canE }) {
       {!links.length && <span style={{ fontSize: 12, color: C.muted }}>لا مراجع</span>}
       {canE && <div style={{ marginTop: 10 }}><Btn small onClick={() => setF(true)}>➕ رابط</Btn></div>}
       {f && <FormModal title="رابط مرجعي" initial={{}} onClose={() => setF(false)} fields={[{ key: "title", label: "العنوان" }, { key: "url", label: "الرابط", type: "url", required: true }]} onSubmit={async (v) => { await act.saveProject({ ...p, links: [...links, v] }, false); setF(false); }} />}
-    </section>
+    </section>}
   </div>;
 }

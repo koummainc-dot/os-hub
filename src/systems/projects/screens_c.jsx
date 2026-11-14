@@ -9,6 +9,8 @@ import { L, opts, DEFAULT_LOOKUPS, LOOKUP_LABEL, UPDATE_SECTIONS, MEETING_TEMPLA
 import { Who, ProjectName, mOpts, projOpts, HealthBadge, StatusChip, TaskForm } from "./parts.jsx";
 import { TemplatePicker } from "./screens_b.jsx";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
+import { supabase } from "../../core/supabase.js";
+import { normalizeKnowledgeFollowup, stableKnowledgeFollowupId, findKnowledgeFollowupTask } from "../knowledge/followupIdentity.js";
 
 // ═════ OKRs ═════
 const okrFocusDomId = (kind, id) => "projects-okr-" + kind + "-" + String(id).replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -101,10 +103,23 @@ export function Okrs() {
 
 // ═════ Stakeholder updates ═════
 export function Updates() {
-  const { data, A: act, can, projectsById, metrics, today, settings, people, me, toast, confirm, idx, nameOf, projectProgress } = useP();
+  const { data, A: act, can, projectsById, metrics, today, settings, people, me, toast, confirm, idx, nameOf, projectProgress, view, setView } = useP();
   const [form, setForm] = useState(null); const [sel, setSel] = useState(null);
+  const [projectFilter, setProjectFilter] = useState("all"); const [statusFilter, setStatusFilter] = useState("all"); const [query, setQuery] = useState("");
   const writableProjects = data.projects.filter((p) => !p.is_system && can("update.write", p));
-  const list = [...data.updates].sort((a, b) => (b.period_end || "").localeCompare(a.period_end || ""));
+  useEffect(() => {
+    if (view?.quickCreate !== "update") return;
+    const projectId = String(view.projectId || "");
+    const project = writableProjects.find((item) => item.id === projectId);
+    if (projectId && !project) toast("لا تملك صلاحية إنشاء تحديث لهذا المشروع.");
+    else setForm(project ? { project_id: project.id } : {});
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view?.quickCreate, view?.projectId, writableProjects, setView, toast]);
+  const list = [...data.updates]
+    .filter((update) => projectFilter === "all" || (projectFilter === "portfolio" ? !update.project_id : String(update.project_id || "") === projectFilter))
+    .filter((update) => statusFilter === "all" || String(update.status || "Draft") === statusFilter)
+    .filter((update) => !query || [update.title, update.sections?.highlights, update.sections?.lows].some((value) => String(value || "").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
+    .sort((a, b) => String(b.period_end || "").localeCompare(String(a.period_end || "")));
   function draft(projectId) {
     const p = projectsById[projectId]; const m = metrics[projectId]; const pe = today; const ps = addDays(today, -14);
     const wins = data.wins.filter((w) => (!w.project_id || w.project_id === projectId) && w.achieved_on >= ps);
@@ -120,21 +135,26 @@ export function Updates() {
   return (
     <div>
       <Head title="تحديثات أصحاب المصلحة" sub={`${list.length} تحديث`} right={writableProjects.length > 0 && <Btn kind="primary" onClick={() => setForm({})}>➕ تحديث جديد</Btn>} />
-      {!list.length ? <Empty icon="📣" title="لا تحديثات" sub="يُولَّد المسودة من الإنجازات والمهام والمخاطر والأرقام الحية، وتُجمَّد عند النشر." /> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 10 }}>{list.map((u) => <div key={u.id} onClick={() => setSel(u.id)} style={{ ...S.card, cursor: "pointer", padding: "11px 13px" }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 13.5 }}>📣 {u.title || "تحديث"}</b><Chip color={u.status === "Published" ? C.ok : C.muted}>{u.status === "Published" ? "منشور" : "مسودة"}</Chip></div><div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}><ProjectName id={u.project_id} /> · {fmtShort(u.period_start)} → {fmtShort(u.period_end)} · {L.updateType[u.audience] || ""}</div>{u.lead_assessment && <Chip color={u.lead_assessment === "On Track" ? C.ok : u.lead_assessment === "At Risk" ? C.warn : C.bad} style={{ marginTop: 6 }}>{L.assessment[u.lead_assessment]}</Chip>}</div>)}</div>}
-      {form && <FormModal title="تحديث جديد" initial={{ audience: "Management", project_id: data.projects.find((p) => !p.is_system)?.id }} onClose={() => setForm(null)} fields={[{ key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(writableProjects) }, { key: "audience", label: "الجمهور", type: "select", allowEmpty: false, options: opts(L.updateType) }, { key: "title", label: "العنوان" }]} onSubmit={async (v) => { const d = draft(v.project_id); const rec = { id: uid(), ...d, audience: v.audience, title: v.title || `تحديث ${projectsById[v.project_id].name} — ${fmtShort(today)}`, status: "Draft", lead_assessment: "On Track", author_id: me }; const s = await act.put("updates", rec, projectsById[v.project_id]); setForm(null); if (s) setSel(s.id); }} />}
+      <SearchBar value={query} onChange={setQuery} placeholder="ابحث في التحديثات…">
+        <select aria-label="تصفية التحديثات حسب المشروع" style={{ ...S.sel, width: 175 }} value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}><option value="all">كل المشاريع</option><option value="portfolio">المحفظة</option>{data.projects.filter((project) => !project.is_system).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>
+        <select aria-label="تصفية التحديثات حسب الحالة" style={{ ...S.sel, width: 130 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">كل الحالات</option><option value="Draft">مسودة</option><option value="Published">منشور</option></select>
+        {(query || projectFilter !== "all" || statusFilter !== "all") && <Btn small onClick={() => { setQuery(""); setProjectFilter("all"); setStatusFilter("all"); }}>مسح الفلاتر</Btn>}
+      </SearchBar>
+      {!list.length ? <Empty icon="📣" title="لا توجد تحديثات مطابقة" sub="غيّر البحث أو الفلاتر لإظهار سجلات أخرى." /> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 10 }}>{list.map((u) => <div key={u.id} onClick={() => setSel(u.id)} style={{ ...S.card, cursor: "pointer", padding: "11px 13px" }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1, fontSize: 13.5 }}>📣 {u.title || "تحديث"}</b><Chip color={u.status === "Published" ? C.ok : C.muted}>{u.status === "Published" ? "منشور" : "مسودة"}</Chip></div><div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}><ProjectName id={u.project_id} /> · {fmtShort(u.period_start)} → {fmtShort(u.period_end)} · {L.updateType[u.audience] || ""}</div>{u.lead_assessment && <Chip color={u.lead_assessment === "On Track" ? C.ok : u.lead_assessment === "At Risk" ? C.warn : C.bad} style={{ marginTop: 6 }}>{L.assessment[u.lead_assessment]}</Chip>}</div>)}</div>}
+      {form && <FormModal title="تحديث جديد" initial={{ audience: "Management", project_id: form.project_id || data.projects.find((p) => !p.is_system)?.id }} onClose={() => setForm(null)} fields={[{ key: "project_id", label: "المشروع", type: "select", required: true, allowEmpty: false, options: projOpts(writableProjects) }, { key: "audience", label: "الجمهور", type: "select", allowEmpty: false, options: opts(L.updateType) }, { key: "title", label: "العنوان" }]} onSubmit={async (v) => { const d = draft(v.project_id); const rec = { id: uid(), ...d, audience: v.audience, title: v.title || `تحديث ${projectsById[v.project_id].name} — ${fmtShort(today)}`, status: "Draft", lead_assessment: "On Track", author_id: me }; const s = await act.put("updates", rec, projectsById[v.project_id]); setForm(null); if (s) setSel(s.id); }} />}
       {openUp && <UpdateEditor u={openUp} onClose={() => setSel(null)} />}
     </div>
   );
 }
 function UpdateEditor({ u, onClose }) {
-  const { A: act, can, projectsById, toast, metrics, confirm, nameOf, settings, data, idx, openTask, openProject, setPage } = useP(); const project = projectsById[u.project_id]; const published = u.status === "Published"; const canW = can("update.write", project) && !published;
+  const { A: act, can, projectsById, toast, metrics, confirm, nameOf, settings, data, idx, openTask, openProject, setPage, me } = useP(); const project = projectsById[u.project_id]; const published = u.status === "Published"; const canW = can("update.write", project) && !published;
   const [d, setD] = useState(u); const [addendumForm, setAddendumForm] = useState(false); const setSec = (k, v) => setD({ ...d, sections: { ...d.sections, [k]: v } });
   async function publish() {
     if (!(await confirm("نشر التحديث؟ ستُجمَّد الأرقام ولا يمكن تعديله بعد ذلك (يمكنك إضافة ملحق)."))) return;
     const m = metrics[u.project_id]; const snapshot = { progress: m.progress, health: m.health, leafCompleted: m.leafCompleted, leafTotal: m.leafTotal, openRisks: m.openRisks, openIssues: m.openIssues, actualMinutes: m.actual, related_win_ids: d.related_win_ids || [], completed_task_ids: d.completed_task_ids || [], delayed_task_ids: d.delayed_task_ids || [], next_task_ids: d.next_task_ids || [], related_issue_ids: d.related_issue_ids || [], related_risk_ids: d.related_risk_ids || [], related_decision_ids: d.related_decision_ids || [], related_output_ids: d.related_output_ids || [], at: nowIso() };
     await act.put("updates", { ...d, status: "Published", published_at: nowIso(), snapshot }, project); toast("✅ نُشر التحديث"); onClose();
   }
-  const addendum = async (text) => { const clean = String(text || "").trim(); if (!clean) throw new Error("اكتب نص الملحق أولاً."); const saved = await act.put("updates", { ...d, addenda: [...(d.addenda || []), { at: nowIso(), by: nameOf(d.author_id), text: clean }] }, project); if (saved) { setD(saved); setAddendumForm(false); toast("✅ أُضيف الملحق"); } };
+  const addendum = async (text) => { const clean = String(text || "").trim(); if (!clean) throw new Error("اكتب نص الملحق أولاً."); const saved = await act.put("updates", { ...d, addenda: [...(d.addenda || []), { at: nowIso(), by: nameOf(me), text: clean }] }, project); if (saved) { setD(saved); setAddendumForm(false); toast("✅ أُضيف الملحق"); } };
   return <Modal title={d.title} wide onClose={onClose} footer={<>{canW && <Btn kind="primary" onClick={async () => { await act.put("updates", d, project); toast("✅ تم الحفظ"); }}>💾 حفظ</Btn>}{canW && <Btn onClick={publish}>📣 نشر</Btn>}{published && can("update.write", project) && <Btn onClick={() => setAddendumForm(true)}>➕ ملحق</Btn>}{can("update.write", project) && <Btn danger onClick={async () => { await act.del("updates", u.id, u.title); onClose(); }}>🗑</Btn>}</>}>
     <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}><ProjectName id={u.project_id} /><span style={{ fontSize: 11.5, color: C.muted }}>{fmt(u.period_start)} → {fmt(u.period_end)}</span>{published && <Chip color={C.ok}>🔒 منشور</Chip>}</div>
     <Field label="تقييم القائد"><select disabled={!canW} style={S.sel} value={d.lead_assessment || ""} onChange={(e) => setD({ ...d, lead_assessment: e.target.value })}>{opts(L.assessment).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></Field>
@@ -149,15 +169,34 @@ function UpdateEditor({ u, onClose }) {
 
 // ═════ Wins ═════
 export function Wins() {
-  const { data, A: act, me, today, idx, can, people, projectsById, toast, weekStartStr, openTask, openProject, setPage } = useP(); const [form, setForm] = useState(null); const [who, setWho] = useState("all"); const canWriteWins = can("win.write");
-  const list = data.wins.filter((w) => who === "all" || w.member_id === who).sort((a, b) => b.achieved_on.localeCompare(a.achieved_on));
-  const sugg = idx.list.filter((t) => idx.isLeaf(t.id) && D.cat(t.status) === "done" && t.assignee_id === me && t.completed_at && t.completed_at.slice(0, 10) >= weekStartStr && !data.wins.some((w) => w.task_id === t.id || (w.task_ids || []).includes(t.id))).slice(0, 6);
+  const { data, A: act, me, today, idx, can, people, projectsById, toast, weekStartStr, openTask, openProject, setPage, view, setView, settings } = useP();
+  const [form, setForm] = useState(null); const [who, setWho] = useState("all");
+  const [projectFilter, setProjectFilter] = useState("all"); const [query, setQuery] = useState("");
+  const canWriteWins = can("win.write");
+  const writableWinsProjects = data.projects.filter((project) => !project.is_system && can("win.write", project));
+  useEffect(() => {
+    if (view?.quickCreate !== "win") return;
+    const projectId = String(view.projectId || "");
+    const project = projectId ? projectsById[projectId] : null;
+    if (projectId && (!project || !can("win.write", project))) toast("لا تملك صلاحية تسجيل إنجاز لهذا المشروع.");
+    else if (projectId) setForm({ project_id: projectId });
+    else if (canWriteWins) setForm({});
+    else toast("لا تملك صلاحية تسجيل إنجاز.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view?.quickCreate, view?.projectId, canWriteWins, projectsById, can, setView, toast]);
+  const list = data.wins
+    .filter((win) => who === "all" || win.member_id === who)
+    .filter((win) => projectFilter === "all" || String(win.project_id || "") === projectFilter)
+    .filter((win) => !query || [win.title, win.description].some((value) => String(value || "").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
+    .sort((a, b) => String(b.achieved_on || "").localeCompare(String(a.achieved_on || "")));
+  const sugg = settings?.automations?.winSuggest === false ? [] : idx.list.filter((t) => idx.isLeaf(t.id) && D.cat(t.status) === "done" && t.assignee_id === me && t.completed_at && t.completed_at.slice(0, 10) >= weekStartStr && can("win.write", projectsById[t.project_id]) && !data.wins.some((w) => w.task_id === t.id || (w.task_ids || []).includes(t.id))).slice(0, 6);
   return (
     <div>
-      <Head title="الإنجازات" sub={`${list.length} إنجاز`} right={<><select style={{ ...S.sel, width: 150 }} value={who} onChange={(e) => setWho(e.target.value)}><option value="all">الكل</option>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>{canWriteWins && <Btn kind="primary" onClick={() => setForm({})}>➕ إنجاز</Btn>}</>} />
-      {canWriteWins && sugg.length > 0 && <div style={{ ...S.card, marginBottom: 12, border: `1px dashed ${C.ok}` }}><div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>💡 اقتراحات من مهامك المكتملة هذا الأسبوع</div>{sugg.map((t) => <div key={t.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "3px 0", fontSize: 13 }}><span style={{ flex: 1 }}>✔ {t.title}</span><Btn small onClick={() => act.put("wins", { id: uid(), title: t.title, achieved_on: t.completed_at.slice(0, 10), member_id: me, project_id: t.project_id, task_id: t.id, task_ids: [t.id], visibility: "team" }).then(() => toast("🏆 سُجّل إنجاز"))}>🏆 سجّل</Btn></div>)}</div>}
+      <Head title="الإنجازات" sub={`${list.length} إنجاز`} right={<><select aria-label="تصفية الإنجازات حسب العضو" style={{ ...S.sel, width: 150 }} value={who} onChange={(e) => setWho(e.target.value)}><option value="all">كل الأعضاء</option>{people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select><select aria-label="تصفية الإنجازات حسب المشروع" style={{ ...S.sel, width: 170 }} value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}><option value="all">كل المشاريع</option>{data.projects.filter((project) => !project.is_system).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>{canWriteWins && <Btn kind="primary" onClick={() => setForm({})}>➕ إنجاز</Btn>}</>} />
+      <SearchBar value={query} onChange={setQuery} placeholder="ابحث في الإنجازات…" />
+      {canWriteWins && sugg.length > 0 && <div style={{ ...S.card, marginBottom: 12, border: `1px dashed ${C.ok}` }}><div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>💡 اقتراحات من مهامك المكتملة هذا الأسبوع</div>{sugg.map((t) => <div key={t.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "3px 0", fontSize: 13 }}><span style={{ flex: 1 }}>✔ {t.title}</span><Btn small onClick={() => act.put("wins", { id: uid(), title: t.title, achieved_on: t.completed_at.slice(0, 10), member_id: me, project_id: t.project_id, task_id: t.id, task_ids: [t.id], visibility: "team" }, projectsById[t.project_id]).then(() => toast("🏆 سُجّل إنجاز"))}>🏆 سجّل</Btn></div>)}</div>}
       {!list.length ? <Empty icon="🏆" title="لا إنجازات بعد" sub="احتفِ بما أنجزته — وتظهر الإنجازات في المراجعة الأسبوعية." /> : <div style={{ ...S.card, padding: "4px 14px" }}>{list.map((w) => <div key={w.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${C.line}` }}><span style={{ fontSize: 18 }}>🏆</span><div style={{ flex: 1 }}><div style={{ fontSize: 13.5, fontWeight: 700 }}>{w.title}</div>{w.description && <div style={{ fontSize: 12, color: C.dim }}>{w.description}</div>}<div style={{ fontSize: 11, color: C.muted, display: "flex", gap: 8 }}>{fmt(w.achieved_on)} <Who id={w.member_id} size={15} />{w.project_id && <ProjectName id={w.project_id} />}{(w.task_ids || (w.task_id ? [w.task_id] : [])).map((id) => idx.byId[id]).filter(Boolean).map((t) => <Btn key={t.id} small onClick={() => openTask(t.id)}>☑ {t.title}</Btn>)}{w.objective_id && <Btn small onClick={() => setPage("okrs")}>🎯 الهدف</Btn>}{w.output_ids?.length > 0 && <Btn small onClick={() => w.project_id && openProject(w.project_id, "outputs")}>📦 {w.output_ids.length} مخرج ↗</Btn>}</div></div>{canWriteWins && (w.member_id === me || can("admin")) && <><Btn small onClick={() => setForm(w)}>✎</Btn><Btn small danger onClick={() => act.del("wins", w.id, w.title)}>🗑</Btn></>}</div>)}</div>}
-      {form && <FormModal title={form.id ? "تعديل الإنجاز" : "إنجاز جديد"} initial={{ achieved_on: today, member_id: me, visibility: "team", ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { const rec = { ...v, id: v.id || uid() }; rec.task_ids = [...new Set([...(v.task_ids || []), ...(v.task_id ? [v.task_id] : [])])]; const kr = rec.kr_id ? data.krs.find((x) => x.id === rec.kr_id) : null; if (rec.kr_id && !kr) throw new Error("النتيجة الرئيسية المرتبطة غير موجودة."); if (kr && !rec.objective_id) rec.objective_id = kr.objective_id; if (kr && kr.objective_id !== rec.objective_id) throw new Error("النتيجة الرئيسية لا تنتمي إلى الهدف المختار."); const linkedTasks = rec.task_ids.map((id) => idx.byId[id]).filter(Boolean); const linkedOutputs = (rec.output_ids || []).map((id) => data.outputs.find((x) => x.id === id)).filter(Boolean); const projectIds = [...new Set([...linkedTasks.map((x) => x.project_id), ...linkedOutputs.map((x) => x.project_id), ...(rec.project_id ? [rec.project_id] : [])])]; if (projectIds.length > 1) throw new Error("يجب أن تنتمي المهام والمخرجات المرتبطة بالإنجاز إلى المشروع نفسه."); if (!rec.project_id && projectIds.length === 1) rec.project_id = projectIds[0]; if (linkedOutputs.some((x) => x.approval !== "Final")) throw new Error("يجب أن تكون المخرجات المرتبطة بالإنجاز معتمدة نهائيًا."); await act.put("wins", rec); setForm(null); toast("🏆 تم"); }} fields={[{ key: "title", label: "الإنجاز", required: true }, { key: "achieved_on", label: "التاريخ", type: "date", required: true }, { key: "project_id", label: "المشروع", type: "select", emptyLabel: "— بلا —", options: projOpts(data.projects) }, { key: "objective_id", label: "الهدف", type: "select", emptyLabel: "— بلا —", options: data.objectives.map((x) => ({ v: x.id, l: x.name })) }, { key: "kr_id", label: "النتيجة الرئيسية", type: "select", emptyLabel: "— بلا —", options: (v) => data.krs.filter((x) => !v.objective_id || x.objective_id === v.objective_id).map((x) => ({ v: x.id, l: x.name })) }, { key: "task_ids", label: "المهام التي ساهمت", type: "multi", options: (v) => idx.list.filter((x) => !v.project_id || x.project_id === v.project_id).map((x) => ({ v: x.id, l: x.title })) }, { key: "output_ids", label: "المخرجات التي تثبت الإنجاز", type: "multi", options: (v) => data.outputs.filter((x) => x.approval === "Final" && (!v.project_id || x.project_id === v.project_id)).map((x) => ({ v: x.id, l: x.name })) }, { key: "description", label: "تفاصيل", type: "textarea", rows: 2 }]} />}
+      {form && <FormModal title={form.id ? "تعديل الإنجاز" : "إنجاز جديد"} initial={{ achieved_on: today, member_id: me, visibility: "team", ...form }} onClose={() => setForm(null)} onSubmit={async (v) => { const rec = { ...v, id: v.id || uid() }; rec.task_ids = [...new Set([...(v.task_ids || []), ...(v.task_id ? [v.task_id] : [])])]; const kr = rec.kr_id ? data.krs.find((x) => x.id === rec.kr_id) : null; if (rec.kr_id && !kr) throw new Error("النتيجة الرئيسية المرتبطة غير موجودة."); if (kr && !rec.objective_id) rec.objective_id = kr.objective_id; if (kr && kr.objective_id !== rec.objective_id) throw new Error("النتيجة الرئيسية لا تنتمي إلى الهدف المختار."); const linkedTasks = rec.task_ids.map((id) => idx.byId[id]).filter(Boolean); const linkedOutputs = (rec.output_ids || []).map((id) => data.outputs.find((x) => x.id === id)).filter(Boolean); const projectIds = [...new Set([...linkedTasks.map((x) => x.project_id), ...linkedOutputs.map((x) => x.project_id), ...(rec.project_id ? [rec.project_id] : [])])]; if (projectIds.length > 1) throw new Error("يجب أن تنتمي المهام والمخرجات المرتبطة بالإنجاز إلى المشروع نفسه."); if (!rec.project_id && projectIds.length === 1) rec.project_id = projectIds[0]; if (projectIds.some((projectId) => !can("win.write", projectsById[projectId]))) throw new Error("ليس لديك صلاحية تسجيل إنجاز في هذا المشروع."); if (linkedOutputs.some((x) => x.approval !== "Final")) throw new Error("يجب أن تكون المخرجات المرتبطة بالإنجاز معتمدة نهائيًا."); await act.put("wins", rec, rec.project_id ? projectsById[rec.project_id] : null); setForm(null); toast("🏆 تم"); }} fields={[{ key: "title", label: "الإنجاز", required: true }, { key: "achieved_on", label: "التاريخ", type: "date", required: true }, { key: "project_id", label: "المشروع", type: "select", emptyLabel: "— بلا —", options: projOpts(writableWinsProjects) }, { key: "objective_id", label: "الهدف", type: "select", emptyLabel: "— بلا —", options: data.objectives.map((x) => ({ v: x.id, l: x.name })) }, { key: "kr_id", label: "النتيجة الرئيسية", type: "select", emptyLabel: "— بلا —", options: (v) => data.krs.filter((x) => !v.objective_id || x.objective_id === v.objective_id).map((x) => ({ v: x.id, l: x.name })) }, { key: "task_ids", label: "المهام التي ساهمت", type: "multi", options: (v) => idx.list.filter((x) => !v.project_id || x.project_id === v.project_id).map((x) => ({ v: x.id, l: x.title })) }, { key: "output_ids", label: "المخرجات التي تثبت الإنجاز", type: "multi", options: (v) => data.outputs.filter((x) => x.approval === "Final" && (!v.project_id || x.project_id === v.project_id)).map((x) => ({ v: x.id, l: x.name })) }, { key: "description", label: "تفاصيل", type: "textarea", rows: 2 }]} />}
     </div>
   );
 }
@@ -167,53 +206,100 @@ export function Reviews() {
   const { data, A: act, me, weekStartStr, today, idx, metrics, settings, toast, confirm, role, nameOf, people, projectsById } = useP(); const [sel, setSel] = useState(null);
   const mine = data.reviews.filter((r) => r.member_id === me).sort((a, b) => b.week_start.localeCompare(a.week_start));
   const current = mine.find((r) => r.week_start === weekStartStr);
-  const teamRev = data.reviews.filter((r) => r.member_id !== me && r.visibility === "team" && r.status === "Closed").sort((a, b) => b.week_start.localeCompare(a.week_start));
-  const ensure = async () => { if (current) return setSel(current.id); const r = await act.put("reviews", { id: "rev_" + me + "_" + weekStartStr, member_id: me, week_start: weekStartStr, status: "Draft", visibility: "private", rating: null, energy: null, what_worked: "", what_stumbled: "", learned: "", will_change: "", next_week_focus: "", next_week_task_ids: [] }); r && setSel(r.id); };
-  const open = sel ? data.reviews.find((r) => r.id === sel) : null;
+  const shared = data.review_shares.filter((r) => r.status === "Published").sort((a, b) => b.week_start.localeCompare(a.week_start));
+  const ensure = async () => { if (current) return setSel(current.id); const r = await act.put("reviews", { id: "rev_" + me + "_" + weekStartStr, member_id: me, week_start: weekStartStr, status: "Draft", visibility: "private", _vis: [me], rating: null, energy: null, what_worked: "", what_stumbled: "", learned: "", will_change: "", next_week_focus: "", next_week_task_ids: [] }); r && setSel(r.id); };
+  const open = sel && !sel.startsWith("share:") ? data.reviews.find((r) => r.id === sel) : null;
+  const sharedOpen = sel?.startsWith("share:") ? shared.find((r) => r.id === sel.slice(6)) : null;
   return (
     <div>
       <Head title="المراجعات الأسبوعية" sub={`الأسبوع الحالي يبدأ ${fmtShort(weekStartStr)}`} right={role !== "Viewer" && <Btn kind="primary" onClick={ensure}>{current ? (current.status === "Draft" ? "✎ تابع مراجعة هذا الأسبوع" : "عرض مراجعة هذا الأسبوع") : "➕ ابدأ مراجعة هذا الأسبوع"}</Btn>} />
       {!mine.length && <Empty icon="🔁" title="لا مراجعات بعد" sub="مراجعة قصيرة كل أسبوع: ما نجح، ما تعثّر، وما سأغيّره. تبقى خاصة بك افتراضياً." />}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}>{mine.map((r) => <div key={r.id} onClick={() => setSel(r.id)} style={{ ...S.card, cursor: "pointer", padding: "11px 13px" }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1 }}>أسبوع {fmtShort(r.week_start)}</b><Chip color={r.status === "Closed" ? C.ok : C.warn}>{r.status === "Closed" ? "مغلقة" : "مسودة"}</Chip></div><div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{r.rating ? "★".repeat(r.rating) : "—"} · {r.visibility === "team" ? "👥 للفريق" : "🔒 خاصة"}</div></div>)}</div>
-      {teamRev.length > 0 && <><div style={{ fontSize: 13, fontWeight: 700, margin: "18px 0 8px" }}>مراجعات شاركها الفريق</div><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}>{teamRev.map((r) => <div key={r.id} onClick={() => setSel(r.id)} style={{ ...S.card, cursor: "pointer", padding: "11px 13px" }}><b>{nameOf(r.member_id)}</b><div style={{ fontSize: 12, color: C.muted }}>أسبوع {fmtShort(r.week_start)} · {r.rating ? "★".repeat(r.rating) : ""}</div></div>)}</div></>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}>{mine.map((r) => <div key={r.id} onClick={() => setSel(r.id)} style={{ ...S.card, cursor: "pointer", padding: "11px 13px" }}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><b style={{ flex: 1 }}>أسبوع {fmtShort(r.week_start)}</b><Chip color={r.status === "Closed" ? C.ok : C.warn}>{r.status === "Closed" ? "مغلقة" : "مسودة"}</Chip></div><div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{r.rating ? "★".repeat(r.rating) : "—"} · 🔒 خاصة</div></div>)}</div>
+      {shared.length > 0 && <><div style={{ fontSize: 13, fontWeight: 700, margin: "18px 0 8px" }}>مراجعات شارك أصحابها أجزاءً منها</div><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}>{shared.map((r) => <div key={r.id} onClick={() => setSel("share:" + r.id)} style={{ ...S.card, cursor: "pointer", padding: "11px 13px" }}><b>{nameOf(r.member_id)}</b><div style={{ fontSize: 12, color: C.muted }}>أسبوع {fmtShort(r.week_start)} · {r.scope === "workspace" ? "مشاركة مساحة العمل" : "مشاركة محددة"}</div><div style={{ fontSize: 11, color: C.dim, marginTop: 4 }}>{(r.shared_sections || []).length} أقسام مشتركة · عرض الملخص ↗</div></div>)}</div></>}
       {open && <ReviewEditor r={open} onClose={() => setSel(null)} />}
+      {sharedOpen && <ReviewShareViewer share={sharedOpen} onClose={() => setSel(null)} />}
     </div>
   );
 }
+function ReviewShareViewer({ share, onClose }) {
+  const { nameOf, openTask, openProject } = useP();
+  const payload = share.payload || {};
+  return <Modal title={`مراجعة مشتركة من ${nameOf(share.member_id)} — أسبوع ${fmtShort(share.week_start)}`} wide onClose={onClose} footer={<Btn onClick={onClose}>إغلاق</Btn>}>
+    <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 10 }}>هذه نسخة مشاركة محدودة؛ لا تعرض الملاحظات أو الأقسام التي احتفظ بها صاحب المراجعة لنفسه.</div>
+    {payload.metrics && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 8, marginBottom: 12 }}>{Object.entries(payload.metrics).map(([key, value]) => <div key={key} style={{ ...S.card, padding: 9 }}><div style={{ fontSize: 10.5, color: C.muted }}>{({ minutes: "وقت العمل", overdueCount: "مهام متأخرة", redProjects: "مشاريع حمراء", checkins: "Check-ins", newIssues: "مشاكل جديدة", newRisks: "مخاطر جديدة", decisionsCount: "قرارات" })[key] || key}</div><b>{key === "minutes" ? fmtMinutes(value) : value}</b></div>)}</div>}
+    {["wins", "doneTasks", "weekTasks", "overdueTasks", "issues", "risks", "decisions", "relatedProjects"].map((key) => Array.isArray(payload[key]) && payload[key].length > 0 ? <Field key={key} label={({ wins: "الإنجازات", doneTasks: "المهام المكتملة", weekTasks: "مهام الأسبوع", overdueTasks: "المهام المتأخرة", issues: "المشاكل", risks: "المخاطر", decisions: "القرارات", relatedProjects: "المشاريع المرتبطة" })[key]}>{payload[key].map((item) => <div key={item.id || item.title} style={{ padding: "3px 0" }}>{item.project_id ? <button type="button" onClick={() => openProject(item.project_id, key === "issues" ? "issues" : key === "risks" ? "risks" : key === "decisions" ? "decisions" : "overview")} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", padding: 0, font: "inherit" }}>↗ </button> : null}{item.title || item.name}</div>)}</Field> : null)}
+    {payload.reflections && Object.entries(payload.reflections).map(([key, value]) => value ? <Field key={key} label={({ what_worked: "ما الذي نجح؟", what_stumbled: "ما الذي تعثّر؟", learned: "ما الذي تعلمته؟", will_change: "ما الذي سأغيّره؟", next_week_focus: "تركيز الأسبوع القادم" })[key] || key}><div style={{ whiteSpace: "pre-wrap", fontSize: 12.5 }}>{value}</div></Field> : null)}
+  </Modal>;
+}
 function ReviewEditor({ r, onClose }) {
-  const { data, A: act, me, idx, metrics, settings, toast, confirm, today, projectsById, nameOf, openTask, openProject, setPage } = useP(); const own = r.member_id === me; const closed = r.status === "Closed"; const canW = own && !closed;
-  const [d, setD] = useState(r); const live = D.reviewLive(r.member_id, r.week_start, { idx, wins: data.wins, sessions: data.sessions, issues: data.issues, risks: data.risks, decisions: data.decisions, checkins: data.checkins, projects: data.projects, metrics, settings, today });
+  const { data, A: act, me, idx, metrics, settings, toast, confirm, today, projectsById, nameOf, openTask, openProject, setPage, people } = useP(); const own = r.member_id === me; const closed = r.status === "Closed"; const canW = own && !closed;
+  const existingShare = data.review_shares.find((share) => share.id === "rshare_" + r.id);
+  const [d, setD] = useState(r); const [shareSections, setShareSections] = useState(() => existingShare?.shared_sections || ["metrics", "wins", "doneTasks", "weekTasks", "relatedProjects"]); const [shareScope, setShareScope] = useState(() => existingShare?.scope || "workspace"); const [shareUsers, setShareUsers] = useState(() => (existingShare?._vis || []).filter((id) => id !== me));
+  const live = D.reviewLive(r.member_id, r.week_start, { idx, wins: data.wins, sessions: data.sessions, issues: data.issues, risks: data.risks, decisions: data.decisions, checkins: data.checkins, projects: data.projects, metrics, settings, today });
   const view = closed && r.snapshot ? r.snapshot : live;
   const leftovers = idx.list.filter((t) => idx.isLeaf(t.id) && t.assignee_id === r.member_id && t.planning_bucket === "This Week" && ["todo", "active"].includes(D.cat(t.status)));
-  const save = async (patch) => { const rec = { ...d, ...(patch || {}) }; rec._vis = rec.visibility === "private" ? [r.member_id] : null; const s = await act.put("reviews", rec); if (s) setD(s); return s; };
+  const save = async (patch) => { const rec = { ...d, ...(patch || {}), visibility: "private", _vis: [r.member_id] }; const saved = await act.put("reviews", rec); if (saved) setD(saved); return saved; };
   async function close() {
     if (!d.rating) return toast("⛔ اختر تقييماً للأسبوع (★)");
     if (leftovers.length && !(await confirm(`عندك ${leftovers.length} مهمة في «هذا الأسبوع» لم تكتمل. ستبقى في هذا الأسبوع الجديد. متابعة؟`))) return;
     const snapshot = { ...live, wins: live.wins.map((w) => ({ id: w.id, title: w.title, project_id: w.project_id })), doneTasks: live.doneTasks.map((t) => ({ id: t.id, title: t.title, project_id: t.project_id })), weekTasks: live.weekTasks.map((t) => ({ id: t.id, title: t.title, project_id: t.project_id })), overdueTasks: live.overdueTasks.map((t) => ({ id: t.id, title: t.title, project_id: t.project_id })), issues: live.issues.map((x) => ({ id: x.id, title: x.title, project_id: x.project_id })), risks: live.risks.map((x) => ({ id: x.id, title: x.title, project_id: x.project_id })), decisions: live.decisions.map((x) => ({ id: x.id, title: x.title, project_id: x.project_id })), relatedProjects: live.relatedProjects.map((x) => ({ id: x.id, name: x.name })), at: nowIso() };
     await save({ status: "Closed", closed_at: nowIso(), snapshot }); toast("✅ أُغلقت المراجعة"); onClose();
   }
-  return <Modal title={`مراجعة ${nameOf(r.member_id)} — أسبوع ${fmtShort(r.week_start)}`} wide onClose={onClose} footer={<>{canW && <Btn kind="primary" onClick={async () => { await save(); toast("✅ تم الحفظ"); }}>💾 حفظ</Btn>}{canW && <Btn onClick={close}>🔒 إغلاق المراجعة</Btn>}{own && <Btn danger onClick={async () => { await act.del("reviews", r.id, "review"); onClose(); }}>🗑</Btn>}</>}>
+  async function publishShare() {
+    if (!closed || !d.snapshot) return toast("أغلق المراجعة أولاً لتثبيت Snapshot المشاركة.");
+    if (!shareSections.length) return toast("اختر قسمًا واحدًا على الأقل للمشاركة.");
+    if (shareScope === "members" && !shareUsers.length) return toast("اختر عضوًا واحدًا على الأقل.");
+    const snap = d.snapshot;
+    const payload = {};
+    const isWorkspaceProject = (projectId) => !!projectsById[projectId] && projectsById[projectId].visibility !== "private";
+    const containsPrivateProject = (snap.relatedProjects || []).some((project) => projectsById[project.id]?.visibility === "private");
+    if (shareSections.includes("metrics") && !containsPrivateProject) payload.metrics = { minutes: snap.minutes, overdueCount: snap.overdueCount, redProjects: snap.redProjects, checkins: snap.checkins, newIssues: snap.newIssues, newRisks: snap.newRisks, decisionsCount: snap.decisionsCount };
+    ["wins", "doneTasks", "weekTasks", "overdueTasks", "issues", "risks", "decisions"].forEach((key) => { if (shareSections.includes(key)) payload[key] = (snap[key] || []).filter((item) => !item.project_id || isWorkspaceProject(item.project_id)); });
+    if (shareSections.includes("relatedProjects")) payload.relatedProjects = (snap.relatedProjects || []).filter((project) => isWorkspaceProject(project.id));
+    const reflections = {};
+    ["what_worked", "what_stumbled", "learned", "will_change", "next_week_focus"].forEach((key) => { if (shareSections.includes(key) && d[key]) reflections[key] = d[key]; });
+    if (Object.keys(reflections).length) payload.reflections = reflections;
+    const rec = { id: "rshare_" + r.id, review_id: r.id, member_id: r.member_id, week_start: r.week_start, status: "Published", scope: shareScope, shared_sections: [...shareSections], payload, _vis: shareScope === "workspace" ? null : [...new Set([me, ...shareUsers])] };
+    const saved = await act.put("review_shares", rec);
+    if (saved) toast("✅ تم نشر نسخة المشاركة المحددة دون كشف بقية المراجعة.");
+  }
+  async function unshare() {
+    if (!existingShare) return;
+    if (!(await confirm("إيقاف مشاركة هذه النسخة؟ ستختفي من قائمة المشاركات."))) return;
+    await act.del("review_shares", existingShare.id, "review share");
+    toast("تم إيقاف المشاركة.");
+  }
+  return <Modal title={`مراجعة ${nameOf(r.member_id)} — أسبوع ${fmtShort(r.week_start)}`} wide onClose={onClose} footer={<>{canW && <Btn kind="primary" onClick={async () => { await save(); toast("✅ تم الحفظ"); }}>💾 حفظ</Btn>}{canW && <Btn onClick={close}>🔒 إغلاق المراجعة</Btn>}{own && <Btn danger onClick={async () => { if (existingShare) await act.del("review_shares", existingShare.id, "review share"); await act.del("reviews", r.id, "review"); onClose(); }}>🗑</Btn>}</>}>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 8, marginBottom: 12 }}>
       {[["إنجازات", (view.wins || []).length], ["مهام مكتملة", (view.doneTasks || []).length], ["قرارات", view.decisionsCount || (view.decisions || []).length], ["ساعات العمل", fmtMinutes(view.minutes)], ["متأخرة", view.overdueCount], ["مشاريع حمراء", view.redProjects], ["Check-ins", view.checkins]].map(([l, v]) => <div key={l} style={{ background: "rgba(0,0,0,0.04)", borderRadius: 8, padding: "8px 10px" }}><div style={{ fontSize: 10.5, color: C.muted }}>{l}{closed ? " (لقطة)" : " (حي)"}</div><div style={{ fontSize: 17, fontWeight: 800 }}>{v}</div></div>)}
     </div>
     {(view.wins || []).length > 0 && <div style={{ fontSize: 12.5, marginBottom: 10 }}>🏆 {(view.wins || []).map((w) => (typeof w === "string" ? w : w.title)).join(" · ")}</div>}
-     {(view.doneTasks || []).length > 0 && <Field label="المهام المكتملة">{(view.doneTasks || []).map((x) => { const item = typeof x === "string" ? { title: x } : x; return <button key={item.id || item.title} type="button" onClick={() => item.id && openTask(item.id)} style={{ display: "block", border: 0, padding: "2px 0", background: "none", color: C.info, cursor: "pointer", textAlign: "start" }}>✓ {item.title}</button>; })}</Field>}
-     {(view.weekTasks || []).length > 0 && <Field label="مهام الأسبوع المفتوحة">{(view.weekTasks || []).map((x) => <button key={x.id} type="button" onClick={() => openTask(x.id)} style={{ display: "block", border: 0, padding: "2px 0", background: "none", color: C.info, cursor: "pointer", textAlign: "start" }}>◷ {x.title}</button>)}</Field>}
-     {(view.overdueTasks || []).length > 0 && <Field label="المهام المتأخرة">{(view.overdueTasks || []).map((x) => <button key={x.id} type="button" onClick={() => openTask(x.id)} style={{ display: "block", border: 0, padding: "2px 0", background: "none", color: C.warn, cursor: "pointer", textAlign: "start" }}>! {x.title}</button>)}</Field>}
-     {(view.issues || []).length > 0 && <Field label="المشاكل الجديدة">{(view.issues || []).map((x) => <button key={x.id} type="button" onClick={() => openProject(x.project_id, "issues")} style={{ display: "block", border: 0, padding: "2px 0", background: "none", color: C.info, cursor: "pointer", textAlign: "start" }}>🔥 {x.title}</button>)}</Field>}
-     {(view.risks || []).length > 0 && <Field label="المخاطر الجديدة">{(view.risks || []).map((x) => <button key={x.id} type="button" onClick={() => openProject(x.project_id, "risks")} style={{ display: "block", border: 0, padding: "2px 0", background: "none", color: C.info, cursor: "pointer", textAlign: "start" }}>⚠️ {x.title}</button>)}</Field>}
-     {(view.decisions || []).length > 0 && <Field label="القرارات المتخذة">{(view.decisions || []).map((x) => <button key={x.id} type="button" onClick={() => openProject(x.project_id, "decisions")} style={{ display: "block", border: 0, padding: "2px 0", background: "none", color: C.info, cursor: "pointer", textAlign: "start" }}>⚖️ {x.title}</button>)}</Field>}
-     {(view.relatedProjects || []).length > 0 && <Field label="المشاريع التي تحتاج متابعة">{(view.relatedProjects || []).map((x) => <button key={x.id} type="button" onClick={() => openProject(x.id, "overview")} style={{ display: "inline-block", border: 0, padding: "2px 6px", background: "none", color: C.info, cursor: "pointer" }}>{x.name} ↗</button>)}</Field>}
+    {(view.doneTasks || []).length > 0 && <Field label="المهام المكتملة">{(view.doneTasks || []).map((x) => { const item = typeof x === "string" ? { title: x } : x; return <button key={item.id || item.title} type="button" onClick={() => item.id && openTask(item.id)} style={{ display: "block", border: 0, padding: "2px 0", background: "none", color: C.info, cursor: "pointer", textAlign: "start" }}>✓ {item.title}</button>; })}</Field>}
+    {(view.weekTasks || []).length > 0 && <Field label="مهام الأسبوع المفتوحة">{(view.weekTasks || []).map((x) => <button key={x.id} type="button" onClick={() => openTask(x.id)} style={{ display: "block", border: 0, padding: "2px 0", background: "none", color: C.info, cursor: "pointer", textAlign: "start" }}>◷ {x.title}</button>)}</Field>}
+    {(view.overdueTasks || []).length > 0 && <Field label="المهام المتأخرة">{(view.overdueTasks || []).map((x) => <button key={x.id} type="button" onClick={() => openTask(x.id)} style={{ display: "block", border: 0, padding: "2px 0", background: "none", color: C.warn, cursor: "pointer", textAlign: "start" }}>! {x.title}</button>)}</Field>}
+    {(view.issues || []).length > 0 && <Field label="المشاكل الجديدة">{(view.issues || []).map((x) => <button key={x.id} type="button" onClick={() => openProject(x.project_id, "issues")} style={{ display: "block", border: 0, padding: "2px 0", background: "none", color: C.info, cursor: "pointer", textAlign: "start" }}>🔥 {x.title}</button>)}</Field>}
+    {(view.risks || []).length > 0 && <Field label="المخاطر الجديدة">{(view.risks || []).map((x) => <button key={x.id} type="button" onClick={() => openProject(x.project_id, "risks")} style={{ display: "block", border: 0, padding: "2px 0", background: "none", color: C.info, cursor: "pointer", textAlign: "start" }}>⚠️ {x.title}</button>)}</Field>}
+    {(view.decisions || []).length > 0 && <Field label="القرارات المتخذة">{(view.decisions || []).map((x) => <button key={x.id} type="button" onClick={() => openProject(x.project_id, "decisions")} style={{ display: "block", border: 0, padding: "2px 0", background: "none", color: C.info, cursor: "pointer", textAlign: "start" }}>⚖️ {x.title}</button>)}</Field>}
+    {(view.relatedProjects || []).length > 0 && <Field label="المشاريع التي تحتاج متابعة">{(view.relatedProjects || []).map((x) => <button key={x.id} type="button" onClick={() => openProject(x.id, "overview")} style={{ display: "inline-block", border: 0, padding: "2px 6px", background: "none", color: C.info, cursor: "pointer" }}>{x.name} ↗</button>)}</Field>}
     {REVIEW_PROMPTS.map(([k, label]) => <Field key={k} label={label}><textarea disabled={!canW} style={{ ...S.ta, minHeight: 60 }} value={d[k] || ""} onChange={(e) => setD({ ...d, [k]: e.target.value })} /></Field>)}
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
       <Field label="تقييم الأسبوع"><Seg value={d.rating} onChange={(v) => canW && setD({ ...d, rating: v })} options={[1, 2, 3, 4, 5].map((n) => ({ v: n, l: "★".repeat(n) }))} small /></Field>
       <Field label="الطاقة"><Seg value={d.energy} onChange={(v) => canW && setD({ ...d, energy: v })} options={opts(L.energy)} small /></Field>
     </div>
     <Field label="تركيز الأسبوع القادم"><textarea disabled={!canW} style={{ ...S.ta, minHeight: 50 }} value={d.next_week_focus || ""} onChange={(e) => setD({ ...d, next_week_focus: e.target.value })} /></Field>
-     <Field label="المهام المختارة للأسبوع القادم" hint="اربط المهام الفعلية بدل الاكتفاء بكتابة قائمة نصية."><select multiple disabled={!canW} style={{ ...S.sel, minHeight: 90 }} value={d.next_week_task_ids || []} onChange={(e) => setD({ ...d, next_week_task_ids: [...e.target.selectedOptions].map((o) => o.value) })}>{idx.list.filter((t) => idx.isLeaf(t.id) && ["todo", "active"].includes(D.cat(t.status))).map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}</select></Field>
-     {(d.next_week_task_ids || []).map((id) => idx.byId[id]).filter(Boolean).length > 0 && <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>{(d.next_week_task_ids || []).map((id) => idx.byId[id]).filter(Boolean).map((t) => <Btn key={t.id} small onClick={() => openTask(t.id)}>↗ {t.title}</Btn>)}</div>}
+    <Field label="المهام المختارة للأسبوع القادم" hint="اربط المهام الفعلية بدل الاكتفاء بكتابة قائمة نصية."><select multiple disabled={!canW} style={{ ...S.sel, minHeight: 90 }} value={d.next_week_task_ids || []} onChange={(e) => setD({ ...d, next_week_task_ids: [...e.target.selectedOptions].map((o) => o.value) })}>{idx.list.filter((t) => idx.isLeaf(t.id) && ["todo", "active"].includes(D.cat(t.status))).map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}</select></Field>
+    {(d.next_week_task_ids || []).map((id) => idx.byId[id]).filter(Boolean).length > 0 && <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>{(d.next_week_task_ids || []).map((id) => idx.byId[id]).filter(Boolean).map((t) => <Btn key={t.id} small onClick={() => openTask(t.id)}>↗ {t.title}</Btn>)}</div>}
     {canW && leftovers.length > 0 && <div style={{ fontSize: 12, color: C.dim, marginBottom: 8 }}>مهام الأسبوع الجارية ({leftovers.length}): {leftovers.slice(0, 5).map((t) => t.title).join("، ")}</div>}
-    {own && <Field label="الرؤية" hint="الخاصة لا يقرؤها أحد غيرك — حتى المدير أو المالك (يُطبَّق في قاعدة البيانات)."><Seg value={d.visibility} onChange={(v) => setD({ ...d, visibility: v })} options={[{ v: "private", l: "🔒 خاصة" }, { v: "team", l: "👥 للفريق" }]} small /></Field>}
+    {closed && own && <div style={{ ...S.card, marginTop: 12 }}>
+      <b style={{ fontSize: 13 }}>مشاركة أجزاء محددة</b>
+      <div style={{ fontSize: 11, color: C.muted, margin: "5px 0 9px" }}>المراجعة الأصلية تظل خاصة. سيتم إنشاء نسخة منفصلة لا تحتوي إلا على الأقسام التي تختارها.</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 6 }}>
+        {[["metrics","المؤشرات"],["wins","الإنجازات"],["doneTasks","المهام المكتملة"],["weekTasks","مهام الأسبوع"],["overdueTasks","المهام المتأخرة"],["issues","المشاكل"],["risks","المخاطر"],["decisions","القرارات"],["relatedProjects","المشاريع المرتبطة"],["what_worked","ما نجح"],["what_stumbled","ما تعثّر"],["learned","ما تعلمته"],["will_change","ما سأغيّره"],["next_week_focus","تركيز الأسبوع القادم"]].map(([key,label]) => <label key={key} style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 11.5 }}><input type="checkbox" checked={shareSections.includes(key)} onChange={(e) => setShareSections((old) => e.target.checked ? [...old,key] : old.filter((x) => x !== key))} />{label}</label>)}
+      </div>
+      <Field label="نطاق المشاركة"><Seg value={shareScope} onChange={setShareScope} options={[{v:"workspace",l:"مساحة العمل"},{v:"members",l:"أعضاء محددون"}]} small /></Field>
+      {shareScope === "members" && <Field label="الأعضاء المسموح لهم"><select multiple style={{ ...S.sel, minHeight: 80 }} value={shareUsers} onChange={(e) => setShareUsers([...e.target.selectedOptions].map((o) => o.value))}>{people.filter((person) => person.id !== me).map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></Field>}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}><Btn kind="primary" onClick={publishShare}>{existingShare ? "تحديث المشاركة" : "نشر الأقسام المختارة"}</Btn>{existingShare && <Btn danger onClick={unshare}>إيقاف المشاركة</Btn>}</div>
+    </div>}
   </Modal>;
 }
 
@@ -348,6 +434,8 @@ export function Templates() {
 }
 
 // ═════ Meetings (owned by Knowledge OS) ═════
+const meetingProjectRef = (meeting) => String(meeting?.project_ref || (meeting?.relatedSystem === "projects" ? meeting?.relatedId || "" : ""));
+
 export function Meetings() {
   const { data, setPage, ws, projectsById, A: act, toast, me, today, can } = useP();
   const [meetings, setMeetings] = useState([]);
@@ -357,34 +445,37 @@ export function Meetings() {
   const [creatingFollowup, setCreatingFollowup] = useState("");
   const creatingFollowupsRef = useRef(new Set());
 
-  const refresh = async () => {
+  const refresh = async (selectedProjectId = projectFilter) => {
     if (!ws?.id) { setMeetings([]); setLoading(false); return; }
     setLoading(true); setLoadError("");
     try {
-      const result = await listKnowledgeMeetings(ws.id);
+      const result = await listKnowledgeMeetings(ws.id, selectedProjectId === "all" ? null : selectedProjectId);
       if (!result.ok) throw result.error || new Error("تعذر تحميل اجتماعات المعرفة.");
       setMeetings(result.meetings || []);
     } catch (error) {
       setLoadError(error?.message || "تعذر تحميل اجتماعات المعرفة.");
     } finally { setLoading(false); }
   };
-  useEffect(() => { refresh(); }, [ws?.id]);
+  useEffect(() => { refresh(projectFilter); }, [ws?.id, projectFilter]);
 
+  // Project-specific results have already been filtered by Knowledge on the server.
   const visible = useMemo(() => meetings
     .filter((m) => !m.archived && m.status !== "archived")
-    .filter((m) => projectFilter === "all" || (m.relatedSystem === "projects" && String(m.relatedId) === String(projectFilter)))
-    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))), [meetings, projectFilter]);
-  const linkedCount = meetings.filter((m) => m.relatedSystem === "projects" && projectsById[m.relatedId]).length;
-  const orphanCount = meetings.filter((m) => m.relatedSystem === "projects" && m.relatedId && !projectsById[m.relatedId]).length;
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))), [meetings]);
+  const linkedCount = meetings.filter((m) => meetingProjectRef(m) && projectsById[meetingProjectRef(m)]).length;
+  const orphanCount = meetings.filter((m) => meetingProjectRef(m) && !projectsById[meetingProjectRef(m)]).length;
   const archivedCount = meetings.filter((m) => {
-    const p = m.relatedSystem === "projects" ? projectsById[m.relatedId] : null;
+    const projectId = meetingProjectRef(m);
+    const p = projectId ? projectsById[projectId] : null;
     return !!p && (!!p.archived_at || p.status === "Archived");
   }).length;
 
   async function createFollowupTask(meeting, followup, index) {
-    const key = String(meeting.id) + ":" + index;
+    const followupIdentity = stableKnowledgeFollowupId(meeting.id, followup);
+    const key = followupIdentity || String(meeting.id) + ":" + index;
     if (creatingFollowupsRef.current.has(key)) return;
-    const project = meeting.relatedSystem === "projects" ? projectsById[meeting.relatedId] : null;
+    const projectId = meetingProjectRef(meeting);
+    const project = projectId ? projectsById[projectId] : null;
     if (!project || project.archived_at || project.status === "Archived") {
       toast("اربط الاجتماع بمشروع نشط قبل إنشاء مهام المتابعة.");
       return;
@@ -397,19 +488,18 @@ export function Meetings() {
       toast("تعذر الوصول إلى خدمة مهام المشاريع.");
       return;
     }
-    const existing = data.tasks.find((task) =>
-      task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index
-    );
+    const existing = findKnowledgeFollowupTask(data.tasks, meeting.id, followup, index);
     if (existing) {
       toast("هذه المتابعة مرتبطة بالفعل بمهمة: " + existing.title);
       return;
     }
-    const title = String(followup || "").trim();
+    const title = normalizeKnowledgeFollowup(followup).title;
     if (!title) return;
     creatingFollowupsRef.current.add(key);
     setCreatingFollowup(key);
     try {
-      const saved = await act.saveTask({
+      if (!supabase || typeof supabase.rpc !== "function") throw new Error("اتصال Projects غير متاح.");
+      const taskPayload = {
         title,
         project_id: project.id,
         assignee_id: me,
@@ -417,10 +507,23 @@ export function Meetings() {
         planning_bucket: "Inbox",
         due_date: meeting.date && meeting.date >= today ? meeting.date : "",
         source_meeting_id: meeting.id,
+        source_followup_id: followupIdentity,
         source_meeting_title: meeting.title || "",
+        source_followup_title: title,
         source_followup_index: index,
-      }, true);
-      if (saved) toast("✅ أُنشئت مهمة متابعة مرتبطة بالاجتماع والمشروع.");
+        created_by: me,
+        sort_order: Date.now(),
+      };
+      const { data: result, error } = await supabase.rpc("projects_create_followup_task", {
+        p_workspace_id: ws.id,
+        p_project_id: project.id,
+        p_followup_id: followupIdentity,
+        p_task: taskPayload,
+      });
+      if (error) throw error;
+      if (result?.duplicate) toast("ℹ️ هذه المتابعة مرتبطة بالفعل بمهمة؛ لم تُنشأ نسخة أخرى.");
+      else if (result?.created) toast("✅ أُنشئت مهمة متابعة مرتبطة بالاجتماع والمشروع.");
+      else toast("ℹ️ لم تُنشأ نسخة إضافية للمتابعة.");
     } catch (error) {
       toast("⛔ تعذّر إنشاء المهمة: " + (error?.message || "فشل الحفظ"));
     } finally {
@@ -430,14 +533,15 @@ export function Meetings() {
   }
 
   return <div>
-    <Head title="اجتماعات المشاريع" sub={`مصدر الاجتماعات: Knowledge OS · ${linkedCount} مرتبط · ${archivedCount} لمشروعات مؤرشفة · ${orphanCount} يحتاج مراجعة الارتباط`} right={<div style={{display:"flex",gap:7,flexWrap:"wrap"}}><select aria-label="تصفية الاجتماعات حسب المشروع" style={{...S.sel,width:220}} value={projectFilter} onChange={e=>setProjectFilter(e.target.value)}><option value="all">كل الاجتماعات</option>{data.projects.filter(p=>!p.is_system&&!p.archived_at&&p.status!=="Archived").map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><Btn onClick={refresh} disabled={loading}>تحديث</Btn><Btn kind="primary" onClick={() => setPage("templates")}>قوالب الاجتماعات</Btn></div>} />
+    <Head title="اجتماعات المشاريع" sub={`مصدر الاجتماعات: Knowledge OS · ${linkedCount} مرتبط · ${archivedCount} لمشروعات مؤرشفة · ${orphanCount} يحتاج مراجعة الارتباط`} right={<div style={{display:"flex",gap:7,flexWrap:"wrap"}}><select aria-label="تصفية الاجتماعات حسب المشروع" style={{...S.sel,width:220}} value={projectFilter} onChange={e=>setProjectFilter(e.target.value)}><option value="all">كل الاجتماعات</option>{data.projects.filter(p=>!p.is_system&&!p.archived_at&&p.status!=="Archived").map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><Btn onClick={() => refresh()} disabled={loading}>تحديث</Btn><Btn kind="primary" onClick={() => setPage("templates")}>قوالب الاجتماعات</Btn></div>} />
     <div style={{...S.card,padding:12,marginBottom:12,fontSize:12,color:C.dim,lineHeight:1.8}}>الاجتماع محفوظ مرة واحدة في Knowledge OS. يمكن تحويل كل متابعة إلى مهمة فعلية في المشروع المرتبط. المشروعات المؤرشفة تظل ظاهرة كسجل تاريخي، أما مرجع المشروع غير الموجود فيحتاج مراجعة وإعادة ربط من Knowledge OS.</div>
     {loading ? <div style={{...S.card,padding:30,textAlign:"center",color:C.muted}}>جارٍ تحميل الاجتماعات…</div>
-    : loadError ? <div role="alert" style={{...S.card,padding:24,textAlign:"center"}}><div style={{color:C.bad,marginBottom:10}}>{loadError}</div><Btn onClick={refresh}>إعادة المحاولة</Btn></div>
+    : loadError ? <div role="alert" style={{...S.card,padding:24,textAlign:"center"}}><div style={{color:C.bad,marginBottom:10}}>{loadError}</div><Btn onClick={() => refresh()}>إعادة المحاولة</Btn></div>
     : !visible.length ? <Empty icon="🗓️" title={projectFilter==="all"?"لا توجد اجتماعات محفوظة في Knowledge OS":"لا توجد اجتماعات مرتبطة بهذا المشروع"} sub="افتح اجتماعًا في Knowledge OS واربطه بالمشروع من حقل «المشروع المرتبط»." />
     : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>{visible.map(m=>{
-      const project=m.relatedSystem==="projects"?projectsById[m.relatedId]:null;
-      const orphan=m.relatedSystem==="projects"&&!!m.relatedId&&!project;
+      const projectId=meetingProjectRef(m);
+      const project=projectId?projectsById[projectId]:null;
+      const orphan=!!projectId&&!project;
       const archived=!!project&&(!!project.archived_at||project.status==="Archived");
       const followups=Array.isArray(m.followups)?m.followups:[];
       return <article key={m.id} style={{...S.card,padding:14}}>
@@ -447,9 +551,11 @@ export function Meetings() {
         {Array.isArray(m.attendees)&&m.attendees.length>0&&<div style={{fontSize:11,color:C.dim,marginTop:5}}>المشاركون: {m.attendees.join("، ")}</div>}
         {m.decisions&&<div style={{fontSize:12,lineHeight:1.8,marginTop:7}}><b>القرارات:</b> {m.decisions}</div>}
         {followups.length>0&&<div style={{fontSize:12,lineHeight:1.8,marginTop:7}}><b>المتابعات والمهام:</b><ul style={{margin:"4px 0",paddingInlineStart:20}}>{followups.map((x,i)=>{
-          const existing=data.tasks.find(task=>task.source_meeting_id===m.id&&Number(task.source_followup_index)===i);
-          const key=String(m.id)+":"+i;
-          return <li key={i} style={{marginBottom:7}}><div>{String(x)}</div>{existing?<div style={{fontSize:11,color:C.ok,marginTop:3}}>✓ مهمة موجودة: {existing.title}</div>:project&&!archived&&can("task.write",project)?<Btn small disabled={creatingFollowup===key} onClick={()=>createFollowupTask(m,x,i)}>{creatingFollowup===key?"جارٍ الإنشاء…":"تحويل إلى مهمة"}</Btn>:<div style={{fontSize:11,color:C.muted,marginTop:3}}>{archived?"استعد المشروع قبل إنشاء مهام جديدة.":orphan?"أعد ربط الاجتماع بمشروع نشط.":project&&!can("task.write",project)?"لا تملك صلاحية إنشاء مهام في هذا المشروع.":"اربط الاجتماع بمشروع نشط لإنشاء مهمة متابعة."}</div>}</li>;
+          const details=normalizeKnowledgeFollowup(x);
+          const existing=findKnowledgeFollowupTask(data.tasks,m.id,x,i);
+          const key=stableKnowledgeFollowupId(m.id,x)||String(m.id)+":"+i;
+          if(!details.title)return null;
+          return <li key={key} style={{marginBottom:7}}><div>{details.title}</div>{existing?<div style={{fontSize:11,color:C.ok,marginTop:3}}>✓ مهمة موجودة: {existing.title}</div>:project&&!archived&&can("task.write",project)?<Btn small disabled={creatingFollowup===key} onClick={()=>createFollowupTask(m,x,i)}>{creatingFollowup===key?"جارٍ الإنشاء…":"تحويل إلى مهمة"}</Btn>:<div style={{fontSize:11,color:C.muted,marginTop:3}}>{archived?"استعد المشروع قبل إنشاء مهام جديدة.":orphan?"أعد ربط الاجتماع بمشروع نشط.":project&&!can("task.write",project)?"لا تملك صلاحية إنشاء مهام في هذا المشروع.":"اربط الاجتماع بمشروع نشط لإنشاء مهمة متابعة."}</div>}</li>;
         })}</ul></div>}
       </article>;
     })}</div>}
@@ -485,7 +591,7 @@ export function Settings() {
         {s.traceabilityPolicy === "require" && row("أنواع المشاريع الملزِمة", <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{lookups.project_type.map((t) => <label key={t} style={{ fontSize: 12, display: "flex", gap: 4 }}><input disabled={dis} type="checkbox" checked={(s.traceabilityTypes || []).includes(t)} onChange={(e) => setS({ ...s, traceabilityTypes: e.target.checked ? [...(s.traceabilityTypes || []), t] : (s.traceabilityTypes || []).filter((x) => x !== t) })} />{t}</label>)}</div>)}
         {row("أيام قبل اعتبار عنصر الوارد قديماً", <input disabled={dis} type="number" style={S.inp} value={s.inboxStaleDays} onChange={num("inboxStaleDays")} />)}
       </div>}
-      {tab === "auto" && <div style={{ ...S.card, maxWidth: 560 }}>{[["reviewDraft", "مسودة المراجعة الأسبوعية تلقائياً"], ["dueReminders", "تنبيهات اقتراب الاستحقاق"], ["overdueDigest", "ملخص المتأخر"], ["healthAlerts", "تنبيه تغيّر صحة المشاريع"], ["staleInbox", "تنبيه الوارد القديم"], ["krCheckin", "تذكير Check-in أسبوعي للنتائج الرئيسية"], ["timerLong", "تنبيه المؤقّت الطويل"], ["winSuggest", "اقتراح إنجازات من المهام المكتملة"], ["pioSuggest", "اقتراح عناصر اكتشاف"]].map(([k, l]) => <label key={k} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", fontSize: 13 }}><input disabled={dis} type="checkbox" checked={(s.automations || {})[k] !== false} onChange={(e) => setS({ ...s, automations: { ...(s.automations || {}), [k]: e.target.checked } })} />{l}</label>)}<div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>التنبيهات تظهر داخل التطبيق (اليوم + الجرس). إرسال Push/إيميل والتطبيق مغلق يُضاف لاحقاً.</div></div>}
+      {tab === "auto" && <div style={{ ...S.card, maxWidth: 560 }}>{[["reviewDraft", "مسودة المراجعة الأسبوعية تلقائياً"], ["dueReminders", "تنبيهات اقتراب الاستحقاق"], ["overdueDigest", "ملخص المتأخر"], ["healthAlerts", "تنبيه تغيّر صحة المشاريع"], ["staleInbox", "تنبيه الوارد القديم"], ["krCheckin", "تذكير Check-in أسبوعي للنتائج الرئيسية"], ["timerLong", "تنبيه المؤقّت الطويل"], ["prdReview", "طلبات مراجعة واعتماد المواصفات"], ["outputReview", "طلبات مراجعة المخرجات"], ["updateDue", "تذكير بموعد تحديث المشروع"], ["governanceAlerts", "تنبيهات المخاطر العالية المسندة إليك"], ["winSuggest", "اقتراح إنجازات من المهام المكتملة"]].map(([k, l]) => <label key={k} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", fontSize: 13 }}><input disabled={dis} type="checkbox" checked={(s.automations || {})[k] !== false} onChange={(e) => setS({ ...s, automations: { ...(s.automations || {}), [k]: e.target.checked } })} />{l}</label>)}<div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>التنبيهات الحالية تظهر داخل التطبيق وتُحترم صلاحيات السجل عند فتحه. Push/Email وInbox مركزي أثناء إغلاق التطبيق يعتمدان على خدمة Platform Notification؛ لا يتم تفعيلهما محليًا بشكل مضلل.</div></div>}
       {tab === "lookups" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}>{Object.keys(DEFAULT_LOOKUPS).map((k) => <div key={k} style={S.card}><b style={{ fontSize: 13 }}>{LOOKUP_LABEL[k]}</b><div style={{ margin: "8px 0", display: "flex", gap: 5, flexWrap: "wrap" }}>{lk[k].map((v) => <Chip key={v}>{v}{admin && <button onClick={() => setLk({ ...lk, [k]: lk[k].filter((x) => x !== v) })} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", padding: 0 }}>×</button>}</Chip>)}</div>{admin && <input style={S.inp} placeholder="أضف قيمة ثم Enter" onKeyDown={(e) => { if (e.key === "Enter" && e.target.value.trim()) { setLk({ ...lk, [k]: [...lk[k], e.target.value.trim()] }); e.target.value = ""; } }} />}</div>)}</div>}
       {tab === "trash" && (!trash.length ? <Empty icon="🗑" title="السلة فارغة" /> : <div style={{ ...S.card, padding: "4px 14px" }}>{trash.sort((a, b) => (b.rec.deleted_at || "").localeCompare(a.rec.deleted_at || "")).map(({ coll, rec }) => <div key={coll + rec.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${C.line}`, fontSize: 13 }}><Chip>{coll}</Chip><span style={{ flex: 1 }}>{rec.name || rec.title || rec.id}</span><span style={{ fontSize: 11, color: C.muted }}>{fmt((rec.deleted_at || "").slice(0, 10))}</span>{role !== "Viewer" && <Btn small onClick={() => act.restoreTrashRecord(coll, rec)}>♻️ استرجاع</Btn>}{coll === "projects" && role === "Owner" && <Btn small kind="danger" onClick={() => act.permanentlyDeleteProject(rec)}>حذف نهائي</Btn>}</div>)}</div>)}
       {tab === "data" && <div style={{ ...S.card, maxWidth: 560, fontSize: 13, lineHeight: 2 }}>تصدير كل بيانات Projects OS بصيغة JSON.<div style={{ marginTop: 8 }}><Btn onClick={exportJson}>⬇ تصدير JSON</Btn></div></div>}

@@ -3,7 +3,7 @@
 export async function persistTaskTreeMove({ taskPatches, outputPatches, put, putAtomic }) {
   const changes = [
     ...(taskPatches || []).map(({ before, after }) => ({ collection: "tasks", before, after })),
-    ...(outputPatches || []).map(({ before, after }) => ({ collection: "outputs", before, after })),
+    ...(outputPatches || []).map(({ before, after, collection }) => ({ collection: collection || "outputs", before, after })),
   ];
   if (typeof putAtomic === "function") {
     await putAtomic(changes.map(({ collection, after }) => ({ coll: collection, rec: after })));

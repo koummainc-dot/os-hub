@@ -32,4 +32,22 @@ assert.match(trashMigration, /collection_name not in \('tasks','outputs','projec
 assert.match(trashMigration, /security invoker/i);
 assert.match(trashMigration, /auth\.uid\(\) is null/i);
 assert.match(trashMigration, /ws_access_level\(p_workspace_id, 'projects', collection_name\) is distinct from 'edit'/i);
+
+const moveStart = store.indexOf("    async moveTree(taskId, targetProjectId) {");
+const moveEnd = store.indexOf("    async completeAll(taskId)", moveStart);
+const moveBody = store.slice(moveStart, moveEnd);
+assert.ok(moveBody.includes('patchIds("wins", sourceWins, ["task_ids"]') &&
+  moveBody.includes('patchTaskId("wins", sourceWins, "task_id"'),
+  "Move Task/Tree must clear both array and singular Win task backlinks");
+assert.ok(moveBody.includes('update.status !== "Published"') &&
+  moveBody.includes('patchIds("updates", sourceDraftUpdates, ["completed_task_ids", "delayed_task_ids", "next_task_ids", "related_task_ids"]'),
+  "Move Task/Tree must update task references in Draft Updates but preserve published historical snapshots");
+assert.ok(moveBody.includes('can("win.write", sourceProject)') && moveBody.includes('can("update.write", sourceProject)'),
+  "Move Task/Tree must require write permission for every source record whose links it changes");
+assert.ok(records.includes('"updates", "wins", "discovery"'),
+  "the shared atomic repository must allow Wins in a multi-record Task Tree move");
+assert.ok((await readFile(new URL("../supabase/migrations/20261114267000_projects_atomic_move_win_links.sql", import.meta.url), "utf8"))
+  .includes("'updates','wins','discovery'"),
+  "the canonical database batch writer must authorize Wins atomically");
+
 console.log("Projects atomic task-tree move contract tests passed.");

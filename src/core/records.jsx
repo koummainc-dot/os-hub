@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useReducer } from "react";
 import { supabase, SUPABASE_SDK_FAILED } from "./supabase.js";
-import { canReplayQueuedWrite } from "./recordQueue.js";
+import { canReplayQueuedWrite, rebaseQueuedTaskEdit } from "./recordQueue.js";
 
 // ════════════════════════════════════════════════════════════════════
 // Record store — the data layer for every system that stores one row per entity
@@ -43,9 +43,35 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
   const readQueue = () => {
     try { const raw = typeof localStorage !== "undefined" ? localStorage.getItem(queueKey) : null; return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
   };
+  const [queueItems, setQueueItems] = useState(() => readQueue());
   const writeQueue = (items) => {
     queued.current = items;
+    setQueueItems(items);
     try { if (typeof localStorage !== "undefined") { if (items.length) localStorage.setItem(queueKey, JSON.stringify(items)); else localStorage.removeItem(queueKey); } } catch (e) { toast("⚠️ تعذّر حفظ قائمة المزامنة على هذا الجهاز؛ لا تغلق الصفحة قبل عودة الاتصال."); }
+  };
+  useEffect(() => { setQueueItems(readQueue()); }, [queueKey]);
+  const canQueueOfflineWrite = (coll, rec, prev) => {
+    if (systemId !== "projects") return true;
+    if (coll !== "tasks" || !prev || !rec?.id || rec.id !== prev.id) return false;
+    const internal = new Set(["id", "v", "updated_at", "created_at", "created_by", "updated_by_member", "_vis", "_deleted", "_syncPending"]);
+    const changed = [...new Set([...Object.keys(prev || {}), ...Object.keys(rec || {})])].filter((field) => !internal.has(field) && JSON.stringify(prev?.[field]) !== JSON.stringify(rec?.[field]));
+    const allowed = new Set(["title", "description", "priority", "due_date", "assignee_id", "planning_bucket"]);
+    return changed.length > 0 && changed.every((field) => allowed.has(field));
+  };
+  const discardQueuedWrite = (coll, id) => {
+    const currentItems = readQueue();
+    const removed = currentItems.find((item) => item.coll === coll && item.rec?.id === id);
+    const remaining = currentItems.filter((item) => !(item.coll === coll && item.rec?.id === id));
+    writeQueue(remaining);
+    if (removed) {
+      const serverRecord = removed.serverRec || removed.baseRec;
+      if (serverRecord && !serverRecord._deleted && !serverRecord.deleted_at) {
+        dispatch({ type: "put", coll, rec: { ...serverRecord, _syncPending: false } });
+      } else {
+        dispatch({ type: "drop", coll, id });
+      }
+    }
+    return remaining.length;
   };
   const isNetworkFailure = (e) => {
     const msg = String((e && (e.message || e.details)) || e || "").toLowerCase();
@@ -165,9 +191,14 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
       } catch (e) {
         console.error("record save failed", e);
         if (!fromQueue && allowQueue && isNetworkFailure(e)) {
+          if (!canQueueOfflineWrite(coll, rec, prev)) {
+            if (prev) dispatch({ type: "put", coll, rec: prev }); else dispatch({ type: "drop", coll, id: rec.id });
+            toast("📴 هذا النوع من التغيير غير مدعوم دون اتصال؛ لم يُحفظ محليًا. أعد المحاولة عند عودة الاتصال.");
+            return false;
+          }
           const items = readQueue();
           const existing = items.findIndex((x) => x.coll === coll && x.rec.id === rec.id);
-          const item = { coll, rec: { ...rec, _syncPending: true }, baseTs: meta.current[k] || null, queuedAt: nowIso() };
+          const item = { coll, rec: { ...rec, _syncPending: true }, baseTs: meta.current[k] || null, baseRec: prev ? { ...prev } : null, queuedAt: nowIso() };
           if (existing >= 0) items[existing] = { ...items[existing], rec: item.rec };
           else items.push(item);
           writeQueue(items);
@@ -204,7 +235,29 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
         const k = key(item.coll, item.rec.id);
         const currentTs = meta.current[k] || null;
         if (!canReplayQueuedWrite(currentTs, item.baseTs)) {
-          remaining.push({ ...item, conflict: true });
+          let serverRec = null;
+          let serverUpdatedAt = null;
+          let conflictReason = "version-changed";
+          try {
+            const { data, error } = await supabase.from("workspace_records")
+              .select("data,deleted,updated_at,visible_to")
+              .eq("workspace_id", wsId).eq("system_id", systemId)
+              .eq("collection", item.coll).eq("id", item.rec.id).maybeSingle();
+            if (error) throw error;
+            if (data) {
+              serverRec = toRec({ ...data, id: item.rec.id });
+              serverUpdatedAt = data.updated_at;
+              meta.current[k] = data.updated_at;
+              conflictReason = data.deleted || serverRec.deleted_at ? "deleted-on-server" : "version-changed";
+            } else {
+              conflictReason = "missing-on-server";
+              delete meta.current[k];
+            }
+          } catch (error) {
+            conflictReason = "server-read-failed";
+            console.warn("offline conflict snapshot failed", error);
+          }
+          remaining.push({ ...item, conflict: true, conflictReason, serverRec, serverUpdatedAt });
           continue;
         }
         const rec = { ...item.rec }; delete rec._syncPending;
@@ -221,6 +274,37 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
       if (remaining.some((x) => x.conflict)) toast("⚠️ توجد تعديلات محلية تعارضت مع نسخة الخادم. احتفظنا بها ولم نستبدل بيانات الخادم؛ راجعها قبل إعادة المحاولة.");
     } finally { replaying.current = false; }
   }, [isDemo, persist, toast, wsId, systemId, loadAll]);
+
+  const rebaseQueuedWrite = (coll, id) => {
+    const items = readQueue();
+    const index = items.findIndex((item) => item.coll === coll && item.rec?.id === id);
+    if (index < 0) return { ok: false, reason: "queued-item-not-found" };
+    const item = items[index];
+    if (!item.conflict || !item.serverRec || !item.serverUpdatedAt || item.serverRec._deleted || item.serverRec.deleted_at) {
+      return { ok: false, reason: item.conflictReason || "conflict-snapshot-unavailable" };
+    }
+    const result = rebaseQueuedTaskEdit({
+      baseRecord: item.baseRec,
+      localRecord: item.rec,
+      serverRecord: item.serverRec
+    });
+    if (!result.ok) return result;
+    const nextRec = { ...result.record, _syncPending: true };
+    items[index] = {
+      ...item,
+      rec: nextRec,
+      baseRec: { ...item.serverRec },
+      baseTs: item.serverUpdatedAt,
+      conflict: false,
+      conflictReason: null,
+      serverRec: null,
+      serverUpdatedAt: null
+    };
+    meta.current[key(coll, id)] = item.serverUpdatedAt;
+    writeQueue(items);
+    dispatch({ type: "put", coll, rec: nextRec });
+    return { ok: true, changedFields: result.changedFields };
+  };
 
   useEffect(() => {
     if (isDemo) return;
@@ -280,7 +364,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     }
     const seen = new Set();
     const prepared = ops.map(({ coll, rec }) => {
-      if (!["tasks", "outputs", "projects", "risks", "issues", "decisions", "prds", "updates", "discovery"].includes(coll) || !rec?.id) throw new Error("تحتوي العملية على سجل غير صالح للحفظ الجماعي.");
+      if (!["tasks", "milestones", "outputs", "projects", "risks", "issues", "decisions", "krs", "prds", "updates", "wins", "discovery"].includes(coll) || !rec?.id) throw new Error("تحتوي العملية على سجل غير صالح للحفظ الجماعي.");
       const k = key(coll, rec.id);
       if (seen.has(k)) throw new Error("تحتوي العملية على سجل مكرر؛ لم يتم حفظ أي تغيير.");
       seen.add(k);
@@ -349,7 +433,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     }
     const seen = new Set();
     const changes = ops.map(({ coll, rec }) => {
-      if (!["tasks", "outputs", "projects", "risks", "issues", "decisions", "prds", "updates"].includes(coll) || !rec?.id) {
+      if (!["tasks", "milestones", "outputs", "projects", "risks", "issues", "decisions", "prds", "updates"].includes(coll) || !rec?.id) {
         throw new Error("تحتوي عملية الحذف النهائي على سجل غير مسموح.");
       }
       const k = key(coll, rec.id);
@@ -367,7 +451,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     if (changes.filter((x) => x.collection === "projects").length !== 1) throw new Error("يجب أن تحتوي العملية على المشروع مرة واحدة بالضبط.");
     dispatch({ type: "pending", d: 1 });
     try {
-      const { data, error } = await supabase.rpc("projects_purge_records_batch", {
+      const { data, error } = await supabase.rpc("projects_purge_records_batch_v2", {
         p_workspace_id: wsId, p_project_id: projectId, p_deleted_at: deletedAt, p_deleted_by: deletedBy || null, p_changes: changes,
       });
       if (error) throw error;
@@ -471,7 +555,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
   }, [isDemo, systemId, wsId, demoStore, loadAll, toast]);
 
   const api = useMemo(() => ({ put, putStrict, putAtomic, putBatchAtomic, purgeAtomic, softDelete, restore, putMany, reload: loadAll, sync: syncSince, flushQueue }), [put, putStrict, putAtomic, putBatchAtomic, purgeAtomic, softDelete, restore, putMany, loadAll, syncSince, flushQueue]);
-  return { ...state, api };
+  return { ...state, api, queueItems, discardQueuedWrite, rebaseQueuedWrite };
 }
 
 export function stripMeta(rec) {

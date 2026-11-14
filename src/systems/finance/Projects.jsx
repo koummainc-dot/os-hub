@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { supabase } from "../../core/supabase.js";
 
 const GREEN="#059669",INK="#17211D",MUTED="#718078",LINE="#E4EBE6",BG="#F5F8F5";
@@ -15,62 +15,138 @@ function Btn({children,secondary=false,...props}){return <button {...props} styl
 function Card({children,style={}}){return <div style={{background:"#fff",border:"1px solid "+LINE,borderRadius:14,padding:15,...style}}>{children}</div>}
 function Metric({label,value,detail}){return <div style={{background:BG,border:"1px solid "+LINE,borderRadius:10,padding:11,minWidth:0}}><div style={{fontSize:11,color:MUTED,marginBottom:5}}>{label}</div><b style={{fontSize:16,overflowWrap:"anywhere"}}>{value}</b>{detail&&<div style={{fontSize:10,color:MUTED,marginTop:4}}>{detail}</div>}</div>}
 
-export default function FinanceProjects({ws,access,isDemo=false,currencies=[]}){
- const [projects,setProjects]=useState([]),[sourceProjects,setSourceProjects]=useState([]),[transactions,setTransactions]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
+export default function FinanceProjects({ws,access,isDemo=false,currencies=[],initialProjectRef=null,initialBudget=null,initialCurrency=null,initialBudgetUpdatedAt=null,onCreateTransaction=null}){
+ const [projects,setProjects]=useState([]),[sourceProjects,setSourceProjects]=useState([]),[transactions,setTransactions]=useState([]),[primaryProfiles,setPrimaryProfiles]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
  const [error,setError]=useState(""),[notice,setNotice]=useState(""),[showForm,setShowForm]=useState(false),[editingId,setEditingId]=useState(null),[selectedId,setSelectedId]=useState(null);
+ const [syncMeta,setSyncMeta]=useState(null),[syncStatus,setSyncStatus]=useState("loading");
+ const lastGoodSync=useRef(null);
  const [form,setForm]=useState(emptyForm()),[linkTxId,setLinkTxId]=useState("");
+ const [budgetHandoff,setBudgetHandoff]=useState(null);
+ const [handledInitialProjectRef,setHandledInitialProjectRef]=useState("");
  const canEdit=!isDemo&&(access?.level==="edit"||access?.manage||access?.owner);
  const load=useCallback(async()=>{
   if(!ws?.id||isDemo){setLoading(false);return;}
-  setLoading(true);setError("");
+  setLoading(true);setError("");setSyncStatus(lastGoodSync.current?"syncing":"loading");
   try{
-   const [p,t,os]=await Promise.all([
-    supabase.rpc("fin_projects_get",{p_ws:ws.id}),
+   const [p,t,os,primary]=await Promise.all([
+    supabase.rpc("fin_projects_sync_get",{p_ws:ws.id}),
     supabase.from("finance_transactions").select("id,name,type,amount,currency,local_date,status,pnl_effect,base_missing").eq("workspace_id",ws.id).eq("status","Posted").in("type",["Income","Expense"]).order("local_date",{ascending:false}).limit(300),
-    supabase.from("workspace_records").select("id,data,deleted,updated_at").eq("workspace_id",ws.id).eq("system_id","projects").eq("collection","projects").eq("deleted",false).order("updated_at",{ascending:false}).limit(500)
+    supabase.from("workspace_records").select("id,data,deleted,updated_at").eq("workspace_id",ws.id).eq("system_id","projects").eq("collection","projects").eq("deleted",false).order("updated_at",{ascending:false}).limit(500),
+    supabase.rpc("fin_project_primary_list",{p_ws:ws.id})
    ]);
    if(p.error)throw p.error;
-   setProjects(Array.isArray(p.data)?p.data:[]);
+   const readModel=p.data||{};
+   const rows=Array.isArray(readModel.projects)?readModel.projects:[];
+   const meta={as_of:readModel.as_of||null,last_synced_at:readModel.last_synced_at||null,sync_status:readModel.sync_status||"fresh"};
+   lastGoodSync.current=meta;setSyncMeta(meta);setSyncStatus("fresh");
+   setProjects(rows);
+   if(!primary.error)setPrimaryProfiles(Array.isArray(primary.data)?primary.data:[]);
    setSourceProjects(os.error?[]:(os.data||[]).filter(r=>!r.deleted&&!r.data?.is_system).map(r=>({id:r.id,name:r.data?.name||r.data?.title||"",type:r.data?.type||"Other",status:r.data?.status||"Planning",currency:r.data?.budget_currency||r.data?.currency||""})).filter(r=>r.name));
    if(t.error){setTransactions([]);setError("تم تحميل المشاريع، لكن تعذّر تحميل قائمة الحركات لربطها: "+t.error.message);}
    else if(os.error){setTransactions(t.data||[]);setError("تعذّر قراءة مشاريع Projects OS. تأكد من صلاحية الوصول إلى قسم المشاريع قبل إعداد الملف المالي.");}
    else setTransactions(t.data||[]);
-  }catch(e){setError(e?.message||"تعذّر تحميل المشاريع المالية");}
+  }catch(e){
+   const message=e?.message||"تعذّر تحميل المشاريع المالية";
+   const permissionDenied=e?.code==="P0001"&&/FORBIDDEN|UNAUTHENTICATED/i.test(String(message));
+   setError(message);
+   if(permissionDenied){
+    // Finance data is permission-sensitive: a revoked read permission invalidates
+    // the cached snapshot and must never be rendered as merely stale.
+    lastGoodSync.current=null;setSyncMeta(null);setProjects([]);setTransactions([]);setPrimaryProfiles([]);setSyncStatus("permission");
+   }else{
+    setSyncStatus(lastGoodSync.current?"stale":"error");
+    if(lastGoodSync.current)setSyncMeta(lastGoodSync.current);
+   }
+  }
   finally{setLoading(false);}
  },[ws?.id,isDemo]);
  useEffect(()=>{load();},[load]);
+ useEffect(()=>{
+  const ref=String(initialProjectRef||"");
+  if(!ref||loading||handledInitialProjectRef===ref)return;
+  const linkedProfiles=projects.filter(p=>String(p.project_ref||"")===ref);
+  if(linkedProfiles.length===1){
+   setSelectedId(linkedProfiles[0].id);
+   setShowForm(false);
+   setNotice("تم فتح الملف المالي المرتبط بالمشروع.");
+  }else if(linkedProfiles.length>1){
+   setBudgetHandoff(null);
+   const primary=primaryProfiles.find(row=>String(row.project_ref)===ref);
+   const primaryProfile=primary&&linkedProfiles.find(profile=>String(profile.id)===String(primary.finance_project_id));
+   if(primaryProfile){
+    setSelectedId(primaryProfile.id);
+    setShowForm(false);
+    setNotice("تم فتح الملف المالي الأساسي المحدد صراحةً لهذا المشروع.");
+   }else{
+    setSelectedId(null);
+    setShowForm(false);
+    setNotice(primary?"تعيين الملف الأساسي يشير إلى ملف غير موجود؛ اختر ملفًا صالحًا وأعد تعيينه.":"يوجد أكثر من ملف مالي مرتبط بالمشروع نفسه دون ملف أساسي محدد؛ اختر الملف المقصود ثم عيّنه كملف أساسي.");
+   }
+  }else{
+   const source=sourceProjects.find(p=>String(p.id)===ref);
+   if(source&&canEdit){
+    const suggestedCurrency=String(initialCurrency||source.currency||"EGP");
+    const currencyAvailable=currencies.some(c=>c.currency===suggestedCurrency&&c.is_active);
+    const canHandoff=initialBudget!==null&&initialBudget!==undefined&&initialBudget!==""&&currencyAvailable;
+    const currency=canHandoff?suggestedCurrency:(source.currency&&currencies.some(c=>c.currency===source.currency&&c.is_active)?source.currency:(currencies.find(c=>c.is_active)?.currency||"EGP"));
+    setEditingId(null);
+    setBudgetHandoff(canHandoff?{value:String(initialBudget),currency:suggestedCurrency,sourceUpdatedAt:initialBudgetUpdatedAt||null,confirmed:false}:initialBudget!==null&&initialBudget!==undefined&&initialBudget!==""?{value:String(initialBudget),currency:suggestedCurrency,sourceUpdatedAt:initialBudgetUpdatedAt||null,blocked:true,confirmed:false}:null);
+    setForm({...emptyForm(),name:source.name,project_ref:ref,currency,budget:canHandoff?String(initialBudget):""});
+    setShowForm(true);
+    setNotice(canHandoff?"تم تمرير الميزانية المخططة كاقتراح أولي فقط؛ يجب تأكيد نسخها هنا داخل Finance. لا توجد مزامنة لاحقة.":"تم تمرير المشروع من Projects OS. أكمل إعداد الملف المالي هنا. لم تُنقل الميزانية تلقائيًا لعدم تطابق العملة أو عدم توفر قيمة صالحة.");
+   }else if(!source){
+    setError("تعذّر العثور على المشروع المصدر أو قراءته من Projects OS؛ لم يتم إنشاء أو تعديل أي سجل مالي.");
+   }
+  }
+  setHandledInitialProjectRef(ref);
+ },[initialProjectRef,loading,handledInitialProjectRef,projects,sourceProjects,canEdit,currencies,initialBudget,initialCurrency,initialBudgetUpdatedAt,primaryProfiles]);
  const sourceProjectById=useMemo(()=>new Map(sourceProjects.map(p=>[p.id,p])),[sourceProjects]);
  const displayProjectName=(p)=>sourceProjectById.get(p.project_ref)?.name||p.name;
- const selected=projects.find(p=>p.id===selectedId)||projects[0]||null;
+ const selected=selectedId?projects.find(p=>p.id===selectedId)||null:projects.length===1?projects[0]:null;
+ const selectedIsPrimary=!!selected&&primaryProfiles.some(row=>row.project_ref===selected.project_ref&&row.finance_project_id===selected.id);
  const linkedIds=useMemo(()=>new Set(projects.flatMap(p=>(p.transactions||[]).map(t=>t.id))),[projects]);
  const availableTransactions=transactions.filter(t=>!linkedIds.has(t.id));
  function startCreate(){
+  setBudgetHandoff(null);
   if(!sourceProjects.length){setError("لا يمكن إنشاء مشروع من الماليات. أنشئ المشروع أولًا في قسم Projects OS ثم ارجع هنا لإعداد ملفه المالي.");return;}
   setEditingId(null);setForm({...emptyForm(),name:"",project_ref:"",currency:currencies.find(c=>c.is_active)?.currency||"EGP"});setShowForm(true);setError("");
  }
- function startEdit(p){setEditingId(p.id);setForm({name:p.name||"",project_type:p.project_type||"Other",budget:p.budget??"",currency:p.currency||"EGP",start_date:p.start_date||today(),end_date:p.end_date||"",status:p.status||"Planning",scope:p.scope||"Personal",project_ref:p.project_ref||"",area_ref:p.area_ref||"",roi_basis:p.roi_basis||"ExpensesLinked",invested_capital:p.invested_capital??"",notes:p.notes||""});setShowForm(true);setError("");}
- async function save(e){e.preventDefault();if(!canEdit||saving)return;const sourceProject=sourceProjectById.get(form.project_ref);if(!sourceProject){setError("اختر مشروعًا موجودًا من Projects OS؛ لا يتم إنشاء المشاريع من قسم الماليات.");return;}if(form.roi_basis==="DeclaredCapital"&&!(Number(form.invested_capital)>0)){setError("أدخل رأس المال المستثمر لحساب ROI بهذه الطريقة.");return;}
+ function startEdit(p){setBudgetHandoff(null);setEditingId(p.id);setForm({name:p.name||"",project_type:p.project_type||"Other",budget:p.budget??"",currency:p.currency||"EGP",start_date:p.start_date||today(),end_date:p.end_date||"",status:p.status||"Planning",scope:p.scope||"Personal",project_ref:p.project_ref||"",area_ref:p.area_ref||"",roi_basis:p.roi_basis||"ExpensesLinked",invested_capital:p.invested_capital??"",notes:p.notes||""});setShowForm(true);setError("");}
+ async function save(e){e.preventDefault();if(!canEdit||saving)return;if(budgetHandoff&&!budgetHandoff.blocked&&form.budget!==""&&!budgetHandoff.confirmed){setError("أكد صراحةً نقل الميزانية المقترحة من Projects OS إلى Finance، أو امسح قيمة الميزانية قبل الحفظ.");return;}const sourceProject=sourceProjectById.get(form.project_ref);if(!sourceProject){setError("اختر مشروعًا موجودًا من Projects OS؛ لا يتم إنشاء المشاريع من قسم الماليات.");return;}if(form.roi_basis==="DeclaredCapital"&&!(Number(form.invested_capital)>0)){setError("أدخل رأس المال المستثمر لحساب ROI بهذه الطريقة.");return;}
   const sourceType=String(sourceProject.type||"").toLowerCase();
   const projectType=sourceType.includes("content")||sourceType.includes("محتوى")?"Content":sourceType.includes("freelance")||sourceType.includes("عمل حر")?"Freelance":sourceType.includes("startup")||sourceType.includes("شركة")?"Startup":sourceType.includes("investment")||sourceType.includes("استثمار")?"Investment":"Other";
   const sourceStatus=String(sourceProject.status||"").toLowerCase();
   const projectStatus=sourceStatus.includes("progress")||sourceStatus==="active"||sourceStatus==="in progress"?"Active":sourceStatus.includes("hold")?"On Hold":sourceStatus.includes("completed")||sourceStatus.includes("مكتمل")?"Completed":sourceStatus.includes("cancel")||sourceStatus.includes("ملغي")?"Cancelled":"Planning";
   setSaving(true);setError("");try{const p={workspace_id:ws.id,...form,id:editingId||undefined,name:sourceProject.name,project_type:projectType,status:projectStatus,budget:form.budget===""?null:String(form.budget),invested_capital:form.invested_capital===""?null:String(form.invested_capital),end_date:form.end_date||null,project_ref:sourceProject.id,area_ref:form.area_ref||null,notes:form.notes||null};
-   const {data,error:err}=await supabase.rpc("fin_project_save",{p});if(err)throw err;setNotice(editingId?"تم تحديث الملف المالي.":"تم إعداد الملف المالي وربطه بمشروع Projects OS.");setSelectedId(data?.id||editingId);setShowForm(false);await load();
+   const {data,error:err}=await supabase.rpc("fin_project_save",{p});if(err)throw err;setNotice(editingId?"تم تحديث الملف المالي.":"تم إعداد الملف المالي وربطه بمشروع Projects OS.");setSelectedId(data?.id||editingId);setShowForm(false);setBudgetHandoff(null);await load();
   }catch(e){setError(e?.message||"تعذّر حفظ المشروع.");}finally{setSaving(false);}}
+ async function setPrimaryProfile(profile){
+  if(!canEdit||saving||!profile?.id||!profile.project_ref)return;
+  setSaving(true);setError("");try{
+   const {data,error:err}=await supabase.rpc("fin_project_primary_set",{p:{workspace_id:ws.id,project_ref:profile.project_ref,finance_project_id:profile.id}});
+   if(err)throw err;
+   setNotice("تم تعيين الملف المالي الأساسي لهذا المشروع. يمكن أن تبقى الملفات الأخرى موجودة دون اختيار تلقائي.");
+   await load();
+  }catch(e){setError(e?.message||"تعذّر تعيين الملف المالي الأساسي.");}
+  finally{setSaving(false);}
+ }
  async function linkTransaction(e){e.preventDefault();if(!canEdit||saving||!selected||!linkTxId)return;setSaving(true);setError("");try{const {error:err}=await supabase.rpc("fin_project_transaction_link",{p:{workspace_id:ws.id,project_id:selected.id,transaction_id:linkTxId}});if(err)throw err;setLinkTxId("");setNotice("تم ربط الحركة بالمشروع؛ لم يتم إنشاء حركة مالية جديدة.");await load();}catch(e){setError(e?.message||"تعذّر ربط الحركة.");}finally{setSaving(false);}}
  async function unlinkTransaction(id){if(!canEdit||saving||!selected)return;setSaving(true);setError("");try{const {error:err}=await supabase.rpc("fin_project_transaction_unlink",{p:{workspace_id:ws.id,project_id:selected.id,transaction_id:id}});if(err)throw err;setNotice("تم فك ارتباط الحركة بالمشروع دون حذفها من الدفتر.");await load();}catch(e){setError(e?.message||"تعذّر فك الارتباط.");}finally{setSaving(false);}}
  if(isDemo)return <Card><h3 style={{marginTop:0}}>المشاريع المالية</h3><p style={{color:"#92400E",fontSize:13}}>وضع العرض التجريبي للقراءة فقط.</p></Card>;
  return <div style={{display:"grid",gap:14,direction:"rtl"}}>
   {notice&&<div role="status" style={{background:"#ECFDF3",color:"#067647",padding:11,borderRadius:10,fontSize:12}}>{notice}</div>}
+  {syncStatus==="permission"&&<div role="alert" style={{background:"#FEF3F2",color:"#B42318",padding:11,borderRadius:10,fontSize:12}}>تم إيقاف عرض البيانات المالية لأن صلاحية القراءة لم تعد متاحة لهذا الحساب. {error}</div>}
+  {syncStatus==="stale"&&<div role="status" style={{background:"#FFFAEB",color:"#7A2E0E",border:"1px solid #FEDF89",padding:11,borderRadius:10,fontSize:12,lineHeight:1.8}}>تعذرت المزامنة الحالية. نحتفظ بآخر قراءة سليمة من Finance ولا نعرض أصفارًا بديلة. {error}<br/>آخر مزامنة ناجحة: {syncMeta?.last_synced_at?new Date(syncMeta.last_synced_at).toLocaleString("ar-EG"):"غير متاحة"} · As of: {syncMeta?.as_of?new Date(syncMeta.as_of).toLocaleString("ar-EG"):"غير متاح"}</div>}
+  {syncStatus==="fresh"&&syncMeta&&<div style={{fontSize:10.5,color:MUTED}}>Finance Sync: Fresh · آخر مزامنة {syncMeta.last_synced_at?new Date(syncMeta.last_synced_at).toLocaleString("ar-EG"):"—"} · As of {syncMeta.as_of?new Date(syncMeta.as_of).toLocaleString("ar-EG"):"—"}</div>}
   {error&&<div role="alert" style={{background:"#FEF3F2",color:"#B42318",padding:11,borderRadius:10,fontSize:12}}>{error}<button onClick={()=>setError("")} style={{float:"left",border:0,background:"transparent",cursor:"pointer"}}>×</button></div>}
   <Card><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",flexWrap:"wrap"}}><div><h3 style={{margin:0}}>المشاريع المالية</h3><p style={{margin:"6px 0 0",color:MUTED,fontSize:12,lineHeight:1.8}}>عدسة مالية مستقلة لكل مشروع، مرتبطة بدفتر الحركات دون إنشاء دفتر منفصل أو تكرار المعاملات.</p></div><div style={{display:"flex",gap:8}}><Btn secondary onClick={load} disabled={loading}>↻ تحديث</Btn>{canEdit&&<Btn disabled={!sourceProjects.length} onClick={startCreate}>＋ إعداد مالي لمشروع</Btn>}</div></div>
    {loading?<p style={{textAlign:"center",color:MUTED,padding:20}}>جارٍ تحميل المشاريع…</p>:!projects.length?<div style={{textAlign:"center",padding:30,color:MUTED}}><div style={{fontSize:28}}>📁</div><b>لا توجد ملفات مالية للمشاريع بعد</b><p style={{fontSize:12}}>إنشاء المشروع الأساسي يتم من قسم Projects OS. بعد إنشائه، ارجع هنا لإعداد ميزانيته وربط حركات الدخل والمصروف الموجودة بالفعل.</p>{canEdit&&<Btn disabled={!sourceProjects.length} onClick={startCreate}>إعداد أول ملف مالي</Btn>}</div>:<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,280px),1fr))",gap:10,marginTop:15}}>{projects.map(p=><button key={p.id} onClick={()=>{setSelectedId(p.id);setShowForm(false);}} style={{textAlign:"right",fontFamily:"inherit",cursor:"pointer",background:selected?.id===p.id?"#F0FAF4":"#fff",border:"1px solid "+(selected?.id===p.id?"#86D3AE":LINE),borderRadius:12,padding:13,color:INK}}>
-    <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"start"}}><b>{displayProjectName(p)}</b><span style={{fontSize:10,background:p.status==="Active"?"#ECFDF3":"#F2F4F7",borderRadius:999,padding:"4px 7px",whiteSpace:"nowrap"}}>{STATUS_LABEL[p.status]||p.status}</span></div>
+    <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"start"}}><b>{displayProjectName(p)}</b><span style={{display:"flex",gap:5,alignItems:"center"}}>{primaryProfiles.some(row=>row.project_ref===p.project_ref&&row.finance_project_id===p.id)&&<span style={{fontSize:9,background:"#ECFDF3",color:"#067647",borderRadius:999,padding:"4px 7px"}}>أساسي</span>}<span style={{fontSize:10,background:p.status==="Active"?"#ECFDF3":"#F2F4F7",borderRadius:999,padding:"4px 7px",whiteSpace:"nowrap"}}>{STATUS_LABEL[p.status]||p.status}</span></span></div>
     <div style={{fontSize:11,color:MUTED,marginTop:5}}>{TYPE_LABEL[p.project_type]||p.project_type} · {p.scope==="Business"?"مشروع تجاري":"شخصي"} · {p.transactions?.length||0} حركة</div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12}}><Metric label="صافي الربح" value={money(p.net_profit_base,p.base_currency||"EGP")}/><Metric label="ROI" value={p.roi_measurable?Number(p.roi_pct).toLocaleString("ar-EG")+"%":"غير قابل للقياس"}/></div>
    </button>)}</div>}
   </Card>
-  {selected&&<Card><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"start",flexWrap:"wrap"}}><div><h3 style={{margin:0}}>{displayProjectName(selected)}</h3><p style={{fontSize:11,color:MUTED,margin:"5px 0 0"}}>{sourceProjectById.get(selected.project_ref)?"مرتبط بقسم Projects OS":"يتطلب ربطًا بمشروع من Projects OS"} · {TYPE_LABEL[selected.project_type]||selected.project_type} · {selected.start_date}{selected.end_date?" → "+selected.end_date:""} · {selected.scope==="Business"?"تجاري":"شخصي"}</p></div>{canEdit&&<Btn secondary onClick={()=>startEdit(selected)}>تعديل بيانات المشروع</Btn>}</div>
+  {selected&&<Card><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"start",flexWrap:"wrap"}}><div><h3 style={{margin:0}}>{displayProjectName(selected)}</h3><p style={{fontSize:11,color:MUTED,margin:"5px 0 0"}}>{sourceProjectById.get(selected.project_ref)?"مرتبط بقسم Projects OS":"يتطلب ربطًا بمشروع من Projects OS"} · {TYPE_LABEL[selected.project_type]||selected.project_type} · {selected.start_date}{selected.end_date?" → "+selected.end_date:""} · {selected.scope==="Business"?"تجاري":"شخصي"} · {selectedIsPrimary?"الملف الأساسي":"ملف غير أساسي"}</p></div>{canEdit&&<div style={{display:"flex",gap:7,flexWrap:"wrap"}}><Btn onClick={()=>onCreateTransaction?.(selected)}>＋ تسجيل حركة</Btn>{!selectedIsPrimary&&<Btn secondary disabled={saving} onClick={()=>setPrimaryProfile(selected)}>تعيين كملف أساسي</Btn>}<Btn secondary onClick={()=>startEdit(selected)}>تعديل بيانات المشروع</Btn></div>}</div>
    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:9,marginTop:14}}>
     <Metric label="إجمالي الإيرادات" value={money(selected.revenue_base,selected.base_currency||"EGP")} detail={"عملة الأساس: "+(selected.base_currency||"EGP")}/>
     <Metric label="إجمالي المصروفات" value={money(selected.expenses_base,selected.base_currency||"EGP")}/>
@@ -90,11 +166,14 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[]}){
    {canEdit&&<form onSubmit={linkTransaction} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",gap:8,marginTop:10}}><select style={input} value={linkTxId} onChange={e=>setLinkTxId(e.target.value)}><option value="">اختر حركة دخل/مصروف غير مرتبطة…</option>{availableTransactions.map(t=><option key={t.id} value={t.id}>{t.local_date} · {t.type==="Income"?"دخل":"مصروف"} · {t.name} · {money(t.amount,t.currency)}</option>)}</select><Btn type="submit" disabled={saving||!linkTxId}>ربط الحركة</Btn></form>}
    {!selected.transactions?.length?<p style={{color:MUTED,fontSize:12,padding:14,textAlign:"center"}}>لا توجد حركات مرتبطة بهذا المشروع حتى الآن.</p>:<div style={{overflowX:"auto",marginTop:10}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:500}}><thead><tr>{["التاريخ","الحركة","النوع","المبلغ","الحالة"].map(x=><th key={x} style={{textAlign:"right",padding:9,color:MUTED,fontSize:11,borderBottom:"1px solid "+LINE}}>{x}</th>)}{canEdit&&<th style={{borderBottom:"1px solid "+LINE}}/>}</tr></thead><tbody>{selected.transactions.map(t=><tr key={t.id}><td style={{padding:9,borderBottom:"1px solid #EEF2EF",fontSize:12}}>{t.local_date}</td><td style={{padding:9,borderBottom:"1px solid #EEF2EF",fontSize:12}}>{t.name}</td><td style={{padding:9,borderBottom:"1px solid #EEF2EF",fontSize:12}}>{t.type==="Income"?"دخل":"مصروف"}</td><td style={{padding:9,borderBottom:"1px solid #EEF2EF",fontSize:12}}>{money(t.amount,t.currency)}</td><td style={{padding:9,borderBottom:"1px solid #EEF2EF",fontSize:12}}>{t.base_missing?"غير مقيم":"مسجل"}</td>{canEdit&&<td style={{padding:9,borderBottom:"1px solid #EEF2EF"}}><Btn secondary disabled={saving} onClick={()=>unlinkTransaction(t.id)}>فك الارتباط</Btn></td>}</tr>)}</tbody></table></div>}
   </Card>}
-  {showForm&&<Card><h3 style={{marginTop:0}}>{editingId?"تعديل الملف المالي":"إعداد مالي لمشروع قائم"}</h3><p style={{fontSize:12,color:MUTED,lineHeight:1.8}}>هذه الشاشة لا تنشئ مشاريع. اختر مشروعًا من Projects OS؛ الاسم والحالة والنوع مصدرها قسم المشاريع الأساسي.</p><form onSubmit={save} style={{display:"grid",gap:12}}><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:12}}>
-   <Field label="المشروع الأساسي من Projects OS *"><select required style={input} value={form.project_ref} onChange={e=>{const source=sourceProjectById.get(e.target.value);setForm({...form,project_ref:e.target.value,name:source?.name||"",currency:source?.currency&&currencies.some(c=>c.currency===source.currency&&c.is_active)?source.currency:form.currency});}}><option value="">اختر مشروعًا قائمًا</option>{form.project_ref&&!sourceProjectById.has(form.project_ref)&&<option value={form.project_ref}>مرجع غير متاح — اختر مشروعًا آخر</option>}{sourceProjects.map(p=><option key={p.id} value={p.id}>{p.name} · {p.status}</option>)}</select></Field>
+  {showForm&&<Card><h3 style={{marginTop:0}}>{editingId?"تعديل الملف المالي":"إعداد مالي لمشروع قائم"}</h3><p style={{fontSize:12,color:MUTED,lineHeight:1.8}}>هذه الشاشة لا تنشئ مشاريع. اختر مشروعًا من Projects OS؛ الاسم والحالة والنوع مصدرها قسم المشاريع الأساسي.</p><form onSubmit={save} style={{display:"grid",gap:12}}>
+   {budgetHandoff&&!budgetHandoff.blocked&&<div style={{background:"#FFFAEB",border:"1px solid #FEDF89",borderRadius:10,padding:12,fontSize:12,lineHeight:1.8,color:"#7A2E0E"}}><b>اقتراح ميزانية من Projects OS</b><div>القيمة: {money(budgetHandoff.value,budgetHandoff.currency)}. هذه قيمة أولية وليست مزامنة تلقائية. بعد الحفظ تصبح Finance هي المالك الوحيد للميزانية.</div>{budgetHandoff.sourceUpdatedAt&&<div style={{fontSize:10.5}}>آخر تحديث للمصدر: {budgetHandoff.sourceUpdatedAt}</div>}<label style={{display:"flex",gap:7,alignItems:"start",marginTop:8,fontWeight:700}}><input type="checkbox" checked={!!budgetHandoff.confirmed} onChange={e=>setBudgetHandoff({...budgetHandoff,confirmed:e.target.checked})}/>أؤكد نسخ الميزانية المقترحة الحالية إلى ملف Finance مرة واحدة.</label></div>}
+   {budgetHandoff?.blocked&&<div role="status" style={{background:"#FEF3F2",border:"1px solid #FECDCA",borderRadius:10,padding:11,fontSize:12,color:"#B42318"}}>لم تُنقل الميزانية؛ عملة Projects ({budgetHandoff.currency}) غير متاحة/غير مطابقة في Finance. لا يوجد تحويل عملة تلقائي. أدخل ميزانية مستقلة يدويًا إن لزم.</div>}
+   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:12}}>
+   <Field label="المشروع الأساسي من Projects OS *"><select required style={input} value={form.project_ref} onChange={e=>{const source=sourceProjectById.get(e.target.value);if(e.target.value!==form.project_ref){setBudgetHandoff(null);setForm({...form,project_ref:e.target.value,name:source?.name||"",budget:"",currency:source?.currency&&currencies.some(c=>c.currency===source.currency&&c.is_active)?source.currency:form.currency});}else setForm({...form,project_ref:e.target.value,name:source?.name||""});}}><option value="">اختر مشروعًا قائمًا</option>{form.project_ref&&!sourceProjectById.has(form.project_ref)&&<option value={form.project_ref}>مرجع غير متاح — اختر مشروعًا آخر</option>}{sourceProjects.map(p=><option key={p.id} value={p.id}>{p.name} · {p.status}</option>)}</select></Field>
    <Field label="النطاق المالي"><select style={input} value={form.scope} onChange={e=>setForm({...form,scope:e.target.value})}><option value="Personal">شخصي</option><option value="Business">تجاري</option></select></Field>
-   <Field label="الميزانية"><input type="number" min="0" step="0.01" style={input} value={form.budget} onChange={e=>setForm({...form,budget:e.target.value})} placeholder="اختياري"/></Field>
-   <Field label="العملة"><select required style={input} value={form.currency} onChange={e=>setForm({...form,currency:e.target.value})}>{!currencies.some(c=>c.currency===form.currency)&&form.currency&&<option value={form.currency}>{form.currency} · العملة الحالية</option>}{currencies.filter(c=>c.is_active).map(c=><option key={c.currency} value={c.currency}>{c.currency} · {c.display_name}</option>)}</select></Field>
+   <Field label="الميزانية"><input type="number" min="0" step="0.01" style={input} value={form.budget} onChange={e=>{setForm({...form,budget:e.target.value});if(budgetHandoff&&!budgetHandoff.blocked&&e.target.value!==budgetHandoff.value)setBudgetHandoff({...budgetHandoff,confirmed:false});}} placeholder="اختياري"/></Field>
+   <Field label="العملة"><select required style={input} value={form.currency} onChange={e=>{const currency=e.target.value;if(budgetHandoff&&!budgetHandoff.blocked&&currency!==budgetHandoff.currency){setForm({...form,currency,budget:""});setBudgetHandoff({...budgetHandoff,blocked:true,confirmed:false});}else setForm({...form,currency});}}>{!currencies.some(c=>c.currency===form.currency)&&form.currency&&<option value={form.currency}>{form.currency} · العملة الحالية</option>}{currencies.filter(c=>c.is_active).map(c=><option key={c.currency} value={c.currency}>{c.currency} · {c.display_name}</option>)}</select></Field>
    <Field label="تاريخ البداية"><input required type="date" style={input} value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/></Field>
    <Field label="تاريخ النهاية"><input type="date" style={input} value={form.end_date} onChange={e=>setForm({...form,end_date:e.target.value})}/></Field>
    <Field label="أساس ROI"><select style={input} value={form.roi_basis} onChange={e=>setForm({...form,roi_basis:e.target.value})}><option value="ExpensesLinked">المصروفات المرتبطة</option><option value="DeclaredCapital">رأس مال معلن</option><option value="Disabled">تعطيل ROI</option></select></Field>

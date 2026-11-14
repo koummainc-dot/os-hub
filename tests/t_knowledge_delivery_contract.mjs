@@ -33,10 +33,16 @@ assert.ok(worker.includes('status: "sent"'));
 assert.ok(preview.includes("workspace_data"));
 assert.ok(preview.includes("pg_column_size(data)"));
 assert.ok(!/\b(insert\s+into\s+public\.workspace_data|\bdelete\s+from\s+public\.workspace_data|\bupdate\s+public\.workspace_data)/i.test(preview));
-assert.ok(projects.includes("source_meeting_id === meeting.id && Number(task.source_followup_index) === index"), "meeting follow-up conversion must find an existing task by meeting and action index");
+assert.ok(projects.includes("findKnowledgeFollowupTask(data.tasks, meeting.id, followup, index)") && projects.includes("source_followup_id: followupIdentity") && projects.includes("source_followup_index: index"), "meeting follow-up conversion must reuse stable identity and retain the legacy index fallback");
 assert.ok(projects.includes("creatingFollowupsRef.current.has(key)"), "same-session duplicate submissions must be blocked while a write is in flight");
 assert.ok(projects.includes("creatingFollowupsRef.current.add(key)") && projects.includes("creatingFollowupsRef.current.delete(key)"), "in-flight duplicate guard must be released after success or failure");
 assert.ok(projects.includes("source_meeting_id: meeting.id") && projects.includes("source_followup_index: index"), "created task must retain its source meeting and follow-up identity");
 assert.ok(projectDetail.includes("creatingFollowupsRef.current.has(key)") && projectDetail.includes("creatingFollowupsRef.current.add(key)") && projectDetail.includes("creatingFollowupsRef.current.delete(key)"), "Project Detail meeting follow-up conversion must also block duplicate in-flight submissions");
 
+assert.ok(component.includes("routeContext=null") && component.includes("routeContext?.focusItemId") &&
+  component.includes('routeContext?.focusItemKind==="meeting"') &&
+  component.includes('id={"knowledge-item-"+String(item.id).replace(/[^a-zA-Z0-9_-]/g,"_")}'),
+  "Knowledge must reveal and highlight the exact source item when a Project task opens its meeting backlink");
+assert.ok(projectDetail.includes('focusItemId: meeting.id, focusItemKind: "meeting"'),
+  "Project meeting cards must preserve the exact source Knowledge item ID when navigating");
 console.log("Knowledge delivery, attachment, cross-system and preview contracts: PASS");

@@ -4,7 +4,7 @@ import { C, Btn, Chip, Head, Empty, Progress, Seg, Board, SearchBar, Tabs, FormM
 import { fmt, fmtShort, diffDays } from "../../core/dates.js";
 import { uid, nowIso } from "../../core/records.jsx";
 import { supabase } from "../../core/supabase.js";
-import { OUTPUT_STORAGE_BUCKET, outputFileMetadata, outputObjectPath, validateOutputUpload } from "./outputStorage.js";
+import { OUTPUT_STORAGE_BUCKET, validateOutputUpload, findOutputUploadIntent, uploadOutputFilesWithRecovery } from "./outputStorage.js";
 import { useP } from "./store.jsx";
 import * as D from "./domain.js";
 import { L, opts, PRIORITY_COLOR, STATUS_COLOR, SEV_COLOR } from "./lookups.js";
@@ -41,47 +41,57 @@ function RecordDetailModal({ title, fields, onClose }) {
 
 // ═════ Outputs ═════
 export function OutputsView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, confirm, lookups, idx, openTask, openProject, setPage, view, ws, me } = useP();
+  const { data, A: act, can, projectsById, people, toast, confirm, lookups, idx, openTask, openProject, setPage, view, setView, ws, me } = useP();
   const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [type, setType] = useState(""); const [ap, setAp] = useState(""); const [q, setQ] = useState("");
+  const uploadProgressRef = useRef(new Map());
   const list = data.outputs.filter((o) => (!projectId || o.project_id === projectId) && (!type || o.type === type) && (!ap || o.approval === ap) && (!q || o.name.toLowerCase().includes(q.toLowerCase())));
   useRecordFocus(view, "output", projectId, list.length);
   const canNew = projectId ? can("output.write", projectsById[projectId]) : data.projects.some((p) => can("output.write", p));
+  useEffect(() => {
+    if (view.quickCreate !== "output") return;
+    if (canNew) setForm({ id: uid(), project_id: projectId });
+    else toast("ليس لديك صلاحية إضافة مخرجات لهذا المشروع.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view.quickCreate, canNew, projectId, setView, toast]);
 
-  const uploadOutputFiles = async (output, files) => {
-    const selected = Array.from(files || []).filter(Boolean);
-    if (!selected.length) return output;
-    if (!ws?.id) throw new Error("المساحة الحالية غير متاحة للرفع.");
-    const uploaded = [];
-    try {
-      for (const file of selected) {
-        const validation = validateOutputUpload(file);
-        if (!validation.ok) throw new Error(validation.error);
-        const fileId = uid();
-        const objectPath = outputObjectPath({
-          workspaceId: ws.id,
-          projectId: output.project_id,
-          outputId: output.id,
-          fileId,
-          filename: file.name
-        });
-        const { error } = await supabase.storage.from(OUTPUT_STORAGE_BUCKET).upload(objectPath, file, { upsert: false, contentType: file.type });
-        if (error) throw error;
-        uploaded.push(outputFileMetadata({ file, objectPath }));
-      }
-      return { ...output, files: [...(output.files || []), ...uploaded] };
-    } catch (error) {
-      if (uploaded.length) {
-        await supabase.storage.from(OUTPUT_STORAGE_BUCKET).remove(uploaded.map((x) => x.object_path)).catch(() => null);
-      }
-      throw error;
+  const mergeOutputFiles = (...groups) => {
+    const merged = new Map();
+    for (const file of groups.flat()) {
+      if (!file) continue;
+      const key = typeof file === "string" ? "legacy:" + file : file.object_path || "file:" + (file.name || "");
+      if (!merged.has(key)) merged.set(key, file);
     }
+    return [...merged.values()];
+  };
+
+  const uploadOutputFiles = async (output, files, project) => {
+    if (!ws?.id) throw new Error("المساحة الحالية غير متاحة للرفع.");
+    return uploadOutputFilesWithRecovery({
+      storage: supabase.storage,
+      workspaceId: ws.id,
+      output,
+      pendingFiles: files,
+      saveOutput: async (next) => {
+        const saved = await act.put("outputs", next, project);
+        if (!saved || saved._syncPending) throw new Error("لم يؤكد الخادم حفظ نية الرفع أو بيانات الملف؛ أعد المحاولة قبل رفع أي ملف.");
+        uploadProgressRef.current.set(saved.id, saved.files || []);
+        return saved;
+      },
+    });
   };
 
   const submit = async (v) => {
     const project = projectsById[v.project_id]; const prev = v.id ? data.outputs.find((o) => o.id === v.id) : null;
-    let rec = { ...v, id: v.id || uid(), files: Array.isArray(v.files) ? v.files : (prev?.files || []) };
     const pendingFiles = Array.from(v.__pendingFiles || []);
-    delete rec.__pendingFiles;
+    const recordValues = { ...v };
+    delete recordValues.__pendingFiles;
+    const savedProgress = uploadProgressRef.current.get(v.id) || [];
+    let rec = {
+      ...recordValues,
+      id: v.id || uid(),
+      files: mergeOutputFiles(prev?.files || [], v.files || [], savedProgress),
+      upload_intents: Array.isArray(recordValues.upload_intents) ? recordValues.upload_intents : (prev?.upload_intents || []),
+    };
     if (!project || project.is_system) throw new Error("اختر مشروعًا صالحًا قبل حفظ المخرج.");
     if (rec.task_id) {
       const task = idx.byId[rec.task_id];
@@ -93,22 +103,38 @@ export function OutputsView({ projectId }) {
     }
     if (rec.prd_requirement_id) { const prd = data.prds.find((x) => x.id === rec.prd_id); if (!prd || !(prd.requirements || []).some((r) => r.id === rec.prd_requirement_id)) throw new Error("المتطلب المرتبط يجب أن يكون ضمن المواصفة المختارة."); }
     if (prev?.approval === "Final") throw new Error("المخرج النهائي مقفل؛ أنشئ مخرجاً جديداً للنسخة المعدلة.");
+    if (rec.approval === "Final" && (pendingFiles.length || (rec.upload_intents || []).length)) {
+      throw new Error("لا يمكن اعتماد المخرج نهائيًا قبل اكتمال رفع كل الملفات وربط Metadata الخاصة بها.");
+    }
     if (rec.approval === "Final" && (!prev || prev.approval !== "Final")) {
       if (!can("output.approve", project)) throw new Error("اعتماد المخرج النهائي للقائد أو المراجع فقط");
       if (!rec.url && !rec.files.length && !pendingFiles.length && !(await confirm("المخرج النهائي بلا ملف أو رابط. المتابعة؟"))) return false;
       rec.approved_by = me; rec.approved_at = nowIso();
     } else if (rec.approval !== "Final") { rec.approved_by = null; rec.approved_at = null; }
 
-    // Create the Output record first so Storage RLS can authorize against the real output/project.
-    await act.put("outputs", rec, project);
+    // Save the Output first so Storage RLS can authorize each private object.
+    const savedOutput = await act.put("outputs", rec, project);
+    if (!savedOutput || (pendingFiles.length && savedOutput._syncPending)) {
+      throw new Error("لم يؤكد الخادم حفظ سجل المخرج؛ لم يبدأ رفع الملفات. تحقق من الاتصال ثم أعد المحاولة.");
+    }
+    rec = savedOutput;
     try {
-      if (pendingFiles.length) rec = await uploadOutputFiles(rec, pendingFiles);
-      if (pendingFiles.length) await act.put("outputs", rec, project);
+      if (pendingFiles.length) rec = await uploadOutputFiles(rec, pendingFiles, project);
+      uploadProgressRef.current.delete(rec.id);
       toast(pendingFiles.length ? "✅ تم حفظ المخرج ورفع الملفات بأمان" : "✅ تم الحفظ");
       setForm(null);
     } catch (error) {
-      if (!prev) await act.del("outputs", rec.id, rec.name);
-      throw new Error("تم حفظ المخرج لكن تعذر إكمال رفع الملفات: " + (error?.message || "فشل الرفع"));
+      const latestFiles = uploadProgressRef.current.get(rec.id) || rec.files || [];
+      const fileName = pendingFiles.find((item) => {
+        const candidate = item?.file;
+        return candidate && !latestFiles.some((saved) => saved?.name === candidate.name && saved?.size_bytes === candidate.size);
+      })?.file?.name;
+      throw new Error(
+        "تم حفظ سجل المخرج كمسودة. " +
+        (fileName ? "تعذر رفع أو ربط الملف «" + fileName + "». " : "تعذر إكمال رفع الملفات. ") +
+        "الملفات التي اكتمل ربطها محفوظة، ونوايا الملفات غير المكتملة محفوظة داخل سجل المخرج. بعد إعادة التحميل افتح تعديل المخرج وأعد اختيار الملف نفسه لإكمال الربط دون إنشاء نسخة. " +
+        (error?.message || "فشل الرفع")
+      );
     }
   };
 
@@ -123,8 +149,8 @@ export function OutputsView({ projectId }) {
 
   return (
     <div>
-      {!projectId && <Head title="المخرجات" sub={`${list.length} مخرج`} right={canNew && <Btn kind="primary" onClick={() => setForm({})}>➕ مخرج</Btn>} />}
-      {projectId && canNew && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ مخرج</Btn></div>}
+      {!projectId && <Head title="المخرجات" sub={`${list.length} مخرج`} right={canNew && <Btn kind="primary" onClick={() => setForm({ id: uid() })}>➕ مخرج</Btn>} />}
+      {projectId && canNew && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setForm({ id: uid(), project_id: projectId })}>➕ مخرج</Btn></div>}
       <SearchBar value={q} onChange={setQ} placeholder="بحث…"><select style={{ ...S.sel, width: 140 }} value={type} onChange={(e) => setType(e.target.value)}><option value="">كل الأنواع</option>{lookups.output_type.map((x) => <option key={x}>{x}</option>)}</select><select style={{ ...S.sel, width: 130 }} value={ap} onChange={(e) => setAp(e.target.value)}><option value="">كل الحالات</option>{opts(L.approval).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></SearchBar>
       {!list.length ? <Empty icon="📦" title="لا مخرجات" sub="المخرجات هي ما يُسلَّم فعلاً (تصميم، كود، مستند…)" /> : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}>
@@ -133,7 +159,7 @@ export function OutputsView({ projectId }) {
               <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}><span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>📦 {o.name}</span><Chip color={o.approval === "Final" ? C.ok : o.approval === "Review" ? C.warn : C.muted}>{L.approval[o.approval]}</Chip></div>
               <div style={{ fontSize: 11.5, color: C.dim, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><Chip>{o.type}</Chip>{!projectId && <ProjectName id={o.project_id} />}{o.task_id && idx.byId[o.task_id] && <button onClick={() => openTask(o.task_id)} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", padding: 0 }}>🔗 {idx.byId[o.task_id].title}</button>}{o.prd_requirement_id && <button type="button" onClick={() => openProject(o.project_id, "prds", { kind: "prd", id: o.prd_id })} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>متطلب: {(data.prds.find((p) => p.id === o.prd_id)?.requirements || []).find((r) => r.id === o.prd_requirement_id)?.title || "فتح المواصفة"} ↗</button>}{data.wins.some((w) => (w.output_ids || []).includes(o.id)) && <button type="button" onClick={() => setPage("wins")} style={{ border: 0, padding: 0, background: "none", color: C.info, cursor: "pointer", textDecoration: "underline" }}>🏆 إنجاز مرتبط</button>}</div>
               {o.url && <a href={o.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.info, display: "block", margin: "4px 0", wordBreak: "break-all" }}>🔗 {o.url}</a>}
-              {o.notes && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{o.notes}</div>}
+              {o.notes && <div style={{ fontSize: 12, color: C.dim, margin: "4px 0" }}>{o.notes}</div>}{(o.upload_intents || []).length > 0 && <div style={{ fontSize: 11.5, color: C.warn, marginTop: 6 }}>⚠️ {o.upload_intents.length} ملف يحتاج استكمال الرفع أو ربط Metadata. افتح تعديل المخرج وأعد اختيار الملف نفسه لاستعادة المحاولة.</div>}
               {(o.files || []).length > 0 && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>{(o.files || []).map((file, i) => <button key={file.object_path || i} type="button" onClick={() => typeof file === "string" ? window.open(file, "_blank", "noopener,noreferrer") : downloadFile(file)} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", padding: 0, textAlign: "start", fontSize: 11.5 }}>📎 {typeof file === "string" ? file : `${file.name || "ملف"} · ${Math.ceil((file.size_bytes || 0) / 1024)} KB`}</button>)}</div>}
               {o.approved_by && <div style={{ fontSize: 10.5, color: C.muted }}>اعتمده {<Who id={o.approved_by} size={14} />} · {fmt((o.approved_at || "").slice(0, 10))}</div>}
               <div style={{ marginTop: 6, display: "flex", gap: 6, alignItems: "center" }}><Btn small onClick={() => setDetail(o)}>عرض التفاصيل</Btn>{o.approval === "Final" ? <Chip color={C.ok}>🔒 مخرج نهائي — لا يُعدَّل</Chip> : <RowActions canW={can("output.write", projectsById[o.project_id])} onEdit={() => setForm(o)} onDelete={() => act.del("outputs", o.id, o.name)} />}</div>
@@ -160,13 +186,19 @@ export function OutputsView({ projectId }) {
         <div style={{ gridColumn: "1 / -1", marginTop: 8, border: `1px solid ${C.line}`, borderRadius: 8, padding: 10 }}>
           <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, marginBottom: 6 }}>📎 ملفات المخرج</div>
           {(values.files || []).length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>{(values.files || []).map((file, i) => <div key={file.object_path || i} style={{ fontSize: 11.5, color: C.dim }}>✓ {typeof file === "string" ? file : `${file.name || "ملف"} · ${Math.ceil((file.size_bytes || 0) / 1024)} KB`}</div>)}</div>}
+          {(values.upload_intents || []).length > 0 && <div style={{ marginBottom: 8, padding: 8, borderRadius: 6, background: "rgba(245,158,11,0.08)", fontSize: 11.5, color: C.warn }}>ملفات محفوظة تنتظر الاستكمال: {(values.upload_intents || []).map((intent) => `${intent.name} (${Math.ceil((intent.size_bytes || 0) / 1024)} KB)`).join("، ")}. أعد اختيار الملف نفسه؛ سنستخدم معرّف ومسار الرفع المحفوظين.</div>}
           <input type="file" multiple onChange={(e) => {
             const files = Array.from(e.target.files || []);
-            const errors = files.map(validateOutputUpload).filter((x) => !x.ok).map((x) => x.error);
-            if (errors.length) { toast("⛔ " + errors[0]); e.target.value = ""; return; }
-            set("__pendingFiles", files);
+            const invalid = files.map(validateOutputUpload).find((x) => !x.ok);
+            if (invalid) { toast("⛔ " + invalid.error); e.target.value = ""; return; }
+            const pending = [...(values.__pendingFiles || [])];
+            const additions = files.filter((file) => !pending.some((item) => item.file?.name === file.name && item.file?.size === file.size && item.file?.lastModified === file.lastModified)).map((file) => {
+              const intent = findOutputUploadIntent(values.upload_intents, file);
+              return { file, fileId: intent?.file_id || uid(), uploadedAt: intent?.uploaded_at || nowIso() };
+            });
+            set("__pendingFiles", [...pending, ...additions]);
           }} accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.txt,.csv,.json,.zip,.docx,.xlsx,.pptx" />
-          {(values.__pendingFiles || []).length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>سيتم رفع {values.__pendingFiles.length} ملف بعد حفظ المخرج.</div>}
+          {(values.__pendingFiles || []).length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>ملفات جاهزة للرفع: {(values.__pendingFiles || []).map((item) => item.file?.name).filter(Boolean).join("، ")}. إذا فشل الربط، سيبقى معرّف الرفع محفوظًا بعد إعادة تحميل الصفحة.</div>}
         </div>
       )} />}
     </div>
@@ -174,13 +206,22 @@ export function OutputsView({ projectId }) {
 }
 // ═════ Risks (+ 5×5 matrix) ═════
 export function RisksView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, settings, confirm, openProject, idx, openTask, view } = useP();
-  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState(view.focusRecord?.kind === "risk" ? "all" : "open"); const [closing, setClosing] = useState(null); const [reopening, setReopening] = useState(null); const [creatingMitigation, setCreatingMitigation] = useState({}); const convertingRiskIds = useRef(new Set());
+  const { data, A: act, can, projectsById, people, toast, settings, confirm, openProject, idx, openTask, view, setView } = useP();
+  const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [mode, setMode] = useState("list"); const [st, setSt] = useState(view.focusRecord?.kind === "risk" ? "all" : view.riskStatusFilter || "open"); const [highOnly, setHighOnly] = useState(view.riskHighOnly === true); const [closing, setClosing] = useState(null); const [reopening, setReopening] = useState(null); const [creatingMitigation, setCreatingMitigation] = useState({}); const convertingRiskIds = useRef(new Set());
   const base = data.risks.filter((r) => !projectId || r.project_id === projectId);
-  const list = base.filter((r) => (st === "all" ? true : st === "open" ? D.isOpenRisk(r) : r.status === st)).sort((a, b) => D.riskScore(b) - D.riskScore(a));
-  useEffect(() => { if (view.focusRecord?.kind === "risk") setSt("all"); }, [view.focusRecord?.kind, view.focusRecord?.id]);
+  const list = base.filter((r) =>
+    (st === "all" ? true : st === "open" ? D.isOpenRisk(r) : r.status === st)
+    && (!highOnly || (D.isOpenRisk(r) && D.riskScore(r) >= settings.riskHigh))
+  ).sort((a, b) => D.riskScore(b) - D.riskScore(a));
+  useEffect(() => { if (view.focusRecord?.kind === "risk") { setSt("all"); setHighOnly(false); } }, [view.focusRecord?.kind, view.focusRecord?.id]);
   useRecordFocus(view, "risk", projectId, list.length);
   const canNew = projectId ? can("risk.write", projectsById[projectId]) : data.projects.some((p) => can("risk.write", p));
+  useEffect(() => {
+    if (view.quickCreate !== "risk") return;
+    if (canNew) setForm({ project_id: projectId });
+    else toast("ليس لديك صلاحية إضافة مخاطر لهذا المشروع.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view.quickCreate, canNew, projectId, setView, toast]);
   const lvlColor = (r) => ({ High: C.bad, Medium: C.warn, Low: C.ok })[D.riskLevel(r, settings)];
   async function changeStatus(r, to) {
     const p = projectsById[r.project_id];
@@ -213,7 +254,9 @@ export function RisksView({ projectId }) {
       {!projectId && <Head title="المخاطر والمشاكل والقرارات" sub="" />}
       <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
         {canNew && <Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ خطر</Btn>}<Seg small value={mode} onChange={setMode} options={[{ v: "list", l: "قائمة" }, { v: "matrix", l: "مصفوفة 5×5" }]} />
-        <select style={{ ...S.sel, width: 130 }} value={st} onChange={(e) => setSt(e.target.value)}><option value="open">المفتوحة</option><option value="all">الكل</option>{opts(L.riskStatus).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select>
+        <select aria-label="حالة المخاطر" style={{ ...S.sel, width: 130 }} value={st} onChange={(e) => { setSt(e.target.value); setView((current) => ({ ...current, riskStatusFilter: e.target.value })); }}><option value="open">المفتوحة</option><option value="all">الكل</option>{opts(L.riskStatus).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select>
+        <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12 }}><input type="checkbox" checked={highOnly} onChange={(e) => { const checked = e.target.checked; setHighOnly(checked); setSt(checked ? "open" : st); setView((current) => ({ ...current, riskHighOnly: checked, riskStatusFilter: checked ? "open" : current.riskStatusFilter })); }} />المخاطر العالية المفتوحة فقط</label>
+        {(highOnly || st !== "open") && <Btn small onClick={() => { setSt("open"); setHighOnly(false); setView((current) => ({ ...current, riskStatusFilter: "open", riskHighOnly: false })); }}>مسح الفلاتر</Btn>}
       </div>
       {mode === "matrix" ? (
         <div style={S.card}><div style={{ display: "grid", gridTemplateColumns: "40px repeat(5,1fr)", gap: 4 }}>
@@ -260,6 +303,12 @@ export function IssuesView({ projectId }) {
   const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [st, setSt] = useState(view.focusRecord?.kind === "issue" ? "all" : view.issueStatusFilter || "open"); const [sev, setSev] = useState(view.issueSeverityFilter || ""); const [resolving, setResolving] = useState(null); const [reopening, setReopening] = useState(null); const [repairing, setRepairing] = useState({});
   const list = data.issues.filter((i) => (!projectId || i.project_id === projectId) && (st === "all" ? true : st === "open" ? D.isOpenIssue(i) : i.status === st) && (!sev || i.severity === sev)).sort((a, b) => ["Critical", "High", "Medium", "Low"].indexOf(a.severity) - ["Critical", "High", "Medium", "Low"].indexOf(b.severity));
   const canNew = projectId ? can("issue.write", projectsById[projectId]) : data.projects.some((p) => can("issue.write", p));
+  useEffect(() => {
+    if (view.quickCreate !== "issue") return;
+    if (canNew) setForm({ project_id: projectId });
+    else toast("ليس لديك صلاحية إضافة مشاكل لهذا المشروع.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view.quickCreate, canNew, projectId, setView, toast]);
   useEffect(() => { if (view.focusRecord?.kind === "issue") { setSt("all"); setSev(""); setView((current) => ({ ...current, issueStatusFilter: "all", issueSeverityFilter: "" })); } }, [view.focusRecord?.kind, view.focusRecord?.id]);
   useRecordFocus(view, "issue", projectId, list.length);
   const repairTasks = (issue) => [...new Set([...(issue.task_ids || []), ...idx.list.filter((t) => (t.issue_ids || []).includes(issue.id)).map((t) => t.id)])].map((id) => idx.byId[id]).filter(Boolean);
@@ -313,11 +362,17 @@ export function IssuesView({ projectId }) {
 
 // ═════ Decisions ═════
 export function DecisionsView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, openDiscovery, view } = useP();
+  const { data, A: act, can, projectsById, people, toast, idx, openTask, openProject, openDiscovery, view, setView } = useP();
   const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [creating, setCreating] = useState({});
   const list = data.decisions.filter((d) => !projectId || d.project_id === projectId).sort((a, b) => (b.decided_at || "").localeCompare(a.decided_at || ""));
   useRecordFocus(view, "decision", projectId, list.length);
   const canNew = projectId ? can("decision.write", projectsById[projectId]) : data.projects.some((p) => can("decision.write", p));
+  useEffect(() => {
+    if (view.quickCreate !== "decision") return;
+    if (canNew) setForm({ project_id: projectId });
+    else toast("ليس لديك صلاحية إضافة قرارات لهذا المشروع.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view.quickCreate, canNew, projectId, setView, toast]);
   return (
     <div>
       {canNew && <div style={{ marginBottom: 10 }}><Btn kind="primary" small onClick={() => setForm({ project_id: projectId })}>➕ قرار</Btn></div>}
@@ -365,11 +420,17 @@ export function DecisionsView({ projectId }) {
 
 // ═════ PRDs ═════
 export function PrdsView({ projectId }) {
-  const { data, A: act, can, projectsById, people, toast, me, PRD_TEMPLATE, idx, confirm, nameOf, view } = useP();
+  const { data, A: act, can, projectsById, people, toast, me, PRD_TEMPLATE, idx, confirm, nameOf, view, setView } = useP();
   const [sel, setSel] = useState(null); const [form, setForm] = useState(null); const [detail, setDetail] = useState(null);
   const list = data.prds.filter((p) => !projectId || p.project_id === projectId);
   useEffect(() => { if (view.focusRecord?.kind === "prd") { const target = data.prds.find((p) => p.id === view.focusRecord.id); if (target && (!projectId || target.project_id === projectId)) setSel(target.id); } }, [view.focusRecord, data.prds, projectId]);
   const canNew = projectId ? can("prd.write", projectsById[projectId]) : data.projects.some((p) => can("prd.write", p) && !p.is_system);
+  useEffect(() => {
+    if (view.quickCreate !== "prd") return;
+    if (canNew) setForm({ project_id: projectId });
+    else toast("ليس لديك صلاحية إضافة مواصفات لهذا المشروع.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view.quickCreate, canNew, projectId, setView, toast]);
   const openPrd = sel ? data.prds.find((p) => p.id === sel) : null;
   return (
     <div>
@@ -496,12 +557,35 @@ function PrdEditor({ prd, onClose, onOpen }) {
 }
 
 // ═════ Discovery (PIO) ═════
-export function DiscoveryView() {
+export function DiscoveryView({ projectId = null } = {}) {
   const { data, A: act, can, projectsById, people, toast, me, today, settings, confirm, openProject, idx, nameOf, view } = useP();
   const [form, setForm] = useState(null); const [detail, setDetail] = useState(null); const [mode, setMode] = useState("board"); const [q, setQ] = useState(""); const [type, setType] = useState(""); const [conv, setConv] = useState(null); const convertingDiscoveryIds = useRef(new Set());
   const runDiscoveryConversionOnce = async (id, work) => { if (convertingDiscoveryIds.current.has(id)) { toast("التحويل جارٍ بالفعل؛ انتظر اكتماله قبل إعادة المحاولة."); return null; } convertingDiscoveryIds.current.add(id); try { return await work(); } finally { convertingDiscoveryIds.current.delete(id); } };
-  const list = data.discovery.filter((d) => (!type || d.type === type) && (!q || d.title.toLowerCase().includes(q.toLowerCase())));
-  const canWriteDiscovery = can("discovery.write");
+  const scopedProjectId = projectId == null ? null : String(projectId);
+  const list = data.discovery.filter((d) =>
+    (!scopedProjectId || (d.project_ids || []).some((id) => String(id) === scopedProjectId))
+    && (!type || d.type === type)
+    && (!q || d.title.toLowerCase().includes(q.toLowerCase()))
+  );
+  const canWriteDiscovery = can("discovery.write", scopedProjectId ? projectsById[scopedProjectId] : undefined);
+  const objectivesForDiscovery = (record) => {
+    const projectIds = Array.isArray(record?.project_ids) ? record.project_ids : [];
+    return data.objectives.filter((objective) => !projectIds.length || data.krs.some((kr) =>
+      kr.objective_id === objective.id && (kr.project_ids || []).some((id) => projectIds.includes(id))
+    ));
+  };
+  const validateDiscoveryTraceability = (record) => {
+    const objectiveIds = [...new Set((record.objective_ids || []).filter(Boolean))];
+    const validObjectives = objectivesForDiscovery(record).map((objective) => objective.id);
+    const invalid = objectiveIds.filter((id) => !validObjectives.includes(id));
+    if (invalid.length) return "كل هدف مرتبط بالاكتشاف يجب أن يكون موجودًا وله KR مرتبط بأحد مشاريع الاكتشاف.";
+    const sourceUrl = String(record.source_url || "").trim();
+    if (sourceUrl) {
+      try { const parsed = new URL(sourceUrl); if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("protocol"); }
+      catch { return "رابط المصدر يجب أن يبدأ بـ http:// أو https://"; }
+    }
+    return "";
+  };
   const statuses = Object.keys(L.discoveryStatus);
   const conversionWriteAction = { task: "task.write", prd: "prd.write", issue: "issue.write" };
   const eligibleConversionProjects = (kind, source) => (source.project_ids || []).map((id) => projectsById[id]).filter((project) => project && !project.is_system && !project.archived_at && can(conversionWriteAction[kind], project));
@@ -568,12 +652,13 @@ export function DiscoveryView() {
     <div id={recordDomId("discovery", d.id)} style={{ ...S.card, padding: "9px 11px", ...recordFocusStyle(view, "discovery", d.id) }} onClick={() => setForm(d)}>
       <div style={{ fontSize: 12.5, fontWeight: 700 }}>{typeIcon[d.type]} {d.title}</div>
       <div style={{ fontSize: 11, color: C.dim, margin: "3px 0" }}>{d.proposed_solution ? "💬 " + d.proposed_solution.slice(0, 60) : d.description ? d.description.slice(0, 60) : ""}</div>
-      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}><Btn small onClick={(e) => { e.stopPropagation(); setDetail(d); }}>عرض التفاصيل</Btn>{d.impact_level && <Chip color={SEV_COLOR[d.impact_level]}>{L.severity[d.impact_level]}</Chip>}{stale(d) && <Chip color={C.warn}>⏳ يحتاج فرزاً</Chip>}{d.owner_id && <Who id={d.owner_id} size={15} />}{(d.resolution_links || []).length > 0 && <Chip color={C.ok}>↪ {(d.resolution_links || []).length}</Chip>}{data.decisions.filter((decision) => (decision.related_discovery_ids || []).includes(d.id)).map((decision) => <Chip key={decision.id} color={C.violet}>⚖ {decision.title}</Chip>)}</div>
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}><Btn small onClick={(e) => { e.stopPropagation(); setDetail(d); }}>عرض التفاصيل</Btn>{d.impact_level && <Chip color={SEV_COLOR[d.impact_level]}>{L.severity[d.impact_level]}</Chip>}{stale(d) && <Chip color={C.warn}>⏳ يحتاج فرزاً</Chip>}{d.owner_id && <Who id={d.owner_id} size={15} />}{(d.objective_ids || []).length > 0 && <Chip color={C.violet}>🎯 {(d.objective_ids || []).length} أهداف</Chip>}{d.source_url && <Chip color={C.info}>↗ مصدر</Chip>}{(d.resolution_links || []).length > 0 && <Chip color={C.ok}>↪ {(d.resolution_links || []).length}</Chip>}{data.decisions.filter((decision) => (decision.related_discovery_ids || []).includes(d.id)).map((decision) => <Chip key={decision.id} color={C.violet}>⚖ {decision.title}</Chip>)}</div>
+      {d.source_url && <button type="button" onClick={(e) => { e.stopPropagation(); window.open(d.source_url, "_blank", "noopener,noreferrer"); }} style={{ display: "inline-block", marginTop: 6, border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", fontSize: 11 }}>{d.source_title || "فتح المصدر الأصلي"} ↗</button>}
       {(d.resolution_links || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>{(d.resolution_links || []).map((link) => { const task = link.kind === "task" ? idx.byId[link.id] : null; const issue = link.kind === "issue" ? data.issues.find((x) => x.id === link.id) : null; const prd = link.kind === "prd" ? data.prds.find((x) => x.id === link.id) : null; const project = link.kind === "project" ? projectsById[link.id] : null; const label = task?.title || issue?.title || prd?.title || project?.name || "عنصر مرتبط"; return <button key={link.kind + ":" + link.id} type="button" onClick={(e) => { e.stopPropagation(); if (task) openTask(task.id); else if (issue) openProject(issue.project_id, "issues", { kind: "issue", id: issue.id }); else if (prd) openProject(prd.project_id, "prds", { kind: "prd", id: prd.id }); else if (project) openProject(project.id); }} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", fontSize: 11 }}>↗ {label}</button>; })}</div>}
     </div>);
   return (
     <div>
-      <Head title="الاكتشاف" sub="مشاكل · أفكار · فرص — الوارد قبل أن تتحول إلى مشاريع ومهام" right={<><Seg value={mode} onChange={setMode} options={[{ v: "board", l: "لوحة" }, { v: "list", l: "قائمة" }]} />{canWriteDiscovery && <Btn kind="primary" onClick={() => setForm({ status: "Inbox", type: "Idea", logged_at: today })}>➕ عنصر</Btn>}</>} />
+      <Head title="الاكتشاف" sub="مشاكل · أفكار · فرص — الوارد قبل أن تتحول إلى مشاريع ومهام" right={<><Seg value={mode} onChange={setMode} options={[{ v: "board", l: "لوحة" }, { v: "list", l: "قائمة" }]} />{canWriteDiscovery && <Btn kind="primary" onClick={() => setForm({ status: "Inbox", type: "Idea", logged_at: today, ...(scopedProjectId ? { project_ids: [scopedProjectId] } : {}) })}>➕ عنصر</Btn>}</>} />
       <SearchBar value={q} onChange={setQ} placeholder="بحث…"><select style={{ ...S.sel, width: 130 }} value={type} onChange={(e) => setType(e.target.value)}><option value="">كل الأنواع</option>{opts(L.discoveryType).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></SearchBar>
       {mode === "board" ? <Board columns={statuses.map((s) => ({ id: s, label: L.discoveryStatus[s], color: s === "Dropped" ? "#EF4444" : s === "Completed" ? "#10B981" : s === "Working On" ? "#3B82F6" : "#94A3B8", items: list.filter((d) => d.status === s) }))} onMove={canWriteDiscovery ? move : undefined} renderCard={card} />
         : !list.length ? <Empty icon="💡" title="لا عناصر" /> : <div style={{ ...S.card, padding: "4px 12px" }}>{list.map((d) => <div key={d.id} id={recordDomId("discovery", d.id)} onClick={() => setForm(d)} style={{ ...recordFocusStyle(view, "discovery", d.id), display: "flex", gap: 8, padding: "8px 0", borderBottom: `1px solid ${C.line}`, cursor: "pointer", alignItems: "center", fontSize: 13 }}><span>{typeIcon[d.type]}</span><span style={{ flex: 1 }}>{d.title}</span><Chip color={C.info}>{L.discoveryStatus[d.status]}</Chip></div>)}</div>}
@@ -582,6 +667,9 @@ export function DiscoveryView() {
         { label: "مستوى الأثر", value: L.severity[detail.impact_level] || detail.impact_level },
         { label: "المسؤول", value: people.find((x) => x.id === detail.owner_id)?.name }, { label: "تاريخ التسجيل", value: detail.logged_at },
         { label: "المشاريع المرتبطة", value: (detail.project_ids || []).map((id) => projectsById[id]?.name).filter(Boolean).join("، ") },
+        { label: "الأهداف المرتبطة", value: (detail.objective_ids || []).map((id) => data.objectives.find((objective) => objective.id === id)?.name).filter(Boolean).join("، ") },
+        { label: "المصدر الأصلي", value: detail.source_title || detail.source_url },
+        { label: "رابط المصدر", value: detail.source_url },
         { label: "الوصف", value: detail.description }, { label: "الأدلة", value: detail.insights },
         { label: "الحل المقترح", value: detail.proposed_solution }, { label: "سبب الإسقاط", value: detail.dropped_reason },
         { label: "ملاحظة الحل", value: detail.resolution_note },
@@ -595,11 +683,13 @@ export function DiscoveryView() {
       ]} />}
       {form && canWriteDiscovery && <FormModal title={form.id ? "عنصر اكتشاف" : "عنصر جديد"} wide initial={form} onClose={() => setForm(null)}
         footerExtra={form.id && canWriteDiscovery ? <><Btn onClick={() => { setConv(form); setForm(null); }}>↪ تحويل…</Btn><Btn danger onClick={async () => { await act.del("discovery", form.id, form.title); setForm(null); }}>🗑</Btn></> : null}
-        validate={(v) => { const m = D.validateDiscoveryStatus(v, v.status, (v.resolution_links || []).length > 0); return m; }}
-        onSubmit={async (v) => { const { _need, ...rec } = v; await act.put("discovery", { ...rec, id: rec.id || uid(), raised_by_member_id: rec.raised_by_member_id || me, source: rec.source || "manual", logged_at: rec.logged_at || today }); toast("✅ تم الحفظ"); setForm(null); }} fields={[
+        validate={(v) => D.validateDiscoveryStatus(v, v.status, (v.resolution_links || []).length > 0) || validateDiscoveryTraceability(v)}
+        onSubmit={async (v) => { const { _need, ...rec } = v; const traceabilityError = validateDiscoveryTraceability(rec); if (traceabilityError) { toast("⛔ " + traceabilityError); return; } await act.put("discovery", { ...rec, objective_ids: [...new Set((rec.objective_ids || []).filter(Boolean))], source_title: String(rec.source_title || "").trim(), source_url: String(rec.source_url || "").trim(), id: rec.id || uid(), raised_by_member_id: rec.raised_by_member_id || me, source: rec.source || "manual", logged_at: rec.logged_at || today }); toast("✅ تم الحفظ"); setForm(null); }} fields={[
           { key: "title", label: "العنوان", required: true, span: 2 }, { key: "type", label: "النوع", type: "select", allowEmpty: false, options: opts(L.discoveryType) }, { key: "status", label: "الحالة", type: "select", allowEmpty: false, options: opts(L.discoveryStatus) },
           { key: "impact_level", label: "مستوى الأثر", type: "select", options: opts(L.severity), emptyLabel: "—" }, { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people), required: (v) => v.status === "Working On" },
-          { key: "project_ids", label: "المشاريع المرتبطة", type: "multi", options: data.projects.filter((p) => !p.is_system).map((p) => ({ v: p.id, l: p.name })) },
+          { key: "project_ids", label: "المشاريع المرتبطة", type: "multi", options: data.projects.filter((p) => !p.is_system && !p.archived_at).map((p) => ({ v: p.id, l: p.name })) },
+          { key: "objective_ids", label: "الأهداف المرتبطة", type: "multi", options: (v) => objectivesForDiscovery(v).map((objective) => ({ v: objective.id, l: objective.name })) },
+          { key: "source_title", label: "اسم المصدر الأصلي" }, { key: "source_url", label: "رابط المصدر الأصلي", type: "url", span: 2 },
           { key: "dropped_reason", label: "سبب الإسقاط", required: true, show: (v) => v.status === "Dropped" },
           { key: "resolution_note", label: "ملاحظة الحل", type: "textarea", rows: 2, show: (v) => v.status === "Completed" },
           { key: "description", label: "الوصف", type: "textarea" }, { key: "insights", label: "الأدلة", type: "textarea", rows: 2 }, { key: "proposed_solution", label: "الحل المقترح", type: "textarea", rows: 2 }]} />}

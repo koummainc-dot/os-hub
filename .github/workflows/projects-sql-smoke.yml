@@ -6,12 +6,16 @@ on:
       - "supabase/migrations/**"
       - "supabase/tests/projects_prd_requirement_traceability_smoke.sql"
       - "supabase/tests/projects_atomic_discovery_batch_smoke.sql"
+      - "supabase/tests/projects_forward_guard_reconciliation_smoke.sql"
       - "supabase/tests/projects_okr_v4_legacy_seed.sql"
       - "supabase/tests/projects_okr_v4_relationship_reconciliation_smoke.sql"
       - "supabase/tests/projects_two_identity_privacy_smoke.sql"
       - "supabase/tests/projects_persistence_lifecycle_smoke.sql"
       - "tests/projects_sql_bootstrap.sql"
       - ".github/workflows/projects-sql-smoke.yml"
+      - "src/systems/projects/**"
+      - "tests/t_projects_output_upload_contract.mjs"
+      - "docs/projects-os/**"
   push:
     branches: [main, codex/projects-os-relationship-workflows]
     paths:
@@ -73,13 +77,59 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_okr_v4_relationship_reconciliation_smoke.sql
       - name: Apply PRD verified evidence guard migration
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031130000_projects_prd_verified_evidence_guard.sql
+      - name: Apply forward-only Projects live guard reconciliation
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261113190000_projects_forward_guard_reconciliation.sql
       - name: Verify project, task, PRD and output boundaries
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_prd_requirement_traceability_smoke.sql
       - name: Apply Projects Outputs private Storage migration
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261107150000_projects_output_storage.sql
+      - name: Harden Projects Outputs Storage path parser as SECURITY INVOKER
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114160000_projects_output_storage_invoker_hardening.sql
       - name: Verify Projects Outputs Storage bucket and RLS contract
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_output_storage_rls_smoke.sql
       - name: Verify two-account privacy for Projects records and relationships
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_two_identity_privacy_smoke.sql
       - name: Verify Projects create, reload, edit, archive and restore persistence
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_persistence_lifecycle_smoke.sql
+
+  projects-forward-reconciliation-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: projects_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d projects_forward_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: projects_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Bootstrap legacy Projects schema without Projects guard triggers
+        run: psql -v ON_ERROR_STOP=1 -f tests/projects_sql_bootstrap.sql
+      - name: Apply shared record visibility baseline
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261025155657_records_visibility_realtime.sql
+      - name: Apply only the forward reconciliation migration to the legacy baseline
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261113190000_projects_forward_guard_reconciliation.sql
+      - name: Verify reconciled guard functions, triggers, deferral and ACLs
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_forward_guard_reconciliation_smoke.sql
+      - name: Verify atomic Discovery conversion and rollback with guards enabled
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_atomic_discovery_batch_smoke.sql
+      - name: Verify PRD, requirement, task, output, session and Governance guards
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_prd_requirement_traceability_smoke.sql
+      - name: Verify two-identity record privacy after reconciliation
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_two_identity_privacy_smoke.sql
+      - name: Verify Create → Reload → Edit → Archive/Restore after reconciliation
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_persistence_lifecycle_smoke.sql

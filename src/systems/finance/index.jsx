@@ -42,7 +42,7 @@ function Input(props) { return <input {...props} style={{ ...inputStyle, ...(pro
 function Select(props) { return <select {...props} style={{ ...inputStyle, ...(props.style || {}) }}>{props.children}</select>; }
 function Empty({ title, detail }) { return <div style={{ padding: "36px 16px", textAlign: "center", color: MUTED }}><div style={{ fontSize: 30, marginBottom: 8 }}>🧾</div><b style={{ color: INK }}>{title}</b><div style={{ marginTop: 6, fontSize: 13 }}>{detail}</div></div>; }
 
-export default function FinanceOS({ ws, access, page = "dashboard", setPage, isDemo = false, shell }) {
+export default function FinanceOS({ ws, access, page = "dashboard", setPage, isDemo = false, shell, routeContext = null }) {
   const [accounts, setAccounts] = useState([]);
   const [currencies, setCurrencies] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -86,6 +86,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [showCategory, setShowCategory] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [tx, setTx] = useState(initialTx);
+  const [projectTransactionContext, setProjectTransactionContext] = useState(null);
+  const [handledProjectTransactionRoute, setHandledProjectTransactionRoute] = useState("");
   const [splitMode, setSplitMode] = useState(false);
   const [splitRows, setSplitRows] = useState([{ category_id: "", amount: "" }, { category_id: "", amount: "" }]);
   const [accountForm, setAccountForm] = useState({ name: "", account_type: "Bank", currency: "EGP", initial_balance: "0", include_in_net_worth: true, nature: "ASSET" });
@@ -93,6 +95,43 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
 
   const canEdit = !isDemo && (access?.level === "edit" || access?.manage || access?.owner);
   const baseCurrency = settings.base_currency || "EGP";
+  const startProjectTransaction = (profile) => {
+    if (!profile?.id || !canEdit) return;
+    setProjectTransactionContext({
+      financeProjectId: profile.id,
+      financeProjectName: profile.name || "المشروع",
+      sourceProjectRef: profile.project_ref || null,
+      currency: profile.currency || baseCurrency,
+    });
+    setPage?.("transactions");
+  };
+  useEffect(() => {
+    const projectRef = String(routeContext?.projectRef || "");
+    if (!projectRef || page !== "transactions" || isDemo || !ws?.id || loading || handledProjectTransactionRoute === projectRef || !canEdit) return;
+    let active = true;
+    supabase.rpc("fin_projects_get", { p_ws: ws.id }).then(({ data: rows, error }) => {
+      if (!active) return;
+      setHandledProjectTransactionRoute(projectRef);
+      if (error) {
+        setError(error.message || "تعذّر تحميل الملف المالي المرتبط بالمشروع.");
+        return;
+      }
+      const matches = (Array.isArray(rows) ? rows : []).filter((profile) => String(profile.project_ref || "") === projectRef);
+      if (matches.length === 1) {
+        startProjectTransaction(matches[0]);
+      } else if (matches.length > 1) {
+        setError("يوجد أكثر من ملف مالي مرتبط بالمشروع نفسه؛ لم يتم اختيار ملف تلقائيًا.");
+      } else {
+        setError("لا يوجد ملف Finance مرتبط بهذا المشروع؛ أنشئ/اربط الملف من Finance OS أولًا.");
+      }
+    }).catch((error) => {
+      if (active) {
+        setHandledProjectTransactionRoute(projectRef);
+        setError(error?.message || "تعذّر تحميل الملف المالي المرتبط بالمشروع.");
+      }
+    });
+    return () => { active = false; };
+  }, [routeContext?.projectRef, page, isDemo, ws?.id, loading, handledProjectTransactionRoute, canEdit, baseCurrency]);
   const targetBudgetPeriod = nextPeriod(budgetPeriod);
   const section = page || "dashboard";
   const go = (id) => setPage && setPage(id);
@@ -301,7 +340,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     if (!(Number(draft.amount) > 0) || !draft.local_date || !draft.from_account_id) { setError("أكمل المبلغ والتاريخ والحساب."); return; }
     if (draft.type !== "Transfer" && !currentSplitMode && !draft.category_id) { setError("اختَر تصنيفًا للحركة؛ اسم الحركة غير مطلوب."); return; }
     if (draft.type === "Transfer" && (!draft.to_account_id || draft.to_account_id === draft.from_account_id)) { setError("اختر حسابًا مستلمًا مختلفًا عن حساب المصدر."); return; }
-    if (draft.context_type === "Project" && !draft.context_project_id) { setError("اختر المشروع المرتبط بالحركة."); return; }
+    if (draft.context_type === "Project" && (!draft.finance_project_id || draft.type === "Transfer")) { setError("اختر ملف مشروع مالي صالحًا؛ ربط المشاريع متاح للدخل والمصروف فقط."); return; }
     if (draft.context_type === "Family" && !draft.context_family_member_id) { setError("اختر فرد الأسرة المرتبط بالحركة."); return; }
     if (draft.goal_id && draft.type !== "Transfer") { setError("مساهمة الهدف أو السحب منه يجب أن تكون تحويلًا بين حسابين."); return; }
     const validSplits = currentSplitRows.filter(s => s.category_id && Number(s.amount) > 0);
@@ -317,13 +356,20 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
         from_account_id: draft.from_account_id, to_account_id: draft.type === "Transfer" ? draft.to_account_id : null,
         category_id: draft.type === "Transfer" || currentSplitMode ? null : (draft.category_id || null), goal_id: draft.goal_id || null, merchant: draft.merchant || null, notes: draft.notes || null,
         splits: currentSplitMode ? validSplits.map(s => ({ category_id: s.category_id, amount: String(s.amount) })) : [],
-        client_generated_id: draft.shoppingPurchaseId ? "shopping-purchase-" + draft.shoppingPurchaseId : draft.homeBillPaymentId ? "home-bill-payment-" + draft.homeBillPaymentId : "web-" + (globalThis.crypto?.randomUUID?.() || (Date.now() + "-" + Math.random().toString(36).slice(2))),
-        idempotency_key: draft.shoppingPurchaseId ? "shopping-purchase-" + draft.shoppingPurchaseId : draft.homeBillPaymentId ? "home-bill-payment-" + draft.homeBillPaymentId : "finance-ui-" + (globalThis.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2))
+        client_generated_id: draft.shoppingPurchaseId ? "shopping-purchase-" + draft.shoppingPurchaseId : draft.homeBillPaymentId ? "home-bill-payment-" + draft.homeBillPaymentId : draft.client_generated_id || ("web-" + (globalThis.crypto?.randomUUID?.() || (Date.now() + "-" + Math.random().toString(36).slice(2)))),
+        idempotency_key: draft.shoppingPurchaseId ? "shopping-purchase-" + draft.shoppingPurchaseId : draft.homeBillPaymentId ? "home-bill-payment-" + draft.homeBillPaymentId : draft.idempotency_key || ("finance-ui-" + (globalThis.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2)))
       };
       const { data, error: rpcError } = await supabase.rpc("fin_post_transaction_with_splits", { p: payload });
       if (rpcError) throw rpcError;
-      if (data?.duplicate) setNotice("تم اكتشاف حركة موجودة مسبقًا؛ لم يتم إنشاء نسخة أخرى.");
-      else setNotice(data?.warnings?.length ? "تم حفظ الحركة مع تنبيه: " + data.warnings.join(", ") : "تم تسجيل الحركة بنجاح.");
+      if (draft.context_type === "Project") {
+        if (!data?.transaction_id) throw new Error("لم يُرجع Finance معرّف الحركة بعد النشر؛ لم يُؤكَّد الربط بالمشروع.");
+        const { error: linkError } = await supabase.rpc("fin_project_transaction_link", {
+          p: { workspace_id: ws.id, project_id: draft.finance_project_id, transaction_id: data.transaction_id }
+        });
+        if (linkError) throw new Error("تم تسجيل الحركة في دفتر Finance، لكن تعذّر ربطها بملف المشروع. أعد الحفظ من النموذج نفسه؛ سيُستخدم مفتاح منع التكرار نفسه. " + linkError.message);
+      }
+      if (data?.duplicate || data?.replayed) setNotice(draft.context_type === "Project" ? "تمت مطابقة الحركة الموجودة وربطها بملف المشروع دون إنشاء نسخة." : "تم اكتشاف حركة موجودة مسبقًا؛ لم يتم إنشاء نسخة أخرى.");
+      else setNotice(draft.context_type === "Project" ? "تم تسجيل الحركة وربطها بملف المشروع المالي." : data?.warnings?.length ? "تم حفظ الحركة مع تنبيه: " + data.warnings.join(", ") : "تم تسجيل الحركة بنجاح.");
       if (data?.transaction_id && draft.context_type === "Family" && draft.type === "Expense") {
         const { error: contextError } = await supabase.rpc("fin_family_set_transaction_allocation", {
           p_workspace_id:ws.id,p_transaction_id:data.transaction_id,p_responsibility_type:"Personal",
@@ -653,6 +699,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     <FinanceRedesign
       page={section}
       setPage={setPage}
+      projectTransactionContext={projectTransactionContext}
+      onClearProjectTransactionContext={() => setProjectTransactionContext(null)}
       isDemo={isDemo}
       data={{
         accounts,
@@ -703,7 +751,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       legacyAssets={<FinanceAssets ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
       legacyGoals={<FinanceGoals ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
       legacyRecurring={<FinanceRecurring ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
-      legacyProjects={<FinanceProjects ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
+      legacyProjects={<FinanceProjects ws={ws} access={access} isDemo={isDemo} currencies={currencies} initialProjectRef={routeContext?.projectRef || null} initialBudget={routeContext?.suggestedBudget ?? null} initialCurrency={routeContext?.suggestedCurrency || null} initialBudgetUpdatedAt={routeContext?.suggestedBudgetUpdatedAt || null} onCreateTransaction={startProjectTransaction} />}
       legacyFamily={<FinanceFamily ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
       legacyFamilyCash={<FinanceFamilyCash ws={ws} access={access} isDemo={isDemo} />}
       legacyReports={<FinanceReports ws={ws} isDemo={isDemo} baseCurrency={baseCurrency} />}

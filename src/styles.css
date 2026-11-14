@@ -59,9 +59,9 @@
   --bg-main:#F7F8FA !important;
   --bg-side:#FFFFFF !important;
   --bg-card:#FFFFFF !important;
-  --accent:#2563EB !important;
-  --accent-rgb:37,99,235 !important;
-  --accent-soft:#EFF6FF !important;
+  --accent:#EF9F27 !important;
+  --accent-rgb:239,159,39 !important;
+  --accent-soft:#FFF7E8 !important;
   --text-main:#111827 !important;
   --text-dim:#4B5563 !important;
   --text-muted:#6B7280 !important;
@@ -103,7 +103,7 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible{
-  outline:2px solid rgba(37,99,235,.18)!important;
+  outline:2px solid rgba(239,159,39,.22)!important;
   outline-offset:1px!important;
 }
 input,select,textarea{
@@ -118,7 +118,7 @@ input:hover,select:hover,textarea:hover{
 }
 input:focus,select:focus,textarea:focus{
   border-color:var(--accent)!important;
-  box-shadow:0 0 0 2px rgba(37,99,235,.08)!important;
+  box-shadow:0 0 0 2px rgba(239,159,39,.12)!important;
 }
 
 /* Surfaces / cards */
@@ -140,7 +140,7 @@ input:focus,select:focus,textarea:focus{
 }
 .cui-control:focus-within{
   border-color:var(--accent)!important;
-  box-shadow:0 0 0 2px rgba(37,99,235,.08)!important;
+  box-shadow:0 0 0 2px rgba(239,159,39,.12)!important;
 }
 
 /* Common Tailwind-like utility colors used by the app: normalize them */
@@ -175,7 +175,7 @@ input:focus,select:focus,textarea:focus{
 [data-selected="true"]{
   background:var(--accent-soft)!important;
   color:var(--accent)!important;
-  border-color:#BFDBFE!important;
+  border-color:var(--accent)!important;
 }
 .active,
 .is-active,
@@ -263,7 +263,7 @@ button[data-primary="true"]:hover,
 .btn-primary:hover,
 .primary:hover,
 button.bg-primary:hover{
-  background:#1D4ED8!important;
+  background:#D88A1B!important;
   color:#fff!important;
 }
 
@@ -343,4 +343,32 @@ hr{
 @media (max-width: 430px) {
   .projects-system [style*="grid-template-columns: repeat(7,1fr)"],
   .projects-system [style*="grid-template-columns: 40px repeat(5,1fr)"] { min-width: 500px !important; }
+}
+
+
+/* Projects OS v5 Phase 1 — responsive workspace shell */
+.projects-workspace-nav{margin:0 0 16px;direction:rtl;}
+.projects-workspace-nav-desktop{display:grid;grid-template-columns:minmax(210px,250px) minmax(0,1fr);gap:18px;align-items:start;}
+.projects-workspace-nav-group{border:1px solid var(--border);background:var(--bg-card);border-radius:8px;overflow:hidden;}
+.projects-workspace-nav-group-title{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border:0!important;border-bottom:1px solid var(--border)!important;border-radius:0!important;background:#F9FAFB!important;color:var(--text-dim)!important;font-size:11.5px;font-weight:800;cursor:pointer;}
+.projects-workspace-nav-group-title:hover{background:#F3F4F6!important;color:var(--text-main)!important;}
+.projects-workspace-nav-group-title.is-active{color:var(--accent)!important;background:var(--accent-soft)!important;}
+.projects-workspace-nav-items{display:flex;flex-direction:column;padding:5px;}
+.projects-workspace-nav-item{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:0!important;border-radius:6px!important;background:transparent!important;color:var(--text-dim)!important;text-align:right;cursor:pointer;font-size:12px;}
+.projects-workspace-nav-item:hover{background:#F9FAFB!important;color:var(--text-main)!important;}
+.projects-workspace-nav-item.is-active{background:var(--accent-soft)!important;color:var(--accent)!important;font-weight:800;}
+.projects-workspace-nav-count{min-width:20px;padding:1px 6px;border-radius:999px;background:#F3F4F6;color:var(--text-muted);font-size:10px;text-align:center;}
+.projects-workspace-nav-item.is-active .projects-workspace-nav-count{background:rgba(239,159,39,.14);color:var(--accent);}
+.projects-workspace-nav-mobile{display:none;}
+@media (max-width:900px){
+  .projects-workspace-nav-desktop{grid-template-columns:minmax(170px,210px) minmax(0,1fr);gap:12px;}
+}
+@media (max-width:700px){
+  .projects-workspace-nav-desktop{display:none;}
+  .projects-workspace-nav-mobile{display:grid;gap:6px;}
+  .projects-workspace-nav-label{font-size:11px;font-weight:800;color:var(--text-dim);}
+  .projects-workspace-nav-mobile select{width:100%;min-height:44px;padding:9px 12px;}
+}
+@media (max-width:420px){
+  .projects-workspace-nav{margin-bottom:12px;}
 }

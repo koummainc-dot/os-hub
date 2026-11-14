@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const [repository, component, migration, docs] = await Promise.all([
+const [repository, component, migration, docs, projectLinkMigration, projectsMeetings] = await Promise.all([
   readFile(new URL("../src/systems/knowledge/repository.js", import.meta.url), "utf8"),
   readFile(new URL("../src/systems/knowledge/index.jsx", import.meta.url), "utf8"),
   readFile(new URL("../supabase/migrations/20261030150615_knowledge_resource_os.sql", import.meta.url), "utf8"),
   readFile(new URL("../docs/KNOWLEDGE_RESOURCE_OS_IMPLEMENTATION.md", import.meta.url), "utf8"),
+  readFile(new URL("../supabase/migrations/20261113210000_knowledge_project_scoped_links.sql", import.meta.url), "utf8"),
+  readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8"),
 ]);
 
 assert.ok(repository.includes('rpc("knowledge_load_snapshot"'));
@@ -37,6 +39,16 @@ assert.ok(!migration.toLowerCase().includes("security definer"));
 assert.ok(migration.includes("on conflict(workspace_id,id) do update"));
 assert.ok(migration.includes("knowledge_activity(workspace_id,item_id,actor_id,action,change_summary)"));
 assert.ok(docs.includes("legacy JSON"));
+assert.ok(repository.includes('.from("workspace_records")'), "Knowledge project picker and validation must use Projects' canonical repository");
+assert.ok(repository.includes('rpc("knowledge_list_project_meetings"'), "Projects meeting reads must call the Knowledge-owned server query");
+assert.ok(repository.includes("project-scoped-query-not-installed"), "selected-project reads must fail closed until the scoped RPC is installed");
+assert.ok(repository.includes("normalized-legacy-fallback"), "only the unfiltered legacy view may use the transitional snapshot fallback");
+assert.ok(projectsMeetings.includes('listKnowledgeMeetings(ws.id, selectedProjectId === "all" ? null : selectedProjectId)'), "Projects passes the selected project filter to Knowledge");
+assert.ok(!projectsMeetings.includes('String(m.relatedId) === String(projectFilter)'), "Projects must not filter a workspace-wide meeting list client-side");
+assert.ok(projectLinkMigration.includes("knowledge_external_links"), "canonical external links remain Knowledge-owned");
+assert.ok(projectLinkMigration.includes("knowledge_list_project_meetings"), "Knowledge owns the project-scoped read RPC");
+assert.ok(projectLinkMigration.includes("DEFERRABLE") === false, "Knowledge project links do not introduce unrelated deferred constraints");
+assert.ok(!/update\s+public\.workspace_records|delete\s+from\s+public\.workspace_records/i.test(projectLinkMigration), "Knowledge link migration must not backfill or mutate Projects data");
 assert.ok(docs.includes("Issue #85"));
 
 console.log("Knowledge normalized repository contract: PASS");

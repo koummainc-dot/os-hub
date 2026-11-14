@@ -23,8 +23,17 @@ BEGIN
     RAISE EXCEPTION 'Projects Outputs Storage policies are incomplete';
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname='projects_output_workspace_id') THEN
-    RAISE EXCEPTION 'Projects Outputs Storage path parser is missing';
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public'
+      AND p.proname='projects_output_workspace_id'
+      AND p.prosecdef=false
+      AND p.proconfig @> ARRAY['search_path=""']::text[]
+      AND NOT has_function_privilege('anon', p.oid, 'execute')
+      AND has_function_privilege('authenticated', p.oid, 'execute')
+  ) THEN
+    RAISE EXCEPTION 'Projects Outputs path parser must be SECURITY INVOKER, use an empty search_path, and be executable only by authenticated app users';
   END IF;
 
   IF EXISTS (
@@ -67,9 +76,14 @@ END $$;
 -- CI cannot safely impersonate the user's production authenticated identities.
 
 
-DO $$
+DO $body$
 BEGIN
+  IF public.projects_output_workspace_id('workspace/11111111-2222-4333-8444-555555555555/project/p1/output/o1/file.pdf')
+       IS DISTINCT FROM '11111111-2222-4333-8444-555555555555'::uuid THEN
+    RAISE EXCEPTION 'Well-formed Output Storage path must resolve its workspace UUID';
+  END IF;
+
   IF public.projects_output_workspace_id('workspace/not-a-uuid/project/p1/output/o1/file.pdf') IS NOT NULL THEN
     RAISE EXCEPTION 'Malformed Output Storage path must fail closed';
   END IF;
-END $$;
+END $body$;

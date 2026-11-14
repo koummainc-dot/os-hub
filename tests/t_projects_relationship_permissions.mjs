@@ -69,10 +69,10 @@ assert.ok(store.slice(discoveryIssueStart, discoveryIssueEnd).includes('!can("di
   "discovery-to-issue conversion requires issue write permission");
 assert.ok(entities.includes('filter(([kind]) => canConvertDiscovery(kind, conv))'),
   "discovery conversion choices must be filtered by target permissions");
-assert.ok(entities.includes('const canWriteDiscovery = can("discovery.write")') &&
+assert.ok(entities.includes('const canWriteDiscovery = can("discovery.write", scopedProjectId ? projectsById[scopedProjectId] : undefined)') &&
   entities.includes('onMove={canWriteDiscovery ? move : undefined}') &&
   entities.includes('footerExtra={form.id && canWriteDiscovery ?'),
-  "discovery create/edit/move/convert UI must respect discovery-write permission");
+  "discovery create/edit/move/convert UI must respect the active project write permission");
 assert.ok(screens.includes('const canWriteWins = can("win.write")') &&
   screens.includes('{canWriteWins && <Btn kind="primary" onClick={() => setForm({})}>➕ إنجاز</Btn>}') &&
   screens.includes('{canWriteWins && (w.member_id === me || can("admin"))'),
