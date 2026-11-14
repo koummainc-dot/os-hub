@@ -3,6 +3,8 @@ import { loadNormalizedKnowledge, saveNormalizedKnowledge, hasKnowledgeContent, 
 import { subscribeOSEvents } from "../integrationEvents.js";
 import { stableKnowledgeFollowupId } from "./followupIdentity.js";
 import { MEETING_TEMPLATES } from "./meetingTemplates.js";
+import { supabase } from "../../core/supabase.js";
+import { emitCoreNotification } from "../../core/notifications.js";
 import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
 
 const C = { ink:"#172033", muted:"#64748B", line:"#E2E8F0", bg:"#F8FAFC", accent:"#0284C7", soft:"#E0F2FE", green:"#047857", amber:"#B45309", red:"#B91C1C", white:"#FFFFFF" };
@@ -256,7 +258,16 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
         else setError(result?.error?.message||"تعذر حفظ التغييرات على الخادم. احتفظ بنسخة من تعديلاتك وأعد المحاولة.");
         return false;
       }
-      setData(next);setUpdatedAt(result?.updatedAt||updatedAt);setNotice("تم الحفظ.");return true;
+      setData(next);setUpdatedAt(result?.updatedAt||updatedAt);setNotice("تم الحفظ.");
+      const changedMeetings=(next||[]).filter(item=>item.kind==="meeting"&&item.relatedSystem==="projects"&&item.relatedId&&item.date&&new Date(item.date+"T"+(item.startTime||"09:00")+":00").getTime()>Date.now()).filter(item=>{const before=(allItems||[]).find(old=>old.id===item.id);return !before||before.date!==item.date||before.startTime!==item.startTime||before.title!==item.title;});
+      for(const meeting of changedMeetings){
+        try{
+          const {data:projectRow,error:projectError}=await supabase.from("workspace_records").select("data,visible_to").eq("workspace_id",api.workspaceId).eq("system_id","projects").eq("collection","projects").eq("id",meeting.relatedId).eq("deleted",false).maybeSingle();
+          if(projectError||!projectRow?.data?.lead_id)continue;
+          await emitCoreNotification({workspace_id:api.workspaceId,recipient_id:projectRow.data.lead_id,source_system:"projects",entity_collection:"projects",entity_id:meeting.relatedId,event_type:"knowledge_meeting_scheduled",title:"اجتماع جديد مرتبط بالمشروع: "+(meeting.title||"اجتماع"),body:"الموعد: "+meeting.date+(meeting.startTime?" · "+meeting.startTime:""),dedupe_key:"knowledge-meeting:"+meeting.id+":"+meeting.date+":"+(meeting.startTime||""),deep_link:{system:"knowledge",tab:"meetings",recordId:meeting.id}});
+        }catch(notificationError){console.warn("Knowledge meeting notification failed",notificationError);}
+      }
+      return true;
     } catch(e) {setError(e?.message||"تعذر الحفظ.");return false;}
     finally {setSaving(false);}
   };
