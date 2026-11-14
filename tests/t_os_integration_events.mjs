@@ -45,6 +45,8 @@ assert.match(projects,/المهمة السابقة مؤرشفة/,"repeat meeting
 assert.match(projects,/ctx\.data\.tasks \|\| \[\]/,"repeated meeting requests reconcile against existing source-linked tasks");
 assert.match(knowledge,/createMeetingFollowupTasks/,"Knowledge exposes meeting follow-up conversion");
 assert.match(knowledge,/action: "create_meeting_tasks"/,"Knowledge sends an explicit Projects task-creation action");
-assert.match(knowledge,/source_record_id: String\(item\.id\)/,"meeting follow-up identities remain stable across repeated sends");
+assert.match(knowledge,/const followupId = stableKnowledgeFollowupId\(item\.id, title\)/,"Knowledge follow-ups use stable meeting+item identity instead of array position");
+assert.match(knowledge,/source_record_id: followupId/,"Knowledge payload persists the stable source identity");
+assert.match(knowledge,/tasks\.map\(\(task\) => task\.source_record_id\)\.sort\(\)\.join\("\\|"/,"repeated sends use a deterministic request key regardless of follow-up order");
 
 console.log("OS integration durable event contract tests passed.");
