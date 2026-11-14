@@ -30,7 +30,7 @@ assert.ok(knowledge.includes('dedupe_key:"knowledge-meeting-followups:"+meeting.
   "retries of the same set of newly added Follow-ups must deduplicate");
 assert.ok(knowledge.includes('deep_link:{system:"knowledge",tab:"meetings",recordId:meeting.id'),
   "the Inbox item must open the original Knowledge meeting");
-assert.ok(knowledge.includes('"بند متابعة جديدة لاجتماع "') || knowledge.includes('"متابعة جديدة لاجتماع "'),
+assert.ok(knowledge.includes('" متابعة جديدة لاجتماع "'),
   "notification body must describe the added follow-ups without copying their text");
 assert.ok(coreNotifications.includes('supabase.rpc("core_notification_emit"'),
   "the emitted event must pass through Core notification authorization and persistence");
