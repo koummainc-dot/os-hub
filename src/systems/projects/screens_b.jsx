@@ -906,6 +906,7 @@ function RelatedTab({ p, canE, section = "all" }) {
         p_task: {
           source: "knowledge_meeting",
           source_record_id: sourceRecordId,
+          source_followup_id: sourceRecordId,
           title,
           project_id: p.id,
           assignee_id: me,
