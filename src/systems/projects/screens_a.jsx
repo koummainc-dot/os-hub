@@ -8,6 +8,7 @@ import * as D from "./domain.js";
 import { readOSEvents, subscribeOSEvents, subscribeToStoredOSEvents } from "../integrationEvents.js";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
 import { supabase } from "../../core/supabase.js";
+import { listCoreSavedViews, saveCoreSavedView, deleteCoreSavedView } from "../../core/savedViews.js";
 import { L, opts, STATUS_COLOR } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, DueChip, ProjectName, ProjectForm, TaskForm, mOpts, projOpts } from "./parts.jsx";
 
@@ -298,7 +299,7 @@ export function Tasks() {
 // ═════ Portfolio ═════
 // Cross-project portfolio view; derived only from existing workspace records.
 export function Portfolio() {
-  const { data, metrics, idx, today, settings, projectProgress, openProject, openTask, setPage, setView, people, can, view, A: act, ws, shell } = useP();
+  const { data, metrics, idx, today, settings, projectProgress, openProject, openTask, setPage, setView, people, can, view, A: act, ws, shell, me } = useP();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("active");
   const [newProjectOpen, setNewProjectOpen] = useState(false);
@@ -316,6 +317,12 @@ export function Portfolio() {
   const [financeLinkFilter, setFinanceLinkFilter] = useState("");
   const [financeProfiles, setFinanceProfiles] = useState([]);
   const [financeLinkState, setFinanceLinkState] = useState("idle");
+  const [savedViews, setSavedViews] = useState([]);
+  const [savedViewsState, setSavedViewsState] = useState("idle");
+  const [activeSavedViewId, setActiveSavedViewId] = useState("");
+  const portfolioColumnKeys = ["project","status","health","progress","target","remaining","lead","team","priority","finance","issues","risks"];
+  const [visibleColumns, setVisibleColumns] = useState(portfolioColumnKeys);
+  const [columnOrder, setColumnOrder] = useState(portfolioColumnKeys);
   const [calendarMonth, setCalendarMonth] = useState(today.slice(0, 7));
   const [calendarMeetings, setCalendarMeetings] = useState([]);
   const [calendarMeetingsState, setCalendarMeetingsState] = useState("idle");
@@ -343,6 +350,17 @@ export function Portfolio() {
     if (projectCurrency && financeCurrency && projectCurrency !== financeCurrency) return { key: "currency-mismatch", label: `Finance: اختلاف عملة ${financeCurrency}/${projectCurrency}`, color: C.bad, profile };
     return { key: "linked", label: "Finance: مرتبط", color: C.ok, profile };
   };
+  useEffect(() => {
+    let active = true;
+    if (!ws?.id || !me) { setSavedViews([]); setSavedViewsState("idle"); return () => { active = false; }; }
+    setSavedViewsState("loading");
+    listCoreSavedViews(ws.id, "projects").then((result) => {
+      if (!active) return;
+      if (result.ok) { setSavedViews(result.rows); setSavedViewsState("ready"); }
+      else { setSavedViews([]); setSavedViewsState("unavailable"); }
+    });
+    return () => { active = false; };
+  }, [ws?.id, me]);
   useEffect(() => {
     let active = true;
     if (!ws?.id || !supabase?.rpc) { setFinanceProfiles([]); setFinanceLinkState("idle"); return () => { active = false; }; }
