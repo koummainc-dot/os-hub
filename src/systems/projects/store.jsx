@@ -109,6 +109,10 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     if (coll === "issues" && saved.owner_id && saved.severity === "Critical" && D.isOpenIssue(saved) && (previous?.owner_id !== saved.owner_id || previous?.severity !== saved.severity || previous?.status !== saved.status)) {
       add(saved.owner_id, "critical_issue_assigned", "مشكلة حرجة تحتاج متابعتك: " + saved.title, "issues", "issue");
     }
+    if (coll === "updates" && saved.status === "Published" && previous?.status !== "Published") {
+      const audience = [...new Set([projectRecord?.lead_id, ...(projectRecord?.members || []).map((member) => member.member_id)].filter(Boolean))];
+      audience.forEach((id) => add(id, "project_update_published", "تحديث جديد للمشروع: " + (saved.title || "تحديث"), "updates", "update"));
+    }
     for (const item of recipients) {
       const dedupe = [item.eventType, saved.id, item.recipient, saved.updated_at || saved.v || "latest"].join(":");
       try {
