@@ -5,6 +5,7 @@ const screensB = await readFile(new URL("../src/systems/projects/screens_b.jsx",
 const screensA = await readFile(new URL("../src/systems/projects/screens_a.jsx", import.meta.url), "utf8");
 const parts = await readFile(new URL("../src/systems/projects/parts.jsx", import.meta.url), "utf8");
 const entities = await readFile(new URL("../src/systems/projects/entities.jsx", import.meta.url), "utf8");
+const screensC = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
 
 const overview = screensB.slice(screensB.indexOf("function Overview("), screensB.indexOf("function ProjectTimeline("));
 assert.ok(overview.includes('tab: "tasks", taskFilter: "overdue"'), "overdue count opens the project task tab with an overdue-only filter");
@@ -103,4 +104,22 @@ assert.ok(tasks.includes("view.activeProjectsOnly === true"), "Tasks restores th
 assert.ok(tasks.includes('!projectsById[t.project_id].is_system && !["Completed", "Cancelled"].includes(projectsById[t.project_id].status)'), "active-project task scope excludes system, completed and cancelled projects");
 assert.ok(tasks.includes("activeProjectsOnly: false"), "task filter reset clears the shared Portfolio scope");
 
+assert.ok(portfolio.includes("listKnowledgeMeetings(ws.id, project.id)") &&
+  portfolio.includes("data.prds.filter((prd) => prd.target_ship_date") &&
+  portfolio.includes('output.approval === "Final" && output.approved_at') &&
+  portfolio.includes("calendarMeetings") &&
+  portfolio.includes('kind: "meeting"') &&
+  portfolio.includes('focusItemId: event.record.id, focusItemKind: "meeting"'),
+  "Portfolio Calendar must include project, task, PRD, Final Output, and server-scoped Knowledge meeting events");
+assert.ok(screensC.includes("setProjectFilter") && screensC.includes("setQuery") &&
+  screensC.includes('query.toLocaleLowerCase()') &&
+  screensC.includes('aria-label="تصفية الإنجازات حسب المشروع"'),
+  "Wins must support project and text filters in addition to its member filter");
+assert.ok(screensC.includes('project_id: form.project_id || data.projects.find((p) => !p.is_system)?.id') &&
+  screensC.includes('option value="portfolio">المحفظة</option>') &&
+  screensC.includes('option value="Published">منشور</option>'),
+  "Updates must preserve the project selected by Project Detail and filter by project and publication state");
+assert.ok(screensC.includes("const canWriteWins = can(\"win.write\")") &&
+  screensC.includes('can("win.write", project)'),
+  "Project-context Win creation must verify the selected project's write permission");
 console.log("t_projects_overview_metric_navigation: OK");
