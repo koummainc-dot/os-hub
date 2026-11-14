@@ -20,7 +20,7 @@ Source: `Projects_OS_v5_Unified_Refactor_Spec.md`, §22. This log records the cu
 **Decision: approve Knowledge-owned external relation contract.** Canonical relation is `knowledge_external_links(target_system='projects', target_id=workspace_records.id, relation_type='related')`; legacy metadata is compatibility-only. Knowledge remains owner and enforces both Knowledge and Projects visibility.
 
 ## D-06 — Saved Views
-**Decision: personal by default, optional Workspace sharing.** Saved view stores query/filter/sort/visible columns/column order/view mode and schema version. Personal owner can edit/delete; shared view requires explicit share permission and only authorized managers can edit/delete. Do not persist in Projects-local tables or browser-only localStorage. Implemented through the Core-owned `core_saved_views` service/table with RLS: personal views by default, optional workspace-readable views; Projects stores only the versioned view definition and consumes the Core adapter.
+**Decision: personal by default, optional Workspace sharing.** Saved View stores filters/search/sort/visible columns/column order/view mode and schema version in Core-owned `core_saved_views`; Projects holds no local copy. Personal views can be created, edited and deleted by their owner. Workspace sharing is offered only to Workspace Owner/Admin (explicit `manage`); shared views are readable by eligible Projects members but only managers can update/delete them. The creator identity is immutable. QA RLS test with the owner and a regular Projects editor verified: personal create/update/delete succeeds for its owner; shared create/update/delete is rejected for a regular editor and succeeds for the Workspace Owner.
 
 ## D-07 — Unified Inbox
 **Decision: Platform Notification owns inbox records and per-recipient read state.** Projects publishes typed events/outbox references only. Inbox queries the shared service, permission-checks target on open, and stores no copied task/meeting/finance content. No Projects-local inbox table.
@@ -39,6 +39,9 @@ Source: `Projects_OS_v5_Unified_Refactor_Spec.md`, §22. This log records the cu
 
 ## D-12 — Legacy KR/Task paths
 **Decision: preserve legacy fields read-only; new relationships use the canonical derived path.** A Task's Objective/KR contribution is derived through its Project → linked KR/Objective, not a new direct Task→Objective association. Existing objective_id/task_ids/project_ids remain readable until a full reader/writer inventory, duplicate/orphan report and no-loss dry run are approved. No destructive backfill or field removal in this pass.
+## Implementation decision — Demo / Sandbox isolation
+**Decision: Demo is ephemeral and memory-only; QA is a separate Supabase project.** The platform selects `osMakeDemoApi` and a memory-scoped record store while Demo mode is active; Finance is read-only in Demo, and no Demo writes publish persistent Core notifications. The isolated QA project is the only backend target for migration and disposable SQL acceptance during this branch. A persistent “Sandbox” schema or shared Production demo workspace is deliberately not created because it would mix test and user data.
+
 ## Standing safety decisions
 - No production DB migration, RLS policy change, destructive data operation or production deploy in this pass.
 - Finance remains owner of Finance Project Profiles and transactions.
