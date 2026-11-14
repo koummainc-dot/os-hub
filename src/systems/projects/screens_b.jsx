@@ -831,6 +831,9 @@ function RelatedTab({ p, canE, section = "all" }) {
     if (isExpanded || Object.prototype.hasOwnProperty.call(resourceAttachments, item.id)) return;
     setLoadingResourceAttachments((current) => ({ ...current, [item.id]: true }));
     const result = await listKnowledgeAttachments(ws.id, item.id);
+    if (!result.ok) {
+      void emitProjectIntegrationFailure({ workspaceId: ws?.id, project: p, actorId: me, integration: "knowledge_resources" });
+    }
     setResourceAttachments((current) => ({
       ...current,
       [item.id]: result.ok
