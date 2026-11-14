@@ -296,31 +296,39 @@ function ProjectMilestones({ p }) {
   </div>;
 }
 function ProjectTimeline({ p }) {
-  const { idx, today, openTask } = useP();
+  const { idx, today, openTask, data, openProject, view, setView } = useP();
   const tasks = idx.list.filter((t) => t.project_id === p.id && idx.isLeaf(t.id) && (t.start_date || t.due_date))
     .sort((a, b) => String(a.start_date || a.due_date).localeCompare(String(b.start_date || b.due_date)));
-  if (!tasks.length) return <Empty icon="🗓️" title="لا توجد مهام مؤرخة" sub="أضف تاريخ بداية أو موعداً للمهمة لتظهر في الخط الزمني." />;
-  const starts = tasks.map(t => t.start_date || t.due_date).sort();
-  const ends = tasks.map(t => t.due_date || t.start_date).sort();
-  const min = starts[0], max = ends[ends.length - 1];
+  const milestones = data.milestones.filter((m) => m.project_id === p.id && !m.archived_at && m.due_date)
+    .sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)));
+  const dated = [...tasks.map((t) => t.start_date || t.due_date), ...milestones.map((m) => m.due_date)].filter(Boolean).sort();
+  if (!dated.length) return <Empty icon="🗓️" title="لا توجد عناصر مؤرخة" sub="أضف مواعيد للمهام أو معالم المشروع لبناء Roadmap." />;
+  const min = dated[0], max = dated[dated.length - 1];
   const span = Math.max(1, diffDays(max, min) + 1);
   const pos = d => Math.max(0, Math.min(100, diffDays(d, min) / span * 100));
-  return <div style={{ ...S.card, overflowX: "auto" }}>
-    <div style={{ minWidth: 720 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", color: C.muted, fontSize: 10.5, marginBottom: 8 }}>
-        <span>{fmtShort(min)}</span><span>{fmtShort(max)}</span>
+  return <div style={{ display: "grid", gap: 12 }}>
+    {milestones.length > 0 && <div style={S.card}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>معالم المشروع</div>
+      {milestones.map((m) => <div key={m.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid " + C.line }}>
+        <span style={{ color: m.status === "Completed" ? C.ok : m.due_date < today ? C.bad : A }}>◆</span><b style={{ flex: 1, fontSize: 12.5 }}>{m.title}</b><span style={{ fontSize: 11.5, color: C.muted }}>{fmtShort(m.due_date)}</span><Chip color={m.status === "Completed" ? C.ok : C.warn}>{m.status === "Completed" ? "مكتمل" : m.status === "In Progress" ? "قيد التنفيذ" : "مخطط"}</Chip>
+      </div>)}
+      <button type="button" onClick={() => setView({ ...view, tab: "milestones" })} style={{ border: 0, background: "transparent", color: C.info, padding: "8px 0 0", cursor: "pointer", font: "inherit", fontSize: 12 }}>إدارة المعالم ↗</button>
+    </div>}
+    {tasks.length > 0 && <div style={{ ...S.card, overflowX: "auto" }}>
+      <div style={{ minWidth: 720 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", color: C.muted, fontSize: 10.5, marginBottom: 8 }}><span>{fmtShort(min)}</span><span>{fmtShort(max)}</span></div>
+        {tasks.map(t => {
+          const a=t.start_date||t.due_date, b=t.due_date||t.start_date, left=pos(a), width=Math.max(1.5,pos(b)-left), done=D.cat(t.status)==="done";
+          return <div key={t.id} style={{ display:"grid", gridTemplateColumns:"180px 1fr", gap:10, alignItems:"center", marginBottom:8 }}>
+            <button type="button" onClick={()=>openTask(t.id)} style={{ border:0, background:"transparent", padding:0, textAlign:"start", font: "inherit", fontSize:12, fontWeight:600, color:done?C.muted:C.text, cursor:"pointer", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.title}</button>
+            <div style={{ position:"relative", height:24, background:"rgba(0,0,0,.04)", borderRadius:6 }}>
+              <div onClick={()=>openTask(t.id)} title={fmt(a)+" → "+fmt(b)} style={{ position:"absolute", insetInlineStart:left+"%", width:width+"%", top:2, height:20, borderRadius:6, cursor:"pointer", background:done?"rgba(16,185,129,.22)":"rgba(99,102,241,.18)", border:"1px solid "+(done?C.ok:C.info) }} />
+              {today>=min && today<=max && <div style={{position:"absolute",insetInlineStart:pos(today)+"%",top:-2,bottom:-2,width:2,background:A}} />}
+            </div>
+          </div>;
+        })}
       </div>
-      {tasks.map(t => {
-        const a=t.start_date||t.due_date, b=t.due_date||t.start_date, left=pos(a), width=Math.max(1.5,pos(b)-left), done=D.cat(t.status)==="done";
-        return <div key={t.id} style={{ display:"grid", gridTemplateColumns:"180px 1fr", gap:10, alignItems:"center", marginBottom:8 }}>
-          <button type="button" onClick={()=>openTask(t.id)} style={{ border:0, background:"transparent", padding:0, textAlign:"start", font: "inherit", fontSize:12, fontWeight:600, color:done?C.muted:C.text, cursor:"pointer", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.title}</button>
-          <div style={{ position:"relative", height:24, background:"rgba(0,0,0,.04)", borderRadius:6 }}>
-            <div onClick={()=>openTask(t.id)} title={fmt(a)+" → "+fmt(b)} style={{ position:"absolute", insetInlineStart:left+"%", width:width+"%", top:2, height:20, borderRadius:6, cursor:"pointer", background:done?"rgba(16,185,129,.22)":"rgba(99,102,241,.18)", border:"1px solid "+(done?C.ok:C.info) }} />
-            {today>=min && today<=max && <div style={{position:"absolute",insetInlineStart:pos(today)+"%",top:-2,bottom:-2,width:2,background:A}} />}
-          </div>
-        </div>;
-      })}
-    </div>
+    </div>}
   </div>;
 }
 function WorkTab({ p }) {
