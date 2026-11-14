@@ -398,19 +398,28 @@ function ProjectFinanceTab({ p }) {
     setState("loading");
     setError("");
     Promise.all([
-      supabase.rpc("fin_projects_get", { p_ws: ws.id }),
+      supabase.rpc("fin_projects_sync_get", { p_ws: ws.id }),
       supabase.rpc("fin_project_primary_list", { p_ws: ws.id }),
     ]).then(([profileResult, primaryResult]) => {
       if (!active) return;
       if (profileResult.error) {
         const message = String(profileResult.error.message || profileResult.error.details || profileResult.error.code || "");
-        if (profileResult.error.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(message)) setState("permission");
-        else setState("error");
-        setError(message || "تعذّر تحميل الملخص المالي.");
-        setProfiles([]);
+        if (lastGoodSync.current) {
+          setState("stale");
+          setSyncMeta(lastGoodSync.current);
+        } else {
+          setState(profileResult.error.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(message) ? "permission" : "error");
+          setProfiles([]);
+        }
+        setError(message || "تعذّر تحديث الملخص المالي.");
         return;
       }
-      const matches = (Array.isArray(profileResult.data) ? profileResult.data : []).filter((profile) => String(profile.project_ref || "") === String(p.id));
+      const payload = profileResult.data || {};
+      const rows = Array.isArray(payload.projects) ? payload.projects : [];
+      const meta = { as_of: payload.as_of || null, last_synced_at: payload.last_synced_at || null, sync_status: payload.sync_status || "fresh" };
+      lastGoodSync.current = meta;
+      setSyncMeta(meta);
+      const matches = rows.filter((profile) => String(profile.project_ref || "") === String(p.id));
       const primary = !primaryResult.error && (Array.isArray(primaryResult.data) ? primaryResult.data : []).find((row) => String(row.project_ref) === String(p.id));
       const primaryProfile = primary && matches.find((profile) => String(profile.id) === String(primary.finance_project_id));
       if (primary && !primaryProfile) {
@@ -418,14 +427,14 @@ function ProjectFinanceTab({ p }) {
       } else if (primaryProfile) {
         setProfiles([primaryProfile]); setState("linked"); setError("");
       } else {
-        setProfiles(matches); setState(matches.length === 0 ? "not-linked" : matches.length === 1 ? "linked" : "multiple");
+        setProfiles(matches); setState(matches.length === 0 ? "not-linked" : matches.length === 1 ? "linked" : "multiple"); setError("");
       }
     }).catch((rpcError) => {
       if (!active) return;
-      const message = String(rpcError?.message || rpcError || "تعذّر تحميل الملخص المالي.");
-      setState(rpcError?.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(message) ? "permission" : "error");
+      const message = String(rpcError?.message || rpcError || "تعذّر تحديث الملخص المالي.");
+      if (lastGoodSync.current) { setState("stale"); setSyncMeta(lastGoodSync.current); }
+      else { setState("error"); setProfiles([]); }
       setError(message);
-      setProfiles([]);
     });
     return () => { active = false; };
   }, [ws?.id, p.id, isDemo, reloadKey]);
