@@ -11,7 +11,7 @@ export const DEFAULT_SETTINGS = {
   yellowDays: 14, yellowProgress: 0.7, riskHigh: 15, riskMedium: 8,
   paceOnTrack: 0.1, paceAtRisk: 0.25, inboxStaleDays: 14, timerMaxHours: 8, dueSoonDays: 1,
   cyclesEnabled: false, krWeights: false,
-  automations: { reviewDraft: true, dueReminders: true, overdueDigest: true, healthAlerts: true, staleInbox: true, krCheckin: true, timerLong: true, winSuggest: true, pioSuggest: true },
+  automations: { reviewDraft: true, dueReminders: true, overdueDigest: true, healthAlerts: true, staleInbox: true, krCheckin: true, timerLong: true, winSuggest: true, pioSuggest: true, prdReview: true, outputReview: true },
 };
 
 // ── statuses & categories ───────────────────────────────────────────
@@ -427,7 +427,7 @@ export function traceabilityBlocked(policy, projectType, isSystem, task) {
 }
 // client-side automations → in-app alerts with dedupe keys (A-09/10/11/12/15/16/17/18/20/21)
 export function computeAlerts(memberId, ctx) {
-  const { idx, issues, projects, contacts, discovery, krs, checkins, timers, wins, today, settings, metrics } = ctx; const set = settings || DEFAULT_SETTINGS; const au = set.automations || {}; const out = [];
+  const { idx, issues, projects, contacts, discovery, krs, checkins, timers, wins, prds, outputs, today, settings, metrics } = ctx; const set = settings || DEFAULT_SETTINGS; const au = set.automations || {}; const out = [];
   const mine = idx.list.filter((t) => idx.isLeaf(t.id) && t.assignee_id === memberId && ["todo", "active"].includes(cat(t.status)));
   if (au.overdueDigest !== false) { const od = mine.filter((t) => isOverdueLeaf(t, idx, today)); if (od.length) out.push({ key: "overdue:" + today, kind: "overdue", level: "bad", text: `${od.length} مهمة متأخرة مسندة إليك`, ids: od.map((t) => t.id) }); }
   if (au.dueReminders !== false) { const soon = mine.filter((t) => t.due_date && diffDays(t.due_date, today) >= 0 && diffDays(t.due_date, today) <= set.dueSoonDays); if (soon.length) out.push({ key: "due:" + today, kind: "due", level: "warn", text: `${soon.length} مهمة مستحقة خلال ${set.dueSoonDays === 0 ? "اليوم" : set.dueSoonDays + " يوم"}`, ids: soon.map((t) => t.id) }); }
@@ -436,7 +436,9 @@ export function computeAlerts(memberId, ctx) {
   (contacts || []).filter((c) => isActiveRec(c) && c.follow_up_date && c.follow_up_date <= today).forEach((c) => out.push({ key: "fu:" + c.id + ":" + c.follow_up_date, kind: "contact", level: "warn", text: `موعد متابعة: ${c.name}` }));
   if (au.staleInbox !== false) { const st = (discovery || []).filter((d) => isActiveRec(d) && d.status === "Inbox" && d.logged_at && diffDays(today, d.logged_at) > set.inboxStaleDays); if (st.length) out.push({ key: "stale:" + today, kind: "inbox", level: "warn", text: `${st.length} عنصر في صندوق الاكتشاف أقدم من ${set.inboxStaleDays} يوماً — يحتاج فرزاً` }); }
   if (au.krCheckin !== false) (krs || []).filter((k) => isActiveRec(k) && k.type === "Numeric" && k.owner_id === memberId).forEach((k) => { const last = (checkins || []).filter((c) => c.kr_id === k.id).map((c) => c.checked_at).sort().slice(-1)[0]; if (!last || diffDays(today, dateOf(last, set.timezone)) >= 7) out.push({ key: "kr:" + k.id + ":" + weekStart(today, set.weekStartDay), kind: "kr", level: "info", text: `حان Check-in للنتيجة: ${k.name}` }); });
-  if (au.timerLong !== false) (timers || []).filter((t) => t.member_id === memberId && !t.ended_at).forEach((t) => { if ((Date.now() - new Date(t.started_at).getTime()) / 3600000 > set.timerMaxHours) out.push({ key: "timer:" + t.id, kind: "timer", level: "warn", text: `المؤقّت شغّال منذ أكثر من ${set.timerMaxHours} ساعات` }); });
+  if (au.timerLong !== false) (timers || []).filter((t) => t.member_id === memberId && !t.ended_at).forEach((t) => { if ((Date.now() - new Date(t.started_at).getTime()) / 3600000 > set.timerMaxHours) out.push({ key: "timer:" + t.id, kind: "timer", level: "warn", text: "المؤقّت شغّال منذ أكثر من " + set.timerMaxHours + " ساعات" }); });
+  if (au.prdReview !== false) (prds || []).filter((p) => isActiveRec(p) && p.status === "Ready for Review" && (p.reviewer_id === memberId || p.review_owner_id === memberId)).forEach((p) => out.push({ key: "prd-review:" + p.id + ":" + (p.updated_at || ""), kind: "prd_review", level: "info", text: "مواصفة بانتظار مراجعتك: " + (p.title || p.name || "PRD"), project: p.project_id, record: { kind: "prd", id: p.id } }));
+  if (au.outputReview !== false) (outputs || []).filter((o) => isActiveRec(o) && o.approval === "Review" && (o.reviewer_id === memberId || o.review_owner_id === memberId)).forEach((o) => out.push({ key: "output-review:" + o.id + ":" + (o.updated_at || ""), kind: "output_review", level: "info", text: "مخرج بانتظار مراجعتك: " + (o.name || "مخرج"), project: o.project_id, record: { kind: "output", id: o.id } }));
   return out;
 }
 
