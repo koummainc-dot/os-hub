@@ -168,10 +168,13 @@ begin
   elsif new.collection = 'discovery' then
     perform public.projects_assert_linked_records(new.workspace_id, null, 'projects', new.data->'project_ids', 'discovery.project_ids');
     perform public.projects_assert_linked_records(new.workspace_id, null, 'objectives', new.data->'objective_ids', 'discovery.objective_ids', true);
-    if nullif(trim(new.data->>'source_url'), '') is not null
-       and new.data->>'source_url' !~* '^https?://'
-       or length(coalesce(new.data->>'source_url','')) > 2048
-       or length(coalesce(new.data->>'source_title','')) > 200 then
+    if (
+         nullif(trim(new.data->>'source_url'), '') is not null
+         and (
+           new.data->>'source_url' !~* '^https?://'
+           or length(coalesce(new.data->>'source_url','')) > 2048
+         )
+       ) or length(coalesce(new.data->>'source_title','')) > 200 then
       raise exception 'Discovery source URL/title is invalid' using errcode = '22023';
     end if;
     if jsonb_typeof(new.data->'objective_ids') = 'array'
