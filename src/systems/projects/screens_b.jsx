@@ -445,12 +445,57 @@ function ProjectFinanceTab({ p }) {
   </section>;
 }
 function ProjectActivity({ p }) {
-  const { data, idx, nameOf, openTask, openProject, setPage } = useP();
+  const { data, idx, nameOf, openTask, openProject, setPage, ws, shell } = useP();
+  const [financeTransactions, setFinanceTransactions] = useState([]);
+  const [financeState, setFinanceState] = useState("idle");
   const [typeFilter, setTypeFilter] = useState("all");
   const [actorFilter, setActorFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [query, setQuery] = useState("");
+  useEffect(() => {
+    let active = true;
+    if (!ws?.id) {
+      setFinanceTransactions([]);
+      setFinanceState("error");
+      return () => { active = false; };
+    }
+    setFinanceState("loading");
+    supabase.rpc("fin_projects_get", { p_ws: ws.id }).then(({ data: profiles, error }) => {
+      if (!active) return;
+      if (error) {
+        setFinanceTransactions([]);
+        setFinanceState(error.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(String(error.message || "")) ? "permission" : "error");
+        return;
+      }
+      const linkedProfiles = (Array.isArray(profiles) ? profiles : []).filter((profile) => String(profile.project_ref || "") === String(p.id));
+      const unique = new Map();
+      linkedProfiles.forEach((profile) => (Array.isArray(profile.transactions) ? profile.transactions : []).forEach((transaction) => {
+        if (!transaction?.id) return;
+        unique.set(String(transaction.id), {
+          id: String(transaction.id),
+          profileId: profile.id,
+          profileName: profile.name || p.name,
+          name: transaction.name || transaction.purpose || "حركة مالية",
+          purpose: transaction.purpose || "",
+          type: transaction.type || "",
+          pnlEffect: transaction.pnl_effect || "",
+          status: transaction.status || "",
+          amount: transaction.amount,
+          currency: transaction.currency || profile.currency || "EGP",
+          baseAmount: transaction.base_amount,
+          baseCurrency: transaction.base_currency || profile.base_currency || "EGP",
+          baseMissing: transaction.base_missing === true,
+          localDate: transaction.local_date || "",
+        });
+      }));
+      setFinanceTransactions([...unique.values()]);
+      setFinanceState("ready");
+    }).catch(() => {
+      if (active) { setFinanceTransactions([]); setFinanceState("error"); }
+    });
+    return () => { active = false; };
+  }, [ws?.id, p.id]);
   const taskIds = new Set(idx.list.filter((task) => String(task.project_id || "") === String(p.id)).map((task) => task.id));
   const sessionIds = new Set(data.sessions.filter((session) => session.project_id === p.id || taskIds.has(session.task_id)).map((session) => session.id));
   const projectKrs = data.krs.filter((kr) => (kr.project_ids || []).includes(p.id));
@@ -472,21 +517,33 @@ function ProjectActivity({ p }) {
     objectives: projectObjectiveIds,
     krs: projectKrIds,
     checkins: new Set(data.checkins.filter((record) => projectKrIds.has(record.kr_id)).map((record) => record.id)),
+    financeTransactions: new Set(financeTransactions.map((transaction) => transaction.id)),
   };
-  const aliases = { project: "projects", task: "tasks", output: "outputs", session: "sessions", risk: "risks", issue: "issues", decision: "decisions", prd: "prds", discovery_item: "discovery", win: "wins", update: "updates", review: "reviews", objective: "objectives", key_result: "krs", checkin: "checkins" };
-  const labels = { projects: "المشروع", tasks: "مهمة", outputs: "مخرج", sessions: "جلسة عمل", risks: "خطر", issues: "مشكلة", decisions: "قرار", prds: "مواصفة", discovery: "اكتشاف", wins: "إنجاز", updates: "تحديث", reviews: "مراجعة", objectives: "هدف", krs: "نتيجة رئيسية", checkins: "تحديث نتيجة" };
-  const sourceActivity = data.activity
-    .filter((event) => {
+  const aliases = { project: "projects", task: "tasks", output: "outputs", session: "sessions", risk: "risks", issue: "issues", decision: "decisions", prd: "prds", discovery_item: "discovery", win: "wins", update: "updates", review: "reviews", objective: "objectives", key_result: "krs", checkin: "checkins", finance_transaction: "financeTransactions" };
+  const labels = { projects: "المشروع", tasks: "مهمة", outputs: "مخرج", sessions: "جلسة عمل", risks: "خطر", issues: "مشكلة", decisions: "قرار", prds: "مواصفة", discovery: "اكتشاف", wins: "إنجاز", updates: "تحديث", reviews: "مراجعة", objectives: "هدف", krs: "نتيجة رئيسية", checkins: "تحديث نتيجة", financeTransactions: "حركة Finance" };
+  const financeActivity = financeTransactions.map((transaction) => ({
+    id: "finance:" + transaction.id,
+    entity: "finance_transaction",
+    entity_id: transaction.id,
+    at: transaction.localDate ? transaction.localDate + "T12:00:00" : "",
+    actor_id: null,
+    systemActor: "Finance OS",
+    action: transaction.status === "Reversed" ? "حركة معكوسة" : "حركة مرتبطة بالمشروع",
+    summary: transaction.name + " · " + transaction.amount + " " + transaction.currency + (transaction.baseMissing ? " · غير مقيّمة بعملة الأساس" : ""),
+  }));
+  const sourceActivity = [
+    ...data.activity.filter((event) => {
       const collection = aliases[event.entity] || event.entity;
       return !!ids[collection]?.has(String(event.entity_id));
-    })
-    .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+    }),
+    ...financeActivity,
+  ].sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
   const typeOptions = [...new Set(sourceActivity.map((event) => aliases[event.entity] || event.entity).filter(Boolean))];
   const actorOptions = [...new Set(sourceActivity.map((event) => String(event.actor_id || "")).filter(Boolean))];
   const activity = sourceActivity.filter((event) => {
     const collection = aliases[event.entity] || event.entity;
     const day = String(event.at || "").slice(0, 10);
-    const text = [event.action, event.summary, nameOf(event.actor_id), labels[collection] || collection].join(" ").toLocaleLowerCase();
+    const text = [event.action, event.summary, event.systemActor || nameOf(event.actor_id), labels[collection] || collection].join(" ").toLocaleLowerCase();
     return (typeFilter === "all" || collection === typeFilter)
       && (actorFilter === "all" || String(event.actor_id || "") === actorFilter)
       && (!dateFrom || day >= dateFrom)
@@ -504,6 +561,7 @@ function ProjectActivity({ p }) {
     if (collection === "prds") return openProject(p.id, "prds", { kind: "prd", id });
     if (collection === "discovery") return openProject(p.id, "discovery", { kind: "discovery", id });
     if (collection === "sessions") return openProject(p.id, "work");
+    if (collection === "financeTransactions") return shell?.go?.("system", "finance", "projects", { projectRef: p.id, fromSystem: "projects" });
     if (collection === "wins") return setPage("wins");
     if (collection === "updates") return setPage("updates");
     if (collection === "reviews") return setPage("reviews");
@@ -516,8 +574,10 @@ function ProjectActivity({ p }) {
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
       <b style={{ fontSize: 13 }}>سجل نشاط المشروع</b><Chip>{activity.length}</Chip>
       <span style={{ flex: 1 }} />
-      <span style={{ fontSize: 10.5, color: C.muted }}>آخر {activity.length} حدثًا من سجلات المشروع المتاحة</span>
+      <span style={{ fontSize: 10.5, color: C.muted }}>يشمل سجلات Projects والحركات المالية المتاحة</span>
     </div>
+    {financeState === "permission" && <div role="status" style={{ fontSize: 10.5, color: C.warn, marginBottom: 7 }}>لم تُحمّل حركات Finance بسبب صلاحية القراءة؛ بقية Activity تعمل بصورة مستقلة.</div>}
+    {financeState === "error" && <div role="status" style={{ fontSize: 10.5, color: C.muted, marginBottom: 7 }}>تعذّر تحميل حركات Finance؛ لم تُستبدل بأرقام تقديرية.</div>}
     <SearchBar value={query} onChange={setQuery} placeholder="ابحث في النشاط…">
       <select aria-label="تصفية النشاط حسب النوع" style={{ ...S.sel, width: 150 }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
         <option value="all">كل أنواع النشاط</option>{typeOptions.map((type) => <option key={type} value={type}>{labels[type] || type}</option>)}
@@ -533,7 +593,7 @@ function ProjectActivity({ p }) {
       activity.map((event) => <button type="button" key={event.id} onClick={() => navigate(event)} style={{ display: "flex", width: "100%", gap: 8, alignItems: "flex-start", border: 0, borderTop: "1px solid " + C.line, padding: "8px 2px", textAlign: "start", background: "transparent", color: C.text, cursor: "pointer", font: "inherit" }}>
         <span style={{ minWidth: 72, fontSize: 10.5, color: C.muted }}>{dateOf(event.at)}</span>
         <span style={{ flex: 1, fontSize: 12, lineHeight: 1.7 }}><b>{labels[aliases[event.entity] || event.entity] || event.entity}</b> · {event.action} {event.summary}</span>
-        <span style={{ fontSize: 10.5, color: C.muted }}>{nameOf(event.actor_id)} ↗</span>
+        <span style={{ fontSize: 10.5, color: C.muted }}>{event.systemActor || nameOf(event.actor_id)} ↗</span>
       </button>)}
   </div>;
 }
