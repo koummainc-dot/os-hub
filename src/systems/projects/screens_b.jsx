@@ -11,7 +11,8 @@ import { HealthBadge, StatusChip, PriorityChip, Who, ProjectName, ProjectForm, T
 import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView, DiscoveryView } from "./entities.jsx";
 import { normalizeKnowledgeFollowup, stableKnowledgeFollowupId, findKnowledgeFollowupTask } from "../knowledge/followupIdentity.js";
 import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
-import { listKnowledgeMeetings } from "../knowledge/repository.js";
+import { listKnowledgeMeetings, listKnowledgeProjectResources, listKnowledgeAttachments } from "../knowledge/repository.js";
+import { OUTPUT_STORAGE_BUCKET } from "./outputStorage.js";
 
 export function Projects() {
   const { data, metrics, view, setView, setPage, can, A: act, templates, toast, people, openProject, today, settings, trash } = useP();
@@ -438,12 +439,18 @@ function ProjectUpdatesTab({ p }) {
   </div>;
 }
 function RelatedTab({ p, canE, section = "all" }) {
-  const { A: act, toast, ws, data, can, me, today, setPage, view, setView } = useP();
+  const { A: act, toast, ws, data, can, me, today, setPage, setView, openProject } = useP();
   const links = p.links || [];
   const [f, setF] = useState(false);
   const [meetings, setMeetings] = useState([]);
   const [loadingMeetings, setLoadingMeetings] = useState(section !== "resources");
   const [meetingError, setMeetingError] = useState("");
+  const [resources, setResources] = useState([]);
+  const [loadingResources, setLoadingResources] = useState(section === "meetings");
+  const [resourceError, setResourceError] = useState("");
+  const [resourceAttachments, setResourceAttachments] = useState({});
+  const [loadingResourceAttachments, setLoadingResourceAttachments] = useState({});
+  const [expandedResources, setExpandedResources] = useState({});
   const [creatingFollowup, setCreatingFollowup] = useState("");
   const creatingFollowupsRef = useRef(new Set());
   useEffect(() => {
@@ -467,6 +474,64 @@ function RelatedTab({ p, canE, section = "all" }) {
     }
   };
   useEffect(() => { if (section !== "resources") refreshMeetings(); }, [ws?.id, p.id, section]);
+
+  const refreshResources = async () => {
+    if (!ws?.id || section === "meetings") { setResources([]); setLoadingResources(false); return; }
+    setLoadingResources(true);
+    setResourceError("");
+    setResourceAttachments({});
+    setExpandedResources({});
+    try {
+      const result = await listKnowledgeProjectResources(ws.id, p.id);
+      if (!result.ok) throw result.error || new Error("تعذّر تحميل موارد Knowledge لهذا المشروع.");
+      setResources(result.resources || []);
+    } catch (error) {
+      setResources([]);
+      setResourceError(error?.message || "تعذّر تحميل موارد Knowledge لهذا المشروع.");
+    } finally {
+      setLoadingResources(false);
+    }
+  };
+  useEffect(() => { if (section !== "meetings") refreshResources(); }, [ws?.id, p.id, section]);
+
+  const toggleKnowledgeAttachments = async (item) => {
+    const isExpanded = !!expandedResources[item.id];
+    setExpandedResources((current) => ({ ...current, [item.id]: !isExpanded }));
+    if (isExpanded || Object.prototype.hasOwnProperty.call(resourceAttachments, item.id)) return;
+    setLoadingResourceAttachments((current) => ({ ...current, [item.id]: true }));
+    const result = await listKnowledgeAttachments(ws.id, item.id);
+    setResourceAttachments((current) => ({
+      ...current,
+      [item.id]: result.ok
+        ? { attachments: result.attachments || [], error: null }
+        : { attachments: [], error: result.error?.message || "تعذّر تحميل مرفقات المصدر." },
+    }));
+    setLoadingResourceAttachments((current) => ({ ...current, [item.id]: false }));
+  };
+
+  const openOutputAttachment = async (file) => {
+    if (typeof file === "string") {
+      if (/^https?:\\/\\//i.test(file)) window.open(file, "_blank", "noopener,noreferrer");
+      else toast("هذا الملف القديم لا يحتوي على رابط تنزيل قابل للفتح.");
+      return;
+    }
+    if (file?.url && !file?.object_path) {
+      window.open(file.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (!file?.object_path) { toast("لا يوجد مسار ملف صالح للتنزيل."); return; }
+    try {
+      const { data: signed, error } = await supabase.storage.from(OUTPUT_STORAGE_BUCKET).createSignedUrl(file.object_path, 60);
+      if (error) throw error;
+      if (!signed?.signedUrl) throw new Error("تعذّر إنشاء رابط تنزيل مؤقت.");
+      window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) { toast("⛔ تعذّر تنزيل مرفق المخرج: " + (error?.message || "فشل التنزيل")); }
+  };
+
+  const projectOutputsWithFiles = data.outputs
+    .filter((output) => String(output.project_id || "") === String(p.id))
+    .filter((output) => (output.files || []).length || (output.upload_intents || []).length)
+    .sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
 
   const linkedMeetings = meetings
     .filter((meeting) => !meeting.archived && meeting.status !== "archived")
