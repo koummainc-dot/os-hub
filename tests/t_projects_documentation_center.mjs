@@ -17,6 +17,7 @@ const files=[
   "docs/projects-documentation/09-coverage-report.md",
   "docs/projects-documentation/10-complete-operating-manual.md",
   "docs/projects-documentation/11-field-and-form-dictionary.md",
+  "docs/projects-documentation/12-daily-work-portfolio-operating-guide.md",
   "docs/projects-documentation/12-release-acceptance-checklist.md",
   "docs/projects-documentation/traceability-index.json"
 ];
