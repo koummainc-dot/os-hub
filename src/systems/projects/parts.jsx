@@ -74,9 +74,22 @@ export function TaskForm({ initial, projectId, parentId, allowedProjectIds, onCl
 }
 
 // ── Task tree ───────────────────────────────────────────────────────
+// Progressive rendering keeps large projects responsive without dropping any
+// Tasks from calculations or relationships. Every page is a view-only slice;
+// writes continue to target the same canonical Task records.
+const PROJECTS_TASK_RENDER_PAGE_SIZE = 80;
 export function TaskTree({ projectId, tasks, readOnly, filter, filterLabel = null }) {
   const { idx, A: act, can, today, people, openTask, projectsById, toast, view, setView } = useP(); const project = projectsById[projectId];
   const [open, setOpen] = useState({}); const [form, setForm] = useState(null); const [menu, setMenu] = useState(null); const [dragId, setDragId] = useState(null);
+  const [rootLimit, setRootLimit] = useState(PROJECTS_TASK_RENDER_PAGE_SIZE);
+  const [childLimits, setChildLimits] = useState({});
+  const [flatLimit, setFlatLimit] = useState(PROJECTS_TASK_RENDER_PAGE_SIZE * 2);
+  useEffect(() => {
+    setRootLimit(PROJECTS_TASK_RENDER_PAGE_SIZE);
+    setChildLimits({});
+    setFlatLimit(PROJECTS_TASK_RENDER_PAGE_SIZE * 2);
+    setOpen({});
+  }, [projectId, filterLabel]);
   const canWrite = !readOnly && can("task.write", project);
   useEffect(() => {
     if (view.quickCreate !== "task") return;
@@ -90,12 +103,24 @@ export function TaskTree({ projectId, tasks, readOnly, filter, filterLabel = nul
   const statusGroups = ["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"];
   const matches = (t) => !filter || filter(t);
   const projectTasks = idx.list.filter((t) => t.project_id === projectId && idx.isLeaf(t.id) && matches(t));
-  const visible = (t) => matches(t) || (idx.children[t.id] || []).some((k) => visible(idx.byId[k]));
+  const flatTasks = projectTasks.slice(0, flatLimit);
+  const hasMoreFlatTasks = projectTasks.length > flatTasks.length;
+  const visibilityCache = new Map();
+  const visible = (t) => {
+    if (visibilityCache.has(t.id)) return visibilityCache.get(t.id);
+    const result = matches(t) || (idx.children[t.id] || []).some((id) => visible(idx.byId[id]));
+    visibilityCache.set(t.id, result);
+    return result;
+  };
   const visibleRoots = roots.filter((root) => visible(root));
+  const pagedRoots = visibleRoots.slice(0, rootLimit);
   const isOpen = (id, depth) => (open[id] === undefined ? depth < 2 : open[id]);
   const Row = ({ t, depth }) => {
     const d = idx.derived[t.id]; const kids = idx.children[t.id] || []; const leaf = d.isLeaf; const status = leaf ? t.status : d.status; const done = D.cat(status) === "done"; const cancelled = D.cat(status) === "cancelled";
     if (!visible(t)) return null;
+    const visibleKids = kids.filter((id) => visible(idx.byId[id]));
+    const childLimit = childLimits[t.id] ?? PROJECTS_TASK_RENDER_PAGE_SIZE;
+    const pagedKids = visibleKids.slice(0, childLimit);
     return (
       <div>
         <div draggable={canWrite} onDragStart={(e) => { setDragId(t.id); e.dataTransfer.setData("text/plain", t.id); }} onDragOver={(e) => canWrite && e.preventDefault()}
@@ -123,7 +148,14 @@ export function TaskTree({ projectId, tasks, readOnly, filter, filterLabel = nul
             <Btn small danger onClick={() => { setMenu(null); act.deleteTree(t.id); }}>🗑 حذف</Btn>
           </div>
         )}
-        {kids.length > 0 && isOpen(t.id, depth) && kids.map((k) => <Row key={k} t={idx.byId[k]} depth={depth + 1} />)}
+        {visibleKids.length > 0 && isOpen(t.id, depth) && <>
+          {pagedKids.map((k) => <Row key={k} t={idx.byId[k]} depth={depth + 1} />)}
+          {visibleKids.length > pagedKids.length && <div style={{ padding: "6px 8px", paddingInlineStart: 34 + depth * 22, borderBottom: "1px solid " + C.line }}>
+            <button type="button" onClick={() => setChildLimits((current) => ({ ...current, [t.id]: childLimit + PROJECTS_TASK_RENDER_PAGE_SIZE }))} style={{ border: 0, background: "none", color: C.info, cursor: "pointer", fontSize: 11.5 }}>
+              عرض {Math.min(PROJECTS_TASK_RENDER_PAGE_SIZE, visibleKids.length - pagedKids.length)} مهمة فرعية أخرى من {visibleKids.length - pagedKids.length} متبقية
+            </button>
+          </div>}
+        </>}
       </div>
     );
   };
@@ -144,13 +176,23 @@ export function TaskTree({ projectId, tasks, readOnly, filter, filterLabel = nul
         {visibleRoots.length === 0 && <Empty icon={filter ? "🔎" : "✅"} title={filter ? "لا توجد مهام تطابق هذا الفلتر" : "لا توجد مهام بعد"} sub={filter ? view.taskFilter === "overdue" ? "لا توجد مهام متأخرة حاليًا في هذا المشروع." : view.taskFilter === "ids" ? "لا توجد مهام بلا مواصفة أو اكتشاف حاليًا." : "لا توجد مهام مطابقة حاليًا في هذا المشروع." : "أضف أول مهمة أو أنشئ المشروع من قالب جاهز."} />}
         <div style={{ ...S.card, padding: 0, overflow: "hidden", display: visibleRoots.length ? "block" : "none" }}
           onDragOver={(e) => canWrite && e.preventDefault()} onDrop={async (e) => { const id = e.dataTransfer.getData("text/plain"); if (id && e.target === e.currentTarget) await act.reparent(id, null); }}>
-          {visibleRoots.map((t) => <Row key={t.id} t={t} depth={0} />)}
+          {pagedRoots.map((t) => <Row key={t.id} t={t} depth={0} />)}
+          {visibleRoots.length > pagedRoots.length && <div role="status" style={{ padding: 10, borderTop: "1px solid " + C.line, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ color: C.muted, fontSize: 11 }}>تم عرض {pagedRoots.length} من {visibleRoots.length} مهمة رئيسية</span>
+            <button type="button" onClick={() => setRootLimit((current) => current + PROJECTS_TASK_RENDER_PAGE_SIZE)} style={{ border: "1px solid " + C.line, background: "#fff", borderRadius: 7, padding: "5px 9px", cursor: "pointer", color: C.info, fontSize: 11.5 }}>تحميل المزيد</button>
+          </div>}
         </div>
       </div>
-      {mode === "board" && (!projectTasks.length ? <Empty icon="🔎" title="لا توجد مهام مطابقة" /> : <Board columns={statusGroups.map((status) => ({ id: status, label: L.taskStatus[status] || status, color: STATUS_COLOR[status], items: projectTasks.filter((t) => t.status === status) }))} onMove={async (id, to) => { const t = idx.byId[id]; if (t && canWrite) await act.setTaskStatus(t, to); }} renderCard={(t) => <div onClick={() => openTask(t.id)} style={{ ...S.card, padding: "9px 10px", cursor: "pointer" }}><div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 5 }}>{t.title}</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}><PriorityChip p={t.priority} /><DueChip date={t.due_date} status={t.status} today={today} />{t.assignee_id && <Who id={t.assignee_id} size={17} />}</div></div>} />)}
-      {mode === "table" && (!projectTasks.length ? <Empty icon="🔎" title="لا توجد مهام مطابقة" /> : <div style={{ ...S.card, padding: 0, overflowX: "auto" }}><table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ background: "rgba(0,0,0,0.03)" }}>{["المهمة","الحالة","المسؤول","الموعد","الأولوية","التقدير"].map((h) => <th key={h} style={{ padding: "8px 10px", textAlign: "right", color: C.muted, fontSize: 10.5 }}>{h}</th>)}</tr></thead><tbody>{projectTasks.map((t) => <tr key={t.id} style={{ borderTop: "1px solid " + C.line }}><td style={{ padding: "8px 10px", fontWeight: 600, cursor: "pointer" }} onClick={() => openTask(t.id)}>{t.title}</td><td style={{ padding: "8px 10px" }}><StatusChipSm s={t.status} /></td><td style={{ padding: "8px 10px" }}>{t.assignee_id ? <Who id={t.assignee_id} size={17} /> : "—"}</td><td style={{ padding: "8px 10px" }}><DueChip date={t.due_date} status={t.status} today={today} /></td><td style={{ padding: "8px 10px" }}><PriorityChip p={t.priority} /></td><td style={{ padding: "8px 10px", color: C.dim }}>{fmtMinutes(t.estimated_minutes || 0)}</td></tr>)}</tbody></table></div>)}
+      {mode === "board" && <>{!projectTasks.length ? <Empty icon="🔎" title="لا توجد مهام مطابقة" /> : <Board columns={statusGroups.map((status) => ({ id: status, label: L.taskStatus[status] || status, color: STATUS_COLOR[status], items: flatTasks.filter((t) => t.status === status) }))} onMove={async (id, to) => { const t = idx.byId[id]; if (t && canWrite) await act.setTaskStatus(t, to); }} renderCard={(t) => <div onClick={() => openTask(t.id)} style={{ ...S.card, padding: "9px 10px", cursor: "pointer" }}><div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 5 }}>{t.title}</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}><PriorityChip p={t.priority} /><DueChip date={t.due_date} status={t.status} today={today} />{t.assignee_id && <Who id={t.assignee_id} size={17} />}</div></div>} />}
+        {hasMoreFlatTasks && <button type="button" onClick={() => setFlatLimit((current) => current + PROJECTS_TASK_RENDER_PAGE_SIZE * 2)} style={{ border: "1px solid " + C.line, background: "#fff", borderRadius: 7, padding: "7px 11px", color: C.info, cursor: "pointer", fontSize: 11.5, marginTop: 8 }}>تحميل المزيد من المهام ({projectTasks.length - flatTasks.length} متبقية)</button>}
+      </>}
+      {mode === "table" && <>{!projectTasks.length ? <Empty icon="🔎" title="لا توجد مهام مطابقة" /> : <div style={{ ...S.card, padding: 0, overflowX: "auto" }}><table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ background: "rgba(0,0,0,0.03)" }}>{["المهمة","الحالة","المسؤول","الموعد","الأولوية","التقدير"].map((h) => <th key={h} style={{ padding: "8px 10px", textAlign: "right", color: C.muted, fontSize: 10.5 }}>{h}</th>)}</tr></thead><tbody>{flatTasks.map((t) => <tr key={t.id} style={{ borderTop: "1px solid " + C.line }}><td style={{ padding: "8px 10px", fontWeight: 600, cursor: "pointer" }} onClick={() => openTask(t.id)}>{t.title}</td><td style={{ padding: "8px 10px" }}><StatusChipSm s={t.status} /></td><td style={{ padding: "8px 10px" }}>{t.assignee_id ? <Who id={t.assignee_id} size={17} /> : "—"}</td><td style={{ padding: "8px 10px" }}><DueChip date={t.due_date} status={t.status} today={today} /></td><td style={{ padding: "8px 10px" }}><PriorityChip p={t.priority} /></td><td style={{ padding: "8px 10px", color: C.dim }}>{fmtMinutes(t.estimated_minutes || 0)}</td></tr>)}</tbody></table></div>}
+        {hasMoreFlatTasks && <button type="button" onClick={() => setFlatLimit((current) => current + PROJECTS_TASK_RENDER_PAGE_SIZE * 2)} style={{ border: "1px solid " + C.line, background: "#fff", borderRadius: 7, padding: "7px 11px", color: C.info, cursor: "pointer", fontSize: 11.5, marginTop: 8 }}>تحميل المزيد من المهام ({projectTasks.length - flatTasks.length} متبقية)</button>}
+      </>}
       {mode === "calendar" && (() => { const [y, m] = month.split("-").map(Number); const lead = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(); const days = new Date(Date.UTC(y, m, 0)).getUTCDate(); return <div style={S.card}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><Btn small onClick={() => { const d = new Date(Date.UTC(y, m - 2, 1)); setMonth(d.toISOString().slice(0,7)); }}>→</Btn><b>{MONTH_NAMES[m - 1]} {y}</b><Btn small onClick={() => { const d = new Date(Date.UTC(y, m, 1)); setMonth(d.toISOString().slice(0,7)); }}>←</Btn></div><div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4 }}>{["أحد","اثنين","ثلاثاء","أربعاء","خميس","جمعة","سبت"].map((d) => <div key={d} style={{ fontSize: 10.5, color: C.muted, textAlign: "center" }}>{d}</div>)}{Array.from({length: lead}).map((_,i)=><div key={"e"+i}/>) }{Array.from({length: days}).map((_,i)=>{const ds=month + "-" + String(i+1).padStart(2,"0");const ts=projectTasks.filter(t=>t.due_date===ds);return <div key={ds} style={{minHeight:76,border:"1px solid " + (ds===today?A:C.line),borderRadius:6,padding:4,background:ds===today?"rgba(239,159,39,0.07)":"transparent"}}><div style={{fontSize:10.5,color:C.muted}}>{i+1}</div>{ts.slice(0,3).map(t=><div key={t.id} onClick={()=>openTask(t.id)} style={{fontSize:10,background:"rgba(59,130,246,0.12)",borderRadius:4,padding:"2px 4px",marginTop:2,cursor:"pointer",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.title}</div>)}{ts.length>3&&<div style={{fontSize:9.5,color:C.muted}}>+{ts.length-3}</div>}</div>})}</div></div>; })()}
-      {mode === "timeline" && <div style={{ ...S.card, overflowX: "auto" }}><div style={{ minWidth: 720 }}>{projectTasks.filter((t) => t.due_date).sort((a,b) => a.due_date.localeCompare(b.due_date)).map((t) => <div key={t.id} style={{ display: "grid", gridTemplateColumns: "220px 1fr 90px", gap: 8, alignItems: "center", marginBottom: 8 }}><div onClick={() => openTask(t.id)} style={{ fontSize: 12, fontWeight: 600, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div><div style={{ position: "relative", height: 22, background: "rgba(0,0,0,0.04)", borderRadius: 5 }}><div style={{ position: "absolute", insetInlineStart: "4%", width: "68%", height: "100%", background: "rgba(59,130,246,0.18)", border: "1px solid rgba(59,130,246,0.5)", borderRadius: 5 }} /></div><DueChip date={t.due_date} status={t.status} today={today} /></div>)}{!projectTasks.some((t) => t.due_date) && <Empty icon="📅" title="لا توجد مهام بمواعيد" sub="أضف موعداً للمهمة لتظهر في الخط الزمني." />}</div></div>}
+      {mode === "timeline" && <><div style={{ ...S.card, overflowX: "auto" }}><div style={{ minWidth: 720 }}>{flatTasks.filter((t) => t.due_date).sort((a,b) => a.due_date.localeCompare(b.due_date)).map((t) => <div key={t.id} style={{ display: "grid", gridTemplateColumns: "220px 1fr 90px", gap: 8, alignItems: "center", marginBottom: 8 }}><div onClick={() => openTask(t.id)} style={{ fontSize: 12, fontWeight: 600, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div><div style={{ position: "relative", height: 22, background: "rgba(0,0,0,0.04)", borderRadius: 5 }}><div style={{ position: "absolute", insetInlineStart: "4%", width: "68%", height: "100%", background: "rgba(59,130,246,0.18)", border: "1px solid rgba(59,130,246,0.5)", borderRadius: 5 }} /></div><DueChip date={t.due_date} status={t.status} today={today} /></div>)}{!projectTasks.some((t) => t.due_date) && <Empty icon="📅" title="لا توجد مهام بمواعيد" sub="أضف موعداً للمهمة لتظهر في الخط الزمني." />}</div></div>
+        {hasMoreFlatTasks && <button type="button" onClick={() => setFlatLimit((current) => current + PROJECTS_TASK_RENDER_PAGE_SIZE * 2)} style={{ border: "1px solid " + C.line, background: "#fff", borderRadius: 7, padding: "7px 11px", color: C.info, cursor: "pointer", fontSize: 11.5, marginTop: 8 }}>تحميل المزيد من المهام ({projectTasks.length - flatTasks.length} متبقية)</button>}
+      </>}
       {form && <TaskForm projectId={projectId} parentId={form.parentId} initial={form.initial} onClose={() => setForm(null)} />}
     </div>
   );
