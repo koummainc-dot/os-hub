@@ -282,7 +282,7 @@ function ProjectMilestones({ p }) {
             {m.description && <div style={{ fontSize: 12, marginTop: 5, whiteSpace: "pre-wrap" }}>{m.description}</div>}
             {!!(m.related_task_ids || []).length && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{m.related_task_ids.map((id) => { const t = data.tasks.find((x) => x.id === id && x.project_id === p.id); return t ? <button key={id} type="button" onClick={() => openTask(id)} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit", fontSize: 11.5 }}>↗ {t.title}</button> : null; })}</div>}
           </div>
-          {canWrite && <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}><Btn small onClick={() => setEditing(m)}>تعديل</Btn>{!m.archived_at && <Btn small onClick={() => archive(m)}>أرشفة</Btn>}</div>}
+          {canWrite && <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>{!m.archived_at && <><Btn small onClick={() => setEditing(m)}>تعديل</Btn><Btn small onClick={() => archive(m)}>أرشفة</Btn></>}{m.archived_at && <Btn small onClick={async () => { const saved = await act.put("milestones", { ...m, archived_at: null }, p); if (saved) act.act("milestones", m.id, "restored", m.title); }}>استعادة</Btn>}</div>}
         </div>;
       })}</div>}
     {editing && <FormModal title={editing.id ? "تعديل المعلم" : "إضافة معلم"} wide initial={editing} onClose={() => setEditing(null)} fields={[
