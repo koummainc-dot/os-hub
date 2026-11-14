@@ -568,6 +568,24 @@ export function DiscoveryView({ projectId = null } = {}) {
     && (!q || d.title.toLowerCase().includes(q.toLowerCase()))
   );
   const canWriteDiscovery = can("discovery.write", scopedProjectId ? projectsById[scopedProjectId] : undefined);
+  const objectivesForDiscovery = (record) => {
+    const projectIds = Array.isArray(record?.project_ids) ? record.project_ids : [];
+    return data.objectives.filter((objective) => !projectIds.length || data.krs.some((kr) =>
+      kr.objective_id === objective.id && (kr.project_ids || []).some((id) => projectIds.includes(id))
+    ));
+  };
+  const validateDiscoveryTraceability = (record) => {
+    const objectiveIds = [...new Set((record.objective_ids || []).filter(Boolean))];
+    const validObjectives = objectivesForDiscovery(record).map((objective) => objective.id);
+    const invalid = objectiveIds.filter((id) => !validObjectives.includes(id));
+    if (invalid.length) return "كل هدف مرتبط بالاكتشاف يجب أن يكون موجودًا وله KR مرتبط بأحد مشاريع الاكتشاف.";
+    const sourceUrl = String(record.source_url || "").trim();
+    if (sourceUrl) {
+      try { const parsed = new URL(sourceUrl); if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("protocol"); }
+      catch { return "رابط المصدر يجب أن يبدأ بـ http:// أو https://"; }
+    }
+    return "";
+  };
   const statuses = Object.keys(L.discoveryStatus);
   const conversionWriteAction = { task: "task.write", prd: "prd.write", issue: "issue.write" };
   const eligibleConversionProjects = (kind, source) => (source.project_ids || []).map((id) => projectsById[id]).filter((project) => project && !project.is_system && !project.archived_at && can(conversionWriteAction[kind], project));
@@ -634,7 +652,8 @@ export function DiscoveryView({ projectId = null } = {}) {
     <div id={recordDomId("discovery", d.id)} style={{ ...S.card, padding: "9px 11px", ...recordFocusStyle(view, "discovery", d.id) }} onClick={() => setForm(d)}>
       <div style={{ fontSize: 12.5, fontWeight: 700 }}>{typeIcon[d.type]} {d.title}</div>
       <div style={{ fontSize: 11, color: C.dim, margin: "3px 0" }}>{d.proposed_solution ? "💬 " + d.proposed_solution.slice(0, 60) : d.description ? d.description.slice(0, 60) : ""}</div>
-      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}><Btn small onClick={(e) => { e.stopPropagation(); setDetail(d); }}>عرض التفاصيل</Btn>{d.impact_level && <Chip color={SEV_COLOR[d.impact_level]}>{L.severity[d.impact_level]}</Chip>}{stale(d) && <Chip color={C.warn}>⏳ يحتاج فرزاً</Chip>}{d.owner_id && <Who id={d.owner_id} size={15} />}{(d.resolution_links || []).length > 0 && <Chip color={C.ok}>↪ {(d.resolution_links || []).length}</Chip>}{data.decisions.filter((decision) => (decision.related_discovery_ids || []).includes(d.id)).map((decision) => <Chip key={decision.id} color={C.violet}>⚖ {decision.title}</Chip>)}</div>
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}><Btn small onClick={(e) => { e.stopPropagation(); setDetail(d); }}>عرض التفاصيل</Btn>{d.impact_level && <Chip color={SEV_COLOR[d.impact_level]}>{L.severity[d.impact_level]}</Chip>}{stale(d) && <Chip color={C.warn}>⏳ يحتاج فرزاً</Chip>}{d.owner_id && <Who id={d.owner_id} size={15} />}{(d.objective_ids || []).length > 0 && <Chip color={C.violet}>🎯 {(d.objective_ids || []).length} أهداف</Chip>}{d.source_url && <Chip color={C.info}>↗ مصدر</Chip>}{(d.resolution_links || []).length > 0 && <Chip color={C.ok}>↪ {(d.resolution_links || []).length}</Chip>}{data.decisions.filter((decision) => (decision.related_discovery_ids || []).includes(d.id)).map((decision) => <Chip key={decision.id} color={C.violet}>⚖ {decision.title}</Chip>)}</div>
+      {d.source_url && <button type="button" onClick={(e) => { e.stopPropagation(); window.open(d.source_url, "_blank", "noopener,noreferrer"); }} style={{ display: "inline-block", marginTop: 6, border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", fontSize: 11 }}>{d.source_title || "فتح المصدر الأصلي"} ↗</button>}
       {(d.resolution_links || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>{(d.resolution_links || []).map((link) => { const task = link.kind === "task" ? idx.byId[link.id] : null; const issue = link.kind === "issue" ? data.issues.find((x) => x.id === link.id) : null; const prd = link.kind === "prd" ? data.prds.find((x) => x.id === link.id) : null; const project = link.kind === "project" ? projectsById[link.id] : null; const label = task?.title || issue?.title || prd?.title || project?.name || "عنصر مرتبط"; return <button key={link.kind + ":" + link.id} type="button" onClick={(e) => { e.stopPropagation(); if (task) openTask(task.id); else if (issue) openProject(issue.project_id, "issues", { kind: "issue", id: issue.id }); else if (prd) openProject(prd.project_id, "prds", { kind: "prd", id: prd.id }); else if (project) openProject(project.id); }} style={{ border: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", fontSize: 11 }}>↗ {label}</button>; })}</div>}
     </div>);
   return (
@@ -648,6 +667,9 @@ export function DiscoveryView({ projectId = null } = {}) {
         { label: "مستوى الأثر", value: L.severity[detail.impact_level] || detail.impact_level },
         { label: "المسؤول", value: people.find((x) => x.id === detail.owner_id)?.name }, { label: "تاريخ التسجيل", value: detail.logged_at },
         { label: "المشاريع المرتبطة", value: (detail.project_ids || []).map((id) => projectsById[id]?.name).filter(Boolean).join("، ") },
+        { label: "الأهداف المرتبطة", value: (detail.objective_ids || []).map((id) => data.objectives.find((objective) => objective.id === id)?.name).filter(Boolean).join("، ") },
+        { label: "المصدر الأصلي", value: detail.source_title || detail.source_url },
+        { label: "رابط المصدر", value: detail.source_url },
         { label: "الوصف", value: detail.description }, { label: "الأدلة", value: detail.insights },
         { label: "الحل المقترح", value: detail.proposed_solution }, { label: "سبب الإسقاط", value: detail.dropped_reason },
         { label: "ملاحظة الحل", value: detail.resolution_note },
@@ -661,11 +683,13 @@ export function DiscoveryView({ projectId = null } = {}) {
       ]} />}
       {form && canWriteDiscovery && <FormModal title={form.id ? "عنصر اكتشاف" : "عنصر جديد"} wide initial={form} onClose={() => setForm(null)}
         footerExtra={form.id && canWriteDiscovery ? <><Btn onClick={() => { setConv(form); setForm(null); }}>↪ تحويل…</Btn><Btn danger onClick={async () => { await act.del("discovery", form.id, form.title); setForm(null); }}>🗑</Btn></> : null}
-        validate={(v) => { const m = D.validateDiscoveryStatus(v, v.status, (v.resolution_links || []).length > 0); return m; }}
-        onSubmit={async (v) => { const { _need, ...rec } = v; await act.put("discovery", { ...rec, id: rec.id || uid(), raised_by_member_id: rec.raised_by_member_id || me, source: rec.source || "manual", logged_at: rec.logged_at || today }); toast("✅ تم الحفظ"); setForm(null); }} fields={[
+        validate={(v) => D.validateDiscoveryStatus(v, v.status, (v.resolution_links || []).length > 0) || validateDiscoveryTraceability(v)}
+        onSubmit={async (v) => { const { _need, ...rec } = v; const traceabilityError = validateDiscoveryTraceability(rec); if (traceabilityError) { toast("⛔ " + traceabilityError); return; } await act.put("discovery", { ...rec, objective_ids: [...new Set((rec.objective_ids || []).filter(Boolean))], source_title: String(rec.source_title || "").trim(), source_url: String(rec.source_url || "").trim(), id: rec.id || uid(), raised_by_member_id: rec.raised_by_member_id || me, source: rec.source || "manual", logged_at: rec.logged_at || today }); toast("✅ تم الحفظ"); setForm(null); }} fields={[
           { key: "title", label: "العنوان", required: true, span: 2 }, { key: "type", label: "النوع", type: "select", allowEmpty: false, options: opts(L.discoveryType) }, { key: "status", label: "الحالة", type: "select", allowEmpty: false, options: opts(L.discoveryStatus) },
           { key: "impact_level", label: "مستوى الأثر", type: "select", options: opts(L.severity), emptyLabel: "—" }, { key: "owner_id", label: "المسؤول", type: "select", options: mOpts(people), required: (v) => v.status === "Working On" },
-          { key: "project_ids", label: "المشاريع المرتبطة", type: "multi", options: data.projects.filter((p) => !p.is_system).map((p) => ({ v: p.id, l: p.name })) },
+          { key: "project_ids", label: "المشاريع المرتبطة", type: "multi", options: data.projects.filter((p) => !p.is_system && !p.archived_at).map((p) => ({ v: p.id, l: p.name })) },
+          { key: "objective_ids", label: "الأهداف المرتبطة", type: "multi", options: (v) => objectivesForDiscovery(v).map((objective) => ({ v: objective.id, l: objective.name })) },
+          { key: "source_title", label: "اسم المصدر الأصلي" }, { key: "source_url", label: "رابط المصدر الأصلي", type: "url", span: 2 },
           { key: "dropped_reason", label: "سبب الإسقاط", required: true, show: (v) => v.status === "Dropped" },
           { key: "resolution_note", label: "ملاحظة الحل", type: "textarea", rows: 2, show: (v) => v.status === "Completed" },
           { key: "description", label: "الوصف", type: "textarea" }, { key: "insights", label: "الأدلة", type: "textarea", rows: 2 }, { key: "proposed_solution", label: "الحل المقترح", type: "textarea", rows: 2 }]} />}
