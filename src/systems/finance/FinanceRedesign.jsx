@@ -317,6 +317,29 @@ function TransactionSheet({ transaction, categories, accounts, baseCurrency, con
 }
 
 
+function createTransactionDraft(baseCurrency = "EGP", project = null) {
+  const requestId = "finance-ui-" + (globalThis.crypto?.randomUUID?.() || (Date.now() + "-" + Math.random().toString(36).slice(2)));
+  return {
+    type: "Expense",
+    purpose: "Regular",
+    amount: "",
+    currency: project?.currency || baseCurrency,
+    local_date: new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }),
+    from_account_id: "",
+    to_account_id: "",
+    category_id: "",
+    goal_id: "",
+    merchant: "",
+    notes: "",
+    context_type: project?.finance_project_id ? "Project" : "",
+    finance_project_id: project?.finance_project_id || "",
+    finance_project_name: project?.finance_project_name || "",
+    context_family_member_id: "",
+    client_generated_id: requestId,
+    idempotency_key: requestId,
+  };
+}
+
 function TransactionCreateModal({
   open,
   draft,
@@ -397,11 +420,13 @@ function TransactionCreateModal({
           <div style={{fontSize:11,fontWeight:900,marginBottom:8}}>ربط السياق</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}>
             <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>السياق
-              <select value={draft.context_type} onChange={e=>update("context_type",e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}><option value="">بدون سياق</option><option value="Family">الأسرة</option></select>
+              <select value={draft.context_type} onChange={e=>update("context_type",e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}><option value="">بدون سياق</option><option value="Family">الأسرة</option><option value="Project" disabled={!draft.finance_project_id || draft.type==="Transfer"}>المشروع الحالي</option></select>
             </label>
             {draft.context_type==="Family" && <label style={{display:"grid",gap:6,fontSize:11,color:C.muted}}>فرد الأسرة
               <select value={draft.context_family_member_id} onChange={e=>update("context_family_member_id",e.target.value)} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit"}}><option value="">اختر فردًا</option>{contextFamilyMembers.map(m=><option key={m.id} value={m.id}>{m.display_name}</option>)}</select>
             </label>}
+          </div>
+          {draft.context_type==="Project" && draft.finance_project_id && <div role="status" style={{marginTop:8,background:C.greenSoft,borderRadius:9,padding:9,color:C.green,fontSize:11,lineHeight:1.7}}>ستُسجَّل الحركة في دفتر Finance ثم تُربط بملف «{draft.finance_project_name || "المشروع"}». ربط المشاريع متاح للدخل والمصروف فقط.</div>}
           </div>
         </div>
         <label style={{display:"grid",gap:6,fontSize:11,color:C.muted,marginTop:12}}>ملاحظات<textarea value={draft.notes} onChange={e=>update("notes",e.target.value)} rows={3} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",resize:"vertical"}}/></label>
@@ -414,6 +439,8 @@ function TransactionCreateModal({
 export default function FinanceRedesign({
   page = "dashboard",
   setPage,
+  projectTransactionContext = null,
+  onClearProjectTransactionContext = null,
   data,
   actions = {},
   legacyDebt = null,
@@ -458,7 +485,7 @@ export default function FinanceRedesign({
   const [txSubTab, setTxSubTab] = React.useState(page === "recurring" ? "recurring" : "ledger");
   const [showAddChooser, setShowAddChooser] = React.useState(false);
   const [showTransactionForm, setShowTransactionForm] = React.useState(false);
-  const [transactionDraft, setTransactionDraft] = React.useState(() => ({ type:"Expense", purpose:"Regular", amount:"", currency:"EGP", local_date:new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}), from_account_id:"", to_account_id:"", category_id:"", goal_id:"", merchant:"", notes:"", context_type:"", context_project_id:"", context_family_member_id:"" }));
+  const [transactionDraft, setTransactionDraft] = React.useState(() => createTransactionDraft("EGP"));
   const [transactionSplitMode, setTransactionSplitMode] = React.useState(false);
   const [transactionSplitRows, setTransactionSplitRows] = React.useState([{category_id:"",amount:""},{category_id:"",amount:""}]);
   const [showBudgetForm, setShowBudgetForm] = React.useState(false);
@@ -485,6 +512,20 @@ export default function FinanceRedesign({
     reconciliations = [], baseCurrency = "EGP", recurring = [], projects = [],
     family = [], assets = [], debts = [], reports = null, contextTags = [], netWorthSnapshots = [], recurringItems = [], contextFamilyMembers = [],
   } = data || {};
+
+  React.useEffect(() => {
+    const projectId = projectTransactionContext?.financeProjectId;
+    if (!projectId) return;
+    setTransactionDraft(createTransactionDraft(projectTransactionContext.currency || baseCurrency, {
+      finance_project_id: projectId,
+      finance_project_name: projectTransactionContext.financeProjectName || "المشروع",
+    }));
+    setTransactionSplitMode(false);
+    setTransactionSplitRows([{category_id:"",amount:""},{category_id:"",amount:""}]);
+    setShowAddChooser(false);
+    setShowTransactionForm(true);
+    onClearProjectTransactionContext?.();
+  }, [projectTransactionContext?.financeProjectId, baseCurrency, onClearProjectTransactionContext]);
 
   const displayMoney = (v, c = baseCurrency) => hideBalances ? "••••••" : money(v, c);
   const posted = transactions.filter(t => t.status === "Posted");
@@ -585,7 +626,7 @@ function transactionsPage() {
     );
     const counts=[{label:"مصروف",value:rows.filter(t=>t.type==="Expense").length},{label:"دخل",value:rows.filter(t=>t.type==="Income").length},{label:"تحويل",value:rows.filter(t=>t.type==="Transfer").length}].filter(x=>x.value>0);
     return <>
-      <PageHead eyebrow="الماليات · الحركات" title="الحركات والمدفوعات" subtitle="الحركات اليومية والمتكررة والاشتراكات في مساحة واحدة، مع نفس دفتر الحسابات." actions={<Button onClick={()=>{setTransactionDraft({ type:"Expense", purpose:"Regular", amount:"", currency:baseCurrency, local_date:new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}), from_account_id:"", to_account_id:"", category_id:"", goal_id:"", merchant:"", notes:"", context_type:"", context_project_id:"", context_family_member_id:"" });setTransactionSplitMode(false);setTransactionSplitRows([{category_id:"",amount:""},{category_id:"",amount:""}]);setShowTransactionForm(true);}}>＋ إضافة حركة</Button>} />
+      <PageHead eyebrow="الماليات · الحركات" title="الحركات والمدفوعات" subtitle="الحركات اليومية والمتكررة والاشتراكات في مساحة واحدة، مع نفس دفتر الحسابات." actions={<Button onClick={()=>{setTransactionDraft(createTransactionDraft(baseCurrency));setTransactionSplitMode(false);setTransactionSplitRows([{category_id:"",amount:""},{category_id:"",amount:""}]);setShowTransactionForm(true);}}>＋ إضافة حركة</Button>} />
       <Segmented items={[["ledger","الحركات"],["recurring","المتكرر والاشتراكات"]]} value={txSubTab} onChange={setTxSubTab}/>
       {txSubTab === "recurring" ? (legacyRecurring ? React.cloneElement(legacyRecurring,{openCreate:autoOpenAddType==="recurring",onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("recurring")}) : <Card style={{marginTop:12}}>قسم المتكرر غير متصل حاليًا.</Card>) : <>
         <Card style={{marginTop:12}}>
@@ -861,7 +902,7 @@ function transactionsPage() {
               ["budget","ميزانية","حد إنفاق لفئة وفترة"],
               ["asset","أصل","أصل أو استثمار جديد"],
               ["recurring","متكرر / اشتراك","دفعة دورية وتنبيهاتها"]
-            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){setTransactionDraft({ type:"Expense", purpose:"Regular", amount:"", currency:baseCurrency, local_date:new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}), from_account_id:"", to_account_id:"", category_id:"", goal_id:"", merchant:"", notes:"", context_type:"", context_project_id:"", context_family_member_id:"" });setTransactionSplitMode(false);setTransactionSplitRows([{category_id:"",amount:""},{category_id:"",amount:""}]);setShowTransactionForm(true);return;}setAutoOpenAddType(kind);if(kind==="budget"){setPlanningTab("budgets");setBudgetSaveError("");setShowBudgetForm(true);return;}if(kind==="recurring"){setTxSubTab("recurring");return;}}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
+            ].map(([kind,label,desc])=><button key={kind} type="button" onClick={()=>{setShowAddChooser(false);if(kind==="transaction"){setTransactionDraft(createTransactionDraft(baseCurrency));setTransactionSplitMode(false);setTransactionSplitRows([{category_id:"",amount:""},{category_id:"",amount:""}]);setShowTransactionForm(true);return;}setAutoOpenAddType(kind);if(kind==="budget"){setPlanningTab("budgets");setBudgetSaveError("");setShowBudgetForm(true);return;}if(kind==="recurring"){setTxSubTab("recurring");return;}}} style={{textAlign:"right",border:"1px solid "+C.line,background:C.surface,borderRadius:13,padding:14,cursor:"pointer",fontFamily:"inherit",minHeight:92}}>
               <div style={{fontSize:13,fontWeight:900,color:C.ink}}>{label}</div><div style={{fontSize:10,color:C.muted,lineHeight:1.7,marginTop:6}}>{desc}</div>
             </button>)}
           </div>
@@ -870,7 +911,7 @@ function transactionsPage() {
       {autoOpenAddType==="debt" && activePage!=="debts" && legacyDebt ? React.cloneElement(legacyDebt,{openCreate:true,onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("debt")}) : null}
       {autoOpenAddType==="asset" && activePage!=="assets" && legacyAssets ? React.cloneElement(legacyAssets,{openCreate:true,onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("asset")}) : null}
       {autoOpenAddType==="recurring" && activePage!=="recurring" && legacyRecurring ? React.cloneElement(legacyRecurring,{openCreate:true,onCreateHandled:()=>setAutoOpenAddType(""),onRequestAdd:()=>setAutoOpenAddType("recurring")}) : null}
-      <TransactionCreateModal open={showTransactionForm} draft={transactionDraft} setDraft={setTransactionDraft} splitMode={transactionSplitMode} setSplitMode={setTransactionSplitMode} splitRows={transactionSplitRows} setSplitRows={setTransactionSplitRows} accounts={accounts} categories={categories} goals={goals} contextFamilyMembers={contextFamilyMembers} baseCurrency={baseCurrency} saving={actions.transactionSaving} error={data?.error||""} onSave={async()=>{const result=await actions.onSaveTransaction?.(transactionDraft,transactionSplitMode,transactionSplitRows);if(result?.ok){setShowTransactionForm(false);setTransactionDraft({ type:"Expense", purpose:"Regular", amount:"", currency:baseCurrency, local_date:new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}), from_account_id:"", to_account_id:"", category_id:"", goal_id:"", merchant:"", notes:"", context_type:"", context_project_id:"", context_family_member_id:"" });setTransactionSplitMode(false);setTransactionSplitRows([{category_id:"",amount:""},{category_id:"",amount:""}]);}}} onClose={()=>setShowTransactionForm(false)} />
+      <TransactionCreateModal open={showTransactionForm} draft={transactionDraft} setDraft={setTransactionDraft} splitMode={transactionSplitMode} setSplitMode={setTransactionSplitMode} splitRows={transactionSplitRows} setSplitRows={setTransactionSplitRows} accounts={accounts} categories={categories} goals={goals} contextFamilyMembers={contextFamilyMembers} baseCurrency={baseCurrency} saving={actions.transactionSaving} error={data?.error||""} onSave={async()=>{const result=await actions.onSaveTransaction?.(transactionDraft,transactionSplitMode,transactionSplitRows);if(result?.ok){setShowTransactionForm(false);setTransactionDraft({ type:"Expense", purpose:"Regular", amount:"", currency:baseCurrency, local_date:new Date().toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}), from_account_id:"", to_account_id:"", category_id:"", goal_id:"", merchant:"", notes:"", context_type:"", context_project_id:"", context_family_member_id:"" });setTransactionSplitMode(false);setTransactionSplitRows([{category_id:"",amount:""},{category_id:"",amount:""}]);}}} onClose={()=>{setShowTransactionForm(false);setTransactionDraft(createTransactionDraft(baseCurrency));}} />
       <TransactionSheet transaction={selectedTransaction} categories={categories} accounts={accounts} baseCurrency={baseCurrency} contextTags={contextTags} contextFamilyMembers={data?.contextFamilyMembers||[]} onSaveContext={actions.onSaveContext} onClose={() => setSelectedTransaction(null)} />
     </Shell>
   );
