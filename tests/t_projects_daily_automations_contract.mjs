@@ -20,7 +20,7 @@ for (const eventType of [
 ]) {
   assert.ok(automation.includes(eventType), `daily automations must cover ${eventType}`);
 }
-for (const toggle of ["dueReminders","overdueDigest","governanceAlerts","prdReview","outputReview","staleInbox","reviewDraft","krCheckin","timerLong","updateDue"]) {
+for (const toggle of ["dueReminders","overdueDigest","governanceAlerts","prdReview","outputReview","staleInbox","reviewDraft","krCheckin"]) {
   assert.ok(automation.includes(toggle), `daily automation must respect the ${toggle} setting`);
 }
 assert.ok(automation.includes("core_projects_enqueue_notification") && automation.includes("core_notifications"),
@@ -56,6 +56,8 @@ assert.ok(projectsDomain.includes("updateDue: true") && projectsScreens.includes
 
 assert.ok(timerAutomation.includes("timer_long_running") && timerAutomation.includes("timerMaxHours"),
   "the long-running timer setting must produce a scheduled Core notification at the configured threshold");
+assert.ok(timerAutomation.includes("v_auto->>'timerLong' is distinct from 'false'"),
+  "the long-running timer automation must respect the timerLong toggle in its owning worker");
 assert.ok(timerAutomation.includes("v_data->>'member_id' is distinct from p_recipient_id::text"),
   "only the timer owner may receive the long-running timer notification");
 assert.ok(timerAutomation.includes("timer.data->>'member_id'=auth.uid()::text") &&
