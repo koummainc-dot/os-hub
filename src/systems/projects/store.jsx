@@ -784,7 +784,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (!task || !idx.isLeaf(taskId)) throw new Error("اختَر مهمة موجودة ونهائية في شجرة المهام قبل بدء المؤقّت.");
       if (!can("session.write", projectsById[task.project_id])) throw new Error("لا تملك صلاحية تسجيل جلسة لهذا المشروع.");
       const cur = (recs.timers || {})["timer_" + me]; if (cur && cur.task_id && !cur.ended_at) { toast("⛔ TIMER_ALREADY_RUNNING — أوقف المؤقّت الحالي أولاً"); return false; }
-      await R.put("timers", { id: "timer_" + me, member_id: me, task_id: taskId, started_at: nowIso(), ended_at: null }); return true;
+      await R.put("timers", { id: "timer_" + me, member_id: me, task_id: taskId, started_at: nowIso(), ended_at: null, _vis: [me] }); return true;
     },
     async stopTimer(note) {
       const cur = (recs.timers || {})["timer_" + me]; if (!cur || !cur.task_id || cur.ended_at) return null;
