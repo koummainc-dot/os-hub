@@ -76,7 +76,7 @@ END $$;
 -- CI cannot safely impersonate the user's production authenticated identities.
 
 
-DO $
+DO $body$
 BEGIN
   IF public.projects_output_workspace_id('workspace/11111111-2222-4333-8444-555555555555/project/p1/output/o1/file.pdf')
        IS DISTINCT FROM '11111111-2222-4333-8444-555555555555'::uuid THEN
@@ -86,4 +86,4 @@ BEGIN
   IF public.projects_output_workspace_id('workspace/not-a-uuid/project/p1/output/o1/file.pdf') IS NOT NULL THEN
     RAISE EXCEPTION 'Malformed Output Storage path must fail closed';
   END IF;
-END $;
+END $body$;
