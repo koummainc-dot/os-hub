@@ -5,6 +5,9 @@ const automation = await readFile(new URL("../supabase/migrations/20261114260000
 const scheduleGate = await readFile(new URL("../supabase/migrations/20261114262000_core_projects_automation_schedule_gate.sql", import.meta.url), "utf8");
 const accessFix = await readFile(new URL("../supabase/migrations/20261114261000_core_projects_automation_governance_access.sql", import.meta.url), "utf8");
 const notifications = await readFile(new URL("../supabase/migrations/20261114240000_core_notifications_inbox.sql", import.meta.url), "utf8");
+const updateDue = await readFile(new URL("../supabase/migrations/20261114270000_core_projects_update_due_reminders.sql", import.meta.url), "utf8");
+const projectsDomain = await readFile(new URL("../src/systems/projects/domain.js", import.meta.url), "utf8");
+const projectsScreens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
 const timerAutomation = await readFile(new URL("../supabase/migrations/20261114268000_core_projects_long_timer_notifications.sql", import.meta.url), "utf8");
 const projectsScreens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
 const projectsDomain = await readFile(new URL("../src/systems/projects/domain.js", import.meta.url), "utf8");
@@ -18,7 +21,7 @@ for (const eventType of [
 ]) {
   assert.ok(automation.includes(eventType), `daily automations must cover ${eventType}`);
 }
-for (const toggle of ["dueReminders","overdueDigest","healthAlerts","governanceAlerts","prdReview","outputReview","staleInbox","reviewDraft","krCheckin","timerLong"]) {
+for (const toggle of ["dueReminders","overdueDigest","healthAlerts","governanceAlerts","prdReview","outputReview","staleInbox","reviewDraft","krCheckin","timerLong","updateDue"]) {
   assert.ok(automation.includes(toggle), `daily automation must respect the ${toggle} setting`);
 }
 assert.ok(automation.includes("core_projects_enqueue_notification") && automation.includes("core_notifications"),
@@ -35,6 +38,15 @@ assert.ok(accessFix.includes("case when p_section in ('issues','decisions') then
   "Governance alert authorization must map legacy Issues/Decisions to the shared Governance section");
 assert.ok(notifications.includes("linked_project.value") && notifications.includes("recipient-not-project-member"),
   "Inbox RLS and emit must enforce visibility of every linked Project");
+assert.ok(updateDue.includes("core_projects_emit_update_due_notifications") &&
+  updateDue.includes("update_due_soon") && updateDue.includes("update_overdue"),
+  "Core scheduled jobs must notify before and after a Draft Update period_end");
+assert.ok(updateDue.includes("period_end") && updateDue.includes("author_id") && updateDue.includes("project_data->>'lead_id'"),
+  "Update due reminders must use the stored period and notify its author and Project lead");
+assert.ok(updateDue.includes("v_auto->>'updateDue' is distinct from 'false'"),
+  "Update due reminders must respect the workspace automation toggle");
+assert.ok(projectsDomain.includes("updateDue: true") && projectsScreens.includes('["updateDue", "تذكير بموعد تحديث المشروع"]'),
+  "the Update due automation must have a default and a visible Settings toggle");
 
 
 assert.ok(timerAutomation.includes("timer_long_running") && timerAutomation.includes("timerMaxHours"),
