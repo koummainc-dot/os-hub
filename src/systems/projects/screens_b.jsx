@@ -263,12 +263,13 @@ function ProjectMilestones({ p }) {
     const related = (v.related_task_ids || []).filter((id) => data.tasks.some((t) => t.id === id && t.project_id === p.id));
     const rec = { ...v, id: v.id || "mile_" + uid(), project_id: p.id, related_task_ids: related, updated_at: new Date().toISOString() };
     const result = await act.put("milestones", rec, p);
-    if (result) setEditing(null);
+    if (result) { act.act("milestones", rec.id, editing?.id ? "updated" : "created", rec.title); setEditing(null); }
     return !!result;
   };
   const archive = async (m) => {
     if (!window.confirm("أرشفة هذا المعلم؟ سيظل محفوظًا في السجل ولن يدخل في Roadmap النشط.")) return;
-    await act.put("milestones", { ...m, archived_at: new Date().toISOString() }, p);
+    const saved = await act.put("milestones", { ...m, archived_at: new Date().toISOString() }, p);
+    if (saved) act.act("milestones", m.id, "archived", m.title);
   };
   return <div>
     <Head title="معالم المشروع" sub="التزامات رئيسية مستقلة عن المهام؛ لا تدخل في حساب تقدم المهام." right={<>{canWrite && <Btn kind="primary" onClick={() => setEditing({ project_id: p.id, title: "", due_date: p.target_date || "", status: "Planned", owner_id: p.lead_id || "", description: "", related_task_ids: [] })}>＋ إضافة معلم</Btn>}<Btn onClick={() => setShowArchived((v) => !v)}>{showArchived ? "إخفاء المؤرشفة" : "عرض المؤرشفة"}</Btn></>} />
@@ -556,6 +557,7 @@ function ProjectActivity({ p }) {
   const ids = {
     projects: new Set([p.id]),
     tasks: taskIds,
+    milestones: new Set(data.milestones.filter((record) => record.project_id === p.id).map((record) => record.id)),
     outputs: new Set(data.outputs.filter((record) => record.project_id === p.id).map((record) => record.id)),
     sessions: sessionIds,
     risks: new Set(data.risks.filter((record) => record.project_id === p.id).map((record) => record.id)),
@@ -571,8 +573,8 @@ function ProjectActivity({ p }) {
     checkins: new Set(data.checkins.filter((record) => projectKrIds.has(record.kr_id)).map((record) => record.id)),
     financeTransactions: new Set(financeTransactions.map((transaction) => transaction.id)),
   };
-  const aliases = { project: "projects", task: "tasks", output: "outputs", session: "sessions", risk: "risks", issue: "issues", decision: "decisions", prd: "prds", discovery_item: "discovery", win: "wins", update: "updates", review: "reviews", objective: "objectives", key_result: "krs", checkin: "checkins", finance_transaction: "financeTransactions" };
-  const labels = { projects: "المشروع", tasks: "مهمة", outputs: "مخرج", sessions: "جلسة عمل", risks: "خطر", issues: "مشكلة", decisions: "قرار", prds: "مواصفة", discovery: "اكتشاف", wins: "إنجاز", updates: "تحديث", reviews: "مراجعة", objectives: "هدف", krs: "نتيجة رئيسية", checkins: "تحديث نتيجة", financeTransactions: "حركة Finance" };
+  const aliases = { project: "projects", task: "tasks", milestone: "milestones", output: "outputs", session: "sessions", risk: "risks", issue: "issues", decision: "decisions", prd: "prds", discovery_item: "discovery", win: "wins", update: "updates", review: "reviews", objective: "objectives", key_result: "krs", checkin: "checkins", finance_transaction: "financeTransactions" };
+  const labels = { projects: "المشروع", tasks: "مهمة", milestones: "معلم", outputs: "مخرج", sessions: "جلسة عمل", risks: "خطر", issues: "مشكلة", decisions: "قرار", prds: "مواصفة", discovery: "اكتشاف", wins: "إنجاز", updates: "تحديث", reviews: "مراجعة", objectives: "هدف", krs: "نتيجة رئيسية", checkins: "تحديث نتيجة", financeTransactions: "حركة Finance" };
   const financeActivity = financeTransactions.map((transaction) => ({
     id: "finance:" + transaction.id,
     entity: "finance_transaction",
@@ -606,6 +608,7 @@ function ProjectActivity({ p }) {
     const collection = aliases[event.entity] || event.entity;
     const id = event.entity_id;
     if (collection === "tasks") return openTask(id);
+    if (collection === "milestones") return openProject(p.id, "milestones");
     if (collection === "outputs") return openProject(p.id, "outputs", { kind: "output", id });
     if (collection === "risks") return openProject(p.id, "risks", { kind: "risk", id });
     if (collection === "issues") return openProject(p.id, "issues", { kind: "issue", id });
