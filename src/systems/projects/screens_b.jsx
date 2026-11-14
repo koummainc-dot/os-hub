@@ -395,19 +395,29 @@ function ProjectFinanceTab({ p }) {
     }
     setState("loading");
     setError("");
-    supabase.rpc("fin_projects_get", { p_ws: ws.id }).then(({ data, error: rpcError }) => {
+    Promise.all([
+      supabase.rpc("fin_projects_get", { p_ws: ws.id }),
+      supabase.rpc("fin_project_primary_list", { p_ws: ws.id }),
+    ]).then(([profileResult, primaryResult]) => {
       if (!active) return;
-      if (rpcError) {
-        const message = String(rpcError.message || rpcError.details || rpcError.code || "");
-        if (rpcError.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(message)) setState("permission");
+      if (profileResult.error) {
+        const message = String(profileResult.error.message || profileResult.error.details || profileResult.error.code || "");
+        if (profileResult.error.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(message)) setState("permission");
         else setState("error");
         setError(message || "تعذّر تحميل الملخص المالي.");
         setProfiles([]);
         return;
       }
-      const matches = (Array.isArray(data) ? data : []).filter((profile) => String(profile.project_ref || "") === String(p.id));
-      setProfiles(matches);
-      setState(matches.length === 0 ? "not-linked" : matches.length === 1 ? "linked" : "multiple");
+      const matches = (Array.isArray(profileResult.data) ? profileResult.data : []).filter((profile) => String(profile.project_ref || "") === String(p.id));
+      const primary = !primaryResult.error && (Array.isArray(primaryResult.data) ? primaryResult.data : []).find((row) => String(row.project_ref) === String(p.id));
+      const primaryProfile = primary && matches.find((profile) => String(profile.id) === String(primary.finance_project_id));
+      if (primary && !primaryProfile) {
+        setProfiles([]); setState("primary-invalid"); setError("تعيين الملف الأساسي يشير إلى ملف غير موجود أو لم يعد مرتبطًا بهذا المشروع.");
+      } else if (primaryProfile) {
+        setProfiles([primaryProfile]); setState("linked"); setError("");
+      } else {
+        setProfiles(matches); setState(matches.length === 0 ? "not-linked" : matches.length === 1 ? "linked" : "multiple");
+      }
     }).catch((rpcError) => {
       if (!active) return;
       const message = String(rpcError?.message || rpcError || "تعذّر تحميل الملخص المالي.");
@@ -436,18 +446,20 @@ function ProjectFinanceTab({ p }) {
         {state === "linked" && <Chip color={C.ok}>مرتبط</Chip>}
         {state === "linked" && profile && <Btn kind="primary" small onClick={openFinanceTransaction} disabled={!available}>＋ تسجيل حركة للمشروع</Btn>}
         {profile && Number(profile.unvalued_transactions || 0) > 0 && <Chip color={C.warn}>مراجعة تقييم العملة</Chip>}
-        {state === "multiple" && <Chip color={C.warn}>يتطلب مراجعة</Chip>}
+        {state === "multiple" && <Chip color={C.warn}>لم يُحدد ملف أساسي</Chip>}
+        {state === "primary-invalid" && <Chip color={C.bad}>تعيين أساسي غير صالح</Chip>}
         {state === "permission" && <Chip color={C.bad}>لا توجد صلاحية عرض Finance</Chip>}
         {state === "error" && <Chip color={C.bad}>تعذّر تحميل بيانات Finance</Chip>}
         {state === "demo" && <Chip color={C.muted}>بيئة عرض تجريبي</Chip>}
       </div>
       {state === "loading" && <div style={{ color: C.muted, fontSize: 12 }}>يتم جلب الملخص من Finance دون إنشاء أو تعديل أي سجل.</div>}
       {state === "not-linked" && <div style={{ color: C.dim, fontSize: 12.5, lineHeight: 1.9 }}>لا يوجد ملف مالي مرتبط بهذا المشروع. يمكنك إعداده من Finance؛ سيظل إنشاء الملف وحفظه وربط الحركات من صلاحيات Finance نفسها.</div>}
-      {state === "multiple" && <div role="alert" style={{ color: C.warn, fontSize: 12.5, lineHeight: 1.9 }}>يوجد أكثر من ملف مالي يحمل مرجع المشروع نفسه ({profiles.length}). لم أدمج الأرقام أو أختر ملفًا أساسيًا تلقائيًا؛ يلزم حسم الملف الأساسي من Finance.</div>}
+      {state === "multiple" && <div role="alert" style={{ color: C.warn, fontSize: 12.5, lineHeight: 1.9 }}>يوجد أكثر من ملف مالي يحمل مرجع المشروع نفسه ({profiles.length}) دون تعيين أساسي. افتح Finance واختر الملف الأساسي صراحةً؛ لن تُدمج الأرقام ولن يتم الاختيار تلقائيًا.</div>}
+      {state === "primary-invalid" && <div role="alert" style={{ color: C.bad, fontSize: 12.5, lineHeight: 1.9 }}>{error} افتح Finance وأعد تعيين الملف الأساسي.</div>}
       {state === "permission" && <div role="alert" style={{ color: C.bad, fontSize: 12.5, lineHeight: 1.9 }}>تعذّر عرض الملخص لأن صلاحية Finance للقراءة غير متاحة لهذا الحساب. لا تعرض Projects أرقامًا تقديرية بدل البيانات المحمية.</div>}
       {state === "error" && <div role="alert" style={{ color: C.bad, fontSize: 12.5, lineHeight: 1.9 }}>تعذّر تحميل بيانات Finance. {error}</div>}
       {state === "demo" && <div style={{ color: C.muted, fontSize: 12 }}>البيانات المالية الحقيقية لا تُعرض في بيئة Demo.</div>}
-      {(state === "not-linked" || state === "multiple" || state === "error" || state === "permission") && <Btn kind="primary" disabled={!available} onClick={openFinance}>فتح Finance OS ↗</Btn>}
+      {(state === "not-linked" || state === "multiple" || state === "primary-invalid" || state === "error" || state === "permission") && <Btn kind="primary" disabled={!available} onClick={openFinance}>فتح Finance OS ↗</Btn>}
       <div style={{ color: C.muted, fontSize: 10.5, marginTop: 8 }}>لا يتم إنشاء Finance Profile أو Transaction أو تعديلهما من Projects. لا تُعرض قيمة صفرية عندما لا يوجد ملف مالي.</div>
     </div>
     {profile && <div style={S.card}>
