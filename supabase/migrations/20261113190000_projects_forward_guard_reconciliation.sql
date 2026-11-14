@@ -1638,3 +1638,87 @@ revoke all on function public.projects_apply_records_batch(uuid, jsonb) from pub
 grant execute on function public.projects_apply_records_batch(uuid, jsonb) to authenticated;
 
 commit;
+
+
+-- Knowledge Follow-up -> Projects Task idempotency.
+-- The stable follow-up identity is locked per workspace so concurrent clients cannot
+-- create two Tasks for the same Knowledge follow-up. The existing Projects batch RPC
+-- remains the single writer and all Projects guards/visibility rules remain authoritative.
+create or replace function public.projects_create_followup_task(
+  p_workspace_id uuid,
+  p_project_id text,
+  p_followup_id text,
+  p_task jsonb
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $function$
+declare
+  existing public.workspace_records;
+  project_row public.workspace_records;
+  task_id text := gen_random_uuid()::text;
+  task_data jsonb;
+  result jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+  if p_workspace_id is null or nullif(trim(p_project_id), '') is null or nullif(trim(p_followup_id), '') is null then
+    raise exception 'Workspace, project and follow-up identity are required' using errcode = '22023';
+  end if;
+  if public.ws_access_level(p_workspace_id, 'projects', 'tasks') is distinct from 'edit' then
+    raise exception 'Edit access required for Projects tasks' using errcode = '42501';
+  end if;
+  select * into project_row
+    from public.workspace_records
+   where workspace_id = p_workspace_id
+     and system_id = 'projects'
+     and collection = 'projects'
+     and id = p_project_id
+     and deleted = false
+     and data->>'deleted_at' is null
+     and data->>'archived_at' is null
+   for update;
+  if not found then
+    raise exception 'Project not found or archived' using errcode = '42501';
+  end if;
+  if project_row.visible_to is not null and not (auth.uid() = any(project_row.visible_to)) then
+    raise exception 'Project is not visible to this member' using errcode = '42501';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text || ':' || p_followup_id, 0));
+  select * into existing
+    from public.workspace_records
+   where workspace_id = p_workspace_id
+     and system_id = 'projects'
+     and collection = 'tasks'
+     and deleted = false
+     and data->>'source_followup_id' = p_followup_id
+   order by updated_at desc
+   limit 1;
+  if found then
+    return jsonb_build_object('created', false, 'duplicate', true, 'id', existing.id, 'data', existing.data, 'updated_at', existing.updated_at);
+  end if;
+
+  task_data := coalesce(p_task, '{}'::jsonb)
+    || jsonb_build_object('id', task_id, 'project_id', p_project_id, 'source_followup_id', p_followup_id);
+  select * into result
+    from jsonb_array_elements(public.projects_apply_records_batch(
+      p_workspace_id,
+      jsonb_build_array(jsonb_build_object(
+        'collection','tasks',
+        'id',task_id,
+        'data',task_data,
+        'deleted',false,
+        'visible_to',case when project_row.visible_to is null then null else to_jsonb(project_row.visible_to) end
+      ))
+    ))
+    limit 1;
+  return jsonb_build_object('created', true, 'duplicate', false, 'id', task_id, 'data', task_data, 'updated_at', result->>'updated_at');
+end;
+$function$;
+
+revoke all on function public.projects_create_followup_task(uuid, text, text, jsonb) from public, anon;
+grant execute on function public.projects_create_followup_task(uuid, text, text, jsonb) to authenticated;
