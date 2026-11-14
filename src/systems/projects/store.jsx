@@ -626,19 +626,56 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     },
     async moveTree(taskId, targetProjectId) {
       const target = projectsById[targetProjectId];
-      if (!target || !idx.byId[taskId]) { toast("⛔ المشروع أو المهمة غير موجودة"); return false; }
       const source = idx.byId[taskId];
+      const sourceProject = source && projectsById[source.project_id];
+      if (!target || !source || !sourceProject || target.is_system || target.archived_at || sourceProject.archived_at) { toast("⛔ المشروع أو المهمة غير موجودة أو غير نشطة"); return false; }
       if (source.project_id === targetProjectId) { toast("ℹ️ المهمة موجودة بالفعل في هذا المشروع"); return false; }
+      if (!can("task.write", sourceProject) || !can("task.write", target)) throw new Error("نقل الشجرة يتطلب صلاحية تعديل المهام في المشروعين.");
       const plan = D.planTreeMove(taskId, targetProjectId, idx, prdsById, data.tasks, Object.fromEntries(data.discovery.map((x) => [x.id, x])));
-      const outputPatches = data.outputs.filter((x) => plan.ids.includes(x.task_id)).map((o) => ({ before: o, after: { ...o, project_id: targetProjectId, _vis: visFor(target) } }));
-      const taskPatches = plan.patches.map((p) => ({ before: data.tasks.find((t) => t.id === p.id), after: { ...p, _vis: visFor(target) } }));
-      const prdCount = plan.patches.filter((p, i) => data.tasks.find((t) => t.id === plan.ids[i])?.prd_id && !p.prd_id).length;
-      const discoveryCount = plan.patches.reduce((n, p, i) => n + ((data.tasks.find((t) => t.id === plan.ids[i])?.discovery_ids || []).length - (p.discovery_ids || []).length), 0);
-      const prompt = `نقل ${plan.ids.length} مهمة إلى مشروع «${target.name}»؟\nسيتم نقل ${outputPatches.length} مخرج مرتبط، مع الحفاظ على روابط الأبناء داخل الشجرة.\n${prdCount ? `سيتم مسح ${prdCount} رابط مواصفة لا يتبع المشروع الهدف.\n` : ""}${discoveryCount ? `سيتم مسح ${discoveryCount} رابط اكتشاف غير صالح للمشروع الهدف.\n` : ""}سيُحفظ النقل كعملية واحدة على الخادم؛ يلزم الاتصال المباشر لضمان عدم نقل جزء فقط.`;
-      if (!(await confirm(prompt, { title: "نقل شجرة المهام", ok: "نقل الشجرة" }))) return false;
+      const moved = new Set(plan.ids);
+      const taskPatches = plan.patches.map((next) => ({ before: data.tasks.find((t) => t.id === next.id), after: { ...stamp(next), _vis: visFor(target) } }));
+      const outputPatches = data.outputs.filter((o) => moved.has(o.task_id)).map((o) => {
+        const next = { ...o, project_id: targetProjectId, _vis: visFor(target) };
+        const prd = next.prd_id && prdsById[next.prd_id];
+        if (!prd || prd.project_id !== targetProjectId) { next.prd_id = null; next.prd_requirement_id = null; }
+        else if (next.prd_requirement_id && !(prd.requirements || []).some((r) => r.id === next.prd_requirement_id)) next.prd_requirement_id = null;
+        return { before: o, after: next };
+      });
+      const referencePatches = [];
+      const patchIds = (collection, records, fields, allowed) => records.forEach((record) => {
+        const linked = fields.flatMap((field) => Array.isArray(record[field]) ? record[field].filter((id) => moved.has(id)) : []);
+        if (!linked.length) return;
+        if (!allowed) throw new Error("لا تملك صلاحية تحديث روابط " + collection + " المتأثرة بنقل هذه الشجرة.");
+        const after = { ...record };
+        fields.forEach((field) => { if (Array.isArray(after[field])) after[field] = after[field].filter((id) => !moved.has(id)); });
+        referencePatches.push({ before: record, after: stamp(after), collection });
+      });
+      patchIds("risks", data.risks.filter((r) => r.project_id === source.project_id), ["task_ids"], can("risk.write", sourceProject));
+      patchIds("issues", data.issues.filter((r) => r.project_id === source.project_id), ["task_ids"], can("issue.write", sourceProject));
+      patchIds("decisions", data.decisions.filter((r) => r.project_id === source.project_id), ["affected_task_ids", "implementation_task_ids"], can("decision.write", sourceProject));
+      patchIds("milestones", data.milestones.filter((r) => r.project_id === source.project_id), ["related_task_ids"], can("project.edit", sourceProject));
+      data.krs.filter((kr) => Array.isArray(kr.task_ids) && kr.task_ids.some((id) => moved.has(id))).forEach((kr) => {
+        const targetAllowed = (kr.project_ids || []).includes(targetProjectId);
+        const sourceAllowed = (kr.project_ids || []).includes(source.project_id);
+        const removeIds = targetAllowed ? [] : plan.ids;
+        if (!removeIds.length) return;
+        if (!can("okr.write")) throw new Error("لا تملك صلاحية تحديث مجموعات المهام المرتبطة بالنتائج الرئيسية.");
+        referencePatches.push({ before: kr, after: stamp({ ...kr, task_ids: (kr.task_ids || []).filter((id) => !removeIds.includes(id)) }), collection: "krs" });
+      });
+      const prdCount = plan.patches.filter((next, i) => data.tasks.find((t) => t.id === plan.ids[i])?.prd_id && !next.prd_id).length;
+      const discoveryCount = plan.patches.reduce((n, next, i) => n + ((data.tasks.find((t) => t.id === plan.ids[i])?.discovery_ids || []).length - (next.discovery_ids || []).length), 0);
+      const sourceLinks = referencePatches.reduce((n, patch) => n + ["task_ids", "affected_task_ids", "implementation_task_ids", "related_task_ids"].reduce((sum, field) => sum + ((patch.before[field] || []).filter((id) => moved.has(id)).length), 0), 0);
+      const prompt = "نقل " + plan.ids.length + " مهمة من «" + sourceProject.name + "» إلى «" + target.name + "»؟\n"
+        + "• " + outputPatches.length + " مخرج سينتقل مع المهام.\n"
+        + "• " + referencePatches.length + " سجل Governance/OKR/Milestone ستُحدّث روابطه لمنع بقاء روابط عابرة للمشاريع.\n"
+        + "• " + prdCount + " رابط PRD و" + discoveryCount + " رابط Discovery غير صالحين للهدف سيُفصلان.\n"
+        + "• ستظل جلسات الوقت مرتبطة بمعرّفات المهام نفسها.\n"
+        + "كل التغييرات ستُحفظ في معاملة واحدة؛ أي فشل يلغي العملية كلها.";
+      if (!(await confirm(prompt, { title: "معاينة نقل المهمة والشجرة", ok: "نقل كل السجلات المتأثرة" }))) return false;
       try {
         await persistTaskTreeMove({
-          taskPatches, outputPatches,
+          taskPatches,
+          outputPatches: [...outputPatches, ...referencePatches.map((patch) => ({ before: patch.before, after: patch.after, collection: patch.collection }))],
           putAtomic: R.putAtomic,
           put: (collection, record) => R.put(collection, record),
         });
@@ -646,8 +683,8 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
         toast("⛔ " + (error?.message || "تعذّر نقل الشجرة"));
         return false;
       }
-      act("tasks", taskId, "moved_tree", `${plan.ids.length} مهمة → ${target.name}`);
-      toast("✅ نُقلت الشجرة بالكامل");
+      act("tasks", taskId, "moved_tree", plan.ids.length + " مهمة: " + sourceProject.name + " → " + target.name);
+      toast("✅ نُقلت الشجرة وروابطها التابعة بالكامل");
       return true;
     },
     async completeAll(taskId) {
