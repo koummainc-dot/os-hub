@@ -4,7 +4,7 @@
 **المرجع الوظيفي الحاكم:** `Projects_OS_v5_Unified_Refactor_Spec.md` — الإصدار 5.0، §19 للمراحل و§18 لمعايير القبول  
 **المستودع:** `koummainc-dot/os-hub`  
 **الفرع:** `feat/projects-v5-phase1-navigation`  
-**آخر Commit تمت مراجعته:** `7f5238de018c8d86ddc3cd590a0e23c2ea91d354`  
+**آخر Commit تمت مراجعته:** `44c598c90c62e56d31f0da0b08956ea78775b454`  
 **PR:** #188 — مفتوح، Draft، غير مدمج  
 **قاعدة مهمة:** هذا التقرير لا يمنح موافقة على Migration أو نشر Production. لا تغيير إنتاجي ضمن هذه المراجعة.
 
@@ -157,8 +157,8 @@
 - إصلاح أزرار Refresh/Retry التي كانت تمرر click event إلى دالة refresh.
 
 **المتبقي لإغلاقها:**
-1. اختبار Meeting → Action Item → Task من الواجهة على QA، ثم Reload والتحقق من المصدر والروابط الراجعة.
-2. **Follow-up server idempotency:** تم تنفيذ RPC ذري `projects_create_followup_task` مع advisory transaction lock على `(workspace, stable_followup_id)` وإعادة السجل الموجود عند التكرار، مع إبقاء `projects_apply_records_batch` ككاتب Projects الوحيد. المتبقي هو القبول الحي تحت Reload/التزامن.
+1. اختبار Meeting → Action Item → Task من الواجهة على QA، ثم Reload والتحقق من المصدر والروابط الراجعة؛ المسار الذري server-side مكتمل.
+2. **Follow-up server idempotency:** مكتمل برمجيًا عبر RPC ذري `projects_create_followup_task` مع advisory transaction lock على `(workspace, stable_followup_id)` وإعادة السجل الموجود عند التكرار، مع إبقاء `projects_apply_records_batch` ككاتب Projects الوحيد. المتبقي هو القبول الحي تحت Reload/التزامن.
 3. إثبات exact source backlink من Task إلى اجتماع Knowledge الأصلي.
 4. اختبار Resources من Knowledge وProjects وOutputs مع إظهار مالك كل مورد دون نسخ محتوى النظام المالك.
 5. مراجعة Legacy project references عبر dry run قبل أي backfill؛ لا توجد مبررات لعمل Backfill إنتاجي قبل الجرد.
@@ -176,11 +176,11 @@
 - Finance SQL smoke على آخر Commit ناجح.
 
 **المتبقي لإغلاقها:**
-1. **مسار إنشاء معاملة Finance:** تم تنفيذ handoff مباشر من Project Finance إلى Finance Transactions مع تمرير `projectRef`؛ Finance يقرأ الملف المالي الوحيد المرتبط ويجهز نموذج الحركة مسبقًا، ثم يستخدم `fin_post_transaction_with_splits` و`fin_project_transaction_link` كما هو معتمد. المتبقي هو القبول الحي من الواجهة/RPC.
+1. **مسار إنشاء معاملة Finance:** مكتمل برمجيًا؛ Project Finance يمرر `projectRef` إلى Finance Transactions، وFinance يجهز النموذج باستخدام الملف المالي المملوك له ثم يستخدم `fin_post_transaction_with_splits` و`fin_project_transaction_link`. المتبقي هو القبول الحي من الواجهة/RPC.
 2. حسم D-02: هل لكل Project ملف Finance نشط أساسي واحد، أم اختيار Primary Profile صريح؟ لا تضف Unique constraint قبل جرد التكرارات والقرار.
 3. حسم D-10: متى تنتقل الميزانية المخططة من Projects إلى Finance، وما الذي يظل مملوكًا لكل نظام بعد النقل؟
-4. إظهار حالات Not Linked / Linked / Stale / Error / Permission Denied / Currency Mismatch بوضوح.
-5. إظهار Attribution للمعاملات و`as_of` ووقت آخر مزامنة، ومنع عرض أرقام صفرية مضللة عندما لا يوجد ربط.
+4. إظهار حالات Not Linked / Linked / Multiple / Error / Permission Denied / Currency Mismatch مكتمل في Portfolio وProject Finance؛ حالة Stale تحتاج عقدًا صريحًا من Finance قبل اشتقاقها.
+5. Attribution للحركات المالية ومصدر Finance وحالات العملة/القيم غير المقيمة ظاهرة، ولا تُعرض أرقام صفرية عند غياب الربط؛ `as_of`/last-sync يحتاجان عقد Finance صريحًا إن كانا جزءًا من read model.
 6. اختبار اختلاف العملة والصلاحيات والحسابات الحقيقية.
 7. استكمال تجميع Activity لكل أنواع السجلات، والتحقق من Wins/Updates وWeekly Review snapshots من المشروع والعرض العام.
 
