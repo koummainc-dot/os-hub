@@ -259,7 +259,8 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
         return false;
       }
       setData(next);setUpdatedAt(result?.updatedAt||updatedAt);setNotice("تم الحفظ.");
-      const changedMeetings=(next||[]).filter(item=>item.kind==="meeting"&&item.relatedSystem==="projects"&&item.relatedId&&item.date&&new Date(item.date+"T"+(item.startTime||"09:00")+":00").getTime()>Date.now()).filter(item=>{const before=(allItems||[]).find(old=>old.id===item.id);return !before||before.date!==item.date||before.startTime!==item.startTime||before.title!==item.title;});
+      const savedMeetings=Array.isArray(next?.meetings)?next.meetings:[];
+      const changedMeetings=savedMeetings.filter(item=>item.kind==="meeting"&&item.relatedSystem==="projects"&&item.relatedId&&item.date&&new Date(item.date+"T"+(item.startTime||"09:00")+":00").getTime()>Date.now()).filter(item=>{const before=(allItems||[]).find(old=>old.id===item.id);return !before||before.date!==item.date||before.startTime!==item.startTime||before.title!==item.title;});
       for(const meeting of changedMeetings){
         try{
           const {data:projectRow,error:projectError}=await supabase.from("workspace_records").select("data,visible_to").eq("workspace_id",api.workspaceId).eq("system_id","projects").eq("collection","projects").eq("id",meeting.relatedId).eq("deleted",false).maybeSingle();
