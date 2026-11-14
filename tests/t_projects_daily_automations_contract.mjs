@@ -9,19 +9,18 @@ const updateDue = await readFile(new URL("../supabase/migrations/20261114270000_
 const projectsDomain = await readFile(new URL("../src/systems/projects/domain.js", import.meta.url), "utf8");
 const projectsScreens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
 const timerAutomation = await readFile(new URL("../supabase/migrations/20261114268000_core_projects_long_timer_notifications.sql", import.meta.url), "utf8");
-const projectsScreens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
-const projectsDomain = await readFile(new URL("../src/systems/projects/domain.js", import.meta.url), "utf8");
+const healthTransitions = await readFile(new URL("../supabase/migrations/20261114273000_core_projects_health_transition_log.sql", import.meta.url), "utf8");
 
 for (const eventType of [
   "task_due_today", "task_due_soon", "task_overdue",
-  "project_target_overdue", "project_target_soon", "project_health_",
+  "project_target_overdue", "project_target_soon",
   "high_risk_daily", "critical_issue_daily", "prd_review_reminder",
   "output_review_reminder", "discovery_triage_overdue", "contact_follow_up_due",
   "weekly_review_reminder", "kr_checkin_due"
 ]) {
   assert.ok(automation.includes(eventType), `daily automations must cover ${eventType}`);
 }
-for (const toggle of ["dueReminders","overdueDigest","healthAlerts","governanceAlerts","prdReview","outputReview","staleInbox","reviewDraft","krCheckin","timerLong","updateDue"]) {
+for (const toggle of ["dueReminders","overdueDigest","governanceAlerts","prdReview","outputReview","staleInbox","reviewDraft","krCheckin","timerLong","updateDue"]) {
   assert.ok(automation.includes(toggle), `daily automation must respect the ${toggle} setting`);
 }
 assert.ok(automation.includes("core_projects_enqueue_notification") && automation.includes("core_notifications"),
@@ -45,6 +44,12 @@ assert.ok(updateDue.includes("period_end") && updateDue.includes("author_id") &&
   "Update due reminders must use the stored period and notify its author and Project lead");
 assert.ok(updateDue.includes("v_auto->>'updateDue' is distinct from 'false'"),
   "Update due reminders must respect the workspace automation toggle");
+assert.ok(healthTransitions.includes("project_health_changed") &&
+  healthTransitions.includes("core_project_health_transitions") &&
+  healthTransitions.includes("core_projects_emit_health_transitions"),
+  "health alerts must be emitted from the Core health transition log, not repeated daily");
+assert.ok(healthTransitions.includes("v_auto->>'healthAlerts' is distinct from 'false'"),
+  "health transition notifications must respect the workspace automation toggle");
 assert.ok(projectsDomain.includes("updateDue: true") && projectsScreens.includes('["updateDue", "تذكير بموعد تحديث المشروع"]'),
   "the Update due automation must have a default and a visible Settings toggle");
 
