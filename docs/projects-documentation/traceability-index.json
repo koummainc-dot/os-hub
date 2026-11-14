@@ -1,0 +1,17 @@
+{
+  "sourceBranch": "feat/projects-documentation-center",
+  "sourceCommit": "15922fd31304ad07025fa788bdd5a2d2f46df065",
+  "records": [
+    {"id":"screen-dashboard","source":["src/systems/projects/screens_a.jsx"],"targetPage":"dashboard"},
+    {"id":"screen-portfolio","source":["src/systems/projects/screens_a.jsx"],"targetPage":"portfolio"},
+    {"id":"workspace-tabs","source":["src/systems/projects/screens_b.jsx"],"targetPage":"projects"},
+    {"id":"project-header-actions","source":["src/systems/projects/screens_b.jsx"],"targetPage":"projects"},
+    {"id":"task-sheet","source":["src/systems/projects/parts.jsx","src/systems/projects/screens_b.jsx"],"targetPage":"tasks"},
+    {"id":"objective-kr-project-task","source":["src/systems/projects/screens_c.jsx","src/systems/projects/store.jsx"],"targetPage":"okrs"},
+    {"id":"prd-task-output","source":["src/systems/projects/entities.jsx","src/systems/projects/parts.jsx"],"targetPage":"prds"},
+    {"id":"knowledge-integration","source":["src/systems/projects/index.jsx","src/systems/projects/parts.jsx"],"targetPage":"meetings"},
+    {"id":"finance-integration","source":["src/systems/projects/screens_b.jsx"],"targetPage":"projects"},
+    {"id":"outputs-storage","source":["src/systems/projects/entities.jsx","src/systems/projects/parts.jsx"],"targetPage":"outputs"},
+    {"id":"offline-conflict","source":["src/systems/projects/index.jsx"],"targetPage":"tasks"}
+  ]
+}
