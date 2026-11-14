@@ -503,6 +503,7 @@ export function Portfolio() {
   const calendarEvents = [
     ...visible.filter((project) => project.start_date).map((project) => ({ id: project.id + ":start", date: project.start_date, project, kind: "start", title: project.name })),
     ...visible.filter((project) => project.target_date).map((project) => ({ id: project.id + ":target", date: project.target_date, project, kind: "target", title: project.name })),
+    ...data.milestones.filter((milestone) => milestone.due_date && !milestone.archived_at && calendarVisibleIds.has(milestone.project_id)).map((milestone) => ({ id: milestone.id + ":milestone", date: milestone.due_date, project: projects.find((project) => project.id === milestone.project_id), kind: "milestone", record: milestone, title: milestone.title })),
     ...idx.list.filter((task) => task.due_date && calendarVisibleIds.has(task.project_id)).map((task) => ({ id: task.id + ":due", date: task.due_date, project: projects.find((project) => project.id === task.project_id), kind: "task", record: task, title: task.title })),
     ...data.prds.filter((prd) => prd.target_ship_date && calendarVisibleIds.has(prd.project_id)).map((prd) => ({ id: prd.id + ":ship", date: prd.target_ship_date, project: projects.find((project) => project.id === prd.project_id), kind: "prd", record: prd, title: prd.title || "موعد إطلاق المواصفة" })),
     ...data.outputs.filter((output) => output.approval === "Final" && output.approved_at && calendarVisibleIds.has(output.project_id)).map((output) => ({ id: output.id + ":approved", date: String(output.approved_at).slice(0, 10), project: projects.find((project) => project.id === output.project_id), kind: "output", record: output, title: output.name })),
@@ -514,6 +515,7 @@ export function Portfolio() {
   ];
   const openCalendarEvent = (event) => {
     if (event.kind === "task") return openTask(event.record.id);
+    if (event.kind === "milestone") return openProject(event.project.id, "milestones");
     if (event.kind === "meeting") return shell?.go?.("system", "knowledge", "meetings", { focusItemId: event.record.id, focusItemKind: "meeting" });
     if (event.kind === "prd") return openProject(event.project.id, "prds", { kind: "prd", id: event.record.id });
     if (event.kind === "output") return openProject(event.project.id, "outputs", { kind: "output", id: event.record.id });
@@ -526,6 +528,7 @@ export function Portfolio() {
   const calendarEventLabel = (event) => ({
     start: "▶ " + event.title,
     target: "🏁 " + event.title,
+    milestone: "◆ " + event.title,
     task: "☑ " + event.title,
     prd: "🚀 " + event.title,
     output: "📦 " + event.title,
@@ -535,7 +538,7 @@ export function Portfolio() {
     decision: "⚖️ " + event.title,
     win: "🏆 " + event.title,
   }[event.kind] || event.title);
-  const calendarEventColor = (kind) => kind === "start" ? "rgba(16,185,129,.12)" : kind === "target" ? "rgba(239,159,39,.12)" : kind === "meeting" ? "rgba(124,58,237,.12)" : kind === "risk-review" ? "rgba(239,68,68,.12)" : kind === "issue" ? "rgba(220,38,38,.12)" : kind === "decision" ? "rgba(124,58,237,.12)" : kind === "win" ? "rgba(16,185,129,.12)" : kind === "task" ? "rgba(59,130,246,.12)" : kind === "prd" ? "rgba(2,132,199,.12)" : "rgba(14,116,144,.12)";
+  const calendarEventColor = (kind) => kind === "start" ? "rgba(16,185,129,.12)" : kind === "target" ? "rgba(239,159,39,.12)" : kind === "milestone" ? "rgba(124,58,237,.12)" : kind === "meeting" ? "rgba(124,58,237,.12)" : kind === "risk-review" ? "rgba(239,68,68,.12)" : kind === "issue" ? "rgba(220,38,38,.12)" : kind === "decision" ? "rgba(124,58,237,.12)" : kind === "win" ? "rgba(16,185,129,.12)" : kind === "task" ? "rgba(59,130,246,.12)" : kind === "prd" ? "rgba(2,132,199,.12)" : "rgba(14,116,144,.12)";
   const timelineDates = visible.flatMap((p) => [p.start_date || p.target_date, p.target_date || p.start_date]).filter(Boolean).sort();
   const timelineMin = timelineDates[0] || "";
   const timelineMax = timelineDates[timelineDates.length - 1] || "";
