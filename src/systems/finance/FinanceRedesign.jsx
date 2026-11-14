@@ -427,7 +427,6 @@ function TransactionCreateModal({
             </label>}
           </div>
           {draft.context_type==="Project" && draft.finance_project_id && <div role="status" style={{marginTop:8,background:C.greenSoft,borderRadius:9,padding:9,color:C.green,fontSize:11,lineHeight:1.7}}>ستُسجَّل الحركة في دفتر Finance ثم تُربط بملف «{draft.finance_project_name || "المشروع"}». ربط المشاريع متاح للدخل والمصروف فقط.</div>}
-          </div>
         </div>
         <label style={{display:"grid",gap:6,fontSize:11,color:C.muted,marginTop:12}}>ملاحظات<textarea value={draft.notes} onChange={e=>update("notes",e.target.value)} rows={3} style={{border:"1px solid "+C.line,borderRadius:9,padding:10,font:"inherit",resize:"vertical"}}/></label>
         <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}><Button secondary onClick={onClose}>إلغاء</Button><Button disabled={saving} onClick={onSave}>{saving?"جارٍ الحفظ…":"حفظ الحركة"}</Button></div>
