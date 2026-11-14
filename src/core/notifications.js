@@ -72,12 +72,11 @@ export async function emitProjectIntegrationFailure({
   const members = Array.isArray(project.members)
     ? project.members.map((member) => member?.member_id).filter(Boolean)
     : [];
-  const candidates = [...new Set([project.lead_id, ...members].filter(Boolean))];
-  const recipientId = candidates.find((id) => id !== actorId);
-  if (!recipientId) return { ok: true, result: { skipped: "no-other-project-collaborator" } };
+  const recipients = [...new Set([project.lead_id, ...members].filter((id) => id && id !== actorId))];
+  if (!recipients.length) return { ok: true, result: { skipped: "no-other-project-collaborator" } };
 
   const day = new Date().toISOString().slice(0, 10);
-  return emitCoreNotification({
+  const results = await Promise.all(recipients.map((recipientId) => emitCoreNotification({
     workspace_id: workspaceId,
     recipient_id: recipientId,
     source_system: "projects",
@@ -86,7 +85,7 @@ export async function emitProjectIntegrationFailure({
     event_type: definition.event_type,
     title: definition.title,
     body: definition.body,
-    dedupe_key: "project-integration-failure:" + integration + ":" + project.id + ":" + actorId + ":" + day,
+    dedupe_key: "project-integration-failure:" + integration + ":" + project.id + ":" + day,
     deep_link: {
       system: "projects",
       projectId: project.id,
@@ -94,5 +93,9 @@ export async function emitProjectIntegrationFailure({
       recordKind: "project",
       recordId: project.id,
     },
-  });
+  })));
+  return {
+    ok: results.every((result) => result.ok),
+    results,
+  };
 }
