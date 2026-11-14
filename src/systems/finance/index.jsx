@@ -333,7 +333,8 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       };
       const { data, error: rpcError } = await supabase.rpc("fin_post_transaction_with_splits", { p: payload });
       if (rpcError) throw rpcError;
-      if (draft.context_type === "Project" && data?.transaction_id) {
+      if (draft.context_type === "Project") {
+        if (!data?.transaction_id) throw new Error("لم يُرجع Finance معرّف الحركة بعد النشر؛ لم يُؤكَّد الربط بالمشروع.");
         const { error: linkError } = await supabase.rpc("fin_project_transaction_link", {
           p: { workspace_id: ws.id, project_id: draft.finance_project_id, transaction_id: data.transaction_id }
         });
