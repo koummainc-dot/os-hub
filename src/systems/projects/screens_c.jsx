@@ -269,7 +269,7 @@ function ReviewEditor({ r, onClose }) {
     await act.del("review_shares", existingShare.id, "review share");
     toast("تم إيقاف المشاركة.");
   }
-  return <Modal title={`مراجعة ${nameOf(r.member_id)} — أسبوع ${fmtShort(r.week_start)}`} wide onClose={onClose} footer={<>{canW && <Btn kind="primary" onClick={async () => { await save(); toast("✅ تم الحفظ"); }}>💾 حفظ</Btn>}{canW && <Btn onClick={close}>🔒 إغلاق المراجعة</Btn>}{own && <Btn danger onClick={async () => { await act.del("reviews", r.id, "review"); onClose(); }}>🗑</Btn>}</>}>
+  return <Modal title={`مراجعة ${nameOf(r.member_id)} — أسبوع ${fmtShort(r.week_start)}`} wide onClose={onClose} footer={<>{canW && <Btn kind="primary" onClick={async () => { await save(); toast("✅ تم الحفظ"); }}>💾 حفظ</Btn>}{canW && <Btn onClick={close}>🔒 إغلاق المراجعة</Btn>}{own && <Btn danger onClick={async () => { if (existingShare) await act.del("review_shares", existingShare.id, "review share"); await act.del("reviews", r.id, "review"); onClose(); }}>🗑</Btn>}</>}>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 8, marginBottom: 12 }}>
       {[["إنجازات", (view.wins || []).length], ["مهام مكتملة", (view.doneTasks || []).length], ["قرارات", view.decisionsCount || (view.decisions || []).length], ["ساعات العمل", fmtMinutes(view.minutes)], ["متأخرة", view.overdueCount], ["مشاريع حمراء", view.redProjects], ["Check-ins", view.checkins]].map(([l, v]) => <div key={l} style={{ background: "rgba(0,0,0,0.04)", borderRadius: 8, padding: "8px 10px" }}><div style={{ fontSize: 10.5, color: C.muted }}>{l}{closed ? " (لقطة)" : " (حي)"}</div><div style={{ fontSize: 17, fontWeight: 800 }}>{v}</div></div>)}
     </div>
