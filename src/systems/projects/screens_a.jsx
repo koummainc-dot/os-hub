@@ -533,6 +533,22 @@ export function Portfolio() {
   const timelineSpan = timelineMin ? Math.max(1, diffDays(timelineMax, timelineMin) + 1) : 1;
   const timelinePosition = (date) => Math.max(0, Math.min(100, diffDays(date, timelineMin) / timelineSpan * 100));
   const boardStatuses = ["Idea", "Planned", "In Progress", "On Hold", "Completed", "Cancelled"];
+  const portfolioColumnDefs = {
+    project: { label: "المشروع", render: (p) => <><button type="button" onClick={() => openProject(p.id)} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", font: "inherit", fontWeight: 700, textAlign: "start" }}>{p.name}</button><div style={{ color: C.muted, fontSize: 10.5 }}>{p.type || "—"}</div></> },
+    status: { label: "الحالة", render: (p) => L.projectStatus[p.status] || p.status || "—" },
+    health: { label: "الصحة", render: (p,m) => <HealthBadge m={m} compact /> },
+    progress: { label: "التقدم", render: (p,m) => <div style={{ minWidth: 110 }}><Progress value={m.progress == null ? null : m.progress} /><div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{m.progress == null ? "غير قابل للقياس" : Math.round(m.progress) + "%"}</div></div> },
+    target: { label: "الموعد", render: (p) => p.target_date ? fmtShort(p.target_date) : "—" },
+    remaining: { label: "الأيام المتبقية", render: (p,m) => m.daysRemaining == null ? "—" : m.daysRemaining < 0 ? "متأخر " + -m.daysRemaining + " يوم" : "باقٍ " + m.daysRemaining + " يوم" },
+    lead: { label: "القائد", render: (p) => people.find((person) => person.id === p.lead_id)?.name || "—" },
+    team: { label: "الفريق", render: (p) => (p.members || []).length ? <span>{p.members.slice(0,2).map((member) => people.find((person) => person.id === member.member_id)?.name || "عضو").join("، ")}{p.members.length > 2 ? " +" + (p.members.length - 2) : ""}</span> : "—" },
+    priority: { label: "الأولوية", render: (p) => L.priority[p.priority] || p.priority || "—" },
+    finance: { label: "Finance", render: (p) => <Chip color={financeStatusFor(p).color}>{financeStatusFor(p).label}</Chip> },
+    issues: { label: "المشاكل", render: (p) => { const count = data.issues.filter((issue) => issue.project_id === p.id && D.isOpenIssue(issue)).length; return <button type="button" onClick={() => setView({ ...view, projectId: p.id, tab: "issues", issueStatusFilter: "open", issueSeverityFilter: "", focusRecord: null })} style={{ border: 0, background: "transparent", padding: 0, color: count ? C.info : C.muted, cursor: "pointer", textDecoration: count ? "underline" : "none", font: "inherit" }}>{count}</button>; } },
+    risks: { label: "المخاطر", render: (p) => { const count = data.risks.filter((risk) => risk.project_id === p.id && D.isOpenRisk(risk)).length; return <button type="button" onClick={() => setView({ ...view, projectId: p.id, tab: "risks", riskStatusFilter: "open", riskHighOnly: false, focusRecord: null })} style={{ border: 0, background: "transparent", padding: 0, color: count ? C.info : C.muted, cursor: "pointer", textDecoration: count ? "underline" : "none", font: "inherit" }}>{count}</button>; } },
+  };
+  const activePortfolioColumns = columnOrder.filter((key) => visibleColumns.includes(key) && portfolioColumnDefs[key]);
+
   return (
     <div>
       <Head title="محفظة المشاريع" sub="هذه ليست محفظة مالية؛ هي مركز Portfolio لمتابعة جميع المشاريع وحالتها وتقدمها ومخاطرها ومواعيدها وروابط Finance." right={can("project.create") && <Btn kind="primary" onClick={() => setNewProjectOpen(true)}>＋ مشروع جديد</Btn>} />
