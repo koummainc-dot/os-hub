@@ -45,7 +45,19 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
    if(t.error){setTransactions([]);setError("تم تحميل المشاريع، لكن تعذّر تحميل قائمة الحركات لربطها: "+t.error.message);}
    else if(os.error){setTransactions(t.data||[]);setError("تعذّر قراءة مشاريع Projects OS. تأكد من صلاحية الوصول إلى قسم المشاريع قبل إعداد الملف المالي.");}
    else setTransactions(t.data||[]);
-  }catch(e){setError(e?.message||"تعذّر تحميل المشاريع المالية");setSyncStatus(lastGoodSync.current?"stale":"error");if(lastGoodSync.current)setSyncMeta(lastGoodSync.current);}
+  }catch(e){
+   const message=e?.message||"تعذّر تحميل المشاريع المالية";
+   const permissionDenied=e?.code==="P0001"&&/FORBIDDEN|UNAUTHENTICATED/i.test(String(message));
+   setError(message);
+   if(permissionDenied){
+    // Finance data is permission-sensitive: a revoked read permission invalidates
+    // the cached snapshot and must never be rendered as merely stale.
+    lastGoodSync.current=null;setSyncMeta(null);setProjects([]);setTransactions([]);setPrimaryProfiles([]);setSyncStatus("permission");
+   }else{
+    setSyncStatus(lastGoodSync.current?"stale":"error");
+    if(lastGoodSync.current)setSyncMeta(lastGoodSync.current);
+   }
+  }
   finally{setLoading(false);}
  },[ws?.id,isDemo]);
  useEffect(()=>{load();},[load]);
@@ -123,6 +135,7 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
  if(isDemo)return <Card><h3 style={{marginTop:0}}>المشاريع المالية</h3><p style={{color:"#92400E",fontSize:13}}>وضع العرض التجريبي للقراءة فقط.</p></Card>;
  return <div style={{display:"grid",gap:14,direction:"rtl"}}>
   {notice&&<div role="status" style={{background:"#ECFDF3",color:"#067647",padding:11,borderRadius:10,fontSize:12}}>{notice}</div>}
+  {syncStatus==="permission"&&<div role="alert" style={{background:"#FEF3F2",color:"#B42318",padding:11,borderRadius:10,fontSize:12}}>تم إيقاف عرض البيانات المالية لأن صلاحية القراءة لم تعد متاحة لهذا الحساب. {error}</div>}
   {syncStatus==="stale"&&<div role="status" style={{background:"#FFFAEB",color:"#7A2E0E",border:"1px solid #FEDF89",padding:11,borderRadius:10,fontSize:12,lineHeight:1.8}}>تعذرت المزامنة الحالية. نحتفظ بآخر قراءة سليمة من Finance ولا نعرض أصفارًا بديلة. {error}<br/>آخر مزامنة ناجحة: {syncMeta?.last_synced_at?new Date(syncMeta.last_synced_at).toLocaleString("ar-EG"):"غير متاحة"} · As of: {syncMeta?.as_of?new Date(syncMeta.as_of).toLocaleString("ar-EG"):"غير متاح"}</div>}
   {syncStatus==="fresh"&&syncMeta&&<div style={{fontSize:10.5,color:MUTED}}>Finance Sync: Fresh · آخر مزامنة {syncMeta.last_synced_at?new Date(syncMeta.last_synced_at).toLocaleString("ar-EG"):"—"} · As of {syncMeta.as_of?new Date(syncMeta.as_of).toLocaleString("ar-EG"):"—"}</div>}
   {error&&<div role="alert" style={{background:"#FEF3F2",color:"#B42318",padding:11,borderRadius:10,fontSize:12}}>{error}<button onClick={()=>setError("")} style={{float:"left",border:0,background:"transparent",cursor:"pointer"}}>×</button></div>}
