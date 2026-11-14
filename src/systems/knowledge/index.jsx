@@ -149,7 +149,7 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
       element?.scrollIntoView?.({behavior:"smooth",block:"center"});
     },120);
     return ()=>window.clearTimeout(timer);
-  },[focusItemId,section,filtered.length,loading]);
+  },[focusItemId,section,data,loading]);
   useEffect(()=>{setFilter("all");},[section]);
   const go=id=>setPage&&setPage(id);
   const refreshNotifications=useCallback(async()=>{
