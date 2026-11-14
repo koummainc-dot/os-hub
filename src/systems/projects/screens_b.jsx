@@ -404,11 +404,18 @@ function ProjectFinanceTab({ p }) {
       if (!active) return;
       if (profileResult.error) {
         const message = String(profileResult.error.message || profileResult.error.details || profileResult.error.code || "");
-        if (lastGoodSync.current) {
+        const permissionDenied = profileResult.error.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(message);
+        if (permissionDenied) {
+          // Never display a cached Finance snapshot after the server revokes access.
+          lastGoodSync.current = null;
+          setProfiles([]);
+          setSyncMeta(null);
+          setState("permission");
+        } else if (lastGoodSync.current) {
           setState("stale");
           setSyncMeta(lastGoodSync.current);
         } else {
-          setState(profileResult.error.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(message) ? "permission" : "error");
+          setState("error");
           setProfiles([]);
         }
         setError(message || "تعذّر تحديث الملخص المالي.");
