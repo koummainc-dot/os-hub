@@ -18,7 +18,6 @@ declare
   v_skipped integer := 0;
   v_local_today date;
   v_due_date date;
-  v_inbox_stale_days integer;
   v_event text;
   v_title text;
   v_dedupe text;
@@ -35,10 +34,13 @@ begin
       project.data as project_data,
       project.visible_to as project_visible_to,
       workspace.owner_id,
-      coalesce(
-        nullif(project_settings.data->>'timezone',''),
-        'Africa/Cairo'
-      ) as timezone_name,
+      case
+        when exists (
+          select 1 from pg_catalog.pg_timezone_names tz
+           where tz.name = coalesce(nullif(project_settings.data->>'timezone',''),'Africa/Cairo')
+        ) then coalesce(nullif(project_settings.data->>'timezone',''),'Africa/Cairo')
+        else 'Africa/Cairo'
+      end as timezone_name,
       nullif(task.data->>'assignee_id','')::uuid as recipient_id
     from public.workspace_records task
     join public.workspace_records project
@@ -133,7 +135,13 @@ begin
   for r in
     select discovery.workspace_id, discovery.id, discovery.data, discovery.visible_to,
            workspace.owner_id,
-           coalesce(nullif(settings.data->>'timezone',''),'Africa/Cairo') as timezone_name,
+           case
+             when exists (
+               select 1 from pg_catalog.pg_timezone_names tz
+                where tz.name = coalesce(nullif(settings.data->>'timezone',''),'Africa/Cairo')
+             ) then coalesce(nullif(settings.data->>'timezone',''),'Africa/Cairo')
+             else 'Africa/Cairo'
+           end as timezone_name,
            case
              when nullif(discovery.data->>'owner_id','') is not null then (discovery.data->>'owner_id')::uuid
              else nullif(discovery.data->>'raised_by_member_id','')::uuid
