@@ -17,6 +17,7 @@ const files=[
   "docs/projects-documentation/09-coverage-report.md",
   "docs/projects-documentation/10-complete-operating-manual.md",
   "docs/projects-documentation/11-field-and-form-dictionary.md",
+  "docs/projects-documentation/12-release-acceptance-checklist.md",
   "docs/projects-documentation/traceability-index.json"
 ];
 for(const file of files) assert.ok(fs.existsSync(file),`missing ${file}`);
@@ -25,7 +26,7 @@ assert.match(index,/DocumentationCenter/);
 assert.match(index,/documentation:\s*DocumentationPage/);
 assert.match(index,/id:\s*"help"/);
 const catalog=fs.readFileSync("src/systems/projects/documentation/documentationCatalog.js","utf8");
-for(const id of ["screen-dashboard","project-header-actions","workspace-tabs","objective-kr-project-task","prd-task-output","knowledge-integration","finance-integration","outputs-storage","complete-operating-manual","field-and-form-dictionary"]) assert.match(catalog,new RegExp(id));
+for(const id of ["screen-dashboard","project-header-actions","workspace-tabs","objective-kr-project-task","prd-task-output","knowledge-integration","finance-integration","outputs-storage","complete-operating-manual","field-and-form-dictionary","release-acceptance-checklist"]) assert.match(catalog,new RegExp(id));
 const component=fs.readFileSync("src/systems/projects/documentation/DocumentationCenter.jsx","utf8");
 for(const token of ["بحث التوثيق","targetPage","initialArticleId","DOCUMENTATION_STATUS","DOCUMENTATION_SECTIONS"]) assert.match(component,new RegExp(token));
 const css=fs.readFileSync("src/systems/projects/documentation/documentation.css","utf8");
