@@ -11,7 +11,7 @@ export const Ctx = createContext(null);
 export const useP = () => useContext(Ctx);
 
 export const GENERAL_ID = "proj_general";
-const COLLS = ["projects", "tasks", "milestones", "outputs", "sessions", "timers", "prds", "discovery", "decisions", "risks", "issues", "contacts", "objectives", "krs", "checkins", "reviews", "wins", "updates", "templates", "teams", "profiles", "settings", "lookups", "activity"];
+const COLLS = ["projects", "tasks", "milestones", "outputs", "sessions", "timers", "prds", "discovery", "decisions", "risks", "issues", "contacts", "objectives", "krs", "checkins", "reviews", "review_shares", "wins", "updates", "templates", "teams", "profiles", "settings", "lookups", "activity"];
 
 export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, demoStore, seed, shell, page, setPage, children }) {
   const toast = shell && shell.toast ? shell.toast : () => {};
@@ -45,7 +45,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
   const data = useMemo(() => ({
     projects: live("projects"), tasks: live("tasks"), milestones: live("milestones"), outputs: live("outputs"), sessions: live("sessions"), timers: arr(recs, "timers"), prds: live("prds"), discovery: live("discovery"),
     decisions: live("decisions"), risks: live("risks"), issues: live("issues"), contacts: live("contacts"), objectives: live("objectives"), krs: live("krs"), checkins: arr(recs, "checkins"),
-    reviews: live("reviews"), wins: live("wins"), updates: live("updates"), templates: live("templates"), teams: live("teams"), profiles: live("profiles"), activity: arr(recs, "activity"),
+    reviews: live("reviews"), review_shares: live("review_shares"), wins: live("wins"), updates: live("updates"), templates: live("templates"), teams: live("teams"), profiles: live("profiles"), activity: arr(recs, "activity"),
   }), [recs]);
   const trash = useMemo(() => COLLS.filter((c) => !["settings", "lookups", "activity", "timers", "checkins"].includes(c)).flatMap((c) => arr(recs, c).filter((r) => r.deleted_at).map((r) => ({ coll: c, rec: r }))), [recs]);
   const projectsById = useMemo(() => Object.fromEntries(data.projects.map((p) => [p.id, p])), [data.projects]);
