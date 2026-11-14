@@ -201,7 +201,7 @@ function ProjectDetail() {
       {tab === "finance" && <ProjectFinanceTab p={p} />}
       {tab === "wins" && <ProjectWinsTab p={p} />}
       {tab === "updates" && <ProjectUpdatesTab p={p} />}
-      {tab === "activity" && <div style={S.card}>{data.activity.filter((a) => a.entity_id === p.id || (a.entity === "tasks" && idx.byId[a.entity_id] && idx.byId[a.entity_id].project_id === p.id)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40).map((a) => <div key={a.id} style={{ fontSize: 12, padding: "4px 0", color: C.dim }}>{dateOf(a.at)} · {nameOf(a.actor_id)} · {a.action} {a.summary}</div>)}{!data.activity.some((a) => a.entity_id === p.id) && <span style={{ fontSize: 12, color: C.muted }}>لا نشاط مسجَّل</span>}</div>}
+      {tab === "activity" && <ProjectActivity p={p} />}
       {edit && <ProjectForm initial={p} onClose={() => setEdit(false)} />}
     </div>
   );
@@ -413,12 +413,79 @@ function ProjectFinanceTab({ p }) {
     </div>}
   </section>;
 }
+function ProjectActivity({ p }) {
+  const { data, idx, nameOf, openTask, openProject, setPage } = useP();
+  const taskIds = new Set(idx.list.filter((task) => String(task.project_id || "") === String(p.id)).map((task) => task.id));
+  const sessionIds = new Set(data.sessions.filter((session) => session.project_id === p.id || taskIds.has(session.task_id)).map((session) => session.id));
+  const projectKrs = data.krs.filter((kr) => (kr.project_ids || []).includes(p.id));
+  const projectKrIds = new Set(projectKrs.map((kr) => kr.id));
+  const projectObjectiveIds = new Set(data.objectives.filter((objective) => objective.project_ids?.includes(p.id) || projectKrs.some((kr) => kr.objective_id === objective.id)).map((objective) => objective.id));
+  const ids = {
+    projects: new Set([p.id]),
+    tasks: taskIds,
+    outputs: new Set(data.outputs.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    sessions: sessionIds,
+    risks: new Set(data.risks.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    issues: new Set(data.issues.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    decisions: new Set(data.decisions.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    prds: new Set(data.prds.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    discovery: new Set(data.discovery.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    wins: new Set(data.wins.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    updates: new Set(data.updates.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    reviews: new Set(data.reviews.filter((record) => record.project_id === p.id).map((record) => record.id)),
+    objectives: projectObjectiveIds,
+    krs: projectKrIds,
+    checkins: new Set(data.checkins.filter((record) => projectKrIds.has(record.kr_id)).map((record) => record.id)),
+  };
+  const aliases = { project: "projects", task: "tasks", output: "outputs", session: "sessions", risk: "risks", issue: "issues", decision: "decisions", prd: "prds", discovery_item: "discovery", win: "wins", update: "updates", review: "reviews", objective: "objectives", key_result: "krs", checkin: "checkins" };
+  const activity = data.activity
+    .filter((event) => {
+      const collection = aliases[event.entity] || event.entity;
+      return !!ids[collection]?.has(String(event.entity_id));
+    })
+    .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")))
+    .slice(0, 60);
+  const labels = { projects: "المشروع", tasks: "مهمة", outputs: "مخرج", sessions: "جلسة عمل", risks: "خطر", issues: "مشكلة", decisions: "قرار", prds: "مواصفة", discovery: "اكتشاف", wins: "إنجاز", updates: "تحديث", reviews: "مراجعة", objectives: "هدف", krs: "نتيجة رئيسية", checkins: "تحديث نتيجة" };
+  const navigate = (event) => {
+    const collection = aliases[event.entity] || event.entity;
+    const id = event.entity_id;
+    if (collection === "tasks") return openTask(id);
+    if (collection === "outputs") return openProject(p.id, "outputs", { kind: "output", id });
+    if (collection === "risks") return openProject(p.id, "risks", { kind: "risk", id });
+    if (collection === "issues") return openProject(p.id, "issues", { kind: "issue", id });
+    if (collection === "decisions") return openProject(p.id, "decisions", { kind: "decision", id });
+    if (collection === "prds") return openProject(p.id, "prds", { kind: "prd", id });
+    if (collection === "discovery") return openProject(p.id, "discovery", { kind: "discovery", id });
+    if (collection === "sessions") return openProject(p.id, "work");
+    if (collection === "wins") return setPage("wins");
+    if (collection === "updates") return setPage("updates");
+    if (collection === "reviews") return setPage("reviews");
+    if (collection === "objectives" || collection === "krs" || collection === "checkins") return setPage("okrs");
+    if (collection === "projects") return openProject(p.id, "overview");
+  };
+  return <div style={S.card}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <b style={{ fontSize: 13 }}>سجل نشاط المشروع</b><Chip>{activity.length}</Chip>
+      <span style={{ flex: 1 }} />
+      <span style={{ fontSize: 10.5, color: C.muted }}>يشمل المشروع وسجلاته المرتبطة</span>
+    </div>
+    {!activity.length ? <Empty icon="🕘" title="لا نشاط مسجّل" sub="ستظهر هنا تغييرات المشروع والمهام والمخرجات والحوكمة والأهداف والتقارير." /> :
+      activity.map((event) => <button type="button" key={event.id} onClick={() => navigate(event)} style={{ display: "flex", width: "100%", gap: 8, alignItems: "flex-start", border: 0, borderTop: "1px solid " + C.line, padding: "8px 2px", textAlign: "start", background: "transparent", color: C.text, cursor: "pointer", font: "inherit" }}>
+        <span style={{ minWidth: 72, fontSize: 10.5, color: C.muted }}>{dateOf(event.at)}</span>
+        <span style={{ flex: 1, fontSize: 12, lineHeight: 1.7 }}><b>{labels[aliases[event.entity] || event.entity] || event.entity}</b> · {event.action} {event.summary}</span>
+        <span style={{ fontSize: 10.5, color: C.muted }}>{nameOf(event.actor_id)} ↗</span>
+      </button>)}
+  </div>;
+}
+
 function ProjectWinsTab({ p }) {
-  const { data, idx, setPage, openTask } = useP();
+  const { data, idx, setPage, openTask, view, setView, can } = useP();
   const wins = data.wins.filter((win) => String(win.project_id || "") === String(p.id)).sort((a, b) => String(b.achieved_on || "").localeCompare(String(a.achieved_on || "")));
+  const canCreate = can("win.write", p);
+  const openCreate = () => { setView({ ...view, quickCreate: "win", projectId: p.id }); setPage("wins"); };
   return <div style={{ display: "grid", gap: 10 }}>
-    <Head title="إنجازات المشروع" sub={`${wins.length} إنجاز مرتبط بهذا المشروع`} right={<Btn onClick={() => setPage("wins")}>فتح سجل الإنجازات ↗</Btn>} />
-    {!wins.length ? <Empty icon="🏆" title="لا توجد إنجازات مرتبطة بعد" sub="سجّل الإنجاز من سجل Projects العام واربطه بهذا المشروع." /> : wins.map((win) => <article key={win.id} style={S.card}>
+    <Head title="إنجازات المشروع" sub={`${wins.length} إنجاز مرتبط بهذا المشروع`} right={<div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><Btn onClick={() => setPage("wins")}>سجل الإنجازات ↗</Btn>{canCreate && <Btn kind="primary" onClick={openCreate}>＋ إنجاز</Btn>}</div>} />
+    {!wins.length ? <Empty icon="🏆" title="لا توجد إنجازات مرتبطة بعد" sub={canCreate ? "سجّل إنجازًا لهذا المشروع؛ سيُفتح نموذج الإنجازات الأصلي مع المشروع محددًا." : "لا توجد إنجازات مرتبطة بهذا المشروع."} /> : wins.map((win) => <article key={win.id} style={S.card}>
       <b>{win.title}</b><div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{win.achieved_on || "بلا تاريخ"}</div>
       {win.description && <p style={{ fontSize: 12, lineHeight: 1.8 }}>{win.description}</p>}
       {(win.task_ids || (win.task_id ? [win.task_id] : [])).map((id) => idx.byId[id]).filter(Boolean).map((task) => <button type="button" key={task.id} onClick={() => openTask(task.id)} style={{ border: 0, padding: 0, marginInlineEnd: 8, color: C.info, background: "transparent", cursor: "pointer", textDecoration: "underline" }}>↗ {task.title}</button>)}
@@ -426,11 +493,13 @@ function ProjectWinsTab({ p }) {
   </div>;
 }
 function ProjectUpdatesTab({ p }) {
-  const { data, setPage } = useP();
+  const { data, setPage, view, setView, can } = useP();
   const updates = data.updates.filter((update) => String(update.project_id || "") === String(p.id)).sort((a, b) => String(b.period_end || "").localeCompare(String(a.period_end || "")));
+  const canCreate = can("update.write", p);
+  const openCreate = () => { setView({ ...view, quickCreate: "update", projectId: p.id }); setPage("updates"); };
   return <div style={{ display: "grid", gap: 10 }}>
-    <Head title="تحديثات المشروع" sub={`${updates.length} تحديث مرتبط بهذا المشروع`} right={<Btn onClick={() => setPage("updates")}>فتح سجل التحديثات ↗</Btn>} />
-    {!updates.length ? <Empty icon="📣" title="لا توجد تحديثات بعد" sub="يمكن إنشاء تحديث من سجل النتائج والتقارير وربطه بهذا المشروع." /> : updates.map((update) => <article key={update.id} style={S.card}>
+    <Head title="تحديثات المشروع" sub={`${updates.length} تحديث مرتبط بهذا المشروع`} right={<div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><Btn onClick={() => setPage("updates")}>سجل التحديثات ↗</Btn>{canCreate && <Btn kind="primary" onClick={openCreate}>＋ تحديث</Btn>}</div>} />
+    {!updates.length ? <Empty icon="📣" title="لا توجد تحديثات بعد" sub={canCreate ? "أنشئ مسودة تحديث لهذا المشروع باستخدام نموذج التقارير الأصلي." : "لا توجد تحديثات مرتبطة بهذا المشروع."} /> : updates.map((update) => <article key={update.id} style={S.card}>
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><b style={{ flex: 1 }}>{update.title || "تحديث المشروع"}</b><Chip color={update.status === "Published" ? C.ok : C.muted}>{update.status === "Published" ? "منشور" : "مسودة"}</Chip></div>
       <div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{update.period_start || "—"} → {update.period_end || "—"}{update.published_at ? " · نُشر " + fmtShort(update.published_at.slice(0, 10)) : ""}</div>
       {update.snapshot && <div style={{ fontSize: 12, marginTop: 7 }}>التقدم وقت النشر: {update.snapshot.progress == null ? "—" : Math.round(update.snapshot.progress * 100) + "%"} · {update.snapshot.leafCompleted ?? "—"}/{update.snapshot.leafTotal ?? "—"} · مخاطر مفتوحة {update.snapshot.openRisks ?? "—"} · مشاكل مفتوحة {update.snapshot.openIssues ?? "—"}</div>}
