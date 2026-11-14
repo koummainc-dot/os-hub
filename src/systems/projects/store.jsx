@@ -16,7 +16,7 @@ const COLLS = ["projects", "tasks", "milestones", "outputs", "sessions", "timers
 export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, demoStore, seed, shell, page, setPage, children }) {
   const toast = shell && shell.toast ? shell.toast : () => {};
   const store = useRecordStore({ wsId: ws.id, systemId: "projects", isDemo, demoStore, seed, onToast: toast });
-  const { recs, ready, error, pending, online } = store; const R = store.api;
+  const { recs, ready, error, pending, online, queueItems, discardQueuedWrite } = store; const R = store.api;
   const [confirm, confirmNode] = useConfirm();
   const [view, setView] = useState({ projectId: null, tab: "overview", taskId: null });
   const me = authUser.id;
@@ -812,7 +812,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
   // shell bridge: badges + notification bell
   useEffect(() => { if (shell && shell.publish) shell.publish("projects", { notifCount: alerts.length, openNotifs: () => setPage("today") }); }, [alerts.length]);
 
-  const value = { shell, ws, isDemo, me, role, access, people, nameOf, settings, lookups, today, weekStartStr, recs, data, trash, projectsById, prdsById, idx, metrics, projectProgress, can, projectRole, visFor, A, R, confirm, toast, alerts, runningTimer, view, setView, page, setPage, pending, online, ready, error, store,
+  const value = { shell, ws, isDemo, me, role, access, people, nameOf, settings, lookups, today, weekStartStr, recs, data, trash, projectsById, prdsById, idx, metrics, projectProgress, can, projectRole, visFor, A, R, confirm, toast, alerts, runningTimer, view, setView, page, setPage, pending, online, queueItems, discardQueuedWrite, ready, error, store,
     openProject: (id, tab, focusRecord = null) => { setView((v) => ({ ...v, projectId: id, tab: tab || "overview", taskId: null, focusRecord, ...(focusRecord?.kind === "issue" ? { issueStatusFilter: "all" } : {}) })); setPage("projects"); writeProjectHash({ projectId: id, tab: tab || "overview", taskId: null, focusRecord }); },
     openDiscovery: (id) => { setView((v) => ({ ...v, focusRecord: id ? { kind: "discovery", id } : null })); setPage("discovery"); },
     openTask: (id) => setView((v) => { const next = { ...v, taskId: id }; writeProjectHash({ projectId: v.projectId, tab: v.tab || "overview", taskId: id, focusRecord: v.focusRecord }); return next; }),
