@@ -12,6 +12,12 @@ import { Okrs, Updates, Wins, Reviews, Contacts, Team, Templates, Meetings, Sett
 import { buildSeed } from "./demo.js";
 import { loadDurableOSEvents, subscribeDurableOSEvents } from "../integrationEvents.js";
 import MasterplanWizard from "./masterplanWizard.jsx";
+import DocumentationCenter from "./documentation/DocumentationCenter.jsx";
+
+function DocumentationPage() {
+  const { setPage } = useP();
+  return <DocumentationCenter onNavigate={setPage} />;
+}
 
 function GovernancePage() {
   const { page } = useP();
@@ -41,7 +47,7 @@ function GovernancePage() {
   </div>;
 }
 
-const SCREENS = { dashboard: Dashboard, today: Today, week: Week, myWork: MyWork, portfolio: Portfolio, projects: Projects, tasks: Tasks, issues: GovernancePage, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: GovernancePage, decisions: GovernancePage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings, masterplanImport: MasterplanWizard };
+const SCREENS = { dashboard: Dashboard, today: Today, week: Week, myWork: MyWork, portfolio: Portfolio, projects: Projects, tasks: Tasks, issues: GovernancePage, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: GovernancePage, decisions: GovernancePage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings, documentation: DocumentationPage, masterplanImport: MasterplanWizard };
 
 function ProjectsDurableEventBridge({ ws, isDemo, children }) {
   const ctx = useP();
@@ -204,6 +210,9 @@ function Router({ sourceWriteRequest, routeContext }) {
         { id: "wins", label: "الإنجازات", icon: "🏆" },
         { id: "updates", label: "التحديثات", icon: "↗" },
         { id: "reviews", label: "المراجعات الأسبوعية", icon: "↻" },
+      ]},
+      { id: "help", label: "المساعدة والتوثيق", items: [
+        { id: "documentation", label: "مركز التوثيق", icon: "ⓘ" },
       ]},
       { id: "admin", label: "الإدارة", items: [
         { id: "templates", label: "القوالب", icon: "◇" },
