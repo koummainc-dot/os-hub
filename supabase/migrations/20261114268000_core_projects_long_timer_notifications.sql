@@ -1,25 +1,13 @@
 begin;
-
 insert into public.collection_sections(system_id,collection,section_id)
 values ('projects','timers','tasks')
 on conflict (system_id,collection) do update set section_id=excluded.section_id;
-
-create or replace function public.core_projects_enqueue_notification(
-  p_workspace_id uuid,
-  p_recipient_id uuid,
-  p_collection text,
-  p_entity_id text,
-  p_event_type text,
-  p_title text,
-  p_body text,
-  p_deep_link jsonb,
-  p_dedupe_key text
-)
-returns boolean
-language plpgsql
-security definer
-set search_path = public
-as $function$
+CREATE OR REPLACE FUNCTION public.core_projects_enqueue_notification(p_workspace_id uuid, p_recipient_id uuid, p_collection text, p_entity_id text, p_event_type text, p_title text, p_body text, p_deep_link jsonb, p_dedupe_key text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
 declare
   v_section text;
   v_data jsonb;
@@ -74,11 +62,8 @@ begin
 
   if p_collection='timers' then
     if v_data->>'member_id' is distinct from p_recipient_id::text
-       or nullif(v_data->>'task_id','') is null then
-      return false;
-    end if;
-    select task.data,task.visible_to
-      into v_timer_task_data,v_timer_task_visible
+       or nullif(v_data->>'task_id','') is null then return false; end if;
+    select task.data,task.visible_to into v_timer_task_data,v_timer_task_visible
       from public.workspace_records task
      where task.workspace_id=p_workspace_id and task.system_id='projects'
        and task.collection='tasks' and task.id=v_data->>'task_id'
@@ -86,9 +71,7 @@ begin
        and coalesce(task.data->>'deleted_at','')=''
        and coalesce(task.data->>'archived_at','')='';
     if not found then return false; end if;
-    if v_timer_task_visible is not null and not (p_recipient_id=any(v_timer_task_visible)) then
-      return false;
-    end if;
+    if v_timer_task_visible is not null and not (p_recipient_id=any(v_timer_task_visible)) then return false; end if;
   end if;
 
   v_project_id := case when p_collection='timers'
@@ -133,14 +116,14 @@ begin
   on conflict(workspace_id,recipient_id,dedupe_key) do nothing;
   return found;
 end;
-$function$;
+$function$
 
-create or replace function public.core_projects_emit_daily_notifications_worker()
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $function$
+CREATE OR REPLACE FUNCTION public.core_projects_emit_daily_notifications_worker()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
 declare
   r record;
   member_row record;
@@ -690,24 +673,18 @@ begin
     end if;
   end loop;
 
-  -- 8) Long-running personal timers. Timer records are private to their
-  -- member; the notification points to the active task without copying its data.
+  -- Long-running personal timer reminder; source timer and linked task stay private.
   for r in
-    select timer.workspace_id, timer.id, timer.data, timer.visible_to,
-           settings.data as settings_data,
-           case when exists (
-             select 1 from pg_catalog.pg_timezone_names tz
-              where tz.name=coalesce(nullif(settings.data->>'timezone',''),'Africa/Cairo')
-           ) then coalesce(nullif(settings.data->>'timezone',''),'Africa/Cairo')
-           else 'Africa/Cairo' end as timezone_name,
+    select timer.workspace_id,timer.id,timer.data,timer.visible_to,settings.data as settings_data,
+           case when exists(select 1 from pg_catalog.pg_timezone_names tz
+             where tz.name=coalesce(nullif(settings.data->>'timezone',''),'Africa/Cairo'))
+             then coalesce(nullif(settings.data->>'timezone',''),'Africa/Cairo') else 'Africa/Cairo' end as timezone_name,
            task.data->>'project_id' as project_id
       from public.workspace_records timer
       join public.workspace_records task
-        on task.workspace_id=timer.workspace_id
-       and task.system_id='projects' and task.collection='tasks'
-       and task.id=timer.data->>'task_id'
-       and task.deleted=false
-       and coalesce(task.data->>'deleted_at','')=''
+        on task.workspace_id=timer.workspace_id and task.system_id='projects'
+       and task.collection='tasks' and task.id=timer.data->>'task_id'
+       and task.deleted=false and coalesce(task.data->>'deleted_at','')=''
        and coalesce(task.data->>'archived_at','')=''
       left join public.workspace_records settings
         on settings.workspace_id=timer.workspace_id and settings.system_id='projects'
@@ -722,24 +699,12 @@ begin
     v_timezone:=r.timezone_name;
     v_today:=(now() at time zone v_timezone)::date;
     v_reminder_time:=coalesce(nullif(r.settings_data->>'defaultReminderTime',''),'09:00');
-    if v_reminder_time !~ '^([01][0-9]|2[0-3]):[0-5][0-9]
-end;
-$function$;
-
-revoke all on function public.core_projects_member_has_section(uuid,uuid,text) from public,anon,authenticated;
-revoke all on function public.core_projects_enqueue_notification(uuid,uuid,text,text,text,text,text,jsonb,text) from public,anon,authenticated;
-       or to_char(now() at time zone v_timezone,'HH24:MI')<>v_reminder_time then
-      continue;
-    end if;
+    if v_reminder_time !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+       or to_char(now() at time zone v_timezone,'HH24:MI')<>v_reminder_time then continue; end if;
     v_auto:=coalesce(r.settings_data->'automations','{}'::jsonb);
     if v_auto->>'timerLong' is distinct from 'false' then
       v_timer_max_hours:=case
-        when coalesce(r.settings_data->>'timerMaxHours','') ~ '^[0-9]+([.][0-9]+)?
-end;
-$function$;
-
-revoke all on function public.core_projects_member_has_section(uuid,uuid,text) from public,anon,authenticated;
-revoke all on function public.core_projects_enqueue_notification(uuid,uuid,text,text,text,text,text,jsonb,text) from public,anon,authenticated;
+        when coalesce(r.settings_data->>'timerMaxHours','') ~ '^[0-9]+([.][0-9]+)?$'
           then greatest(0.25,least(72,(r.settings_data->>'timerMaxHours')::numeric))
         else 8
       end;
@@ -747,28 +712,20 @@ revoke all on function public.core_projects_enqueue_notification(uuid,uuid,text,
       if v_elapsed_hours >= v_timer_max_hours then
         v_recipient:=(r.data->>'member_id')::uuid;
         v_dedupe:='timer_long:'||r.id||':'||coalesce(r.data->>'started_at','');
-        v_deep_link:=jsonb_build_object(
-          'system','projects','projectId',r.project_id,'tab','tasks',
-          'taskId',r.data->>'task_id','recordKind','task','recordId',r.data->>'task_id'
-        );
-        if public.core_projects_enqueue_notification(
-          r.workspace_id,v_recipient,'timers',r.id,
+        v_deep_link:=jsonb_build_object('system','projects','projectId',r.project_id,'tab','tasks',
+          'taskId',r.data->>'task_id','recordKind','task','recordId',r.data->>'task_id');
+        if public.core_projects_enqueue_notification(r.workspace_id,v_recipient,'timers',r.id,
           'timer_long_running','المؤقّت يعمل منذ مدة طويلة',
           'المؤقّت لمهمة ما زال يعمل بعد تجاوز الحد المحدد ('||v_timer_max_hours::text||' ساعة).',
-          v_deep_link,v_dedupe
-        ) then v_created:=v_created+1;
-        else v_skipped:=v_skipped+1;
-        end if;
+          v_deep_link,v_dedupe)
+        then v_created:=v_created+1; else v_skipped:=v_skipped+1; end if;
       end if;
     end if;
   end loop;
 
   return jsonb_build_object('created',v_created,'skipped',v_skipped,'ran_at',clock_timestamp());
 end;
-$function$;
-
-revoke all on function public.core_projects_member_has_section(uuid,uuid,text) from public,anon,authenticated;
-revoke all on function public.core_projects_enqueue_notification(uuid,uuid,text,text,text,text,text,jsonb,text) from public,anon,authenticated;
+$function$
 
 drop policy if exists core_notifications_select on public.core_notifications;
 create policy core_notifications_select
@@ -829,7 +786,7 @@ using (
          and task.deleted=false
          and coalesce(task.data->>'deleted_at','')=''
          and coalesce(task.data->>'archived_at','')=''
-        left join public.workspace_records project_record
+        join public.workspace_records project_record
           on project_record.workspace_id=task.workspace_id
          and project_record.system_id='projects' and project_record.collection='projects'
          and project_record.id=task.data->>'project_id'
@@ -842,12 +799,10 @@ using (
          and timer.data->>'member_id'=auth.uid()::text
          and (timer.visible_to is null or auth.uid()=any(timer.visible_to))
          and (task.visible_to is null or auth.uid()=any(task.visible_to))
-         and project_record.id is not null
          and (project_record.visible_to is null or auth.uid()=any(project_record.visible_to))
     )
   )
 );
-
 
 
 commit;
