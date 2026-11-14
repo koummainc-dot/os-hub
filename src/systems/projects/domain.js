@@ -433,7 +433,17 @@ export function computeAlerts(memberId, ctx) {
   if (au.dueReminders !== false) { const soon = mine.filter((t) => t.due_date && diffDays(t.due_date, today) >= 0 && diffDays(t.due_date, today) <= set.dueSoonDays); if (soon.length) out.push({ key: "due:" + today, kind: "due", level: "warn", text: `${soon.length} مهمة مستحقة خلال ${set.dueSoonDays === 0 ? "اليوم" : set.dueSoonDays + " يوم"}`, ids: soon.map((t) => t.id) }); }
   if (au.healthAlerts !== false) (projects || []).filter((p) => isActiveRec(p) && (p.lead_id === memberId || (p.members || []).some((m) => m.member_id === memberId))).forEach((p) => { const m = metrics && metrics[p.id]; if (m && (m.health === "Red" || m.health === "Orange")) out.push({ key: "health:" + p.id + ":" + m.health, kind: "health", level: m.health === "Red" ? "bad" : "warn", text: `صحة مشروع «${p.name}»: ${HEALTH_META[m.health].label}`, project: p.id }); });
   (issues || []).filter((i) => isOpenIssue(i) && i.severity === "Critical" && i.owner_id === memberId).forEach((i) => out.push({ key: "crit:" + i.id, kind: "issue", level: "bad", text: `مشكلة حرجة مفتوحة: ${i.title}`, project: i.project_id }));
-  if (au.governanceAlerts !== false) (ctx.risks || []).filter((r) => isOpenRisk(r) && r.owner_id === memberId && Number(r.probability || 0) * Number(r.impact || 0) >= 12).forEach((r) => out.push({ key: "risk-high:" + r.id, kind: "risk", level: "bad", text: "خطر مرتفع مفتوح يحتاج متابعة: " + r.title, project: r.project_id, record: { kind: "risk", id: r.id } }));
+  if (au.governanceAlerts !== false) (ctx.risks || []).filter((r) => {
+    const reviewDate = String(r.review_date || "");
+    const reviewDue = !reviewDate || reviewDate <= today;
+    return isOpenRisk(r) && r.owner_id === memberId
+      && riskScore(r) >= (set.riskHigh ?? DEFAULT_SETTINGS.riskHigh)
+      && reviewDue;
+  }).forEach((r) => out.push({
+    key: "risk-review:" + r.id + ":" + (r.review_date || "unscheduled"),
+    kind: "risk", level: "bad", text: "خطر مرتفع حان موعد مراجعته: " + r.title,
+    project: r.project_id, record: { kind: "risk", id: r.id }
+  }));
   (contacts || []).filter((c) => isActiveRec(c) && c.follow_up_date && c.follow_up_date <= today).forEach((c) => out.push({ key: "fu:" + c.id + ":" + c.follow_up_date, kind: "contact", level: "warn", text: `موعد متابعة: ${c.name}` }));
   if (au.staleInbox !== false) { const st = (discovery || []).filter((d) => isActiveRec(d) && d.status === "Inbox" && d.logged_at && diffDays(today, d.logged_at) > set.inboxStaleDays); if (st.length) out.push({ key: "stale:" + today, kind: "inbox", level: "warn", text: `${st.length} عنصر في صندوق الاكتشاف أقدم من ${set.inboxStaleDays} يوماً — يحتاج فرزاً` }); }
   if (au.krCheckin !== false) (krs || []).filter((k) => isActiveRec(k) && k.type === "Numeric" && k.owner_id === memberId).forEach((k) => { const last = (checkins || []).filter((c) => c.kr_id === k.id).map((c) => c.checked_at).sort().slice(-1)[0]; if (!last || diffDays(today, dateOf(last, set.timezone)) >= 7) out.push({ key: "kr:" + k.id + ":" + weekStart(today, set.weekStartDay), kind: "kr", level: "info", text: `حان Check-in للنتيجة: ${k.name}` }); });
