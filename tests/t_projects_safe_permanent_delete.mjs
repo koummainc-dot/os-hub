@@ -25,5 +25,6 @@ assert.ok(migration.includes("auth.uid() is null"), "purge RPC must require auth
 assert.match(migration, /expected_updated_at/i, "purge RPC must check optimistic concurrency");
 assert.match(migration, /deleted_at/i, "purge RPC must verify the deletion marker");
 assert.match(migration, /revoke all on function public.projects_purge_records_batch/i, "public execution must be revoked");
-assert.match(migration, /grant execute on function public.projects_purge_records_batch\(uuid, text, timestamptz, uuid, jsonb\) to authenticated/i, "only authenticated users receive execute permission");
+assert.match(migration, /revoke all on function public\.projects_purge_records_batch_v2\(uuid,\s*text,\s*timestamptz,\s*uuid,\s*jsonb\) from public,\s*anon/i, "PUBLIC and anon must not execute the active purge RPC");
+assert.match(migration, /grant execute on function public\.projects_purge_records_batch_v2\(uuid,\s*text,\s*timestamptz,\s*uuid,\s*jsonb\) to authenticated/i, "only authenticated users receive execute permission for active purge v2");
 console.log("Projects safe permanent-trash-delete contract tests passed.");
