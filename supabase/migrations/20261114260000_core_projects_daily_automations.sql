@@ -1,5 +1,10 @@
 begin;
 
+-- Enable the Supabase-managed Cron extension in its supported schema layout.
+create extension if not exists pg_cron with schema pg_catalog;
+grant usage on schema cron to postgres;
+grant all privileges on all tables in schema cron to postgres;
+
 create or replace function public.core_projects_member_has_section(
   p_workspace_id uuid,
   p_user_id uuid,
