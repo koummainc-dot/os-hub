@@ -186,8 +186,10 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       }
       const message = `استرجاع المشروع «${p.name}» من السلة؟\n\nسيتم استرجاع المشروع والسجلات التي نُقلت معه في عملية الحذف نفسها:\n${summary}\n\nالسجلات التي كانت في السلة قبل حذف المشروع لن تُسترجع معه، وجلسات الوقت التاريخية ستظل كما هي.`;
       if (!(await confirm(message, { title: "مراجعة أثر استرجاع المشروع", ok: "استرجاع المشروع وسجلاته" }))) return false;
-      const ops = related.map(({ coll, rec }) => ({ coll, rec: { ...rec, deleted_at: null, deleted_by: null } }));
-      ops.push({ coll: "projects", rec: { ...p, deleted_at: null, deleted_by: null } });
+      const ops = [
+        { coll: "projects", rec: { ...p, deleted_at: null, deleted_by: null } },
+        ...related.map(({ coll, rec }) => ({ coll, rec: { ...rec, deleted_at: null, deleted_by: null } })),
+      ];
       try {
         await R.putAtomic(ops);
       } catch (error) {
