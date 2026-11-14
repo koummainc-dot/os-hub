@@ -3,9 +3,10 @@ import { readFile } from "node:fs/promises";
 const core = await readFile(new URL("../src/core/records.jsx", import.meta.url), "utf8");
 const store = await readFile(new URL("../src/systems/projects/store.jsx", import.meta.url), "utf8");
 const screens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
-const migration = await readFile(new URL("../supabase/migrations/20261029213602_projects_purge_records_batch.sql", import.meta.url), "utf8");
-const extendedPurge = await readFile(new URL("../supabase/migrations/20261114269000_projects_purge_wins_milestones.sql", import.meta.url), "utf8");
-assert.ok(core.includes('supabase.rpc("projects_purge_records_batch"'), "purge must execute through transactional server RPC");
+const migration = await readFile(new URL("../supabase/migrations/20261114230000_projects_atomic_milestone_purge.sql", import.meta.url), "utf8");
+const activePurge = await readFile(new URL("../supabase/migrations/20261114269500_projects_purge_v2_wins.sql", import.meta.url), "utf8");
+
+assert.ok(core.includes('supabase.rpc("projects_purge_records_batch_v2"'), "purge must execute through the active transactional v2 server RPC");
 assert.ok(core.includes('navigator.onLine === false'), "permanent deletion must not queue offline");
 assert.ok(core.includes('type: "drop", coll: collection, id'), "purged records must be removed from local state");
 assert.ok(store.includes("permanentlyDeleteProject: async (p)"), "project permanent delete action must exist on the action API");
@@ -16,9 +17,10 @@ assert.ok(store.includes("جلسات الوقت التاريخية ستبقى م
 assert.ok(store.includes("ops.length > 1000"), "oversized purge must be rejected");
 assert.ok(screens.includes("act.permanentlyDeleteProject(rec)"), "trash UI must expose project permanent deletion");
 
-assert.ok(extendedPurge.includes("'milestones'") && extendedPurge.includes("'wins'"),
-  "the forward migration must extend the server purge RPC to every collection included in the project deletion batch");
-assert.match(migration, /security invoker/i, "purge RPC must use security invoker");
+assert.ok(activePurge.includes("'milestones'") && activePurge.includes("'wins'"),
+  "the forward migration must extend the active v2 server purge RPC to every collection included in the project deletion batch");
+assert.match(migration, /projects_purge_records_batch_v2/i, "base migration must define the active purge v2 RPC");
+assert.match(migration, /security definer/i, "active purge RPC must use its audited security boundary");
 assert.ok(migration.includes("auth.uid() is null"), "purge RPC must require authentication");
 assert.match(migration, /expected_updated_at/i, "purge RPC must check optimistic concurrency");
 assert.match(migration, /deleted_at/i, "purge RPC must verify the deletion marker");
