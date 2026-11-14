@@ -538,7 +538,7 @@ function ProjectUpdatesTab({ p }) {
   </div>;
 }
 function RelatedTab({ p, canE, section = "all" }) {
-  const { A: act, toast, ws, data, can, me, today, setPage, setView, openProject } = useP();
+  const { A: act, toast, ws, data, can, me, today, setPage, setView, openProject, shell } = useP();
   const links = p.links || [];
   const [f, setF] = useState(false);
   const [meetings, setMeetings] = useState([]);
@@ -707,6 +707,7 @@ function RelatedTab({ p, canE, section = "all" }) {
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <b style={{ fontSize: 13, flex: 1 }}>🗓️ {meeting.title}</b>
               <Chip color={C.info}>{meeting.date || "بدون تاريخ"}</Chip>
+              <Btn small onClick={() => shell?.go?.("system", "knowledge", "meetings", { focusItemId: meeting.id, focusItemKind: "meeting" })}>فتح الاجتماع الأصلي ↗</Btn>
               {meeting.startTime && <span style={{ fontSize: 11, color: C.muted }}>{meeting.startTime}{meeting.endTime ? "–" + meeting.endTime : ""}</span>}
             </div>
             {meeting.summary && <div style={{ fontSize: 12, lineHeight: 1.8, marginTop: 5, whiteSpace: "pre-wrap" }}>{meeting.summary}</div>}
