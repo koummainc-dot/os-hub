@@ -370,7 +370,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     }
     const seen = new Set();
     const changes = ops.map(({ coll, rec }) => {
-      if (!["tasks", "outputs", "projects", "risks", "issues", "decisions", "prds", "updates"].includes(coll) || !rec?.id) {
+      if (!["tasks", "milestones", "outputs", "projects", "risks", "issues", "decisions", "prds", "updates"].includes(coll) || !rec?.id) {
         throw new Error("تحتوي عملية الحذف النهائي على سجل غير مسموح.");
       }
       const k = key(coll, rec.id);
@@ -388,7 +388,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     if (changes.filter((x) => x.collection === "projects").length !== 1) throw new Error("يجب أن تحتوي العملية على المشروع مرة واحدة بالضبط.");
     dispatch({ type: "pending", d: 1 });
     try {
-      const { data, error } = await supabase.rpc("projects_purge_records_batch", {
+      const { data, error } = await supabase.rpc("projects_purge_records_batch_v2", {
         p_workspace_id: wsId, p_project_id: projectId, p_deleted_at: deletedAt, p_deleted_by: deletedBy || null, p_changes: changes,
       });
       if (error) throw error;
