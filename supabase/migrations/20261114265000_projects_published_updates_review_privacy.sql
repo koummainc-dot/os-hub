@@ -22,6 +22,7 @@ declare
   v_recipients uuid[];
   v_workspace_owner uuid;
   v_key text;
+  v_reflection_key text;
   v_old_addenda jsonb;
   v_new_addenda jsonb;
   v_i integer;
@@ -147,9 +148,12 @@ begin
     if v_review_id is null or v_share_scope not in ('workspace','members')
        or new.data->>'status' is distinct from 'Published'
        or jsonb_typeof(v_shared_sections) is distinct from 'array'
-       or jsonb_array_length(v_shared_sections) = 0
        or jsonb_typeof(v_payload) is distinct from 'object' then
       raise exception 'Shared Review projection is incomplete or invalid'
+        using errcode = '22023';
+    end if;
+    if jsonb_array_length(v_shared_sections) = 0 then
+      raise exception 'Shared Review must explicitly select at least one section'
         using errcode = '22023';
     end if;
 
@@ -181,10 +185,12 @@ begin
       end if;
     end if;
 
-    if new.data->'shared_sections' ?| array[
-      'metrics','wins','doneTasks','weekTasks','overdueTasks','issues','risks','decisions',
-      'relatedProjects','what_worked','what_stumbled','learned','will_change','next_week_focus'
-    ] is not true then
+    if not (
+      v_shared_sections ?| array[
+        'metrics','wins','doneTasks','weekTasks','overdueTasks','issues','risks','decisions',
+        'relatedProjects','what_worked','what_stumbled','learned','will_change','next_week_focus'
+      ]
+    ) then
       raise exception 'Shared Review has no recognized section'
         using errcode = '22023';
     end if;
@@ -206,10 +212,10 @@ begin
         if jsonb_typeof(v_payload->v_key) is distinct from 'object' then
           raise exception 'Shared Review reflections must be an object' using errcode = '22023';
         end if;
-        for v_i in 0..greatest(jsonb_object_length(v_payload->v_key)-1,0) loop
-          select key into v_key from jsonb_each(v_payload->'reflections') limit 1 offset v_i;
-          if v_key is not null and not (v_shared_sections ? v_key) then
-            raise exception 'A reflection was included without explicit share consent: %', v_key using errcode = '42501';
+        for v_reflection_key in select jsonb_object_keys(v_payload->v_key)
+        loop
+          if not (v_shared_sections ? v_reflection_key) then
+            raise exception 'A reflection was included without explicit share consent: %', v_reflection_key using errcode = '42501';
           end if;
         end loop;
       elsif not (v_shared_sections ? v_key) then
