@@ -268,6 +268,38 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
           await emitCoreNotification({workspace_id:api.workspaceId,recipient_id:projectRow.data.lead_id,source_system:"projects",entity_collection:"projects",entity_id:meeting.relatedId,event_type:"knowledge_meeting_scheduled",title:"اجتماع جديد مرتبط بالمشروع: "+(meeting.title||"اجتماع"),body:"الموعد: "+meeting.date+(meeting.startTime?" · "+meeting.startTime:""),dedupe_key:"knowledge-meeting:"+meeting.id+":"+meeting.date+":"+(meeting.startTime||""),deep_link:{system:"knowledge",tab:"meetings",recordId:meeting.id,focusItemId:meeting.id,focusItemKind:"meeting"}});
         }catch(notificationError){console.warn("Knowledge meeting notification failed",notificationError);}
       }
+
+      // Notify only when the saved Knowledge meeting gains a genuinely new
+      // Follow-up identity. The notification points to the original meeting;
+      // Follow-up text remains in Knowledge and is never copied to the Inbox.
+      const followupList=value=>Array.isArray(value)?value:(typeof value==="string"?value.split("\n"):[]);
+      for(const meeting of savedMeetings.filter(item=>item.kind==="meeting"&&item.relatedSystem==="projects"&&item.relatedId)){
+        try{
+          const before=(allItems||[]).find(old=>old.id===meeting.id);
+          const previousIds=new Set(followupList(before?.followups).map(value=>stableKnowledgeFollowupId(meeting.id,value)).filter(Boolean));
+          const added=followupList(meeting.followups).map(value=>({value,id:stableKnowledgeFollowupId(meeting.id,value)}))
+            .filter(item=>item.id&&!previousIds.has(item.id));
+          if(!added.length)continue;
+          const {data:projectRow,error:projectError}=await supabase.from("workspace_records")
+            .select("data,visible_to")
+            .eq("workspace_id",api.workspaceId).eq("system_id","projects")
+            .eq("collection","projects").eq("id",meeting.relatedId).eq("deleted",false).maybeSingle();
+          if(projectError||!projectRow?.data?.lead_id)continue;
+          const identities=added.map(item=>item.id).sort();
+          await emitCoreNotification({
+            workspace_id:api.workspaceId,
+            recipient_id:projectRow.data.lead_id,
+            source_system:"projects",
+            entity_collection:"projects",
+            entity_id:meeting.relatedId,
+            event_type:"knowledge_meeting_followups_added",
+            title:"بنود متابعة جديدة من اجتماع Knowledge",
+            body:"أُضيفت "+added.length+" متابعة جديدة لاجتماع "+(meeting.title||"مرتبط بالمشروع")+". افتح الاجتماع لمراجعتها.",
+            dedupe_key:"knowledge-meeting-followups:"+meeting.id+":"+identities.join("|"),
+            deep_link:{system:"knowledge",tab:"meetings",recordId:meeting.id,focusItemId:meeting.id,focusItemKind:"meeting"}
+          });
+        }catch(notificationError){console.warn("Knowledge follow-up notification failed",notificationError);}
+      }
       return true;
     } catch(e) {setError(e?.message||"تعذر الحفظ.");return false;}
     finally {setSaving(false);}
