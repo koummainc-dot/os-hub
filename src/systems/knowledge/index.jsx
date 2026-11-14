@@ -340,6 +340,7 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
         source_record_id: followupId,
         source_followup_id: followupId,
         source_followup_title: title,
+        source_meeting_title: String(item.title || ""),
       };
     });
     if (tasks.some((task) => !task.source_record_id)) {
