@@ -16,7 +16,7 @@ assert.ok(demoApi.includes("store.current[key]") && demoApi.includes("async save
   "Demo writes must be stored only in the in-memory demo store");
 assert.ok(!demoApi.includes("supabase"), "Demo API must never call Supabase");
 
-assert.ok(platform.includes("isDemo?osMakeDemoApi(demoStore,ws.id+':'+sys.id"),
+assert.ok(platform.includes('return isDemo?osMakeDemoApi(demoStore,ws.id+":"+sys.id'),
   "the system host must select an in-memory API whenever Demo mode is active");
 assert.ok(records.includes("if (isDemo) {") && records.includes("const k = \"recs:\" + wsId + \":\" + systemId"),
   "record loading must use the per-demo workspace/system store instead of workspace_records");
