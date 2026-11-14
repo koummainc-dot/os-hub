@@ -87,6 +87,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
   const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [tx, setTx] = useState(initialTx);
   const [projectTransactionContext, setProjectTransactionContext] = useState(null);
+  const [handledProjectTransactionRoute, setHandledProjectTransactionRoute] = useState("");
   const [splitMode, setSplitMode] = useState(false);
   const [splitRows, setSplitRows] = useState([{ category_id: "", amount: "" }, { category_id: "", amount: "" }]);
   const [accountForm, setAccountForm] = useState({ name: "", account_type: "Bank", currency: "EGP", initial_balance: "0", include_in_net_worth: true, nature: "ASSET" });
@@ -104,6 +105,33 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
     });
     setPage?.("transactions");
   };
+  useEffect(() => {
+    const projectRef = String(routeContext?.projectRef || "");
+    if (!projectRef || page !== "transactions" || isDemo || !ws?.id || loading || handledProjectTransactionRoute === projectRef || !canEdit) return;
+    let active = true;
+    supabase.rpc("fin_projects_get", { p_ws: ws.id }).then(({ data: rows, error }) => {
+      if (!active) return;
+      setHandledProjectTransactionRoute(projectRef);
+      if (error) {
+        setError(error.message || "تعذّر تحميل الملف المالي المرتبط بالمشروع.");
+        return;
+      }
+      const matches = (Array.isArray(rows) ? rows : []).filter((profile) => String(profile.project_ref || "") === projectRef);
+      if (matches.length === 1) {
+        startProjectTransaction(matches[0]);
+      } else if (matches.length > 1) {
+        setError("يوجد أكثر من ملف مالي مرتبط بالمشروع نفسه؛ لم يتم اختيار ملف تلقائيًا.");
+      } else {
+        setError("لا يوجد ملف Finance مرتبط بهذا المشروع؛ أنشئ/اربط الملف من Finance OS أولًا.");
+      }
+    }).catch((error) => {
+      if (active) {
+        setHandledProjectTransactionRoute(projectRef);
+        setError(error?.message || "تعذّر تحميل الملف المالي المرتبط بالمشروع.");
+      }
+    });
+    return () => { active = false; };
+  }, [routeContext?.projectRef, page, isDemo, ws?.id, loading, handledProjectTransactionRoute, canEdit, baseCurrency]);
   const targetBudgetPeriod = nextPeriod(budgetPeriod);
   const section = page || "dashboard";
   const go = (id) => setPage && setPage(id);
