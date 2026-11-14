@@ -694,10 +694,22 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
         fields.forEach((field) => { if (Array.isArray(after[field])) after[field] = after[field].filter((id) => !moved.has(id)); });
         referencePatches.push({ before: record, after: stamp(after), collection });
       });
+      const patchTaskId = (collection, records, field, allowed) => records.forEach((record) => {
+        if (!record[field] || !moved.has(record[field])) return;
+        if (!allowed) throw new Error("لا تملك صلاحية تحديث رابط المهمة في " + collection + " المتأثر بنقل هذه الشجرة.");
+        referencePatches.push({ before: record, after: stamp({ ...record, [field]: null }), collection });
+      });
       patchIds("risks", data.risks.filter((r) => r.project_id === source.project_id), ["task_ids"], can("risk.write", sourceProject));
       patchIds("issues", data.issues.filter((r) => r.project_id === source.project_id), ["task_ids"], can("issue.write", sourceProject));
       patchIds("decisions", data.decisions.filter((r) => r.project_id === source.project_id), ["affected_task_ids", "implementation_task_ids"], can("decision.write", sourceProject));
       patchIds("milestones", data.milestones.filter((r) => r.project_id === source.project_id), ["related_task_ids"], can("project.edit", sourceProject));
+      const sourceWins = data.wins.filter((win) => win.project_id === source.project_id);
+      patchIds("wins", sourceWins, ["task_ids"], can("win.write", sourceProject));
+      patchTaskId("wins", sourceWins, "task_id", can("win.write", sourceProject));
+      const sourceDraftUpdates = data.updates.filter((update) =>
+        update.project_id === source.project_id && update.status !== "Published"
+      );
+      patchIds("updates", sourceDraftUpdates, ["completed_task_ids", "delayed_task_ids", "next_task_ids", "related_task_ids"], can("update.write", sourceProject));
       data.krs.filter((kr) => Array.isArray(kr.task_ids) && kr.task_ids.some((id) => moved.has(id))).forEach((kr) => {
         const targetAllowed = (kr.project_ids || []).includes(targetProjectId);
         const removeIds = targetAllowed ? [] : plan.ids;
@@ -709,7 +721,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       const discoveryCount = plan.patches.reduce((n, next, i) => n + ((data.tasks.find((t) => t.id === plan.ids[i])?.discovery_ids || []).length - (next.discovery_ids || []).length), 0);
       const prompt = "نقل " + plan.ids.length + " مهمة من «" + sourceProject.name + "» إلى «" + target.name + "»؟\n"
         + "• " + outputPatches.length + " مخرج سينتقل مع المهام.\n"
-        + "• " + referencePatches.length + " سجل Governance/OKR/Milestone ستُحدّث روابطه لمنع بقاء روابط عابرة للمشاريع.\n"
+        + "• " + referencePatches.length + " سجل Governance/OKR/Milestone/Wins ومسودة Update ستُحدّث روابطه لمنع بقاء روابط عابرة للمشاريع.\n"
         + "• " + prdCount + " رابط PRD و" + discoveryCount + " رابط Discovery غير صالحين للهدف سيُفصلان.\n"
         + "• ستظل جلسات الوقت مرتبطة بمعرّفات المهام نفسها.\n"
         + "كل التغييرات ستُحفظ في معاملة واحدة؛ أي فشل يلغي العملية كلها.";
