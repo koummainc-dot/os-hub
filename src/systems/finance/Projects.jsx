@@ -15,10 +15,11 @@ function Btn({children,secondary=false,...props}){return <button {...props} styl
 function Card({children,style={}}){return <div style={{background:"#fff",border:"1px solid "+LINE,borderRadius:14,padding:15,...style}}>{children}</div>}
 function Metric({label,value,detail}){return <div style={{background:BG,border:"1px solid "+LINE,borderRadius:10,padding:11,minWidth:0}}><div style={{fontSize:11,color:MUTED,marginBottom:5}}>{label}</div><b style={{fontSize:16,overflowWrap:"anywhere"}}>{value}</b>{detail&&<div style={{fontSize:10,color:MUTED,marginTop:4}}>{detail}</div>}</div>}
 
-export default function FinanceProjects({ws,access,isDemo=false,currencies=[],initialProjectRef=null,onCreateTransaction=null}){
+export default function FinanceProjects({ws,access,isDemo=false,currencies=[],initialProjectRef=null,initialBudget=null,initialCurrency=null,initialBudgetUpdatedAt=null,onCreateTransaction=null}){
  const [projects,setProjects]=useState([]),[sourceProjects,setSourceProjects]=useState([]),[transactions,setTransactions]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
  const [error,setError]=useState(""),[notice,setNotice]=useState(""),[showForm,setShowForm]=useState(false),[editingId,setEditingId]=useState(null),[selectedId,setSelectedId]=useState(null);
  const [form,setForm]=useState(emptyForm()),[linkTxId,setLinkTxId]=useState("");
+ const [budgetHandoff,setBudgetHandoff]=useState(null);
  const [handledInitialProjectRef,setHandledInitialProjectRef]=useState("");
  const canEdit=!isDemo&&(access?.level==="edit"||access?.manage||access?.owner);
  const load=useCallback(async()=>{
@@ -49,40 +50,46 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
    setShowForm(false);
    setNotice("تم فتح الملف المالي المرتبط بالمشروع.");
   }else if(linkedProfiles.length>1){
+   setBudgetHandoff(null);
    setSelectedId(null);
    setShowForm(false);
    setNotice("يوجد أكثر من ملف مالي مرتبط بالمشروع نفسه. لم يتم اختيار ملف تلقائيًا؛ اختر الملف المقصود من القائمة أو راجع Finance قبل المتابعة.");
   }else{
    const source=sourceProjects.find(p=>String(p.id)===ref);
    if(source&&canEdit){
-    const currency=source.currency&&currencies.some(c=>c.currency===source.currency&&c.is_active)?source.currency:(currencies.find(c=>c.is_active)?.currency||"EGP");
+    const suggestedCurrency=String(initialCurrency||source.currency||"EGP");
+    const currencyAvailable=currencies.some(c=>c.currency===suggestedCurrency&&c.is_active);
+    const canHandoff=initialBudget!==null&&initialBudget!==undefined&&initialBudget!==""&&currencyAvailable;
+    const currency=canHandoff?suggestedCurrency:(source.currency&&currencies.some(c=>c.currency===source.currency&&c.is_active)?source.currency:(currencies.find(c=>c.is_active)?.currency||"EGP"));
     setEditingId(null);
-    setForm({...emptyForm(),name:source.name,project_ref:ref,currency});
+    setBudgetHandoff(canHandoff?{value:String(initialBudget),currency:suggestedCurrency,sourceUpdatedAt:initialBudgetUpdatedAt||null,confirmed:false}:initialBudget!==null&&initialBudget!==undefined&&initialBudget!==""?{value:String(initialBudget),currency:suggestedCurrency,sourceUpdatedAt:initialBudgetUpdatedAt||null,blocked:true,confirmed:false}:null);
+    setForm({...emptyForm(),name:source.name,project_ref:ref,currency,budget:canHandoff?String(initialBudget):""});
     setShowForm(true);
-    setNotice("تم تمرير المشروع من Projects OS. أكمل إعداد الملف المالي هنا ثم احفظه في Finance OS.");
+    setNotice(canHandoff?"تم تمرير الميزانية المخططة كاقتراح أولي فقط؛ يجب تأكيد نسخها هنا داخل Finance. لا توجد مزامنة لاحقة.":"تم تمرير المشروع من Projects OS. أكمل إعداد الملف المالي هنا. لم تُنقل الميزانية تلقائيًا لعدم تطابق العملة أو عدم توفر قيمة صالحة.");
    }else if(!source){
     setError("تعذّر العثور على المشروع المصدر أو قراءته من Projects OS؛ لم يتم إنشاء أو تعديل أي سجل مالي.");
    }
   }
   setHandledInitialProjectRef(ref);
- },[initialProjectRef,loading,handledInitialProjectRef,projects,sourceProjects,canEdit,currencies]);
+ },[initialProjectRef,loading,handledInitialProjectRef,projects,sourceProjects,canEdit,currencies,initialBudget,initialCurrency,initialBudgetUpdatedAt]);
  const sourceProjectById=useMemo(()=>new Map(sourceProjects.map(p=>[p.id,p])),[sourceProjects]);
  const displayProjectName=(p)=>sourceProjectById.get(p.project_ref)?.name||p.name;
  const selected=selectedId?projects.find(p=>p.id===selectedId)||null:projects.length===1?projects[0]:null;
  const linkedIds=useMemo(()=>new Set(projects.flatMap(p=>(p.transactions||[]).map(t=>t.id))),[projects]);
  const availableTransactions=transactions.filter(t=>!linkedIds.has(t.id));
  function startCreate(){
+  setBudgetHandoff(null);
   if(!sourceProjects.length){setError("لا يمكن إنشاء مشروع من الماليات. أنشئ المشروع أولًا في قسم Projects OS ثم ارجع هنا لإعداد ملفه المالي.");return;}
   setEditingId(null);setForm({...emptyForm(),name:"",project_ref:"",currency:currencies.find(c=>c.is_active)?.currency||"EGP"});setShowForm(true);setError("");
  }
- function startEdit(p){setEditingId(p.id);setForm({name:p.name||"",project_type:p.project_type||"Other",budget:p.budget??"",currency:p.currency||"EGP",start_date:p.start_date||today(),end_date:p.end_date||"",status:p.status||"Planning",scope:p.scope||"Personal",project_ref:p.project_ref||"",area_ref:p.area_ref||"",roi_basis:p.roi_basis||"ExpensesLinked",invested_capital:p.invested_capital??"",notes:p.notes||""});setShowForm(true);setError("");}
- async function save(e){e.preventDefault();if(!canEdit||saving)return;const sourceProject=sourceProjectById.get(form.project_ref);if(!sourceProject){setError("اختر مشروعًا موجودًا من Projects OS؛ لا يتم إنشاء المشاريع من قسم الماليات.");return;}if(form.roi_basis==="DeclaredCapital"&&!(Number(form.invested_capital)>0)){setError("أدخل رأس المال المستثمر لحساب ROI بهذه الطريقة.");return;}
+ function startEdit(p){setBudgetHandoff(null);setEditingId(p.id);setForm({name:p.name||"",project_type:p.project_type||"Other",budget:p.budget??"",currency:p.currency||"EGP",start_date:p.start_date||today(),end_date:p.end_date||"",status:p.status||"Planning",scope:p.scope||"Personal",project_ref:p.project_ref||"",area_ref:p.area_ref||"",roi_basis:p.roi_basis||"ExpensesLinked",invested_capital:p.invested_capital??"",notes:p.notes||""});setShowForm(true);setError("");}
+ async function save(e){e.preventDefault();if(!canEdit||saving)return;if(budgetHandoff&&!budgetHandoff.blocked&&form.budget!==""&&!budgetHandoff.confirmed){setError("أكد صراحةً نقل الميزانية المقترحة من Projects OS إلى Finance، أو امسح قيمة الميزانية قبل الحفظ.");return;}const sourceProject=sourceProjectById.get(form.project_ref);if(!sourceProject){setError("اختر مشروعًا موجودًا من Projects OS؛ لا يتم إنشاء المشاريع من قسم الماليات.");return;}if(form.roi_basis==="DeclaredCapital"&&!(Number(form.invested_capital)>0)){setError("أدخل رأس المال المستثمر لحساب ROI بهذه الطريقة.");return;}
   const sourceType=String(sourceProject.type||"").toLowerCase();
   const projectType=sourceType.includes("content")||sourceType.includes("محتوى")?"Content":sourceType.includes("freelance")||sourceType.includes("عمل حر")?"Freelance":sourceType.includes("startup")||sourceType.includes("شركة")?"Startup":sourceType.includes("investment")||sourceType.includes("استثمار")?"Investment":"Other";
   const sourceStatus=String(sourceProject.status||"").toLowerCase();
   const projectStatus=sourceStatus.includes("progress")||sourceStatus==="active"||sourceStatus==="in progress"?"Active":sourceStatus.includes("hold")?"On Hold":sourceStatus.includes("completed")||sourceStatus.includes("مكتمل")?"Completed":sourceStatus.includes("cancel")||sourceStatus.includes("ملغي")?"Cancelled":"Planning";
   setSaving(true);setError("");try{const p={workspace_id:ws.id,...form,id:editingId||undefined,name:sourceProject.name,project_type:projectType,status:projectStatus,budget:form.budget===""?null:String(form.budget),invested_capital:form.invested_capital===""?null:String(form.invested_capital),end_date:form.end_date||null,project_ref:sourceProject.id,area_ref:form.area_ref||null,notes:form.notes||null};
-   const {data,error:err}=await supabase.rpc("fin_project_save",{p});if(err)throw err;setNotice(editingId?"تم تحديث الملف المالي.":"تم إعداد الملف المالي وربطه بمشروع Projects OS.");setSelectedId(data?.id||editingId);setShowForm(false);await load();
+   const {data,error:err}=await supabase.rpc("fin_project_save",{p});if(err)throw err;setNotice(editingId?"تم تحديث الملف المالي.":"تم إعداد الملف المالي وربطه بمشروع Projects OS.");setSelectedId(data?.id||editingId);setShowForm(false);setBudgetHandoff(null);await load();
   }catch(e){setError(e?.message||"تعذّر حفظ المشروع.");}finally{setSaving(false);}}
  async function linkTransaction(e){e.preventDefault();if(!canEdit||saving||!selected||!linkTxId)return;setSaving(true);setError("");try{const {error:err}=await supabase.rpc("fin_project_transaction_link",{p:{workspace_id:ws.id,project_id:selected.id,transaction_id:linkTxId}});if(err)throw err;setLinkTxId("");setNotice("تم ربط الحركة بالمشروع؛ لم يتم إنشاء حركة مالية جديدة.");await load();}catch(e){setError(e?.message||"تعذّر ربط الحركة.");}finally{setSaving(false);}}
  async function unlinkTransaction(id){if(!canEdit||saving||!selected)return;setSaving(true);setError("");try{const {error:err}=await supabase.rpc("fin_project_transaction_unlink",{p:{workspace_id:ws.id,project_id:selected.id,transaction_id:id}});if(err)throw err;setNotice("تم فك ارتباط الحركة بالمشروع دون حذفها من الدفتر.");await load();}catch(e){setError(e?.message||"تعذّر فك الارتباط.");}finally{setSaving(false);}}
