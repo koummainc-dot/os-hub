@@ -446,7 +446,7 @@ function RelatedTab({ p, canE, section = "all" }) {
   const [loadingMeetings, setLoadingMeetings] = useState(section !== "resources");
   const [meetingError, setMeetingError] = useState("");
   const [resources, setResources] = useState([]);
-  const [loadingResources, setLoadingResources] = useState(section === "meetings");
+  const [loadingResources, setLoadingResources] = useState(section !== "meetings");
   const [resourceError, setResourceError] = useState("");
   const [resourceAttachments, setResourceAttachments] = useState({});
   const [loadingResourceAttachments, setLoadingResourceAttachments] = useState({});
@@ -511,7 +511,7 @@ function RelatedTab({ p, canE, section = "all" }) {
 
   const openOutputAttachment = async (file) => {
     if (typeof file === "string") {
-      if (/^https?:\\/\\//i.test(file)) window.open(file, "_blank", "noopener,noreferrer");
+      if (file.startsWith("https://") || file.startsWith("http://")) window.open(file, "_blank", "noopener,noreferrer");
       else toast("هذا الملف القديم لا يحتوي على رابط تنزيل قابل للفتح.");
       return;
     }
@@ -627,6 +627,72 @@ function RelatedTab({ p, canE, section = "all" }) {
             })}</ul></div>}
           </article>;
         })}
+    </section>}
+    {section !== "meetings" && <section style={S.card}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <b style={{ fontSize: 13 }}>موارد Knowledge المرتبطة</b>
+        <Chip>{resources.length}</Chip>
+        <span style={{ flex: 1 }} />
+        <Btn small onClick={refreshResources} disabled={loadingResources}>تحديث</Btn>
+      </div>
+      <div style={{ fontSize: 11.5, color: C.muted, margin: "6px 0 9px" }}>هذه السجلات ومرفقاتها تظل مملوكة لـ Knowledge. يعرض Projects المراجع ويطلب روابط تنزيل مؤقتة دون نسخ المحتوى.</div>
+      {loadingResources ? <div style={{ fontSize: 12, color: C.muted }}>جارٍ تحميل موارد المشروع…</div>
+        : resourceError ? <div role="alert" style={{ color: C.bad, fontSize: 12 }}>{resourceError} <Btn small onClick={refreshResources}>إعادة المحاولة</Btn></div>
+        : !resources.length ? <div style={{ fontSize: 12, color: C.muted }}>لا توجد مصادر أو ملاحظات من Knowledge مرتبطة بهذا المشروع.</div>
+        : resources.map((item) => {
+          const attachmentState = resourceAttachments[item.id];
+          const expanded = !!expandedResources[item.id];
+          return <article key={item.id} style={{ borderTop: "1px solid " + C.line, padding: "9px 0" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <b style={{ flex: 1, fontSize: 12.5 }}>{item.kind === "note" ? "📝 " : "🔖 "}{item.title}</b>
+              <Chip color={item.kind === "note" ? C.violet : C.info}>{item.kind === "note" ? "ملاحظة" : "مصدر"}</Chip>
+              <span style={{ fontSize: 10.5, color: C.muted }}>Knowledge · {item.updatedAt ? String(item.updatedAt).slice(0, 10) : "—"}</span>
+            </div>
+            {item.summary && <div style={{ color: C.dim, fontSize: 12, lineHeight: 1.8, marginTop: 5, whiteSpace: "pre-wrap" }}>{item.summary}</div>}
+            {item.url && <a href={item.url} target="_blank" rel="noreferrer" style={{ color: C.info, fontSize: 11.5, display: "inline-block", marginTop: 4, wordBreak: "break-all" }}>فتح المصدر الأصلي ↗</a>}
+            <div style={{ marginTop: 7 }}>
+              <Btn small onClick={() => toggleKnowledgeAttachments(item)} disabled={!!loadingResourceAttachments[item.id]}>
+                {loadingResourceAttachments[item.id] ? "جارٍ تحميل المرفقات…" : expanded ? "إخفاء المرفقات" : "عرض مرفقات Knowledge"}
+              </Btn>
+            </div>
+            {expanded && loadingResourceAttachments[item.id] && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>جارٍ إنشاء روابط تنزيل مؤقتة…</div>}
+            {expanded && attachmentState?.error && <div role="alert" style={{ fontSize: 11.5, color: C.bad, marginTop: 6 }}>{attachmentState.error}</div>}
+            {expanded && attachmentState && !attachmentState.error && !attachmentState.attachments.length && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>لا توجد مرفقات لهذا المصدر.</div>}
+            {expanded && attachmentState?.attachments?.length > 0 && <div style={{ display: "grid", gap: 5, marginTop: 7 }}>
+              {attachmentState.attachments.map((attachment) => <div key={attachment.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5 }}>
+                <span aria-hidden="true">📎</span>
+                {attachment.signedUrl
+                  ? <a href={attachment.signedUrl} target="_blank" rel="noreferrer" style={{ color: C.info, flex: 1, wordBreak: "break-word" }}>{attachment.file_name} ↗</a>
+                  : <span style={{ color: C.muted, flex: 1 }}>{attachment.file_name} · رابط التنزيل غير متاح</span>}
+                <span style={{ color: C.muted }}>{attachment.byte_size ? Math.ceil(attachment.byte_size / 1024) + " KB" : ""}</span>
+              </div>)}
+            </div>}
+          </article>;
+        })}
+    </section>}
+    {section !== "meetings" && projectOutputsWithFiles.length > 0 && <section style={S.card}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <b style={{ fontSize: 13 }}>مرفقات المخرجات</b>
+        <Chip>{projectOutputsWithFiles.reduce((count, output) => count + (output.files || []).length, 0)}</Chip>
+        <span style={{ flex: 1 }} />
+        <Btn small onClick={() => openProject(p.id, "outputs")}>كل المخرجات ↗</Btn>
+      </div>
+      <div style={{ fontSize: 11.5, color: C.muted, margin: "6px 0 8px" }}>تظل الملفات في سجل Output الأصلي ومخزن Projects؛ لا تُنشأ منها نسخ داخل Resources.</div>
+      {projectOutputsWithFiles.map((output) => <div key={output.id} style={{ borderTop: "1px solid " + C.line, padding: "8px 0" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <b style={{ flex: 1, fontSize: 12 }}>{output.name}</b>
+          <Chip color={output.approval === "Final" ? C.ok : C.muted}>{L.approval[output.approval] || output.approval || "—"}</Chip>
+          <Btn small onClick={() => openProject(p.id, "outputs", { kind: "output", id: output.id })}>فتح المخرج ↗</Btn>
+        </div>
+        {(output.files || []).map((file, index) => <div key={typeof file === "string" ? file + index : file.object_path || file.name || index} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5, fontSize: 11.5 }}>
+          <span style={{ color: C.muted }}>📎</span>
+          <button type="button" onClick={() => openOutputAttachment(file)} style={{ flex: 1, border: 0, padding: 0, textAlign: "start", background: "transparent", color: C.info, cursor: "pointer", overflowWrap: "anywhere" }}>
+            {typeof file === "string" ? file.split("/").pop() : file.name || "ملف مخرج"}
+          </button>
+          <span style={{ color: C.muted }}>{typeof file === "object" && file.size_bytes ? Math.ceil(file.size_bytes / 1024) + " KB" : ""}</span>
+        </div>)}
+        {(output.upload_intents || []).length > 0 && <div style={{ color: C.warn, fontSize: 11, marginTop: 5 }}>{output.upload_intents.length} ملف في انتظار استكمال الرفع أو ربط البيانات.</div>}
+      </div>)}
     </section>}
     {section !== "meetings" && <section style={S.card}>
       <b style={{ fontSize: 13 }}>روابط ومراجع خارجية</b>
