@@ -81,9 +81,9 @@ begin
     into v_profiles
     from public.fin_projects_get(v_ws) as profile_row;
   select exists(
-    select 1 from jsonb_array_elements(v_profiles) as item
-     where item->>'id' = v_finance_project_id
-       and item->>'project_ref' = v_project_ref
+    select 1 from jsonb_array_elements(v_profiles) as item(value)
+     where item.value->>'id' = v_finance_project_id
+       and item.value->>'project_ref' = v_project_ref
   ) into v_match;
   if not v_match then raise exception 'FINANCE_PROFILE_PROJECT_REFERENCE_MISMATCH' using errcode = '22023'; end if;
 
