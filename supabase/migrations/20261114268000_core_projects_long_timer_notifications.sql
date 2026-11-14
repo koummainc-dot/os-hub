@@ -116,7 +116,7 @@ begin
   on conflict(workspace_id,recipient_id,dedupe_key) do nothing;
   return found;
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.core_projects_emit_daily_notifications_worker()
  RETURNS jsonb
@@ -725,7 +725,7 @@ begin
 
   return jsonb_build_object('created',v_created,'skipped',v_skipped,'ran_at',clock_timestamp());
 end;
-$function$
+$function$;
 
 drop policy if exists core_notifications_select on public.core_notifications;
 create policy core_notifications_select
