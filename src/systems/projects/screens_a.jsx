@@ -7,6 +7,7 @@ import { useP, GENERAL_ID } from "./store.jsx";
 import * as D from "./domain.js";
 import { readOSEvents, subscribeOSEvents, subscribeToStoredOSEvents } from "../integrationEvents.js";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
+import { supabase } from "../../core/supabase.js";
 import { L, opts, STATUS_COLOR } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, DueChip, ProjectName, ProjectForm, TaskForm, mOpts, projOpts } from "./parts.jsx";
 
@@ -312,10 +313,53 @@ export function Portfolio() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [highRiskOnly, setHighRiskOnly] = useState(false);
+  const [financeLinkFilter, setFinanceLinkFilter] = useState("");
+  const [financeProfiles, setFinanceProfiles] = useState([]);
+  const [financeLinkState, setFinanceLinkState] = useState("idle");
   const [calendarMonth, setCalendarMonth] = useState(today.slice(0, 7));
   const [calendarMeetings, setCalendarMeetings] = useState([]);
   const [calendarMeetingsState, setCalendarMeetingsState] = useState("idle");
   const projects = data.projects.filter((p) => !p.is_system && !p.deleted_at);
+  const financeByProjectRef = useMemo(() => {
+    const map = new Map();
+    for (const profile of financeProfiles) {
+      const ref = String(profile.project_ref || "");
+      if (!ref) continue;
+      const current = map.get(ref) || [];
+      current.push(profile);
+      map.set(ref, current);
+    }
+    return map;
+  }, [financeProfiles]);
+  const financeStatusFor = (project) => {
+    const profiles = financeByProjectRef.get(String(project.id)) || [];
+    if (financeLinkState === "permission") return { key: "permission", label: "Finance: لا توجد صلاحية", color: C.bad };
+    if (financeLinkState === "error") return { key: "error", label: "Finance: خطأ", color: C.bad };
+    if (!profiles.length) return { key: "not-linked", label: "Finance: غير مرتبط", color: C.warn };
+    if (profiles.length > 1) return { key: "multiple", label: "Finance: أكثر من ملف", color: C.warn };
+    const profile = profiles[0];
+    const projectCurrency = String(project.budget_currency || project.currency || "").toUpperCase();
+    const financeCurrency = String(profile.currency || profile.base_currency || "").toUpperCase();
+    if (projectCurrency && financeCurrency && projectCurrency !== financeCurrency) return { key: "currency-mismatch", label: `Finance: اختلاف عملة ${financeCurrency}/${projectCurrency}`, color: C.bad, profile };
+    return { key: "linked", label: "Finance: مرتبط", color: C.ok, profile };
+  };
+  useEffect(() => {
+    let active = true;
+    if (!ws?.id || !supabase?.rpc) { setFinanceProfiles([]); setFinanceLinkState("idle"); return () => { active = false; }; }
+    setFinanceLinkState("loading");
+    supabase.rpc("fin_projects_get", { p_ws: ws.id }).then(({ data: rows, error }) => {
+      if (!active) return;
+      if (error) {
+        const message = String(error.message || error.details || error.code || "");
+        setFinanceProfiles([]);
+        setFinanceLinkState(error.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(message) ? "permission" : "error");
+        return;
+      }
+      setFinanceProfiles(Array.isArray(rows) ? rows : []);
+      setFinanceLinkState("ready");
+    }).catch(() => { if (active) { setFinanceProfiles([]); setFinanceLinkState("error"); } });
+    return () => { active = false; };
+  }, [ws?.id]);
   const openProjects = projects.filter((p) => !p.archived_at && !["Completed", "Cancelled"].includes(p.status));
   const completed = projects.filter((p) => p.status === "Completed" && !p.archived_at);
   const delayed = openProjects.filter((p) => metrics[p.id]?.daysRemaining < 0);
@@ -335,6 +379,7 @@ export function Portfolio() {
     .filter((p) => !dateFrom || (!!p.target_date && p.target_date >= dateFrom))
     .filter((p) => !dateTo || (!!p.target_date && p.target_date <= dateTo))
     .filter((p) => !highRiskOnly || data.risks.some((risk) => risk.project_id === p.id && D.isOpenRisk(risk) && D.riskScore(risk) >= settings.riskHigh))
+    .filter((p) => !financeLinkFilter || financeStatusFor(p).key === financeLinkFilter)
     .sort((a, b) => {
       const rank = { Red: 0, Orange: 1, Yellow: 2, Green: 3, OnHold: 4, NotEvaluated: 5 };
       return (rank[metrics[a.id]?.health] ?? 9) - (rank[metrics[b.id]?.health] ?? 9) || String(a.target_date || "9999").localeCompare(String(b.target_date || "9999"));
@@ -344,11 +389,11 @@ export function Portfolio() {
   const priorityOptions = [...new Set(projects.map((p) => String(p.priority || "Medium")))].sort();
   const visibilityOptions = [...new Set(projects.map((p) => String(p.visibility || "workspace")))].sort();
   const healthOptions = [...new Set(projects.map((p) => metrics[p.id]?.health).filter(Boolean))].sort();
-  const filtersActive = status !== "active" || !!(query || typeFilter || healthFilter || leadFilter || teamFilter || priorityFilter || visibilityFilter || dateFrom || dateTo || highRiskOnly || delayedOnly);
+  const filtersActive = status !== "active" || !!(query || typeFilter || healthFilter || leadFilter || teamFilter || priorityFilter || visibilityFilter || dateFrom || dateTo || highRiskOnly || delayedOnly || financeLinkFilter);
   const clearFilters = () => {
     setQuery(""); setStatus("active"); setDelayedOnly(false); setTypeFilter(""); setHealthFilter("");
     setLeadFilter(""); setTeamFilter(""); setPriorityFilter(""); setVisibilityFilter("");
-    setDateFrom(""); setDateTo(""); setHighRiskOnly(false);
+    setDateFrom(""); setDateTo(""); setHighRiskOnly(false); setFinanceLinkFilter("");
   };
   const [calendarYear, calendarMonthNumber] = calendarMonth.split("-").map(Number);
   const calendarLead = dow(calendarMonth + "-01");
@@ -450,6 +495,7 @@ export function Portfolio() {
             <label style={{ fontSize: 11, color: C.muted }}>عضو الفريق<select aria-label="عضو الفريق" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}><option value="">كل الفرق</option>{people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>
             <label style={{ fontSize: 11, color: C.muted }}>الأولوية<select aria-label="أولوية المشروع" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}><option value="">كل الأولويات</option>{priorityOptions.map((value) => <option key={value} value={value}>{L.priority[value] || value}</option>)}</select></label>
             <label style={{ fontSize: 11, color: C.muted }}>الرؤية<select aria-label="رؤية المشروع" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={visibilityFilter} onChange={(e) => setVisibilityFilter(e.target.value)}><option value="">كل مستويات الرؤية</option>{visibilityOptions.map((value) => <option key={value} value={value}>{value === "private" ? "خاص" : value === "workspace" ? "مساحة العمل" : value}</option>)}</select></label>
+            <label style={{ fontSize: 11, color: C.muted }}>حالة Finance<select aria-label="حالة ربط Finance" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={financeLinkFilter} onChange={(e) => setFinanceLinkFilter(e.target.value)}><option value="">كل حالات Finance</option><option value="linked">مرتبط</option><option value="not-linked">غير مرتبط</option><option value="multiple">أكثر من ملف</option><option value="currency-mismatch">اختلاف عملة</option><option value="permission">لا توجد صلاحية</option><option value="error">خطأ</option></select></label>
             <label style={{ fontSize: 11, color: C.muted }}>الموعد من<input aria-label="الموعد من" type="date" style={{ ...S.inp, width: "100%", marginTop: 3 }} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></label>
             <label style={{ fontSize: 11, color: C.muted }}>الموعد إلى<input aria-label="الموعد إلى" type="date" style={{ ...S.inp, width: "100%", marginTop: 3 }} value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} /></label>
           </div>
@@ -463,7 +509,7 @@ export function Portfolio() {
       {!visible.length ? <Empty icon="🗂️" title="لا توجد مشاريع مطابقة" sub="غيّر الفلتر أو عبارة البحث لعرض مشاريع أخرى." />
       : mode === "table" ? <div style={{ ...S.card, padding: 0, overflowX: "auto" }}>
         <table style={{ width: "100%", minWidth: 940, borderCollapse: "collapse", fontSize: 12 }}>
-          <thead><tr style={{ background: "rgba(0,0,0,0.03)" }}>{["المشروع","الحالة","الصحة","التقدم","الموعد","الأيام المتبقية","القائد","الفريق","الأولوية","المشاكل","المخاطر"].map((heading) => <th key={heading} style={{ padding: 9, textAlign: "start", color: C.muted, fontSize: 10.5, whiteSpace: "nowrap" }}>{heading}</th>)}</tr></thead>
+          <thead><tr style={{ background: "rgba(0,0,0,0.03)" }}>{["المشروع","الحالة","الصحة","التقدم","الموعد","الأيام المتبقية","القائد","الفريق","الأولوية","Finance","المشاكل","المخاطر"].map((heading) => <th key={heading} style={{ padding: 9, textAlign: "start", color: C.muted, fontSize: 10.5, whiteSpace: "nowrap" }}>{heading}</th>)}</tr></thead>
           <tbody>{visible.map((p) => {
             const m = metrics[p.id] || {};
             const issueCount = data.issues.filter((issue) => issue.project_id === p.id && D.isOpenIssue(issue)).length;
@@ -478,6 +524,7 @@ export function Portfolio() {
               <td style={{ padding: 9 }}>{people.find((person) => person.id === p.lead_id)?.name || "—"}</td>
               <td style={{ padding: 9, minWidth: 110 }}>{(p.members || []).length ? <span>{p.members.slice(0, 2).map((member) => people.find((person) => person.id === member.member_id)?.name || "عضو").join("، ")}{p.members.length > 2 ? " +" + (p.members.length - 2) : ""}</span> : "—"}</td>
               <td style={{ padding: 9 }}>{L.priority[p.priority] || p.priority || "—"}</td>
+              <td style={{ padding: 9, whiteSpace: "nowrap" }}><Chip color={financeStatusFor(p).color}>{financeStatusFor(p).label}</Chip></td>
               <td style={{ padding: 9 }}><button type="button" onClick={() => setView({ ...view, projectId: p.id, tab: "issues", issueStatusFilter: "open", issueSeverityFilter: "", focusRecord: null })} style={{ border: 0, background: "transparent", padding: 0, color: issueCount ? C.info : C.muted, cursor: "pointer", textDecoration: issueCount ? "underline" : "none", font: "inherit" }}>{issueCount}</button></td><td style={{ padding: 9 }}><button type="button" onClick={() => setView({ ...view, projectId: p.id, tab: "risks", riskStatusFilter: "open", riskHighOnly: false, focusRecord: null })} style={{ border: 0, background: "transparent", padding: 0, color: riskCount ? C.info : C.muted, cursor: "pointer", textDecoration: riskCount ? "underline" : "none", font: "inherit" }}>{riskCount}</button></td>
             </tr>;
           })}</tbody>
@@ -499,7 +546,7 @@ export function Portfolio() {
           }}
           renderCard={(p) => <div onClick={() => openProject(p.id)} style={{ ...S.card, padding: "9px 11px", cursor: "pointer" }}>
             <div style={{ display: "flex", gap: 7, alignItems: "center" }}><b style={{ flex: 1, fontSize: 12 }}>{p.name}</b><HealthBadge m={metrics[p.id] || {}} compact /></div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 5 }}><PriorityChip p={p.priority} /><span style={{ fontSize: 10.5, color: C.muted }}>{p.target_date ? "الموعد " + fmtShort(p.target_date) : "بلا موعد"}</span></div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 5 }}><PriorityChip p={p.priority} /><Chip color={financeStatusFor(p).color}>{financeStatusFor(p).label}</Chip><span style={{ fontSize: 10.5, color: C.muted }}>{p.target_date ? "الموعد " + fmtShort(p.target_date) : "بلا موعد"}</span></div>
             <div style={{ marginTop: 6 }}><Progress value={metrics[p.id]?.progress == null ? null : metrics[p.id].progress} /></div>
           </div>}
         />
