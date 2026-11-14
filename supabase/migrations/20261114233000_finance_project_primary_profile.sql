@@ -77,9 +77,12 @@ begin
     raise exception 'PROJECT_OS_REFERENCE_FORBIDDEN' using errcode = '42501';
   end if;
 
-  select coalesce(jsonb_agg(to_jsonb(profile_row)), '[]'::jsonb)
-    into v_profiles
-    from public.fin_projects_get(v_ws) as profile_row;
+  -- fin_projects_get returns one JSONB array, not SETOF rows.
+  -- Keep the canonical Finance read model as the only validation source.
+  v_profiles := coalesce(public.fin_projects_get(v_ws), '[]'::jsonb);
+  if jsonb_typeof(v_profiles) is distinct from 'array' then
+    raise exception 'FINANCE_PROJECT_READ_MODEL_INVALID' using errcode = '22023';
+  end if;
   select exists(
     select 1 from jsonb_array_elements(v_profiles) as item(value)
      where item.value->>'id' = v_finance_project_id
