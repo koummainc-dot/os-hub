@@ -233,11 +233,11 @@ function ReviewShareViewer({ share, onClose }) {
 }
 function ReviewEditor({ r, onClose }) {
   const { data, A: act, me, idx, metrics, settings, toast, confirm, today, projectsById, nameOf, openTask, openProject, setPage, people } = useP(); const own = r.member_id === me; const closed = r.status === "Closed"; const canW = own && !closed;
-  const [d, setD] = useState(r); const [shareSections, setShareSections] = useState(["metrics", "wins", "doneTasks", "weekTasks", "relatedProjects"]); const [shareScope, setShareScope] = useState("workspace"); const [shareUsers, setShareUsers] = useState([]);
+  const existingShare = data.review_shares.find((share) => share.id === "rshare_" + r.id);
+  const [d, setD] = useState(r); const [shareSections, setShareSections] = useState(() => existingShare?.shared_sections || ["metrics", "wins", "doneTasks", "weekTasks", "relatedProjects"]); const [shareScope, setShareScope] = useState(() => existingShare?.scope || "workspace"); const [shareUsers, setShareUsers] = useState(() => (existingShare?._vis || []).filter((id) => id !== me));
   const live = D.reviewLive(r.member_id, r.week_start, { idx, wins: data.wins, sessions: data.sessions, issues: data.issues, risks: data.risks, decisions: data.decisions, checkins: data.checkins, projects: data.projects, metrics, settings, today });
   const view = closed && r.snapshot ? r.snapshot : live;
   const leftovers = idx.list.filter((t) => idx.isLeaf(t.id) && t.assignee_id === r.member_id && t.planning_bucket === "This Week" && ["todo", "active"].includes(D.cat(t.status)));
-  const existingShare = data.review_shares.find((share) => share.id === "rshare_" + r.id);
   const save = async (patch) => { const rec = { ...d, ...(patch || {}), visibility: "private", _vis: [r.member_id] }; const saved = await act.put("reviews", rec); if (saved) setD(saved); return saved; };
   async function close() {
     if (!d.rating) return toast("⛔ اختر تقييماً للأسبوع (★)");
