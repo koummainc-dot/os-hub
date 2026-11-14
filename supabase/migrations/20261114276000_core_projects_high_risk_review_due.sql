@@ -1,8 +1,8 @@
 begin;
 
 -- Align scheduled Governance reminders with the Projects risk model:
--- high means score >= workspace riskHigh, and review_date is due/overdue
--- (an unset review date is treated as requiring its first review).
+-- High is the workspace riskHigh threshold. A missing or due review_date
+-- requires review; a future review_date is not notified prematurely.
 CREATE OR REPLACE FUNCTION public.core_projects_emit_daily_notifications_worker()
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -525,8 +525,7 @@ begin
 
   return jsonb_build_object('created',v_created,'skipped',v_skipped,'ran_at',clock_timestamp());
 end;
-$function$
- or to_char(now() at time zone v_timezone,'HH24:MI')<>v_reminder_time then continue; end if;
+$function$; or to_char(now() at time zone v_timezone,'HH24:MI')<>v_reminder_time then continue; end if;
     v_auto:=coalesce(r.settings_data->'automations','{}'::jsonb);
     v_risk_high:=case
       when coalesce(r.settings_data->>'riskHigh','') ~ '^[0-9]+([.][0-9]+)?
@@ -838,8 +837,7 @@ $function$
 
   return jsonb_build_object('created',v_created,'skipped',v_skipped,'ran_at',clock_timestamp());
 end;
-$function$
-
+$function$;
         then greatest(1,(r.settings_data->>'riskHigh')::numeric)
       else 15
     end;
@@ -1154,8 +1152,7 @@ $function$
 
   return jsonb_build_object('created',v_created,'skipped',v_skipped,'ran_at',clock_timestamp());
 end;
-$function$
-
+$function$;
        and to_char(to_date(v_target_date_text,'YYYY-MM-DD'),'YYYY-MM-DD')=v_target_date_text
       then to_date(v_target_date_text,'YYYY-MM-DD')
       else null
@@ -1470,8 +1467,7 @@ $function$
 
   return jsonb_build_object('created',v_created,'skipped',v_skipped,'ran_at',clock_timestamp());
 end;
-$function$
- then (r.data->>'probability')::numeric else 0 end,0)
+$function$; then (r.data->>'probability')::numeric else 0 end,0)
          * coalesce(case when r.data->>'impact' ~ '^[0-9]+([.][0-9]+)?
 
   for r in
@@ -1781,8 +1777,7 @@ $function$
 
   return jsonb_build_object('created',v_created,'skipped',v_skipped,'ran_at',clock_timestamp());
 end;
-$function$
- then (r.data->>'impact')::numeric else 0 end,0) >= v_risk_high
+$function$; then (r.data->>'impact')::numeric else 0 end,0) >= v_risk_high
        and (v_due_date is null or v_due_date<=v_today) then
       v_recipient:=(r.data->>'owner_id')::uuid;
       v_dedupe:='high_risk_review_due:'||r.id||':'||v_recipient::text||':'||v_today::text;
@@ -2101,8 +2096,7 @@ $function$
 
   return jsonb_build_object('created',v_created,'skipped',v_skipped,'ran_at',clock_timestamp());
 end;
-$function$
-
+$function$;
 
 revoke all on function public.core_projects_emit_daily_notifications_worker() from public,anon,authenticated;
 grant execute on function public.core_projects_emit_daily_notifications_worker() to postgres;
