@@ -102,9 +102,16 @@ export function Okrs() {
 
 // ═════ Stakeholder updates ═════
 export function Updates() {
-  const { data, A: act, can, projectsById, metrics, today, settings, people, me, toast, confirm, idx, nameOf, projectProgress } = useP();
+  const { data, A: act, can, projectsById, metrics, today, settings, people, me, toast, confirm, idx, nameOf, projectProgress, view, setView } = useP();
   const [form, setForm] = useState(null); const [sel, setSel] = useState(null);
   const writableProjects = data.projects.filter((p) => !p.is_system && can("update.write", p));
+  useEffect(() => {
+    if (view?.quickCreate !== "update") return;
+    const projectId = String(view.projectId || "");
+    const project = writableProjects.find((item) => item.id === projectId);
+    setForm(project ? { project_id: project.id } : {});
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view?.quickCreate, view?.projectId, writableProjects.length, setView]);
   const list = [...data.updates].sort((a, b) => (b.period_end || "").localeCompare(a.period_end || ""));
   function draft(projectId) {
     const p = projectsById[projectId]; const m = metrics[projectId]; const pe = today; const ps = addDays(today, -14);
@@ -150,7 +157,15 @@ function UpdateEditor({ u, onClose }) {
 
 // ═════ Wins ═════
 export function Wins() {
-  const { data, A: act, me, today, idx, can, people, projectsById, toast, weekStartStr, openTask, openProject, setPage } = useP(); const [form, setForm] = useState(null); const [who, setWho] = useState("all"); const canWriteWins = can("win.write");
+  const { data, A: act, me, today, idx, can, people, projectsById, toast, weekStartStr, openTask, openProject, setPage, view, setView } = useP(); const [form, setForm] = useState(null); const [who, setWho] = useState("all"); const canWriteWins = can("win.write");
+  useEffect(() => {
+    if (view?.quickCreate !== "win") return;
+    const projectId = String(view.projectId || "");
+    if (canWriteWins && projectId && projectsById[projectId]) setForm({ project_id: projectId });
+    else if (canWriteWins) setForm({});
+    else toast("لا تملك صلاحية تسجيل إنجاز.");
+    setView((current) => ({ ...current, quickCreate: null }));
+  }, [view?.quickCreate, view?.projectId, canWriteWins, projectsById, setView, toast]);
   const list = data.wins.filter((w) => who === "all" || w.member_id === who).sort((a, b) => b.achieved_on.localeCompare(a.achieved_on));
   const sugg = idx.list.filter((t) => idx.isLeaf(t.id) && D.cat(t.status) === "done" && t.assignee_id === me && t.completed_at && t.completed_at.slice(0, 10) >= weekStartStr && !data.wins.some((w) => w.task_id === t.id || (w.task_ids || []).includes(t.id))).slice(0, 6);
   return (
