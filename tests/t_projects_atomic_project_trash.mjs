@@ -9,7 +9,7 @@ assert.ok(end > start, "deleteProject action must have a bounded body");
 const body = store.slice(start, end);
 assert.match(body, /await R\.putAtomic\(ops\)/, "project and related records must be saved atomically");
 assert.match(body, /ops\.push\(\{ coll: "projects"/, "project itself must be in the atomic batch");
-assert.match(body, /"tasks", "outputs", "risks", "issues", "decisions", "prds", "updates"/, "all currently cascaded collections must be included");
+assert.match(body, /"tasks", "milestones", "outputs", "risks", "issues", "decisions", "prds", "updates", "wins"/, "all currently cascaded collections must be included");
 assert.match(body, /total > 1000/, "oversized batches must be rejected rather than partially applied");
 assert.match(body, /جلسات الوقت التاريخية[\s\S]*ستبقى محفوظة/, "historical time sessions must remain preserved");
 assert.match(body, /catch \(error\)/, "atomic failure must be surfaced");
