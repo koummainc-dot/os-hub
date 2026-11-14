@@ -43,9 +43,25 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
   const readQueue = () => {
     try { const raw = typeof localStorage !== "undefined" ? localStorage.getItem(queueKey) : null; return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
   };
+  const [queueItems, setQueueItems] = useState(() => readQueue());
   const writeQueue = (items) => {
     queued.current = items;
+    setQueueItems(items);
     try { if (typeof localStorage !== "undefined") { if (items.length) localStorage.setItem(queueKey, JSON.stringify(items)); else localStorage.removeItem(queueKey); } } catch (e) { toast("⚠️ تعذّر حفظ قائمة المزامنة على هذا الجهاز؛ لا تغلق الصفحة قبل عودة الاتصال."); }
+  };
+  useEffect(() => { setQueueItems(readQueue()); }, [queueKey]);
+  const canQueueOfflineWrite = (coll, rec, prev) => {
+    if (systemId !== "projects") return true;
+    if (coll !== "tasks" || !prev || !rec?.id || rec.id !== prev.id) return false;
+    const internal = new Set(["id", "v", "updated_at", "created_at", "created_by", "updated_by_member", "_vis", "_deleted", "_syncPending"]);
+    const changed = [...new Set([...Object.keys(prev || {}), ...Object.keys(rec || {})])].filter((field) => !internal.has(field) && JSON.stringify(prev?.[field]) !== JSON.stringify(rec?.[field]));
+    const allowed = new Set(["title", "description", "priority", "due_date", "assignee_id", "planning_bucket"]);
+    return changed.length > 0 && changed.every((field) => allowed.has(field));
+  };
+  const discardQueuedWrite = (coll, id) => {
+    const items = readQueue().filter((item) => !(item.coll === coll && item.rec?.id === id));
+    writeQueue(items);
+    return items.length;
   };
   const isNetworkFailure = (e) => {
     const msg = String((e && (e.message || e.details)) || e || "").toLowerCase();
@@ -165,6 +181,11 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
       } catch (e) {
         console.error("record save failed", e);
         if (!fromQueue && allowQueue && isNetworkFailure(e)) {
+          if (!canQueueOfflineWrite(coll, rec, prev)) {
+            if (prev) dispatch({ type: "put", coll, rec: prev }); else dispatch({ type: "drop", coll, id: rec.id });
+            toast("📴 هذا النوع من التغيير غير مدعوم دون اتصال؛ لم يُحفظ محليًا. أعد المحاولة عند عودة الاتصال.");
+            return false;
+          }
           const items = readQueue();
           const existing = items.findIndex((x) => x.coll === coll && x.rec.id === rec.id);
           const item = { coll, rec: { ...rec, _syncPending: true }, baseTs: meta.current[k] || null, queuedAt: nowIso() };
@@ -471,7 +492,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
   }, [isDemo, systemId, wsId, demoStore, loadAll, toast]);
 
   const api = useMemo(() => ({ put, putStrict, putAtomic, putBatchAtomic, purgeAtomic, softDelete, restore, putMany, reload: loadAll, sync: syncSince, flushQueue }), [put, putStrict, putAtomic, putBatchAtomic, purgeAtomic, softDelete, restore, putMany, loadAll, syncSince, flushQueue]);
-  return { ...state, api };
+  return { ...state, api, queueItems, discardQueuedWrite };
 }
 
 export function stripMeta(rec) {
