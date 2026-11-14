@@ -191,3 +191,21 @@ In parallel, request the Knowledge and Finance owners' current API/schema/RLS co
 - Production remains unchanged: no Production migration, backfill, test write, merge, or deployment was performed in this pass.
 
 The older rows in §1 and addenda below remain useful as historical implementation evidence, but their statuses are not the latest overall snapshot. Use the 2026-11-14 phase report for current acceptance decisions.
+
+
+---
+
+## Latest implementation continuation — 2026-11-14
+
+This supersedes earlier stale statements in this file that said Saved Views, Milestones, Inbox, Finance Sync, Knowledge resource queries or automation decisions were still waiting for product decisions.
+
+- D-02 through D-12 are resolved in `docs/projects-os/decision-log.md`; D-01 remains a visual/design acceptance gate, not an implementation blocker.
+- Saved Views use Core-owned persistence. Personal CRUD is owner-only; Workspace-shared CRUD is manager-only (Owner/Admin), and creator identity is immutable. QA role test used the isolated owner and member accounts and rolled back all fixtures.
+- Milestones, atomic Move Task/Tree, Weekly Review snapshot/projection, five Knowledge-owned Meeting templates, source-owned Resources, Finance budget handoff and Discovery end-to-end backlinks are on the branch.
+- Unified Inbox is Platform/Core-owned. Core RLS filters both the source record and every linked Project. Scheduled daily automation runs for due/overdue Tasks, Project dates/health, governance risk/issue, PRD/Output review, Discovery triage, contact follow-up, weekly review and KR check-in. Cron is active in QA, with a local-time guard.
+- Finance now exposes the versioned `fin_projects_sync_get` contract and UI keeps last-good reads only for network staleness; revoked Finance access clears the cached snapshot.
+- The isolated QA project `lvtnyepemoqgmehdqark` has the 2026-11-14 feature migrations applied. A transactional due-task reminder fixture confirmed the correct recipient/event and was rolled back with zero residual rows. Saved Views owner/member CRUD and Finance Fresh read metadata were also verified.
+- Three additional JS contracts are registered in `npm test`: Saved Views manager permissions, scheduled automation/privacy/schedule gate, and Finance sync/revocation. These contracts are added but comprehensive CI/browser acceptance for the latest head is still pending.
+- Outputs live Storage acceptance, actual three-account browser roles, RTL/accessibility, offline/conflict, 5k-task performance, migration no-loss/backup/rollback, and owner release approval remain open. Production remains untouched; PR #188 stays Draft.
+
+**Status:** implementation in progress; selected isolated QA SQL/RLS checks passed; Projects OS v5 remains PARTIAL / NOT APPROVED.
