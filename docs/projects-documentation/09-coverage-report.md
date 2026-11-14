@@ -24,3 +24,22 @@
 
 ## الفجوات
 Real Storage/RLS، الحسابات المتعددة، acceptance الحي، migration reconciliation/no-loss/rollback، responsive/RTL/accessibility، offline/conflict/performance، وproduction approval تبقى منفصلة عن توثيق الكود.
+
+
+## آخر تحقق آلي — Projects v5 documentation branch
+
+تم تشغيل GitHub workflow رقم 840 على commit التوثيق الحالي، ونجحت الوظائف التالية:
+
+- PostgreSQL Projects smoke: **success**
+- Forward reconciliation smoke: **success**
+- Atomic Discovery writes / permissions / rollback: **success**
+- PRD / Requirement / Task / Output lifecycle guards: **success**
+- Entity relationship integrity: **success**
+- Objective/KR relationship reconciliation: **success**
+- PRD verified-evidence guard: **success**
+- Projects live guard reconciliation: **success**
+- Output private Storage bucket + RLS contract: **success**
+- Two-account privacy verification: **success**
+- Create → Reload → Edit → Archive/Restore persistence: **success**
+
+هذا يرفع مستوى الإثبات الآلي لهذه البوابات تحديدًا، لكنه **لا يساوي production approval**. ما زالت اختبارات المتصفح/المعاينة الحية، responsive/RTL/accessibility، وVercel deployment acceptance منفصلة.
