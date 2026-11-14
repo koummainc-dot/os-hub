@@ -441,7 +441,7 @@ export function Portfolio() {
       lastGoodFinanceSync.current = meta;
       setFinanceSyncMeta(meta);
       setFinanceProfiles(rows);
-      setFinancePrimaryProfiles(primaryResult.error ? financePrimaryProfiles : (Array.isArray(primaryResult.data) ? primaryResult.data : []));
+      if (!primaryResult.error) setFinancePrimaryProfiles(Array.isArray(primaryResult.data) ? primaryResult.data : []);
       setFinanceLinkState("ready");
     }).catch(() => {
       if (!active) return;
