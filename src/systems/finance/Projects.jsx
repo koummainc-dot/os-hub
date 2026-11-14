@@ -43,11 +43,15 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
  useEffect(()=>{
   const ref=String(initialProjectRef||"");
   if(!ref||loading||handledInitialProjectRef===ref)return;
-  const linkedProfile=projects.find(p=>String(p.project_ref||"")===ref);
-  if(linkedProfile){
-   setSelectedId(linkedProfile.id);
+  const linkedProfiles=projects.filter(p=>String(p.project_ref||"")===ref);
+  if(linkedProfiles.length===1){
+   setSelectedId(linkedProfiles[0].id);
    setShowForm(false);
    setNotice("تم فتح الملف المالي المرتبط بالمشروع.");
+  }else if(linkedProfiles.length>1){
+   setSelectedId(null);
+   setShowForm(false);
+   setNotice("يوجد أكثر من ملف مالي مرتبط بالمشروع نفسه. لم يتم اختيار ملف تلقائيًا؛ اختر الملف المقصود من القائمة أو راجع Finance قبل المتابعة.");
   }else{
    const source=sourceProjects.find(p=>String(p.id)===ref);
    if(source&&canEdit){
@@ -64,7 +68,7 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
  },[initialProjectRef,loading,handledInitialProjectRef,projects,sourceProjects,canEdit,currencies]);
  const sourceProjectById=useMemo(()=>new Map(sourceProjects.map(p=>[p.id,p])),[sourceProjects]);
  const displayProjectName=(p)=>sourceProjectById.get(p.project_ref)?.name||p.name;
- const selected=projects.find(p=>p.id===selectedId)||projects[0]||null;
+ const selected=selectedId?projects.find(p=>p.id===selectedId)||null:projects.length===1?projects[0]:null;
  const linkedIds=useMemo(()=>new Set(projects.flatMap(p=>(p.transactions||[]).map(t=>t.id))),[projects]);
  const availableTransactions=transactions.filter(t=>!linkedIds.has(t.id));
  function startCreate(){
