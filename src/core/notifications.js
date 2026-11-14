@@ -30,3 +30,69 @@ export async function emitCoreNotification(payload) {
     return error ? { ok: false, error } : { ok: true, result: data };
   } catch (error) { return { ok: false, error }; }
 }
+
+
+const PROJECT_INTEGRATION_FAILURES = Object.freeze({
+  finance: {
+    event_type: "finance_sync_failed",
+    title: "تعذّر تحديث ملخص Finance للمشروع",
+    body: "تعذر على أحد أعضاء المشروع جلب الملخص المالي من Finance. افتح تبويب Finance للتحقق.",
+    tab: "finance",
+  },
+  knowledge_meetings: {
+    event_type: "knowledge_meetings_sync_failed",
+    title: "تعذّر تحميل اجتماعات Knowledge للمشروع",
+    body: "تعذر جلب الاجتماعات المرتبطة بالمشروع من Knowledge. افتح تبويب الاجتماعات وأعد المحاولة.",
+    tab: "meetings",
+  },
+  knowledge_resources: {
+    event_type: "knowledge_resources_sync_failed",
+    title: "تعذّر تحميل موارد Knowledge للمشروع",
+    body: "تعذر جلب الموارد المرتبطة بالمشروع من Knowledge. افتح تبويب الموارد وأعد المحاولة.",
+    tab: "resources",
+  },
+});
+
+/**
+ * Notify another authorized Project collaborator about an integration read
+ * failure. The notification points only to the Project record; it never copies
+ * Finance values, meeting content, resource titles or transport error details.
+ * Core remains the only Inbox owner and applies source/project visibility checks.
+ */
+export async function emitProjectIntegrationFailure({
+  workspaceId,
+  project,
+  actorId,
+  integration,
+}) {
+  const definition = PROJECT_INTEGRATION_FAILURES[integration];
+  if (!workspaceId || !project?.id || !actorId || !definition) {
+    return { ok: false, reason: "invalid-project-integration-failure" };
+  }
+  const members = Array.isArray(project.members)
+    ? project.members.map((member) => member?.member_id).filter(Boolean)
+    : [];
+  const candidates = [...new Set([project.lead_id, ...members].filter(Boolean))];
+  const recipientId = candidates.find((id) => id !== actorId);
+  if (!recipientId) return { ok: true, result: { skipped: "no-other-project-collaborator" } };
+
+  const day = new Date().toISOString().slice(0, 10);
+  return emitCoreNotification({
+    workspace_id: workspaceId,
+    recipient_id: recipientId,
+    source_system: "projects",
+    entity_collection: "projects",
+    entity_id: project.id,
+    event_type: definition.event_type,
+    title: definition.title,
+    body: definition.body,
+    dedupe_key: "project-integration-failure:" + integration + ":" + project.id + ":" + actorId + ":" + day,
+    deep_link: {
+      system: "projects",
+      projectId: project.id,
+      tab: definition.tab,
+      recordKind: "project",
+      recordId: project.id,
+    },
+  });
+}
