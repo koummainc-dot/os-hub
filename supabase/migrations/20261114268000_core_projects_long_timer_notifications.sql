@@ -160,7 +160,6 @@ declare
   v_started_at timestamptz;
   v_target_date_text text;
   v_contact_project_id text;
-  v_timer_max_hours numeric;
   v_elapsed_hours numeric;
 begin
   -- Every workspace runs at its configured local reminder time. The Cron job
