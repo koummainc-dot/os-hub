@@ -297,7 +297,7 @@ export function Tasks() {
 // ═════ Portfolio ═════
 // Cross-project portfolio view; derived only from existing workspace records.
 export function Portfolio() {
-  const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, setView, people, can, view, A: act } = useP();
+  const { data, metrics, idx, today, settings, projectProgress, openProject, openTask, setPage, setView, people, can, view, A: act, ws, shell } = useP();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("active");
   const [newProjectOpen, setNewProjectOpen] = useState(false);
@@ -313,6 +313,8 @@ export function Portfolio() {
   const [dateTo, setDateTo] = useState("");
   const [highRiskOnly, setHighRiskOnly] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(today.slice(0, 7));
+  const [calendarMeetings, setCalendarMeetings] = useState([]);
+  const [calendarMeetingsState, setCalendarMeetingsState] = useState("idle");
   const projects = data.projects.filter((p) => !p.is_system && !p.deleted_at);
   const openProjects = projects.filter((p) => !p.archived_at && !["Completed", "Cancelled"].includes(p.status));
   const completed = projects.filter((p) => p.status === "Completed" && !p.archived_at);
@@ -352,6 +354,60 @@ export function Portfolio() {
   const calendarLead = dow(calendarMonth + "-01");
   const calendarDays = monthDays(calendarYear, calendarMonthNumber);
   const calendarDates = Array.from({ length: calendarDays }, (_, index) => calendarMonth + "-" + String(index + 1).padStart(2, "0"));
+  const calendarProjectIds = visible.map((project) => project.id);
+  const calendarProjectKey = calendarProjectIds.join("|");
+  useEffect(() => {
+    let active = true;
+    if (mode !== "calendar" || !ws?.id || !calendarProjectIds.length) {
+      setCalendarMeetings([]);
+      setCalendarMeetingsState("idle");
+      return () => { active = false; };
+    }
+    setCalendarMeetingsState("loading");
+    Promise.all(visible.map(async (project) => {
+      try {
+        const result = await listKnowledgeMeetings(ws.id, project.id);
+        return result.ok
+          ? (result.meetings || []).map((meeting) => ({ ...meeting, project_id: project.id }))
+          : { __queryError: true };
+      } catch {
+        return { __queryError: true };
+      }
+    })).then((results) => {
+      if (!active) return;
+      const failed = results.some((result) => !Array.isArray(result));
+      setCalendarMeetings(results.flatMap((result) => Array.isArray(result) ? result : []));
+      setCalendarMeetingsState(failed ? "partial" : "ready");
+    }).catch(() => {
+      if (active) { setCalendarMeetings([]); setCalendarMeetingsState("error"); }
+    });
+    return () => { active = false; };
+  }, [mode, ws?.id, calendarProjectKey]);
+  const calendarVisibleIds = new Set(calendarProjectIds);
+  const calendarEvents = [
+    ...visible.filter((project) => project.start_date).map((project) => ({ id: project.id + ":start", date: project.start_date, project, kind: "start", title: project.name })),
+    ...visible.filter((project) => project.target_date).map((project) => ({ id: project.id + ":target", date: project.target_date, project, kind: "target", title: project.name })),
+    ...idx.list.filter((task) => task.due_date && calendarVisibleIds.has(task.project_id)).map((task) => ({ id: task.id + ":due", date: task.due_date, project: projects.find((project) => project.id === task.project_id), kind: "task", record: task, title: task.title })),
+    ...data.prds.filter((prd) => prd.target_ship_date && calendarVisibleIds.has(prd.project_id)).map((prd) => ({ id: prd.id + ":ship", date: prd.target_ship_date, project: projects.find((project) => project.id === prd.project_id), kind: "prd", record: prd, title: prd.title || "موعد إطلاق المواصفة" })),
+    ...data.outputs.filter((output) => output.approval === "Final" && output.approved_at && calendarVisibleIds.has(output.project_id)).map((output) => ({ id: output.id + ":approved", date: String(output.approved_at).slice(0, 10), project: projects.find((project) => project.id === output.project_id), kind: "output", record: output, title: output.name })),
+    ...calendarMeetings.filter((meeting) => meeting.date && calendarVisibleIds.has(meeting.project_id)).map((meeting) => ({ id: meeting.id + ":meeting", date: String(meeting.date).slice(0, 10), project: projects.find((project) => project.id === meeting.project_id), kind: "meeting", record: meeting, title: meeting.title })),
+  ];
+  const openCalendarEvent = (event) => {
+    if (event.kind === "task") return openTask(event.record.id);
+    if (event.kind === "meeting") return shell?.go?.("system", "knowledge", "meetings", { focusItemId: event.record.id, focusItemKind: "meeting" });
+    if (event.kind === "prd") return openProject(event.project.id, "prds", { kind: "prd", id: event.record.id });
+    if (event.kind === "output") return openProject(event.project.id, "outputs", { kind: "output", id: event.record.id });
+    return openProject(event.project.id, "overview");
+  };
+  const calendarEventLabel = (event) => ({
+    start: "▶ " + event.title,
+    target: "🏁 " + event.title,
+    task: "☑ " + event.title,
+    prd: "🚀 " + event.title,
+    output: "📦 " + event.title,
+    meeting: "🗓 " + event.title,
+  }[event.kind] || event.title);
+  const calendarEventColor = (kind) => kind === "start" ? "rgba(16,185,129,.12)" : kind === "target" ? "rgba(239,159,39,.12)" : kind === "meeting" ? "rgba(124,58,237,.12)" : kind === "task" ? "rgba(59,130,246,.12)" : kind === "prd" ? "rgba(2,132,199,.12)" : "rgba(14,116,144,.12)";
   const timelineDates = visible.flatMap((p) => [p.start_date || p.target_date, p.target_date || p.start_date]).filter(Boolean).sort();
   const timelineMin = timelineDates[0] || "";
   const timelineMax = timelineDates[timelineDates.length - 1] || "";
@@ -467,18 +523,21 @@ export function Portfolio() {
       </div>
       : mode === "calendar" ? <div style={S.card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><Btn small onClick={() => { const next = new Date(Date.UTC(calendarYear, calendarMonthNumber - 2, 1)); setCalendarMonth(next.toISOString().slice(0, 7)); }}>→</Btn><b>{MONTH_NAMES[calendarMonthNumber - 1]} {calendarYear}</b><Btn small onClick={() => { const next = new Date(Date.UTC(calendarYear, calendarMonthNumber, 1)); setCalendarMonth(next.toISOString().slice(0, 7)); }}>←</Btn></div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", fontSize: 10.5, color: C.muted, marginBottom: 8 }}>
+          <span>▶ بداية / 🏁 نهاية</span><span>☑ موعد مهمة</span><span>🚀 إطلاق PRD</span><span>📦 مخرج معتمد</span><span>🗓 اجتماع Knowledge</span>
+          {calendarMeetingsState === "loading" && <span>· جارٍ تحميل اجتماعات المشاريع…</span>}
+          {calendarMeetingsState === "partial" && <span>· بعض اجتماعات Knowledge لم تُحمّل؛ بقية المواعيد متاحة.</span>}
+          {calendarMeetingsState === "error" && <span>· تعذّر تحميل اجتماعات Knowledge.</span>}
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 4 }}>
           {["أحد","اثنين","ثلاثاء","أربعاء","خميس","جمعة","سبت"].map((day) => <div key={day} style={{ fontSize: 10.5, color: C.muted, textAlign: "center" }}>{day}</div>)}
           {Array.from({ length: calendarLead }, (_, index) => <div key={"blank-" + index} />)}
           {calendarDates.map((date) => {
-            const dayEvents = [
-              ...visible.filter((p) => p.start_date === date).map((p) => ({ id: p.id + ":start", project: p, kind: "start" })),
-              ...visible.filter((p) => p.target_date === date).map((p) => ({ id: p.id + ":target", project: p, kind: "target" }))
-            ];
-            return <div key={date} style={{ minHeight: 76, minWidth: 0, border: "1px solid " + (date === today ? A : C.line), borderRadius: 6, padding: 4, background: date === today ? "rgba(239,159,39,.06)" : "transparent" }}>
+            const dayEvents = calendarEvents.filter((event) => event.date === date);
+            return <div key={date} style={{ minHeight: 84, minWidth: 0, border: "1px solid " + (date === today ? A : C.line), borderRadius: 6, padding: 4, background: date === today ? "rgba(239,159,39,.06)" : "transparent" }}>
               <div style={{ fontSize: 10, color: C.muted }}>{Number(date.slice(-2))}</div>
-              {dayEvents.slice(0, 3).map((event) => <button key={event.id} type="button" onClick={() => openProject(event.project.id)} title={event.kind === "start" ? "بداية المشروع" : "الموعد المستهدف"} style={{ display: "block", width: "100%", marginTop: 3, border: 0, borderRadius: 4, padding: "2px 4px", background: event.kind === "start" ? "rgba(16,185,129,.12)" : "rgba(239,159,39,.12)", color: C.text, fontSize: 10, textAlign: "start", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.kind === "start" ? "▶ " : "🏁 "}{event.project.name}</button>)}
-              {dayEvents.length > 3 && <div style={{ fontSize: 9, color: C.muted }}>+{dayEvents.length - 3} أحداث</div>}
+              {dayEvents.slice(0, 4).map((event) => <button key={event.id} type="button" onClick={() => openCalendarEvent(event)} title={(event.project?.name ? event.project.name + " · " : "") + calendarEventLabel(event)} style={{ display: "block", width: "100%", marginTop: 3, border: 0, borderRadius: 4, padding: "2px 4px", background: calendarEventColor(event.kind), color: C.text, fontSize: 10, textAlign: "start", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{calendarEventLabel(event)}</button>)}
+              {dayEvents.length > 4 && <div style={{ fontSize: 9, color: C.muted }}>+{dayEvents.length - 4} أحداث أخرى</div>}
             </div>;
           })}
         </div>
