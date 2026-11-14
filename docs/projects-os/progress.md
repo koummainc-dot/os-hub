@@ -96,3 +96,19 @@ The authoritative current phase report is [phase-status-report-2026-11-14.md](./
 - Knowledge selected-Project meeting reads are now server-scoped; the earlier workspace-snapshot/client-filter blocker is superseded.
 - Preview is READY on the current code commit. Preview-only Supabase variables are configured for this branch, but their encrypted values could not be verified against the QA URL; do not perform Preview writes until the effective host is confirmed.
 - The next batch remains real Outputs/Task Sheet Storage acceptance against QA: actual upload, reload, signed download, interrupted-upload recovery, and permitted/restricted Storage RLS. No new features, Production migrations, merge, or Production deployment in this batch.
+
+
+---
+
+## Latest implementation continuation — 2026-11-14
+
+**Resolved decisions and implementation progress:** D-02..D-12 are closed and documented; D-01 visual acceptance remains. The branch now contains Finance sync metadata + stale snapshot handling, Core Unified Inbox, daily Core notification automation, manager-only Shared Saved Views, Discovery source/Objective traceability, Knowledge-owned resource access, and Demo/QA isolation. No duplicate Inbox, Resource, Finance ledger or Project milestone model was introduced.
+
+**QA evidence (isolated Supabase project `lvtnyepemoqgmehdqark`):**
+- Feature migrations for Milestones, Saved Views, Finance Primary Profile, Core Inbox, Finance Sync, Discovery Traceability and scheduled automations were applied to QA only.
+- Finance sync called as a QA Finance-view member returned Fresh metadata.
+- Saved Views RLS transaction verified personal CRUD for its owner; a regular Projects editor could not create/update/delete shared views; workspace owner could. All rows rolled back.
+- Scheduled automation emitted the expected `task_due_today` notification to the assigned test member, and after rollback the task, settings and notification fixture counts were zero.
+- Cron job is active and the local reminder-time gate skips worker scans outside a workspace's configured reminder time.
+
+**Current next work:** continue the remaining feature audit against the master spec, then perform only necessary code/contract additions. Defer the comprehensive acceptance suite until feature closure. Actual Outputs file upload/download + Storage RLS, three-account browser privacy, 360px/tablet RTL/accessibility, browser Back/deep-link, offline conflict UI, 5k Task Tree performance and migration/backup/rollback gates remain open. No Production migrations, writes, merge or deploy; PR #188 remains Draft / not approved.
