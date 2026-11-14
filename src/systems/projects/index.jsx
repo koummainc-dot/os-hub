@@ -81,9 +81,9 @@ function Router({ sourceWriteRequest }) {
         { id: "myWork", label: "مهامي", icon: "✓" },
         { id: "week", label: "هذا الأسبوع", icon: "🗓️" },
       ]},
-      { id: "portfolio", label: "المحفظة والمشاريع", items: [
+      { id: "portfolio", label: "محفظة المشاريع", items: [
         { id: "projects", label: "المشاريع", icon: "📁" },
-        { id: "portfolio", label: "المحفظة", icon: "▦" },
+        { id: "portfolio", label: "محفظة المشاريع", icon: "▦" },
       ]},
       { id: "planning", label: "التخطيط", items: [
         { id: "discovery", label: "الاكتشاف", icon: "↘" },
