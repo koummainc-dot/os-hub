@@ -91,10 +91,11 @@ export function Today() {
   const { ws, me, data, idx, today, settings, A: act, can, alerts, people, nameOf, openTask, openProject, runningTimer, projectsById, toast, setPage, shell, online, queueItems = [], discardQueuedWrite, confirm } = useP();
   const [coreNotifications, setCoreNotifications] = useState([]);
   const [coreInboxState, setCoreInboxState] = useState("loading");
+  const [showAllInbox, setShowAllInbox] = useState(false);
   useEffect(() => {
     let active = true;
     if (!ws?.id) { setCoreNotifications([]); setCoreInboxState("idle"); return () => { active = false; }; }
-    listCoreNotifications(ws.id, 30).then((result) => {
+    listCoreNotifications(ws.id, 100).then((result) => {
       if (!active) return;
       if (result.ok) { setCoreNotifications(result.rows); setCoreInboxState("ready"); }
       else { setCoreNotifications([]); setCoreInboxState("unavailable"); }
@@ -167,12 +168,16 @@ export function Today() {
       <Head title="اليوم" sub={`${dateLabel} · ${total ? total + " مهمة تنتظرك" : "لا مهام معلّقة — يوم هادئ 🌿"}`} right={can("task.write", projectsById[GENERAL_ID]) && <Btn kind="primary" onClick={() => setForm(true)}>➕ مهمة</Btn>} />
       {coreInboxState === "unavailable" && <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>الوارد الموحد غير متاح حتى تطبيق Migration الخاصة بـCore Notifications.</div>}
       {(coreNotifications.length > 0 || coreInboxState === "ready") && <Section title="الوارد الموحد" count={coreNotifications.filter((item) => !item.read_at).length} color={coreNotifications.some((item) => !item.read_at) ? C.info : C.muted}>
-        {!coreNotifications.length ? <div style={{ fontSize: 12, color: C.muted }}>لا توجد إشعارات جديدة.</div> : coreNotifications.slice(0, 10).map((notification) => <button key={notification.id} type="button" onClick={() => openCoreNotification(notification)} style={{ display: "flex", width: "100%", gap: 8, alignItems: "start", textAlign: "start", padding: "8px 0", border: 0, borderTop: "1px solid " + C.line, background: "transparent", cursor: "pointer", color: C.text, font: "inherit" }}>
+        {!coreNotifications.length ? <div style={{ fontSize: 12, color: C.muted }}>لا توجد إشعارات جديدة.</div> : coreNotifications.slice(0, 8).map((notification) => <button key={notification.id} type="button" onClick={() => openCoreNotification(notification)} style={{ display: "flex", width: "100%", gap: 8, alignItems: "start", textAlign: "start", padding: "8px 0", border: 0, borderTop: "1px solid " + C.line, background: "transparent", cursor: "pointer", color: C.text, font: "inherit" }}>
           <span style={{ width: 7, height: 7, borderRadius: 8, background: notification.read_at ? C.line : C.info, marginTop: 6, flexShrink: 0 }} />
           <span style={{ flex: 1 }}><b style={{ fontSize: 12 }}>{notification.title}</b>{notification.body && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{notification.body}</div>}<div style={{ fontSize: 10, color: C.dim, marginTop: 3 }}>{fmtShort(notification.created_at?.slice(0,10))} · {notification.source_system}</div></span>
           <span style={{ fontSize: 10, color: C.info }}>فتح ↗</span>
         </button>)}
+        {coreNotifications.length > 8 && <Btn small onClick={() => setShowAllInbox(true)}>عرض كل الإشعارات ({coreNotifications.length})</Btn>}
       </Section>}
+      {showAllInbox && <Modal title="الوارد الموحد" wide onClose={() => setShowAllInbox(false)} footer={<><Btn onClick={async () => { await Promise.all(coreNotifications.filter((item) => !item.read_at).map((item) => markCoreNotificationRead(item.id))); setCoreNotifications((rows) => rows.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() }))); }}>تحديد الكل كمقروء</Btn><Btn onClick={() => setShowAllInbox(false)}>إغلاق</Btn></>}>
+        <div style={{ display: "grid", gap: 4 }}>{coreNotifications.map((notification) => <button key={notification.id} type="button" onClick={() => { setShowAllInbox(false); openCoreNotification(notification); }} style={{ display: "flex", gap: 8, alignItems: "start", textAlign: "start", padding: 9, border: "1px solid " + C.line, borderRadius: 8, background: notification.read_at ? "transparent" : "rgba(59,130,246,.05)", cursor: "pointer", color: C.text, font: "inherit" }}><span style={{ flex: 1 }}><b style={{ fontSize: 12 }}>{notification.title}</b><div style={{ fontSize: 11, color: C.muted }}>{notification.body}</div><div style={{ fontSize: 10, color: C.dim }}>{fmtShort(notification.created_at?.slice(0,10))} · {notification.source_system}</div></span><span style={{ color: C.info, fontSize: 11 }}>فتح ↗</span></button>)}</div>
+      </Modal>}
       {(!online || queueItems.length > 0) && <Section title="حالة العمل دون اتصال" count={queueItems.length} color={queueItems.some((item) => item.conflict) ? C.bad : C.warn}>
         <div style={{ fontSize: 12, color: C.muted, marginBottom: 7 }}>{online ? "الاتصال متاح؛ تتم مزامنة التعديلات الآمنة تلقائيًا." : "أنت دون اتصال. يمكن تعديل حقول المهمة الأساسية فقط؛ الإنشاءات والعلاقات والعمليات الذرية والملفات تحتاج اتصالًا."}</div>
         {queueItems.filter((item) => !item.conflict).length > 0 && <div style={{ fontSize: 12, marginBottom: 6 }}>تعديلات محفوظة محليًا بانتظار المزامنة: {queueItems.filter((item) => !item.conflict).length}</div>}
