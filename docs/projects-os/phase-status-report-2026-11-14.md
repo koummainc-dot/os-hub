@@ -4,7 +4,7 @@
 **المرجع الوظيفي الحاكم:** `Projects_OS_v5_Unified_Refactor_Spec.md` — الإصدار 5.0، §19 للمراحل و§18 لمعايير القبول  
 **المستودع:** `koummainc-dot/os-hub`  
 **الفرع:** `feat/projects-v5-phase1-navigation`  
-**آخر Commit تمت مراجعته:** `20b725e0589e927800f000c3aaa56e47c57b4418`  
+**آخر Commit تمت مراجعته:** `3ef2a860b7c7df5b989c86332be28911efd4047a`  
 **PR:** #188 — مفتوح، Draft، غير مدمج  
 **قاعدة مهمة:** هذا التقرير لا يمنح موافقة على Migration أو نشر Production. لا تغيير إنتاجي ضمن هذه المراجعة.
 
@@ -158,7 +158,7 @@
 
 **المتبقي لإغلاقها:**
 1. اختبار Meeting → Action Item → Task من الواجهة على QA، ثم Reload والتحقق من المصدر والروابط الراجعة.
-2. اختبار تكرار إنشاء Task من نفس Follow-up عبر Reload ومحاولات متزامنة/أكثر من جهاز. المعرف المستقر موجود، لكن الضمان الحالي لا يثبت atomic server-side idempotency تحت التزامن؛ لا تعتبر هذه النقطة مغلقة.
+2. **Follow-up server idempotency:** تم تنفيذ RPC ذري `projects_create_followup_task` مع advisory transaction lock على `(workspace, stable_followup_id)` وإعادة السجل الموجود عند التكرار، مع إبقاء `projects_apply_records_batch` ككاتب Projects الوحيد. المتبقي هو القبول الحي تحت Reload/التزامن.
 3. إثبات exact source backlink من Task إلى اجتماع Knowledge الأصلي.
 4. اختبار Resources من Knowledge وProjects وOutputs مع إظهار مالك كل مورد دون نسخ محتوى النظام المالك.
 5. مراجعة Legacy project references عبر dry run قبل أي backfill؛ لا توجد مبررات لعمل Backfill إنتاجي قبل الجرد.
@@ -213,6 +213,7 @@
 - Portfolio أصبح يعرض Finance Link Status من الـFinance-owned read model، بما في ذلك اختلاف العملة وتعدد الملفات وعدم توفر الصلاحية/الخطأ، مع فلتر للحالة.
 - Portfolio Calendar أصبح يعرض Risk review وIssue discovery وDecision وWin بالإضافة إلى الأحداث الموجودة سابقًا، وكل حدث يفتح السجل الأصلي داخل النظام المالك.
 - Project Finance أصبح يوفّر زر تسجيل حركة مباشر، وFinance Transactions يستقبل `projectRef` ويفتح نموذج الحركة مع `finance_project_id` واسم المشروع، دون إنشاء Finance record من Projects.
+- Knowledge Follow-up → Task أصبح يملك مسارًا ذريًا على الخادم يمنع إنشاء نسختين لنفس `stable_followup_id` تحت التزامن.
 
 **لا تُعتبر هذه التغييرات مقبولة نهائيًا بعد؛ اختبارات Preview والـQA الحية مؤجلة إلى دفعة الاختبارات النهائية كما تم الاتفاق.**
 
