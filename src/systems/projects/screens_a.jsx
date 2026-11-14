@@ -557,6 +557,12 @@ export function Portfolio() {
             <option value="active">النشطة</option><option value="completed">المكتملة</option><option value="archived">المؤرشفة</option><option value="all">كل المشاريع</option>
           </select>
           <Seg small value={mode} onChange={setMode} options={[{ v: "cards", l: "بطاقات" }, { v: "table", l: "جدول" }, { v: "board", l: "لوحة" }, { v: "timeline", l: "خط زمني" }, { v: "calendar", l: "تقويم" }]} />
+          <select aria-label="طرق العرض المحفوظة" style={{ ...S.sel, minWidth: 175 }} value={activeSavedViewId} onChange={(e) => applySavedView(e.target.value)}>
+            <option value="">طرق العرض المحفوظة</option>
+            {savedViews.map((row) => <option key={row.id} value={row.id}>{row.name}{row.scope === "workspace" ? " · مشتركة" : " · شخصية"}</option>)}
+          </select>
+          <Btn small onClick={saveCurrentView} disabled={savedViewsState === "unavailable" || savedViewsState === "loading"}>حفظ العرض الحالي</Btn>
+          {savedViews.find((row) => row.id === activeSavedViewId)?.owner_id === me && <Btn small danger onClick={deleteActiveSavedView}>حذف العرض</Btn>}
           <span style={{ color: C.muted, fontSize: 11 }}>{visible.length} مشروع</span>
           {filtersActive && <Btn small onClick={clearFilters}>مسح الفلاتر</Btn>}
         </div>
@@ -578,7 +584,12 @@ export function Portfolio() {
             {delayedOnly && <span style={{ fontSize: 11, color: C.warn }}>فلتر المشاريع المتأخرة مفعّل</span>}
           </div>
         </details>
-        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>Finance Link Status يُقرأ من Finance-owned read model. Saved Views ما زالت مؤجلة إلى قرار D-06.</div>
+        <div style={{ marginTop: 10, paddingTop: 9, borderTop: "1px solid " + C.line }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, marginBottom: 7 }}>أعمدة جدول المحفظة وترتيبها</div>
+          <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>{[["project","المشروع"],["status","الحالة"],["health","الصحة"],["progress","التقدم"],["target","الموعد"],["remaining","الأيام المتبقية"],["lead","القائد"],["team","الفريق"],["priority","الأولوية"],["finance","Finance"],["issues","المشاكل"],["risks","المخاطر"]].map(([key,label]) => <label key={key} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11 }}><input type="checkbox" checked={visibleColumns.includes(key)} onChange={(e) => setVisibleColumns((old) => e.target.checked ? [...old,key] : old.filter((x) => x !== key))} />{label}</label>)}</div>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 7 }}>{columnOrder.filter((key) => visibleColumns.includes(key)).map((key) => <span key={key} style={{ display: "inline-flex", alignItems: "center", gap: 3, border: "1px solid " + C.line, borderRadius: 6, padding: "3px 5px", fontSize: 10.5 }}>{({project:"المشروع",status:"الحالة",health:"الصحة",progress:"التقدم",target:"الموعد",remaining:"الأيام المتبقية",lead:"القائد",team:"الفريق",priority:"الأولوية",finance:"Finance",issues:"المشاكل",risks:"المخاطر"})[key]}<button type="button" aria-label="تحريك العمود لليسار" onClick={() => moveColumn(key,-1)} style={{ border: 0, background: "transparent", cursor: "pointer" }}>←</button><button type="button" aria-label="تحريك العمود لليمين" onClick={() => moveColumn(key,1)} style={{ border: 0, background: "transparent", cursor: "pointer" }}>→</button></span>)}</div>
+        </div>
+        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>طرق العرض تحفظ الفلاتر ونمط العرض والأعمدة وترتيبها في Core. المشاركة اختيارية وتخضع لصلاحيات مساحة العمل.</div>
       </div>
       {!visible.length ? <Empty icon="🗂️" title="لا توجد مشاريع مطابقة" sub="غيّر الفلتر أو عبارة البحث لعرض مشاريع أخرى." />
       : mode === "table" ? <div style={{ ...S.card, padding: 0, overflowX: "auto" }}>
