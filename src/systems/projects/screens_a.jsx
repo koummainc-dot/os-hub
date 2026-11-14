@@ -473,7 +473,7 @@ export function Portfolio() {
   const boardStatuses = ["Idea", "Planned", "In Progress", "On Hold", "Completed", "Cancelled"];
   return (
     <div>
-      <Head title="محفظة المشاريع" sub="نظرة موحّدة على حالة المشاريع والأهداف والمخاطر عبر مساحة العمل." right={can("project.create") && <Btn kind="primary" onClick={() => setNewProjectOpen(true)}>＋ مشروع جديد</Btn>} />
+      <Head title="محفظة المشاريع" sub="هذه ليست محفظة مالية؛ هي مركز Portfolio لمتابعة جميع المشاريع وحالتها وتقدمها ومخاطرها ومواعيدها وروابط Finance." right={can("project.create") && <Btn kind="primary" onClick={() => setNewProjectOpen(true)}>＋ مشروع جديد</Btn>} />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 10, marginBottom: 14 }}>
         <Stat label="مشاريع نشطة" value={openProjects.length} color={C.info} onClick={() => setStatus("active")} />
         <Stat label="مشاريع مكتملة" value={completed.length} color={C.ok} onClick={() => setStatus("completed")} />
@@ -516,7 +516,7 @@ export function Portfolio() {
             {delayedOnly && <span style={{ fontSize: 11, color: C.warn }}>فلتر المشاريع المتأخرة مفعّل</span>}
           </div>
         </details>
-        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>حالة الربط المالي وطرق العرض المحفوظة ستظهر عند اكتمال عقد Finance read model وقرار Saved Views.</div>
+        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>Finance Link Status يُقرأ من Finance-owned read model. Saved Views ما زالت مؤجلة إلى قرار D-06.</div>
       </div>
       {!visible.length ? <Empty icon="🗂️" title="لا توجد مشاريع مطابقة" sub="غيّر الفلتر أو عبارة البحث لعرض مشاريع أخرى." />
       : mode === "table" ? <div style={{ ...S.card, padding: 0, overflowX: "auto" }}>
