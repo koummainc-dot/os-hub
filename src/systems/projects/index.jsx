@@ -157,15 +157,25 @@ function Router({ sourceWriteRequest }) {
     const rows = Array.isArray(payload.tasks) ? payload.tasks : [];
     const createdTaskIds = [], errors = [];
     for (const item of rows) {
-      const sourceRecordId = String(item?.source_record_id || "");
+      const sourceRecordId = String(item?.source_followup_id || item?.source_record_id || "");
       const title = String(item?.title || "").trim();
-      if (!sourceRecordId || !title) { errors.push("توجد متابعة بلا معرّف أو عنوان صالح."); continue; }
+      if (!sourceRecordId || !title) { errors.push("توجد متابعة بلا هوية ثابتة أو عنوان صالح."); continue; }
       const trashed = (ctx.trash || []).find((entry) => entry.coll === "tasks" && entry.rec?.source === "knowledge_meeting" && String(entry.rec?.source_record_id) === sourceRecordId);
       if (trashed) { errors.push(title + ": المهمة السابقة في سلة المحذوفات؛ استعدها صراحةً قبل إعادة التحويل."); continue; }
-      const existing = (ctx.data.tasks || []).find((task) => task.source === "knowledge_meeting" && String(task.source_record_id) === sourceRecordId);
+      const existing = (ctx.data.tasks || []).find((task) => task.source === "knowledge_meeting" && String(task.source_record_id || task.source_followup_id || "") === sourceRecordId);
       if (existing?.archived_at) { errors.push(title + ": المهمة السابقة مؤرشفة؛ أزل الأرشفة صراحةً قبل إعادة التحويل."); continue; }
       try {
-        const task = { ...item, id: existing?.id || ("knowledge_meeting_task_" + encodeURIComponent(sourceRecordId)), title, project_id: project.id, source: "knowledge_meeting", source_record_id: sourceRecordId, source_meeting_id: String(payload.meeting_id || "") };
+        const task = {
+          ...item,
+          id: existing?.id || ("knowledge_meeting_task_" + encodeURIComponent(sourceRecordId)),
+          title,
+          project_id: project.id,
+          source: "knowledge_meeting",
+          source_record_id: sourceRecordId,
+          source_meeting_id: String(payload.meeting_id || ""),
+          source_followup_id: sourceRecordId,
+          source_followup_title: String(item?.source_followup_title || title),
+        };
         const saved = await A.saveTask(task, !existing);
         if (!saved?.id) throw new Error("لم يؤكد مخزن Projects حفظ المهمة.");
         createdTaskIds.push(saved.id);
