@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useReducer } from "react";
 import { supabase, SUPABASE_SDK_FAILED } from "./supabase.js";
-import { canReplayQueuedWrite } from "./recordQueue.js";
+import { canReplayQueuedWrite, rebaseQueuedTaskEdit } from "./recordQueue.js";
 
 // ════════════════════════════════════════════════════════════════════
 // Record store — the data layer for every system that stores one row per entity
@@ -59,9 +59,19 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
     return changed.length > 0 && changed.every((field) => allowed.has(field));
   };
   const discardQueuedWrite = (coll, id) => {
-    const items = readQueue().filter((item) => !(item.coll === coll && item.rec?.id === id));
-    writeQueue(items);
-    return items.length;
+    const currentItems = readQueue();
+    const removed = currentItems.find((item) => item.coll === coll && item.rec?.id === id);
+    const remaining = currentItems.filter((item) => !(item.coll === coll && item.rec?.id === id));
+    writeQueue(remaining);
+    if (removed) {
+      const serverRecord = removed.serverRec || removed.baseRec;
+      if (serverRecord && !serverRecord._deleted && !serverRecord.deleted_at) {
+        dispatch({ type: "put", coll, rec: { ...serverRecord, _syncPending: false } });
+      } else {
+        dispatch({ type: "drop", coll, id });
+      }
+    }
+    return remaining.length;
   };
   const isNetworkFailure = (e) => {
     const msg = String((e && (e.message || e.details)) || e || "").toLowerCase();
@@ -188,7 +198,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
           }
           const items = readQueue();
           const existing = items.findIndex((x) => x.coll === coll && x.rec.id === rec.id);
-          const item = { coll, rec: { ...rec, _syncPending: true }, baseTs: meta.current[k] || null, queuedAt: nowIso() };
+          const item = { coll, rec: { ...rec, _syncPending: true }, baseTs: meta.current[k] || null, baseRec: prev ? { ...prev } : null, queuedAt: nowIso() };
           if (existing >= 0) items[existing] = { ...items[existing], rec: item.rec };
           else items.push(item);
           writeQueue(items);
@@ -225,7 +235,29 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
         const k = key(item.coll, item.rec.id);
         const currentTs = meta.current[k] || null;
         if (!canReplayQueuedWrite(currentTs, item.baseTs)) {
-          remaining.push({ ...item, conflict: true });
+          let serverRec = null;
+          let serverUpdatedAt = null;
+          let conflictReason = "version-changed";
+          try {
+            const { data, error } = await supabase.from("workspace_records")
+              .select("data,deleted,updated_at,visible_to")
+              .eq("workspace_id", wsId).eq("system_id", systemId)
+              .eq("collection", item.coll).eq("id", item.rec.id).maybeSingle();
+            if (error) throw error;
+            if (data) {
+              serverRec = toRec({ ...data, id: item.rec.id });
+              serverUpdatedAt = data.updated_at;
+              meta.current[k] = data.updated_at;
+              conflictReason = data.deleted || serverRec.deleted_at ? "deleted-on-server" : "version-changed";
+            } else {
+              conflictReason = "missing-on-server";
+              delete meta.current[k];
+            }
+          } catch (error) {
+            conflictReason = "server-read-failed";
+            console.warn("offline conflict snapshot failed", error);
+          }
+          remaining.push({ ...item, conflict: true, conflictReason, serverRec, serverUpdatedAt });
           continue;
         }
         const rec = { ...item.rec }; delete rec._syncPending;
@@ -242,6 +274,37 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
       if (remaining.some((x) => x.conflict)) toast("⚠️ توجد تعديلات محلية تعارضت مع نسخة الخادم. احتفظنا بها ولم نستبدل بيانات الخادم؛ راجعها قبل إعادة المحاولة.");
     } finally { replaying.current = false; }
   }, [isDemo, persist, toast, wsId, systemId, loadAll]);
+
+  const rebaseQueuedWrite = useCallback((coll, id) => {
+    const items = readQueue();
+    const index = items.findIndex((item) => item.coll === coll && item.rec?.id === id);
+    if (index < 0) return { ok: false, reason: "queued-item-not-found" };
+    const item = items[index];
+    if (!item.conflict || !item.serverRec || !item.serverUpdatedAt || item.serverRec._deleted || item.serverRec.deleted_at) {
+      return { ok: false, reason: item.conflictReason || "conflict-snapshot-unavailable" };
+    }
+    const result = rebaseQueuedTaskEdit({
+      baseRecord: item.baseRec,
+      localRecord: item.rec,
+      serverRecord: item.serverRec
+    });
+    if (!result.ok) return result;
+    const nextRec = { ...result.record, _syncPending: true };
+    items[index] = {
+      ...item,
+      rec: nextRec,
+      baseRec: { ...item.serverRec },
+      baseTs: item.serverUpdatedAt,
+      conflict: false,
+      conflictReason: null,
+      serverRec: null,
+      serverUpdatedAt: null
+    };
+    meta.current[key(coll, id)] = item.serverUpdatedAt;
+    writeQueue(items);
+    dispatch({ type: "put", coll, rec: nextRec });
+    return { ok: true, changedFields: result.changedFields };
+  }, [wsId, systemId]);
 
   useEffect(() => {
     if (isDemo) return;
@@ -492,7 +555,7 @@ export function useRecordStore({ wsId, systemId, isDemo, demoStore, seed, onToas
   }, [isDemo, systemId, wsId, demoStore, loadAll, toast]);
 
   const api = useMemo(() => ({ put, putStrict, putAtomic, putBatchAtomic, purgeAtomic, softDelete, restore, putMany, reload: loadAll, sync: syncSince, flushQueue }), [put, putStrict, putAtomic, putBatchAtomic, purgeAtomic, softDelete, restore, putMany, loadAll, syncSince, flushQueue]);
-  return { ...state, api, queueItems, discardQueuedWrite };
+  return { ...state, api, queueItems, discardQueuedWrite, rebaseQueuedWrite };
 }
 
 export function stripMeta(rec) {
