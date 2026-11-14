@@ -122,4 +122,16 @@ assert.ok(screensC.includes('project_id: form.project_id || data.projects.find((
 assert.ok(screensC.includes("const canWriteWins = can(\"win.write\")") &&
   screensC.includes('can("win.write", project)'),
   "Project-context Win creation must verify the selected project's write permission");
+const projectActivity = screensB.slice(screensB.indexOf("function ProjectActivity("), screensB.indexOf("function ProjectWinsTab("));
+const financeTab = screensB.slice(screensB.indexOf("function ProjectFinanceTab("), screensB.indexOf("function ProjectActivity("));
+assert.ok(projectActivity.includes('supabase.rpc("fin_projects_get", { p_ws: ws.id })') &&
+  projectActivity.includes('entity: "finance_transaction"') &&
+  projectActivity.includes('labels.financeTransactions') &&
+  projectActivity.includes('shell?.go?.("system", "finance", "projects", { projectRef: p.id, fromSystem: "projects" })') &&
+  projectActivity.includes('financeState === "permission"'),
+  "Project Activity must merge Finance-owned transactions from its permission-checked read model and preserve independent error states");
+assert.ok(financeTab.includes("profile.transactions") && financeTab.includes("الحركات المالية المرتبطة") &&
+  financeTab.includes("transaction.base_missing") &&
+  financeTab.includes("profile.unvalued_transactions"),
+  "Project Finance detail must display linked transactions and identify unvalued currency amounts without coercing them to zero");
 console.log("t_projects_overview_metric_navigation: OK");
