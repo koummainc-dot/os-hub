@@ -95,7 +95,7 @@ function Btn({children,onClick,secondary=false,disabled=false,type="button",tone
 function Field({label,children}) { return <label style={{display:"grid",gap:6,fontSize:12,fontWeight:750,color:"#475569"}}>{label}{children}</label>; }
 function Tag({children}) { return <span style={{fontSize:11,padding:"4px 8px",borderRadius:999,background:C.soft,color:"#075985",whiteSpace:"nowrap"}}>{children}</span>; }
 
-export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub",setPage,ws}) {
+export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub",setPage,ws,routeContext=null}) {
   const [data,setData]=useState(emptyData);
   const [updatedAt,setUpdatedAt]=useState(null);
   const [storageMode,setStorageMode]=useState("legacy");
@@ -106,6 +106,7 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
   const [query,setQuery]=useState("");
   const [filter,setFilter]=useState("all");
   const [editor,setEditor]=useState(null);
+  const [focusItemId,setFocusItemId]=useState("");
   const [form,setForm]=useState({});
   const [meetingProjects,setMeetingProjects]=useState([]);
   const [meetingProjectsLoading,setMeetingProjectsLoading]=useState(false);
@@ -129,6 +130,26 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
   const [showArchived,setShowArchived]=useState(false);
   const canEdit=!!isDemo || access?.level==="edit" || access?.manage || access?.owner;
   const section=SECTIONS.some(s=>s[0]===page)?page:"hub";
+  useEffect(()=>{
+    const itemId=String(routeContext?.focusItemId||"");
+    if(!itemId) return;
+    setFocusItemId(itemId);
+    if(routeContext?.focusItemKind==="meeting" && page!=="meetings") setPage?.("meetings");
+    setQuery("");
+    setFilter("all");
+    setShowArchived(true);
+    const clearTimer=window.setTimeout(()=>setFocusItemId(""),5000);
+    return ()=>window.clearTimeout(clearTimer);
+  },[routeContext?.focusItemId,routeContext?.focusItemKind]);
+  useEffect(()=>{
+    if(!focusItemId) return;
+    const domId="knowledge-item-"+String(focusItemId).replace(/[^a-zA-Z0-9_-]/g,"_");
+    const timer=window.setTimeout(()=>{
+      const element=document.getElementById(domId);
+      element?.scrollIntoView?.({behavior:"smooth",block:"center"});
+    },120);
+    return ()=>window.clearTimeout(timer);
+  },[focusItemId,section,filtered.length,loading]);
   useEffect(()=>{setFilter("all");},[section]);
   const go=id=>setPage&&setPage(id);
   const refreshNotifications=useCallback(async()=>{
@@ -406,7 +427,7 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
           <label style={{fontSize:11,color:C.muted,display:"flex",gap:6,alignItems:"center"}}><input type="checkbox" checked={showArchived} onChange={e=>setShowArchived(e.target.checked)}/> إظهار المؤرشف</label>
         </div>
         {section==="hub"&&<section style={{...card,display:"grid",gap:10,marginBottom:12}}><div><h3 style={{margin:"0 0 4px",fontSize:16}}>مركز المراجعات</h3><div style={{fontSize:12,color:C.muted}}>مواعيد مراجعة المصادر والملاحظات.</div></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>{[["متأخرة",reviewOverview.overdue.length,C.red],["اليوم",reviewOverview.due.length,C.amber],["قادمة",reviewOverview.upcoming.length,C.green]].map(([label,count,color])=><div key={label} style={{border:"1px solid "+C.line,borderRadius:10,padding:10}}><div style={{fontSize:12,color:C.muted}}>{label}</div><b style={{fontSize:22,color}}>{count}</b></div>)}</div>{[["المتأخرة",reviewOverview.overdue],["مستحقة اليوم",reviewOverview.due],["القادمة",reviewOverview.upcoming]].map(([label,rows])=>rows.length>0&&<div key={label} style={{display:"grid",gap:6}}><b style={{fontSize:13}}>{label}</b>{rows.slice(0,4).map(row=><div key={row.kind+row.id} style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center",flexWrap:"wrap",borderTop:"1px solid "+C.line,paddingTop:6}}><span style={{fontSize:13}}>{row.title} <small style={{color:C.muted}}>({row.reviewDate})</small></span><div style={{display:"flex",gap:8}}>{row.url&&<a href={row.url} target="_blank" rel="noreferrer" style={{fontSize:12,color:C.accent}}>فتح المصدر ↗</a>}<Btn onClick={()=>go(row.kind==="resource"?"bookmarks":row.kind==="idea"?"ideas":row.kind==="note"?"notes":row.kind==="meeting"?"meetings":row.kind==="event"?"events":"inbox")}>عرض</Btn></div></div>)}</div>)}</section>}
-        {filtered.length===0?<div style={{...card,textAlign:"center",padding:40,color:C.muted}}>{section==="search"&&!query.trim()?"اكتب كلمة أو عبارة في البحث للوصول إلى المصادر والأفكار والملاحظات والاجتماعات والفعاليات.":"لا توجد عناصر مطابقة. احفظ مصدرًا أو أضف فكرة جديدة، أو غيّر عوامل البحث."}</div>:filtered.map(item=><article key={item.kind+":"+item.id} style={{...card,display:"grid",gap:10}}>
+        {filtered.length===0?<div style={{...card,textAlign:"center",padding:40,color:C.muted}}>{section==="search"&&!query.trim()?"اكتب كلمة أو عبارة في البحث للوصول إلى المصادر والأفكار والملاحظات والاجتماعات والفعاليات.":"لا توجد عناصر مطابقة. احفظ مصدرًا أو أضف فكرة جديدة، أو غيّر عوامل البحث."}</div>:filtered.map(item=><article key={item.kind+":"+item.id} id={"knowledge-item-"+String(item.id).replace(/[^a-zA-Z0-9_-]/g,"_")} style={{...card,display:"grid",gap:10,outline:focusItemId===String(item.id)?"2px solid "+C.accent:undefined,outlineOffset:focusItemId===String(item.id)?3:undefined}}>
           <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"start",flexWrap:"wrap"}}>
             <div style={{minWidth:0,flex:1}}><div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}><Tag>{KINDS[item.kind]||"وارد"}</Tag><Tag>{STATUSES[item.status]||item.status||"نشط"}</Tag>{item.sourceType&&<Tag>{item.sourceType}</Tag>}{item.pinned&&<Tag>مثبّت</Tag>}</div><h3 style={{fontSize:16,margin:"9px 0 5px",overflowWrap:"anywhere"}}>{item.title}</h3>{item.url&&<a href={item.url} target="_blank" rel="noreferrer" style={{fontSize:12,color:C.accent,overflowWrap:"anywhere"}}>{item.url}</a>}{item.url&&(item.sourceType==="فيديو"||["youtube","vimeo","loom","file"].includes(getMediaEmbed(item.url)?.provider))&&<MediaEmbed url={item.url} title={item.title} workspaceId={api?.workspaceId||"demo"} itemId={item.id}/>}<p style={{fontSize:13,color:C.muted,lineHeight:1.8,margin:"6px 0"}}>{item.summary||"لا يوجد ملخص بعد."}</p></div>
             {canEdit&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}><Btn secondary onClick={()=>openEdit(item)}>تعديل</Btn><Btn secondary onClick={()=>mutateItem(item,{pinned:!item.pinned})}>{item.pinned?"إلغاء التثبيت":"تثبيت"}</Btn>{item.status==="inbox"||item.status==="unread"?<Btn onClick={()=>mutateItem(item,{status:"processed",readAt:today()})}>تمت المراجعة</Btn>:null}{canEdit&&item.status!=="archived"&&<><Btn secondary onClick={()=>recordReview(item,"again")}>مراجعة: لم أتذكر</Btn><Btn secondary onClick={()=>recordReview(item,"hard")}>صعب</Btn><Btn secondary onClick={()=>recordReview(item,"good")}>جيد</Btn><Btn secondary onClick={()=>recordReview(item,"easy")}>سهل</Btn></>}{item.status==="archived"?<Btn onClick={()=>mutateItem(item,{status:"active",archivedAt:null})}>استعادة</Btn>:<Btn secondary onClick={()=>removeItem(item)}>أرشفة</Btn>}</div>}
