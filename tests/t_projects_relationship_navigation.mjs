@@ -82,15 +82,16 @@ assert.ok(projectScreens.includes('const tabGroups = [') &&
 for (const tabId of ["overview", "tasks", "outputs", "work", "prds", "risks", "issues", "decisions", "people", "okr", "related", "activity"]) {
   assert.ok(projectScreens.includes(`id: "${tabId}"`), `legacy project tab id ${tabId} must remain stable for deep links`);
 }
-assert.ok(projectScreens.includes('import { listKnowledgeMeetings } from "../knowledge/repository.js"') &&
-  projectScreens.includes('String(meeting.relatedId) === String(p.id)') &&
+assert.ok(projectScreens.includes('import { listKnowledgeMeetings, listKnowledgeProjectResources, listKnowledgeAttachments } from "../knowledge/repository.js"') &&
+  projectScreens.includes('listKnowledgeMeetings(ws.id, p.id)') &&
   projectScreens.includes('source_meeting_id: meeting.id') &&
-  projectScreens.includes('source_followup_index: index'),
-  "Project Detail must read its linked meetings from Knowledge OS and preserve meeting provenance when creating follow-up tasks");
+  projectScreens.includes('source_followup_id: followupIdentity'),
+  "Project Detail must use server-scoped Knowledge meetings and preserve stable follow-up provenance");
 assert.ok(projectScreens.includes('findKnowledgeFollowupTask(data.tasks, meeting.id, followup, index)') &&
   projectScreens.includes('source_followup_id: followupIdentity') &&
-  projectScreens.includes('source_followup_index: index'),
-  "Project Detail meeting follow-ups must reuse stable source identity and retain the legacy index fallback");
+  projectScreens.includes('source_followup_index: index') &&
+  projectScreens.includes('id: "knowledge_meeting_task_" + encodeURIComponent(sourceRecordId)'),
+  "Project Detail meeting follow-ups must use deterministic server-persisted task identity while retaining the legacy index fallback");
 
 const governancePage = projectIndex.slice(projectIndex.indexOf("function GovernancePage()"), projectIndex.indexOf("const SCREENS"));
 assert.ok(projectIndex.includes('issues: GovernancePage') &&
