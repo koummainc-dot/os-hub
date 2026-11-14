@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { loadNormalizedKnowledge, saveNormalizedKnowledge, hasKnowledgeContent, listKnowledgeAttachments, uploadKnowledgeAttachment, deleteKnowledgeAttachment, validateKnowledgeExternalLink, listKnowledgeProjects, listKnowledgeNotifications, markKnowledgeNotificationRead } from "./repository.js";
 import { subscribeOSEvents } from "../integrationEvents.js";
+import { stableKnowledgeFollowupId } from "./followupIdentity.js";
 import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
 
 const C = { ink:"#172033", muted:"#64748B", line:"#E2E8F0", bg:"#F8FAFC", accent:"#0284C7", soft:"#E0F2FE", green:"#047857", amber:"#B45309", red:"#B91C1C", white:"#FFFFFF" };
@@ -303,19 +304,28 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
   const createMeetingFollowupTasks = (item) => {
     if (isDemo || !api?.workspaceId) { setError("تحويل متابعات الاجتماع إلى مهام يتطلب مساحة عمل متصلة."); return; }
     if (item.kind !== "meeting" || item.relatedSystem !== "projects" || !item.relatedId) { setError("اربط الاجتماع بمشروع Projects أولاً."); return; }
-    const followups = (item.followups || []).map((title) => String(title || "").trim()).filter(Boolean);
+    const followups = (item.followups || []).map((value) => String(value || "").trim()).filter(Boolean);
     if (!followups.length) { setError("أضف متابعات للاجتماع أولاً."); return; }
-    const tasks = followups.map((title, index) => ({
-      title,
-      project_id: item.relatedId,
-      status: "Not Started",
-      priority: item.priority === "urgent" ? "High" : item.priority === "high" ? "High" : "Medium",
-      planning_bucket: "Inbox",
-      assignee_id: authUser?.id || null,
-      description: item.summary || "",
-      source_record_id: String(item.id) + ":" + String(index),
-    }));
-    const requestId = "knowledge-meeting:" + String(item.id) + ":" + followups.join("|");
+    const tasks = followups.map((title) => {
+      const followupId = stableKnowledgeFollowupId(item.id, title);
+      return {
+        title,
+        project_id: item.relatedId,
+        status: "Not Started",
+        priority: item.priority === "urgent" ? "High" : item.priority === "high" ? "High" : "Medium",
+        planning_bucket: "Inbox",
+        assignee_id: authUser?.id || null,
+        description: item.summary || "",
+        source_record_id: followupId,
+        source_followup_id: followupId,
+        source_followup_title: title,
+      };
+    });
+    if (tasks.some((task) => !task.source_record_id)) {
+      setError("تعذّر إنشاء هوية ثابتة لإحدى المتابعات. لم يتم إرسال أي مهمة.");
+      return;
+    }
+    const requestId = "knowledge-meeting:" + String(item.id) + ":" + tasks.map((task) => task.source_record_id).sort().join("|");
     window.dispatchEvent(new CustomEvent("os:source-write", { detail: {
       workspaceId: api.workspaceId,
       systemId: "projects",
@@ -324,7 +334,7 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
       recordId: requestId,
       payload: { meeting_id: item.id, project_id: item.relatedId, tasks },
     }}));
-    setError("تم إرسال " + tasks.length + " متابعة إلى Projects. ستظهر رسالة بنتيجة الحفظ بعد اكتمال الربط.");
+    setError("تم إرسال " + tasks.length + " متابعة إلى Projects بهويات ثابتة؛ ستظهر رسالة بنتيجة الحفظ بعد اكتمال الربط.");
   };
   const recordReview=async(item,rating)=>{
     if(!canEdit)return;
