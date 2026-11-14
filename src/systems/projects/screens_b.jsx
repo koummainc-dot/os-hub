@@ -137,7 +137,7 @@ function ProjectDetail() {
       : null;
   const tabGroups = [
     { id: "overview", label: "نظرة عامة", defaultTab: "overview", tabs: [{ id: "overview", label: "نظرة عامة" }] },
-    { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "discovery", label: "الاكتشاف" }, { id: "tasks", label: "المهام", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }, { id: "timeline", label: "الخط الزمني" }] },
+    { id: "plan", label: "التخطيط", defaultTab: "tasks", tabs: [{ id: "discovery", label: "الاكتشاف" }, { id: "tasks", label: "المهام", count: counts.tasks }, { id: "prds", label: "المواصفات", count: counts.prds }, { id: "milestones", label: "المعالم", count: data.milestones.filter((m) => m.project_id === p.id && !m.archived_at).length }, { id: "timeline", label: "Roadmap / Timeline" }] },
     { id: "goals", label: "الأهداف", defaultTab: "okr", tabs: [{ id: "okr", label: "الأهداف (OKR)" }] },
     { id: "delivery", label: "التسليم", defaultTab: "outputs", tabs: [{ id: "outputs", label: "المخرجات", count: counts.outputs }, { id: "work", label: "العمل والوقت" }] },
     { id: "governance", label: "الحوكمة", defaultTab: "risks", tabs: [{ id: "risks", label: "المخاطر", count: counts.risks }, { id: "issues", label: "المشاكل", count: counts.issues }, { id: "decisions", label: "القرارات", count: counts.decisions }] },
@@ -187,6 +187,7 @@ function ProjectDetail() {
       {tab === "tasks" && <TaskTree projectId={p.id} filter={taskFilter} filterLabel={taskFilterLabel} />}
       {tab === "discovery" && <DiscoveryView projectId={p.id} />}
       {tab === "timeline" && <ProjectTimeline p={p} />}
+      {tab === "milestones" && <ProjectMilestones p={p} />}
       {tab === "outputs" && <OutputsView projectId={p.id} />}
       {tab === "work" && <WorkTab p={p} />}
       {tab === "prds" && <PrdsView projectId={p.id} />}
@@ -250,6 +251,49 @@ function Overview({ p, m }) {
       {lateTasks.length > 0 && <div style={{ ...S.card, gridColumn: "1 / -1" }}><div style={{ fontSize: 13, fontWeight: 700, color: C.bad, marginBottom: 6 }}>مهام متأخرة ({lateTasks.length})</div>{lateTasks.slice(0, 8).map((t) => <div key={t.id} style={{ fontSize: 12.5, padding: "3px 0", display: "flex", alignItems: "center", gap: 8 }}><button type="button" onClick={() => openTask(t.id)} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textAlign: "start", font: "inherit", textDecoration: "underline" }}>⏰ {t.title}</button><span>— {fmtShort(t.due_date)}</span><Who id={t.assignee_id} size={15} /></div>)}</div>}
     </div>
   );
+}
+function ProjectMilestones({ p }) {
+  const { data, A: act, can, people, nameOf, openTask, today } = useP();
+  const [editing, setEditing] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const rows = data.milestones.filter((m) => m.project_id === p.id && (showArchived || !m.archived_at))
+    .sort((a, b) => String(a.due_date || "9999").localeCompare(String(b.due_date || "9999")));
+  const canWrite = can("project.edit", p);
+  const save = async (v) => {
+    const related = (v.related_task_ids || []).filter((id) => data.tasks.some((t) => t.id === id && t.project_id === p.id));
+    const rec = { ...v, id: v.id || "mile_" + uid(), project_id: p.id, related_task_ids: related, updated_at: new Date().toISOString() };
+    const result = await act.put("milestones", rec, p);
+    if (result) setEditing(null);
+    return !!result;
+  };
+  const archive = async (m) => {
+    if (!window.confirm("أرشفة هذا المعلم؟ سيظل محفوظًا في السجل ولن يدخل في Roadmap النشط.")) return;
+    await act.put("milestones", { ...m, archived_at: new Date().toISOString() }, p);
+  };
+  return <div>
+    <Head title="معالم المشروع" sub="التزامات رئيسية مستقلة عن المهام؛ لا تدخل في حساب تقدم المهام." right={<>{canWrite && <Btn kind="primary" onClick={() => setEditing({ project_id: p.id, title: "", due_date: p.target_date || "", status: "Planned", owner_id: p.lead_id || "", description: "", related_task_ids: [] })}>＋ إضافة معلم</Btn>}<Btn onClick={() => setShowArchived((v) => !v)}>{showArchived ? "إخفاء المؤرشفة" : "عرض المؤرشفة"}</Btn></>} />
+    {!rows.length ? <Empty icon="🏁" title="لا توجد معالم بعد" sub="أضف معالم التسليم أو المراحل المهمة لتظهر في خطة المشروع." /> :
+      <div style={{ display: "grid", gap: 8 }}>{rows.map((m) => {
+        const overdue = m.due_date && m.due_date < today && m.status !== "Completed";
+        return <div key={m.id} style={{ ...S.card, padding: 12, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 10, alignItems: "center", opacity: m.archived_at ? .65 : 1 }}>
+          <div><div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><b>{m.title}</b><Chip color={m.status === "Completed" ? C.ok : overdue ? C.bad : C.warn}>{m.status === "Completed" ? "مكتمل" : overdue ? "متأخر" : m.status === "In Progress" ? "قيد التنفيذ" : "مخطط"}</Chip></div>
+            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>{m.due_date ? "الموعد: " + fmtShort(m.due_date) : "بلا موعد"} · المسؤول: {nameOf(m.owner_id)}</div>
+            {m.description && <div style={{ fontSize: 12, marginTop: 5, whiteSpace: "pre-wrap" }}>{m.description}</div>}
+            {!!(m.related_task_ids || []).length && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{m.related_task_ids.map((id) => { const t = data.tasks.find((x) => x.id === id && x.project_id === p.id); return t ? <button key={id} type="button" onClick={() => openTask(id)} style={{ border: 0, padding: 0, background: "transparent", color: C.info, cursor: "pointer", textDecoration: "underline", font: "inherit", fontSize: 11.5 }}>↗ {t.title}</button> : null; })}</div>}
+          </div>
+          {canWrite && <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}><Btn small onClick={() => setEditing(m)}>تعديل</Btn>{!m.archived_at && <Btn small onClick={() => archive(m)}>أرشفة</Btn>}</div>}
+        </div>;
+      })}</div>}
+    {editing && <FormModal title={editing.id ? "تعديل المعلم" : "إضافة معلم"} wide initial={editing} onClose={() => setEditing(null)} fields={[
+      { key: "title", label: "اسم المعلم", required: true },
+      { key: "due_date", label: "تاريخ الاستحقاق", type: "date" },
+      { key: "status", label: "الحالة", type: "select", options: [{ v: "Planned", l: "مخطط" }, { v: "In Progress", l: "قيد التنفيذ" }, { v: "Completed", l: "مكتمل" }] },
+      { key: "owner_id", label: "المسؤول", type: "select", options: people.map((x) => ({ v: x.id, l: x.name })) },
+      { key: "description", label: "الوصف", type: "textarea" },
+    ]} onSubmit={save}>
+      {(values, set) => <div style={{ marginTop: 12 }}><b style={{ fontSize: 12 }}>المهام المرتبطة</b><div style={{ display: "grid", gap: 5, maxHeight: 180, overflowY: "auto", marginTop: 6 }}>{data.tasks.filter((t) => t.project_id === p.id && !t.archived_at).map((t) => <label key={t.id} style={{ display: "flex", gap: 7, alignItems: "center", fontSize: 12 }}><input type="checkbox" checked={(values.related_task_ids || []).includes(t.id)} onChange={(e) => set("related_task_ids", e.target.checked ? [...(values.related_task_ids || []), t.id] : (values.related_task_ids || []).filter((id) => id !== t.id))} />{t.title}</label>)}</div></div>}
+    </FormModal>}
+  </div>;
 }
 function ProjectTimeline({ p }) {
   const { idx, today, openTask } = useP();
