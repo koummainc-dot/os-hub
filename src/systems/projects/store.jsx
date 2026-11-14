@@ -203,7 +203,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
         toast("⛔ لا يمكن نقل مشروع النظام إلى السلة");
         return false;
       }
-      const collections = ["tasks", "outputs", "risks", "issues", "decisions", "prds", "updates"];
+      const collections = ["tasks", "milestones", "outputs", "risks", "issues", "decisions", "prds", "updates"];
       const related = collections.flatMap((coll) =>
         arr(recs, coll)
           .filter((record) => record.project_id === p.id && !record.deleted_at)
@@ -211,7 +211,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       );
       const counts = {};
       for (const { coll } of related) counts[coll] = (counts[coll] || 0) + 1;
-      const labels = { tasks: "مهام", outputs: "مخرجات", risks: "مخاطر", issues: "مشاكل", decisions: "قرارات", prds: "مواصفات", updates: "تحديثات" };
+      const labels = { tasks: "مهام", milestones: "معالم", outputs: "مخرجات", risks: "مخاطر", issues: "مشاكل", decisions: "قرارات", prds: "مواصفات", updates: "تحديثات" };
       const summary = Object.entries(counts).map(([coll, count]) => `• ${labels[coll] || coll}: ${count}`).join("\n") || "لا توجد سجلات تابعة ظاهرة.";
       const sessionCount = data.sessions.filter((session) => idx.list.some((task) => task.project_id === p.id && task.id === session.task_id)).length;
       const total = related.length + 1;
