@@ -751,7 +751,7 @@ export default function FinanceOS({ ws, access, page = "dashboard", setPage, isD
       legacyAssets={<FinanceAssets ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
       legacyGoals={<FinanceGoals ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
       legacyRecurring={<FinanceRecurring ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
-      legacyProjects={<FinanceProjects ws={ws} access={access} isDemo={isDemo} currencies={currencies} initialProjectRef={routeContext?.projectRef || null} onCreateTransaction={startProjectTransaction} />}
+      legacyProjects={<FinanceProjects ws={ws} access={access} isDemo={isDemo} currencies={currencies} initialProjectRef={routeContext?.projectRef || null} initialBudget={routeContext?.suggestedBudget ?? null} initialCurrency={routeContext?.suggestedCurrency || null} initialBudgetUpdatedAt={routeContext?.suggestedBudgetUpdatedAt || null} onCreateTransaction={startProjectTransaction} />}
       legacyFamily={<FinanceFamily ws={ws} access={access} isDemo={isDemo} currencies={currencies} />}
       legacyFamilyCash={<FinanceFamilyCash ws={ws} access={access} isDemo={isDemo} />}
       legacyReports={<FinanceReports ws={ws} isDemo={isDemo} baseCurrency={baseCurrency} />}
