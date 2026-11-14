@@ -373,6 +373,7 @@ function ProjectFinanceTab({ p }) {
     catch { return String(value) + " " + currency; }
   };
   const openFinance = () => available && shell.go("system", "finance", "projects", { projectRef: p.id, fromSystem: "projects" });
+  const openFinanceTransaction = () => available && shell.go("system", "finance", "transactions", { projectRef: p.id, fromSystem: "projects", intent: "create-project-transaction" });
   return <section style={{ display: "grid", gap: 10 }}>
     <div style={S.card}>
       <Head title="الملف المالي للمشروع" sub="البيانات المالية تظل مملوكة لـ Finance OS؛ هذا العرض للقراءة فقط." right={<Btn small onClick={() => setReloadKey((value) => value + 1)} disabled={state === "loading"}>↻ تحديث</Btn>} />
@@ -380,6 +381,7 @@ function ProjectFinanceTab({ p }) {
         {state === "loading" && <Chip color={C.muted}>جارٍ تحميل حالة الربط…</Chip>}
         {state === "not-linked" && <Chip color={C.warn}>غير مرتبط</Chip>}
         {state === "linked" && <Chip color={C.ok}>مرتبط</Chip>}
+        {state === "linked" && profile && <Btn kind="primary" small onClick={openFinanceTransaction} disabled={!available}>＋ تسجيل حركة للمشروع</Btn>}
         {profile && Number(profile.unvalued_transactions || 0) > 0 && <Chip color={C.warn}>مراجعة تقييم العملة</Chip>}
         {state === "multiple" && <Chip color={C.warn}>يتطلب مراجعة</Chip>}
         {state === "permission" && <Chip color={C.bad}>لا توجد صلاحية عرض Finance</Chip>}
