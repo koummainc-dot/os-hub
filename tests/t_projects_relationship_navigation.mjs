@@ -117,7 +117,7 @@ assert.ok(projectScreens.includes("const tabGroups = [") &&
   projectScreens.includes("setTab(group.defaultTab)"),
   "group navigation must expose grouped subtabs and select a safe default destination");
 
-assert.ok(parts.includes("t.source_meeting_id") && parts.includes("t.source_followup_title") &&
+assert.ok(parts.includes("t.source_meeting_id") && parts.includes("t.source_meeting_title") &&
   parts.includes('shell?.go?.("system", "knowledge", "meetings", { focusItemId: t.source_meeting_id, focusItemKind: "meeting" })'),
   "Task Sheet must expose an exact reverse link to the Knowledge source meeting");
 assert.ok(projectScreens.includes('shell?.go?.("system", "knowledge", "meetings", { focusItemId: meeting.id, focusItemKind: "meeting" })'),
