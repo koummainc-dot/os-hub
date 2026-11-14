@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { canReplayQueuedWrite, rebaseQueuedTaskEdit } from "../src/core/recordQueue.js";
 
 assert.equal(canReplayQueuedWrite(null, null), true, "new queued insert can replay while the server record is still absent");
@@ -33,4 +34,13 @@ const sameValue = rebaseQueuedTaskEdit({
 });
 assert.equal(sameValue.ok, true, "the same value chosen by both users is not a conflict");
 
-console.log("✓ offline queue version guard and field-level conflict merge scenarios passed");
+const recordStore = await readFile(new URL("../src/core/records.jsx", import.meta.url), "utf8");
+const projectsRouter = await readFile(new URL("../src/systems/projects/index.jsx", import.meta.url), "utf8");
+assert.ok(recordStore.includes("baseRec: prev ? { ...prev } : null") && recordStore.includes("serverRec") && recordStore.includes("serverUpdatedAt"),
+  "the offline queue must retain a merge base and fetch the latest server snapshot for conflicts");
+assert.ok(recordStore.includes("rebaseQueuedTaskEdit(") && recordStore.includes("const rebaseQueuedWrite"),
+  "the store must expose explicit non-overlapping field rebase");
+assert.ok(projectsRouter.includes("function OfflineQueuePanel") && projectsRouter.includes("دمج الحقول غير المتعارضة") && projectsRouter.includes("استخدام نسخة الخادم / تجاهل المحلي"),
+  "Projects must expose local-vs-server conflict choices rather than hiding the queue");
+
+console.log("✓ offline queue version guard, conflict snapshots, safe merge and UI contracts passed");
