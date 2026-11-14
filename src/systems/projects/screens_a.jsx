@@ -435,6 +435,10 @@ export function Portfolio() {
     ...idx.list.filter((task) => task.due_date && calendarVisibleIds.has(task.project_id)).map((task) => ({ id: task.id + ":due", date: task.due_date, project: projects.find((project) => project.id === task.project_id), kind: "task", record: task, title: task.title })),
     ...data.prds.filter((prd) => prd.target_ship_date && calendarVisibleIds.has(prd.project_id)).map((prd) => ({ id: prd.id + ":ship", date: prd.target_ship_date, project: projects.find((project) => project.id === prd.project_id), kind: "prd", record: prd, title: prd.title || "موعد إطلاق المواصفة" })),
     ...data.outputs.filter((output) => output.approval === "Final" && output.approved_at && calendarVisibleIds.has(output.project_id)).map((output) => ({ id: output.id + ":approved", date: String(output.approved_at).slice(0, 10), project: projects.find((project) => project.id === output.project_id), kind: "output", record: output, title: output.name })),
+    ...data.risks.filter((risk) => risk.review_date && calendarVisibleIds.has(risk.project_id)).map((risk) => ({ id: risk.id + ":review", date: risk.review_date, project: projects.find((project) => project.id === risk.project_id), kind: "risk-review", record: risk, title: risk.title })),
+    ...data.issues.filter((issue) => issue.discovered_at && calendarVisibleIds.has(issue.project_id)).map((issue) => ({ id: issue.id + ":discovered", date: String(issue.discovered_at).slice(0, 10), project: projects.find((project) => project.id === issue.project_id), kind: "issue", record: issue, title: issue.title })),
+    ...data.decisions.filter((decision) => decision.decided_at && calendarVisibleIds.has(decision.project_id)).map((decision) => ({ id: decision.id + ":decision", date: String(decision.decided_at).slice(0, 10), project: projects.find((project) => project.id === decision.project_id), kind: "decision", record: decision, title: decision.title })),
+    ...data.wins.filter((win) => win.achieved_on && calendarVisibleIds.has(win.project_id)).map((win) => ({ id: win.id + ":win", date: String(win.achieved_on).slice(0, 10), project: projects.find((project) => project.id === win.project_id), kind: "win", record: win, title: win.title })),
     ...calendarMeetings.filter((meeting) => meeting.date && calendarVisibleIds.has(meeting.project_id)).map((meeting) => ({ id: meeting.id + ":meeting", date: String(meeting.date).slice(0, 10), project: projects.find((project) => project.id === meeting.project_id), kind: "meeting", record: meeting, title: meeting.title })),
   ];
   const openCalendarEvent = (event) => {
@@ -442,6 +446,10 @@ export function Portfolio() {
     if (event.kind === "meeting") return shell?.go?.("system", "knowledge", "meetings", { focusItemId: event.record.id, focusItemKind: "meeting" });
     if (event.kind === "prd") return openProject(event.project.id, "prds", { kind: "prd", id: event.record.id });
     if (event.kind === "output") return openProject(event.project.id, "outputs", { kind: "output", id: event.record.id });
+    if (event.kind === "risk-review") return openProject(event.project.id, "risks", { kind: "risk", id: event.record.id });
+    if (event.kind === "issue") return openProject(event.project.id, "issues", { kind: "issue", id: event.record.id });
+    if (event.kind === "decision") return openProject(event.project.id, "decisions", { kind: "decision", id: event.record.id });
+    if (event.kind === "win") return setPage("wins");
     return openProject(event.project.id, "overview");
   };
   const calendarEventLabel = (event) => ({
@@ -451,8 +459,12 @@ export function Portfolio() {
     prd: "🚀 " + event.title,
     output: "📦 " + event.title,
     meeting: "🗓 " + event.title,
+    "risk-review": "⚠️ مراجعة " + event.title,
+    issue: "🔥 " + event.title,
+    decision: "⚖️ " + event.title,
+    win: "🏆 " + event.title,
   }[event.kind] || event.title);
-  const calendarEventColor = (kind) => kind === "start" ? "rgba(16,185,129,.12)" : kind === "target" ? "rgba(239,159,39,.12)" : kind === "meeting" ? "rgba(124,58,237,.12)" : kind === "task" ? "rgba(59,130,246,.12)" : kind === "prd" ? "rgba(2,132,199,.12)" : "rgba(14,116,144,.12)";
+  const calendarEventColor = (kind) => kind === "start" ? "rgba(16,185,129,.12)" : kind === "target" ? "rgba(239,159,39,.12)" : kind === "meeting" ? "rgba(124,58,237,.12)" : kind === "risk-review" ? "rgba(239,68,68,.12)" : kind === "issue" ? "rgba(220,38,38,.12)" : kind === "decision" ? "rgba(124,58,237,.12)" : kind === "win" ? "rgba(16,185,129,.12)" : kind === "task" ? "rgba(59,130,246,.12)" : kind === "prd" ? "rgba(2,132,199,.12)" : "rgba(14,116,144,.12)";
   const timelineDates = visible.flatMap((p) => [p.start_date || p.target_date, p.target_date || p.start_date]).filter(Boolean).sort();
   const timelineMin = timelineDates[0] || "";
   const timelineMax = timelineDates[timelineDates.length - 1] || "";
@@ -571,7 +583,7 @@ export function Portfolio() {
       : mode === "calendar" ? <div style={S.card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><Btn small onClick={() => { const next = new Date(Date.UTC(calendarYear, calendarMonthNumber - 2, 1)); setCalendarMonth(next.toISOString().slice(0, 7)); }}>→</Btn><b>{MONTH_NAMES[calendarMonthNumber - 1]} {calendarYear}</b><Btn small onClick={() => { const next = new Date(Date.UTC(calendarYear, calendarMonthNumber, 1)); setCalendarMonth(next.toISOString().slice(0, 7)); }}>←</Btn></div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", fontSize: 10.5, color: C.muted, marginBottom: 8 }}>
-          <span>▶ بداية / 🏁 نهاية</span><span>☑ موعد مهمة</span><span>🚀 إطلاق PRD</span><span>📦 مخرج معتمد</span><span>🗓 اجتماع Knowledge</span>
+          <span>▶ بداية / 🏁 نهاية</span><span>☑ موعد مهمة</span><span>🚀 إطلاق PRD</span><span>📦 مخرج معتمد</span><span>⚠️ مراجعة خطر</span><span>🔥 اكتشاف مشكلة</span><span>⚖️ قرار</span><span>🏆 إنجاز</span><span>🗓 اجتماع Knowledge</span>
           {calendarMeetingsState === "loading" && <span>· جارٍ تحميل اجتماعات المشاريع…</span>}
           {calendarMeetingsState === "partial" && <span>· بعض اجتماعات Knowledge لم تُحمّل؛ بقية المواعيد متاحة.</span>}
           {calendarMeetingsState === "error" && <span>· تعذّر تحميل اجتماعات Knowledge.</span>}
