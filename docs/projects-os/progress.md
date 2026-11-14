@@ -82,3 +82,17 @@ Next acceptance batch: manually verify all seven Project Header quick-create flo
 - **Preview data target: BLOCKED FOR WRITES.** Vercel has no configured project environment variables (0 entries); `src/core/supabase.js` therefore uses the built-in `https://cvcngvlickozahecgmij.supabase.co` default. Supabase lists exactly one project (`os-hub`) and zero development branches. Read-only production checks confirm 103 migration-history rows, the base `knowledge_resource_os` migration present, the new `knowledge_project_scoped_links` migration absent, and the new RPC/trigger absent. The Knowledge item/external-link counts are zero; six active Project records exist. Do not create/edit data from this Preview.
 - Supabase Branching requires Pro per the current Deployment & Branching guide. The separate-project quote for `os-hub-preview-qa` in the existing organization is **$0/month**, but project creation was stopped because the Supabase tool requires an explicit cost confirmation ID. No test project or branch has been created.
 - Production remains unchanged: no migration, data backfill, write, merge, or Production deployment was performed.
+
+
+---
+
+## Current status correction — 2026-11-14
+
+The authoritative current phase report is [phase-status-report-2026-11-14.md](./phase-status-report-2026-11-14.md). It supersedes older blockers in this progress file where later commits or QA evidence have closed them.
+
+- Current branch head reviewed: `b5f4bd37b4270fd74648c032ea826385cad573f8`; PR #188 remains open and Draft.
+- All current CI workflows passed: CI, Verify app, Finance Family Center, Projects SQL, Finance SQL, Ventures SQL and Knowledge SQL.
+- The isolated QA Supabase project exists and has been used. The Finance Projects reference visibility guard was applied and tested on QA only; the unauthorized private Project reference is rejected and a shared visible Project is accepted.
+- Knowledge selected-Project meeting reads are now server-scoped; the earlier workspace-snapshot/client-filter blocker is superseded.
+- Preview is READY on the current code commit. Preview-only Supabase variables are configured for this branch, but their encrypted values could not be verified against the QA URL; do not perform Preview writes until the effective host is confirmed.
+- The next batch remains real Outputs/Task Sheet Storage acceptance against QA: actual upload, reload, signed download, interrupted-upload recovery, and permitted/restricted Storage RLS. No new features, Production migrations, merge, or Production deployment in this batch.
