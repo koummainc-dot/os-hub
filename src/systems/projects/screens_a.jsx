@@ -8,7 +8,7 @@ import * as D from "./domain.js";
 import { readOSEvents, subscribeOSEvents, subscribeToStoredOSEvents } from "../integrationEvents.js";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
 import { supabase } from "../../core/supabase.js";
-import { listCoreSavedViews, saveCoreSavedView, deleteCoreSavedView } from "../../core/savedViews.js";
+import { listCoreSavedViews, saveCoreSavedView, updateCoreSavedView, deleteCoreSavedView } from "../../core/savedViews.js";
 import { listCoreNotifications, markCoreNotificationRead } from "../../core/notifications.js";
 import { L, opts, STATUS_COLOR } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, DueChip, ProjectName, ProjectForm, TaskForm, mOpts, projOpts } from "./parts.jsx";
@@ -343,7 +343,7 @@ export function Tasks() {
 // ═════ Portfolio ═════
 // Cross-project portfolio view; derived only from existing workspace records.
 export function Portfolio() {
-  const { data, metrics, idx, today, settings, projectProgress, openProject, openTask, setPage, setView, people, can, view, A: act, ws, shell, me } = useP();
+  const { data, metrics, idx, today, settings, projectProgress, openProject, openTask, setPage, setView, people, can, view, A: act, ws, shell, me, role } = useP();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("active");
   const [newProjectOpen, setNewProjectOpen] = useState(false);
@@ -503,23 +503,43 @@ export function Portfolio() {
     setColumnOrder([...order.filter((key) => columns.includes(key)), ...columns.filter((key) => !order.includes(key))]);
     setActiveSavedViewId(id);
   };
+  const canManageSharedViews = role === "Owner" || role === "Admin";
+  const activeSavedView = savedViews.find((item) => item.id === activeSavedViewId) || null;
+  const canEditActiveSavedView = !!activeSavedView && (
+    activeSavedView.scope === "workspace" ? canManageSharedViews : activeSavedView.owner_id === me
+  );
+  const currentViewDefinition = () => ({
+    version: 1, query, status, mode, delayedOnly, typeFilter, healthFilter, leadFilter, teamFilter,
+    priorityFilter, visibilityFilter, dateFrom, dateTo, highRiskOnly, financeLinkFilter,
+    visibleColumns, columnOrder
+  });
   const saveCurrentView = async () => {
     const name = window.prompt("اسم طريقة العرض المحفوظة (حتى 80 حرفًا):");
     if (!name?.trim()) return;
-    const scope = window.confirm("مشاركة طريقة العرض مع أعضاء مساحة العمل؟\nموافق = مشاركة، إلغاء = شخصية") ? "workspace" : "personal";
-    const definition = { version: 1, query, status, mode, delayedOnly, typeFilter, healthFilter, leadFilter, teamFilter, priorityFilter, visibilityFilter, dateFrom, dateTo, highRiskOnly, financeLinkFilter, visibleColumns, columnOrder };
-    const result = await saveCoreSavedView({ workspaceId: ws.id, systemId: "projects", ownerId: me, name, scope, definition });
-    if (!result.ok) { setSavedViewsState("unavailable"); shell?.toast?.("تعذّر حفظ العرض في Core: " + (result.error?.message || "الخدمة غير متاحة")); return; }
+    const scope = canManageSharedViews && window.confirm("مشاركة طريقة العرض مع أعضاء مساحة العمل؟\nموافق = مشاركة، إلغاء = شخصية")
+      ? "workspace" : "personal";
+    const result = await saveCoreSavedView({ workspaceId: ws.id, systemId: "projects", ownerId: me, name, scope, definition: currentViewDefinition() });
+    if (!result.ok) { shell?.toast?.("تعذّر حفظ العرض في Core: " + (result.error?.message || "الخدمة غير متاحة")); return; }
     setSavedViews((rows) => [result.row, ...rows.filter((row) => row.id !== result.row.id)]);
     setActiveSavedViewId(result.row.id);
     shell?.toast?.("تم حفظ طريقة العرض في Core.");
   };
+  const updateActiveSavedView = async () => {
+    if (!activeSavedView || !canEditActiveSavedView) return;
+    const result = await updateCoreSavedView({
+      id: activeSavedView.id, workspaceId: ws.id, systemId: "projects",
+      name: activeSavedView.name, scope: activeSavedView.scope, definition: currentViewDefinition()
+    });
+    if (!result.ok) { shell?.toast?.("تعذّر تحديث طريقة العرض: " + (result.error?.message || "رفضت الصلاحيات العملية")); return; }
+    setSavedViews((rows) => rows.map((row) => row.id === result.row.id ? result.row : row));
+    shell?.toast?.("تم تحديث طريقة العرض المحفوظة.");
+  };
   const deleteActiveSavedView = async () => {
-    const row = savedViews.find((item) => item.id === activeSavedViewId);
-    if (!row || row.owner_id !== me) return;
+    const row = activeSavedView;
+    if (!row || !canEditActiveSavedView) return;
     if (!window.confirm("حذف طريقة العرض المحفوظة؟")) return;
-    const result = await deleteCoreSavedView(row.id, me);
-    if (!result.ok || !result.deleted) { shell?.toast?.("تعذّر حذف طريقة العرض."); return; }
+    const result = await deleteCoreSavedView(row.id);
+    if (!result.ok || !result.deleted) { shell?.toast?.("تعذّر حذف طريقة العرض أو لا تملك صلاحية إدارتها."); return; }
     setSavedViews((rows) => rows.filter((item) => item.id !== row.id));
     setActiveSavedViewId("");
     shell?.toast?.("تم حذف طريقة العرض.");
@@ -653,8 +673,10 @@ export function Portfolio() {
             <option value="">طرق العرض المحفوظة</option>
             {savedViews.map((row) => <option key={row.id} value={row.id}>{row.name}{row.scope === "workspace" ? " · مشتركة" : " · شخصية"}</option>)}
           </select>
-          <Btn small onClick={saveCurrentView} disabled={savedViewsState === "unavailable" || savedViewsState === "loading"}>حفظ العرض الحالي</Btn>
-          {savedViews.find((row) => row.id === activeSavedViewId)?.owner_id === me && <Btn small danger onClick={deleteActiveSavedView}>حذف العرض</Btn>}
+          <Btn small onClick={saveCurrentView} disabled={savedViewsState === "unavailable" || savedViewsState === "loading"}>حفظ كطريقة عرض</Btn>
+          {canEditActiveSavedView && <Btn small onClick={updateActiveSavedView}>حفظ تعديلات العرض</Btn>}
+          {canEditActiveSavedView && <Btn small danger onClick={deleteActiveSavedView}>حذف العرض</Btn>}
+          {activeSavedView?.scope === "workspace" && !canManageSharedViews && <span style={{ color: C.muted, fontSize: 10.5 }}>عرض مشترك · التعديل للمديرين فقط</span>}
           <span style={{ color: C.muted, fontSize: 11 }}>{visible.length} مشروع</span>
           {filtersActive && <Btn small onClick={clearFilters}>مسح الفلاتر</Btn>}
         </div>
