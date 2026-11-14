@@ -14,6 +14,9 @@ assert.ok(store.includes("(record.deleted_by || null) === (p.deleted_by || null)
 assert.ok(store.includes("جلسات الوقت التاريخية ستبقى محفوظة"), "historical sessions must be preserved");
 assert.ok(store.includes("ops.length > 1000"), "oversized purge must be rejected");
 assert.ok(screens.includes("act.permanentlyDeleteProject(rec)"), "trash UI must expose project permanent deletion");
+
+assert.ok(migration.includes("'milestones'") && migration.includes("'wins'"),
+  "the server purge RPC must allow every collection included in the project deletion batch");
 assert.match(migration, /security invoker/i, "purge RPC must use security invoker");
 assert.ok(migration.includes("auth.uid() is null"), "purge RPC must require authentication");
 assert.match(migration, /expected_updated_at/i, "purge RPC must check optimistic concurrency");
