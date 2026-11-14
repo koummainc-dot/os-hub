@@ -38,6 +38,8 @@ assert.match(platform,/d\.source==="ventures"\|\|\(d\.source==="knowledge"&&d\.s
 assert.match(platform,/create_meeting_tasks/,"Platform routes Knowledge meeting task requests through the Projects host");
 assert.match(projects,/handleKnowledgeMeetingTasks/,"Projects handles Knowledge meeting follow-up requests");
 assert.match(projects,/A\.saveTask\(task, !existing\)/,"meeting actions are persisted through the authoritative Projects task repository");
+assert.match(knowledge,/source_meeting_title: String\(item\.title \|\| ""\)/,"meeting follow-up payload carries the human-readable source meeting title");
+assert.match(projects,/source_meeting_title: String\(item\?\.source_meeting_title \|\| ""\)/,"Projects tasks persist the source meeting title for the reverse link");
 assert.match(projects,/source_record_id: sourceRecordId/,"meeting follow-up task writes carry a stable source identity");
 assert.match(projects,/knowledge_meeting_task_.*encodeURIComponent\(sourceRecordId\)/,"meeting tasks use deterministic IDs to avoid cross-tab duplicates");
 assert.match(projects,/ctx\.trash \|\| \[\]/,"repeat meeting conversion does not silently restore a trashed task");
