@@ -7,7 +7,7 @@ import { useP, GENERAL_ID } from "./store.jsx";
 import * as D from "./domain.js";
 import { readOSEvents, subscribeOSEvents, subscribeToStoredOSEvents } from "../integrationEvents.js";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
-import { L, opts } from "./lookups.js";
+import { L, opts, STATUS_COLOR } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, DueChip, ProjectName, ProjectForm, TaskForm, mOpts, projOpts } from "./parts.jsx";
 
 const Section = ({ title, count, color, children, action }) => (
@@ -432,7 +432,7 @@ export function Portfolio() {
           columns={boardStatuses.map((projectStatus) => ({
             id: projectStatus,
             label: L.projectStatus[projectStatus] || projectStatus,
-            color: D.STATUS_COLOR?.[projectStatus],
+            color: STATUS_COLOR?.[projectStatus],
             items: visible.filter((p) => !p.archived_at && p.status === projectStatus)
           }))}
           onMove={async (id, to) => {
