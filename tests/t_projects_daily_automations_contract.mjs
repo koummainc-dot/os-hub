@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 
 const automation = await readFile(new URL("../supabase/migrations/20261114260000_core_projects_daily_automations.sql", import.meta.url), "utf8");
 const scheduleGate = await readFile(new URL("../supabase/migrations/20261114262000_core_projects_automation_schedule_gate.sql", import.meta.url), "utf8");
+const riskReview = await readFile(new URL("../supabase/migrations/20261114277000_core_projects_risk_review_due_fix.sql", import.meta.url), "utf8");
+const domain = await readFile(new URL("../src/systems/projects/domain.js", import.meta.url), "utf8");
 const accessFix = await readFile(new URL("../supabase/migrations/20261114261000_core_projects_automation_governance_access.sql", import.meta.url), "utf8");
 const notifications = await readFile(new URL("../supabase/migrations/20261114240000_core_notifications_inbox.sql", import.meta.url), "utf8");
 const updateDue = await readFile(new URL("../supabase/migrations/20261114270000_core_projects_update_due_reminders.sql", import.meta.url), "utf8");
@@ -14,7 +16,7 @@ const healthTransitions = await readFile(new URL("../supabase/migrations/2026111
 for (const eventType of [
   "task_due_today", "task_due_soon", "task_overdue",
   "project_target_overdue", "project_target_soon",
-  "high_risk_daily", "critical_issue_daily", "prd_review_reminder",
+  "critical_issue_daily", "prd_review_reminder",
   "output_review_reminder", "discovery_triage_overdue", "contact_follow_up_due",
   "weekly_review_reminder", "kr_checkin_due"
 ]) {
@@ -23,6 +25,13 @@ for (const eventType of [
 for (const toggle of ["dueReminders","overdueDigest","governanceAlerts","prdReview","outputReview","staleInbox","reviewDraft","krCheckin"]) {
   assert.ok(automation.includes(toggle), `daily automation must respect the ${toggle} setting`);
 }
+assert.ok(riskReview.includes("high_risk_review_due") && riskReview.includes("review_date") && riskReview.includes("riskHigh"),
+  "scheduled High-risk reminders must use the workspace threshold and existing review date");
+assert.ok(!riskReview.includes(">= 12"),
+  "scheduled High-risk reminders must not use the legacy fixed score 12");
+assert.ok(domain.includes("riskScore(r) >= (set.riskHigh ?? DEFAULT_SETTINGS.riskHigh)") &&
+  domain.includes("reviewDate <= today"),
+  "in-app Governance alerts must share the same High threshold and due review-date rule");
 assert.ok(automation.includes("core_projects_enqueue_notification") && automation.includes("core_notifications"),
   "automations must publish references to the Core-owned Inbox");
 assert.ok(automation.includes("v_visible") && automation.includes("v_linked_visible"),
