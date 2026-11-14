@@ -11,7 +11,7 @@ export const Ctx = createContext(null);
 export const useP = () => useContext(Ctx);
 
 export const GENERAL_ID = "proj_general";
-const COLLS = ["projects", "tasks", "outputs", "sessions", "timers", "prds", "discovery", "decisions", "risks", "issues", "contacts", "objectives", "krs", "checkins", "reviews", "wins", "updates", "templates", "teams", "profiles", "settings", "lookups", "activity"];
+const COLLS = ["projects", "tasks", "milestones", "outputs", "sessions", "timers", "prds", "discovery", "decisions", "risks", "issues", "contacts", "objectives", "krs", "checkins", "reviews", "wins", "updates", "templates", "teams", "profiles", "settings", "lookups", "activity"];
 
 export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, demoStore, seed, shell, page, setPage, children }) {
   const toast = shell && shell.toast ? shell.toast : () => {};
@@ -43,7 +43,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
   // ── live data
   const live = (c) => arr(recs, c).filter((r) => !r.deleted_at);
   const data = useMemo(() => ({
-    projects: live("projects"), tasks: live("tasks"), outputs: live("outputs"), sessions: live("sessions"), timers: arr(recs, "timers"), prds: live("prds"), discovery: live("discovery"),
+    projects: live("projects"), tasks: live("tasks"), milestones: live("milestones"), outputs: live("outputs"), sessions: live("sessions"), timers: arr(recs, "timers"), prds: live("prds"), discovery: live("discovery"),
     decisions: live("decisions"), risks: live("risks"), issues: live("issues"), contacts: live("contacts"), objectives: live("objectives"), krs: live("krs"), checkins: arr(recs, "checkins"),
     reviews: live("reviews"), wins: live("wins"), updates: live("updates"), templates: live("templates"), teams: live("teams"), profiles: live("profiles"), activity: arr(recs, "activity"),
   }), [recs]);
@@ -113,7 +113,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
         if (!saved) throw new Error("تعذّر الحفظ");
       } else {
         const vis = visFor(rec);
-        const kids = [["tasks", data.tasks], ["outputs", data.outputs], ["risks", data.risks], ["issues", data.issues], ["decisions", data.decisions], ["prds", data.prds], ["updates", data.updates]];
+        const kids = [["tasks", data.tasks], ["milestones", data.milestones], ["outputs", data.outputs], ["risks", data.risks], ["issues", data.issues], ["decisions", data.decisions], ["prds", data.prds], ["updates", data.updates]];
         const changed = kids.flatMap(([coll, list]) => list
           .filter((child) => child.project_id === rec.id && JSON.stringify(child._vis || null) !== JSON.stringify(vis))
           .map((child) => ({ coll, rec: { ...child, _vis: vis } })));
