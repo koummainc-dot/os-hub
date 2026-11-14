@@ -381,6 +381,8 @@ function ProjectOkr({ p }) {
 function ProjectFinanceTab({ p }) {
   const { shell, ws, isDemo } = useP();
   const [profiles, setProfiles] = useState([]);
+  const [syncMeta, setSyncMeta] = useState(null);
+  const lastGoodSync = useRef(null);
   const [state, setState] = useState("loading");
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
@@ -443,7 +445,8 @@ function ProjectFinanceTab({ p }) {
       <div role="status" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "8px 0" }}>
         {state === "loading" && <Chip color={C.muted}>جارٍ تحميل حالة الربط…</Chip>}
         {state === "not-linked" && <Chip color={C.warn}>غير مرتبط</Chip>}
-        {state === "linked" && <Chip color={C.ok}>مرتبط</Chip>}
+        {state === "linked" && <Chip color={C.ok}>مرتبط · مُحدّث</Chip>}
+        {state === "stale" && <Chip color={C.warn}>بيانات قديمة · آخر Snapshot سليم</Chip>}
         {state === "linked" && profile && <Btn kind="primary" small onClick={openFinanceTransaction} disabled={!available}>＋ تسجيل حركة للمشروع</Btn>}
         {profile && Number(profile.unvalued_transactions || 0) > 0 && <Chip color={C.warn}>مراجعة تقييم العملة</Chip>}
         {state === "multiple" && <Chip color={C.warn}>لم يُحدد ملف أساسي</Chip>}
@@ -458,8 +461,10 @@ function ProjectFinanceTab({ p }) {
       {state === "primary-invalid" && <div role="alert" style={{ color: C.bad, fontSize: 12.5, lineHeight: 1.9 }}>{error} افتح Finance وأعد تعيين الملف الأساسي.</div>}
       {state === "permission" && <div role="alert" style={{ color: C.bad, fontSize: 12.5, lineHeight: 1.9 }}>تعذّر عرض الملخص لأن صلاحية Finance للقراءة غير متاحة لهذا الحساب. لا تعرض Projects أرقامًا تقديرية بدل البيانات المحمية.</div>}
       {state === "error" && <div role="alert" style={{ color: C.bad, fontSize: 12.5, lineHeight: 1.9 }}>تعذّر تحميل بيانات Finance. {error}</div>}
+      {state === "stale" && <div role="status" style={{ color: C.warn, fontSize: 12, lineHeight: 1.9 }}>تعذّرت المزامنة الأخيرة، لذلك نحتفظ بآخر Snapshot صالح ولا نستبدله بأرقام صفرية أو فارغة. {error}<br/>آخر مزامنة ناجحة: {syncMeta?.last_synced_at ? new Date(syncMeta.last_synced_at).toLocaleString("ar-EG") : "غير متاحة"} · As of: {syncMeta?.as_of ? new Date(syncMeta.as_of).toLocaleString("ar-EG") : "غير متاح"}</div>}
       {state === "demo" && <div style={{ color: C.muted, fontSize: 12 }}>البيانات المالية الحقيقية لا تُعرض في بيئة Demo.</div>}
       {(state === "not-linked" || state === "multiple" || state === "primary-invalid" || state === "error" || state === "permission") && <Btn kind="primary" disabled={!available} onClick={openFinance}>فتح Finance OS ↗</Btn>}
+      {syncMeta && <div style={{ color: state === "stale" ? C.warn : C.muted, fontSize: 10.5, marginTop: 8 }}>Sync: {state === "stale" ? "Stale — آخر Snapshot صالح محفوظ" : "Fresh"} · آخر مزامنة: {syncMeta.last_synced_at ? new Date(syncMeta.last_synced_at).toLocaleString("ar-EG") : "—"} · As of: {syncMeta.as_of ? new Date(syncMeta.as_of).toLocaleString("ar-EG") : "—"}</div>}
       <div style={{ color: C.muted, fontSize: 10.5, marginTop: 8 }}>لا يتم إنشاء Finance Profile أو Transaction أو تعديلهما من Projects. لا تُعرض قيمة صفرية عندما لا يوجد ملف مالي.</div>
     </div>
     {profile && <div style={S.card}>
