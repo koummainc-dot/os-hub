@@ -251,8 +251,11 @@ function ReviewEditor({ r, onClose }) {
     if (shareScope === "members" && !shareUsers.length) return toast("اختر عضوًا واحدًا على الأقل.");
     const snap = d.snapshot;
     const payload = {};
-    if (shareSections.includes("metrics")) payload.metrics = { minutes: snap.minutes, overdueCount: snap.overdueCount, redProjects: snap.redProjects, checkins: snap.checkins, newIssues: snap.newIssues, newRisks: snap.newRisks, decisionsCount: snap.decisionsCount };
-    ["wins", "doneTasks", "weekTasks", "overdueTasks", "issues", "risks", "decisions", "relatedProjects"].forEach((key) => { if (shareSections.includes(key)) payload[key] = snap[key] || []; });
+    const isWorkspaceProject = (projectId) => !!projectsById[projectId] && projectsById[projectId].visibility !== "private";
+    const containsPrivateProject = (snap.relatedProjects || []).some((project) => projectsById[project.id]?.visibility === "private");
+    if (shareSections.includes("metrics") && !containsPrivateProject) payload.metrics = { minutes: snap.minutes, overdueCount: snap.overdueCount, redProjects: snap.redProjects, checkins: snap.checkins, newIssues: snap.newIssues, newRisks: snap.newRisks, decisionsCount: snap.decisionsCount };
+    ["wins", "doneTasks", "weekTasks", "overdueTasks", "issues", "risks", "decisions"].forEach((key) => { if (shareSections.includes(key)) payload[key] = (snap[key] || []).filter((item) => !item.project_id || isWorkspaceProject(item.project_id)); });
+    if (shareSections.includes("relatedProjects")) payload.relatedProjects = (snap.relatedProjects || []).filter((project) => isWorkspaceProject(project.id));
     const reflections = {};
     ["what_worked", "what_stumbled", "learned", "will_change", "next_week_focus"].forEach((key) => { if (shareSections.includes(key) && d[key]) reflections[key] = d[key]; });
     if (Object.keys(reflections).length) payload.reflections = reflections;
