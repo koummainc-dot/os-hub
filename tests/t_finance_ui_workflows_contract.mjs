@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [fx, debts, recurring, assets, goals, redesign, finance, family, familyCash, netWorthHistory, financeChart, core] = await Promise.all([
+const [fx, debts, recurring, assets, goals, redesign, finance, financeProjects, family, familyCash, netWorthHistory, financeChart, core] = await Promise.all([
   read("../src/systems/finance/FXRates.jsx"),
   read("../src/systems/finance/Debts.jsx"),
   read("../src/systems/finance/Recurring.jsx"),
@@ -10,6 +10,7 @@ const [fx, debts, recurring, assets, goals, redesign, finance, family, familyCas
   read("../src/systems/finance/Goals.jsx"),
   read("../src/systems/finance/FinanceRedesign.jsx"),
   read("../src/systems/finance/index.jsx"),
+  read("../src/systems/finance/Projects.jsx"),
   read("../src/systems/finance/Family.jsx"),
   read("../src/systems/finance/FamilyCash.jsx"),
   read("../src/systems/finance/NetWorthHistory.jsx"),
@@ -109,7 +110,14 @@ assert.ok(redesign.includes('["family", "الأسرة"]'), "Family must be reach
 assert.ok(redesign.includes('["family-cash","العُهد ومصروفات الأفراد"]') && redesign.includes("legacyFamilyCash"), "Family cash advances must be reachable as a Family sub-section");
 assert.ok(redesign.includes('contextTags.filter(tag=>tag.context_type==="Family"'), "context-tags view must only show family-linked records");
 assert.ok(redesign.includes("contextSearch") && redesign.includes("contextMemberFilter"), "family context records must have search and member filters");
-assert.ok(!redesign.includes('<option value="Personal">شخصي</option>') && !redesign.includes('<option value="Project">مشروع</option>'), "Personal and Projects must not be offered as context types until Projects OS is ready");
+assert.ok(!redesign.includes('<option value="Personal">شخصي</option>'), "Personal must not be offered as an unsupported transaction context type");
+assert.ok(redesign.includes('<option value="Project" disabled={!draft.finance_project_id || draft.type==="Transfer"}>المشروع الحالي</option>'), "Project context is available only when the current Finance project profile is preselected and only for non-transfer entries");
+assert.ok(financeProjects.includes("onCreateTransaction?.(selected)") && financeProjects.includes("＋ تسجيل حركة"), "Finance project profiles must offer transaction creation from the selected profile");
+assert.ok(finance.includes("setProjectTransactionContext") && finance.includes('setPage?.("transactions")'), "Finance Projects must hand the selected profile into Finance's native transaction route");
+assert.ok(finance.includes("fin_post_transaction_with_splits") && finance.includes("fin_project_transaction_link") && finance.includes("draft.finance_project_id"), "project-linked transactions must post through the canonical ledger RPC and then link through the Finance project RPC");
+assert.ok(finance.includes("draft.client_generated_id") && finance.includes("draft.idempotency_key"), "project transaction retries must reuse the same client-generated and idempotency keys");
+assert.ok(redesign.includes("createTransactionDraft") && redesign.includes("client_generated_id: requestId") && redesign.includes("idempotency_key: requestId"), "native Finance transaction forms must retain one idempotency key across retries");
+
 assert.ok(finance.includes("netWorthSnapshots") && finance.includes("fin_net_worth_snapshots_get"), "dashboard net-worth chart must use persisted snapshots");
 assert.ok(redesign.includes('activePage==="planning"') && redesign.includes('["budgets", "التخطيط"]'), "Finance navigation must expose Planning as a real section");
 assert.ok(finance.includes("fin_family_list_expenses") && finance.includes("fin_family_set_transaction_allocation"), "family context must use the existing Family allocation ledger RPCs");
