@@ -68,8 +68,31 @@ function ProjectsDurableEventBridge({ ws, isDemo, children }) {
   return <Ctx.Provider value={{ ...ctx, durableOSEvents: events }}>{children}</Ctx.Provider>;
 }
 
-function Router({ sourceWriteRequest }) {
-  const ctx = useP(); const { page, ready, error, store, access, role, shell, ws, A, data } = ctx; const lvl = osSectionLevel(access, page);
+function Router({ sourceWriteRequest, routeContext }) {
+  const ctx = useP(); const { page, ready, error, store, access, role, shell, ws, A, data, openProject, openTask } = ctx; const lvl = osSectionLevel(access, page);
+  const lastHandledRouteContext = useRef(null);
+  useEffect(() => {
+    if (!routeContext || !ready) return;
+    const signature = JSON.stringify(routeContext);
+    if (lastHandledRouteContext.current === signature) return;
+    lastHandledRouteContext.current = signature;
+    const projectId = routeContext.projectId ? String(routeContext.projectId) : "";
+    const taskId = routeContext.taskId ? String(routeContext.taskId) : "";
+    const recordId = routeContext.recordId ? String(routeContext.recordId) : "";
+    const tab = String(routeContext.tab || "overview");
+    const allowedTabs = new Set(["overview","tasks","milestones","prds","outputs","risks","issues","decisions","discovery","meetings","finance","timeline"]);
+    if (projectId && ctx.projectsById[projectId]) {
+      const focusRecord = recordId && routeContext.recordKind ? { kind: String(routeContext.recordKind), id: recordId } : null;
+      openProject(projectId, allowedTabs.has(tab) ? tab : "overview", focusRecord);
+      if (taskId) openTask(taskId);
+      return;
+    }
+    if (taskId && ctx.idx.byId[taskId]) {
+      const task = ctx.idx.byId[taskId];
+      openProject(task.project_id, "tasks");
+      openTask(taskId);
+    }
+  }, [routeContext, ready, ctx.projectsById, ctx.idx, openProject, openTask]);
   // sections hidden for Viewers (plan §13.2) are removed from the shell menu
   useEffect(() => {
     if (!shell || !shell.publish) return;
@@ -213,5 +236,5 @@ function Router({ sourceWriteRequest }) {
 export default function ProjectsSystem(props) {
   const { authUser, ws, members, isDemo } = props;
   const seed = useMemo(() => () => buildSeed({ me: authUser.id, ownerId: ws.ownerId, members: (members || []).map((m) => m.userId), today: todayStr("Africa/Cairo") }), [authUser.id, ws.ownerId, members]);
-  return <ProjectsProvider {...props} seed={seed}><ProjectsDurableEventBridge ws={ws} isDemo={isDemo}><Router sourceWriteRequest={props.sourceWriteRequest} /></ProjectsDurableEventBridge></ProjectsProvider>;
+  return <ProjectsProvider {...props} seed={seed}><ProjectsDurableEventBridge ws={ws} isDemo={isDemo}><Router sourceWriteRequest={props.sourceWriteRequest} routeContext={props.routeContext} /></ProjectsDurableEventBridge></ProjectsProvider>;
 }
