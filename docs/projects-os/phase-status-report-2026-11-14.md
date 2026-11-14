@@ -4,7 +4,7 @@
 **المرجع الوظيفي الحاكم:** `Projects_OS_v5_Unified_Refactor_Spec.md` — الإصدار 5.0، §19 للمراحل و§18 لمعايير القبول  
 **المستودع:** `koummainc-dot/os-hub`  
 **الفرع:** `feat/projects-v5-phase1-navigation`  
-**آخر Commit تمت مراجعته:** `5c95ab8236168110ff9f9947c930e168dd47663d`  
+**آخر Commit اجتاز التحقق السابق:** `b5f4bd3` (QA/CI evidence below). **Current implementation head:** `40e77fd80a8ad99cde0e245b2fa48f74201c8496` — لم يُختبر بعد؛ لا تخلط بينه وبين آخر Commit متحقق.  
 **PR:** #188 — مفتوح، Draft، غير مدمج  
 **قاعدة مهمة:** هذا التقرير لا يمنح موافقة على Migration أو نشر Production. لا تغيير إنتاجي ضمن هذه المراجعة.
 
@@ -12,7 +12,7 @@
 
 ## 1. الخلاصة التنفيذية
 
-**Projects OS v5 لم يصل إلى الاعتماد النهائي بعد.** التنفيذ البرمجي توسّع وأصبحت اختبارات CI وقواعد البيانات ناجحة على آخر Commit، كما أُصلحت مشكلة صلاحيات فعلية في Finance↔Projects واختُبرت على بيئة QA. لكن القبول اليدوي في Preview، واختبارات الملفات الحقيقية، ومصفوفة الأدوار بالحسابات الحقيقية، ومصالحة Migrations، واختبار التراجع قبل الإنتاج ما زالت مفتوحة.
+**Projects OS v5 لم يصل إلى الاعتماد النهائي بعد.** التنفيذ البرمجي توسّع وأصبحت اختبارات CI وقواعد البيانات ناجحة على آخر Commit، كما أُصلحت مشكلة صلاحيات فعلية في Finance↔Projects واختُبرت على بيئة QA. بعد ذلك أُضيفت ميزات جديدة على رأس الفرع الحالي؛ لم تُشغّل عليها اختبارات القبول أو CI النهائي بعد. لكن القبول اليدوي في Preview، واختبارات الملفات الحقيقية، ومصفوفة الأدوار بالحسابات الحقيقية، ومصالحة Migrations، واختبار التراجع قبل الإنتاج ما زالت مفتوحة.
 
 | المؤشر | الحالة الحالية |
 |---|---|
@@ -42,6 +42,19 @@
 **تنبيه عزل Preview:** تم إعداد متغيري `VITE_SUPABASE_URL` و`VITE_SUPABASE_ANON_KEY` لهدف Preview وللفرع الحالي فقط، وتعليقات الإعداد تشير إلى قاعدة QA. لكن قراءة Vercel أعادت القيم مشفرة ولم تسمح بالتحقق من عنوان Supabase الفعلي. لذلك حالة العزل **مُعدّة لكن غير متحققة من الوجهة الفعلية**. لا تُجرِ أي كتابة اختبارية من Preview قبل تأكيد أن العنوان الفعلي هو مشروع QA `lvtnyepemoqgmehdqark` وليس Production.
 
 ---
+
+
+### تنفيذ إضافي بعد آخر Commit متحقق — لم يدخل الاختبار بعد
+
+- Saved Views: Core-owned table/service وRLS، شخصية أو مشتركة، مع حفظ الفلاتر والنمط والأعمدة والترتيب.
+- Milestones: سجل مستقل وواجهة CRUD/Archive/Restore، Backlinks للمهام، Roadmap وPortfolio Calendar، وحواجز قاعدة البيانات وعمليات Batch/Purge ذرية.
+- Move Task/Tree: معاينة وتحديث ذري للمهام والمخرجات والروابط المتأثرة في Governance/KR/Milestones.
+- Weekly Reviews: الأصل خاص دائمًا؛ مشاركة جزئية عبر Projection منفصل، مع حجب بيانات المشاريع الخاصة عن النسخة المشتركة.
+- Meeting Templates: الخمسة أصبحت Knowledge-owned وقابلة للاختيار في نموذج الاجتماع وتوليد أجندة قابلة للتحرير.
+- Offline: تقييد طابور Projects إلى تعديلات الحقول الأساسية لمهمة موجودة فقط، مع واجهة تعرض pending/conflicts وتسمح بإلغاء النسخة المحلية المتعارضة. الإنشاء والعلاقات والعمليات الذرية والملفات Online-only.
+- Alerts: تذكيرات PRD review للمراجعين الفعليين، Output review لقائد المشروع، ومخاطر عالية للمالك.
+- Finance Budget Handoff: تمرير اقتراح أولي مع تأكيد Finance صريح ومنع التحويل بين العملات.
+- لم تُشغّل CI/Preview acceptance أو migrations لهذه الدفعة بعد؛ جميع هذه البنود حالتها **Implemented on branch / Pending QA verification**، لا تعتبر معتمدة.
 
 ## 2. حالة كل Phase حسب المواصفة الأصلية v5 (§19)
 
@@ -98,9 +111,9 @@
 
 **المتبقي لإغلاقها:**
 1. اختبار إجراءات Project Header السبعة يدويًا داخل Preview، والتأكد من تعبئة Project الصحيح والحفظ.
-2. Saved Views — القرار D-06: تحديد هل الحفظ شخصي أم مشترك قبل إضافة تخزين دائم.
+2. Saved Views: تم حسم D-06 وتنفيذ تخزين Core-owned `core_saved_views` مع RLS، طرق شخصية ومشاركة Workspace، وحفظ الفلاتر والنمط والأعمدة وترتيبها. يلزم تطبيق migration على QA واختبار حسابين.
 3. **Finance Link Status:** تم تنفيذ قراءة حالة الربط من Finance-owned `fin_projects_get` داخل Portfolio مع حالات Linked / Not linked / Multiple / Currency mismatch / Permission / Error، وإضافة فلتر وعرض الحالة. المتبقي هو القبول الحي فقط.
-4. تفعيل تغيير حالة Board بالسحب، أو توثيق استبعاده من هذا الإصدار بقرار واضح.
+4. Board status drag موجود. أُضيفت أيضًا Milestones ككيان مستقل مع CRUD وArchive/Restore وروابط المهام، وظهورها في Roadmap وPortfolio Calendar. يلزم اختبار CRUD/الروابط/الحذف والاستعادة بعد migration.
 5. **Calendar:** تم إثراؤه بأحداث Risk review / Issue discovery / Decision / Win إضافة إلى Project/Task/PRD/Output/Knowledge Meeting. المتبقي هو القبول الحي فقط.
 6. قبول UX فعلي للفلاتر والعدادات والـdrill-down على بيانات QA.
 
@@ -123,7 +136,7 @@
 4. جرد Stale upload intents والملفات اليتيمة ووضع reconciliation آمن قبل اعتماد المسار.
 5. اختبار رحلة Discovery → PRD → Requirement → Task → Output من الواجهة مع Backlinks من الطرفين وبعد Reload.
 6. استكمال no-loss reader/writer audit لمسارات KR/Task القديمة قبل تغييرها.
-7. حسم D-08 لنموذج Milestones: كيان مستقل أم Task type؛ لا تنشئ نموذجين متوازيين.
+7. حُسم D-08: Milestone كيان مستقل لا يدخل في تقدم المهام. أُضيفت integrity guard وatomic batch writer وatomic purge migrations للكيان الجديد؛ يلزم تطبيقها على QA واختبار no-loss.
 
 ### Phase 4 — Governance
 
@@ -159,7 +172,7 @@
 **المتبقي لإغلاقها:**
 1. اختبار Meeting → Action Item → Task من الواجهة على QA، ثم Reload والتحقق من المصدر والروابط الراجعة؛ المسار الذري server-side مكتمل.
 2. **Follow-up server idempotency:** مكتمل برمجيًا عبر RPC ذري `projects_create_followup_task` مع advisory transaction lock على `(workspace, stable_followup_id)` وإعادة السجل الموجود عند التكرار، مع إبقاء `projects_apply_records_batch` ككاتب Projects الوحيد. المتبقي هو القبول الحي تحت Reload/التزامن.
-3. إثبات exact source backlink من Task إلى اجتماع Knowledge الأصلي.
+3. Meeting Templates الخمسة أصبحت مملوكة لـKnowledge في ملف واحد، ويمكن اختيار القالب عند إنشاء الاجتماع لتوليد أجندة قابلة للتحرير؛ Projects يستهلك القوالب كمرجع. إثبات exact source backlink من Task إلى اجتماع Knowledge الأصلي ما زال مطلوبًا.
 4. اختبار Resources من Knowledge وProjects وOutputs مع إظهار مالك كل مورد دون نسخ محتوى النظام المالك.
 5. مراجعة Legacy project references عبر dry run قبل أي backfill؛ لا توجد مبررات لعمل Backfill إنتاجي قبل الجرد.
 
@@ -178,7 +191,7 @@
 **المتبقي لإغلاقها:**
 1. **مسار إنشاء معاملة Finance:** مكتمل برمجيًا؛ Project Finance يمرر `projectRef` إلى Finance Transactions، وFinance يجهز النموذج باستخدام الملف المالي المملوك له ثم يستخدم `fin_post_transaction_with_splits` و`fin_project_transaction_link`. المتبقي هو القبول الحي من الواجهة/RPC.
 2. حسم D-02: هل لكل Project ملف Finance نشط أساسي واحد، أم اختيار Primary Profile صريح؟ لا تضف Unique constraint قبل جرد التكرارات والقرار.
-3. حسم D-10: متى تنتقل الميزانية المخططة من Projects إلى Finance، وما الذي يظل مملوكًا لكل نظام بعد النقل؟
+3. حُسم D-10 ونُفّذ handoff أولي: Projects يمرر الميزانية المقترحة والعملة وتاريخ تحديث المصدر إلى Finance، ولا تُحفظ القيمة قبل تأكيد صريح داخل Finance. اختلاف العملة يمنع النقل التلقائي، ولا توجد مزامنة لاحقة. يلزم اختبار migration/واجهة/RPC.
 4. إظهار حالات Not Linked / Linked / Multiple / Error / Permission Denied / Currency Mismatch مكتمل في Portfolio وProject Finance؛ حالة Stale تحتاج عقدًا صريحًا من Finance قبل اشتقاقها.
 5. Attribution للحركات المالية ومصدر Finance وحالات العملة/القيم غير المقيمة ظاهرة، ولا تُعرض أرقام صفرية عند غياب الربط؛ `as_of`/last-sync يحتاجان عقد Finance صريحًا إن كانا جزءًا من read model.
 6. اختبار اختلاف العملة والصلاحيات والحسابات الحقيقية.
