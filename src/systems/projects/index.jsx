@@ -12,6 +12,12 @@ import { Okrs, Updates, Wins, Reviews, Contacts, Team, Templates, Meetings, Sett
 import { buildSeed } from "./demo.js";
 import { loadDurableOSEvents, subscribeDurableOSEvents } from "../integrationEvents.js";
 import MasterplanWizard from "./masterplanWizard.jsx";
+import DocumentationCenter from "./documentation/DocumentationCenter.jsx";
+
+function DocumentationPage() {
+  const { setPage } = useP();
+  return <DocumentationCenter onNavigate={setPage} />;
+}
 
 function GovernancePage() {
   const { page } = useP();
@@ -204,6 +210,9 @@ function Router({ sourceWriteRequest, routeContext }) {
         { id: "wins", label: "الإنجازات", icon: "🏆" },
         { id: "updates", label: "التحديثات", icon: "↗" },
         { id: "reviews", label: "المراجعات الأسبوعية", icon: "↻" },
+      ]},
+      { id: "help", label: "المساعدة والتوثيق", items: [
+        { id: "documentation", label: "مركز التوثيق", icon: "ⓘ" },
       ]},
       { id: "admin", label: "الإدارة", items: [
         { id: "templates", label: "القوالب", icon: "◇" },
