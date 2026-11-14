@@ -416,6 +416,11 @@ function ProjectFinanceTab({ p }) {
 }
 function ProjectActivity({ p }) {
   const { data, idx, nameOf, openTask, openProject, setPage } = useP();
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [actorFilter, setActorFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [query, setQuery] = useState("");
   const taskIds = new Set(idx.list.filter((task) => String(task.project_id || "") === String(p.id)).map((task) => task.id));
   const sessionIds = new Set(data.sessions.filter((session) => session.project_id === p.id || taskIds.has(session.task_id)).map((session) => session.id));
   const projectKrs = data.krs.filter((kr) => (kr.project_ids || []).includes(p.id));
@@ -439,14 +444,25 @@ function ProjectActivity({ p }) {
     checkins: new Set(data.checkins.filter((record) => projectKrIds.has(record.kr_id)).map((record) => record.id)),
   };
   const aliases = { project: "projects", task: "tasks", output: "outputs", session: "sessions", risk: "risks", issue: "issues", decision: "decisions", prd: "prds", discovery_item: "discovery", win: "wins", update: "updates", review: "reviews", objective: "objectives", key_result: "krs", checkin: "checkins" };
-  const activity = data.activity
+  const labels = { projects: "المشروع", tasks: "مهمة", outputs: "مخرج", sessions: "جلسة عمل", risks: "خطر", issues: "مشكلة", decisions: "قرار", prds: "مواصفة", discovery: "اكتشاف", wins: "إنجاز", updates: "تحديث", reviews: "مراجعة", objectives: "هدف", krs: "نتيجة رئيسية", checkins: "تحديث نتيجة" };
+  const sourceActivity = data.activity
     .filter((event) => {
       const collection = aliases[event.entity] || event.entity;
       return !!ids[collection]?.has(String(event.entity_id));
     })
-    .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")))
-    .slice(0, 60);
-  const labels = { projects: "المشروع", tasks: "مهمة", outputs: "مخرج", sessions: "جلسة عمل", risks: "خطر", issues: "مشكلة", decisions: "قرار", prds: "مواصفة", discovery: "اكتشاف", wins: "إنجاز", updates: "تحديث", reviews: "مراجعة", objectives: "هدف", krs: "نتيجة رئيسية", checkins: "تحديث نتيجة" };
+    .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  const typeOptions = [...new Set(sourceActivity.map((event) => aliases[event.entity] || event.entity).filter(Boolean))];
+  const actorOptions = [...new Set(sourceActivity.map((event) => String(event.actor_id || "")).filter(Boolean))];
+  const activity = sourceActivity.filter((event) => {
+    const collection = aliases[event.entity] || event.entity;
+    const day = String(event.at || "").slice(0, 10);
+    const text = [event.action, event.summary, nameOf(event.actor_id), labels[collection] || collection].join(" ").toLocaleLowerCase();
+    return (typeFilter === "all" || collection === typeFilter)
+      && (actorFilter === "all" || String(event.actor_id || "") === actorFilter)
+      && (!dateFrom || day >= dateFrom)
+      && (!dateTo || day <= dateTo)
+      && (!query || text.includes(query.toLocaleLowerCase()));
+  }).slice(0, 100);
   const navigate = (event) => {
     const collection = aliases[event.entity] || event.entity;
     const id = event.entity_id;
@@ -464,13 +480,26 @@ function ProjectActivity({ p }) {
     if (collection === "objectives" || collection === "krs" || collection === "checkins") return setPage("okrs");
     if (collection === "projects") return openProject(p.id, "overview");
   };
+  const clearFilters = () => { setTypeFilter("all"); setActorFilter("all"); setDateFrom(""); setDateTo(""); setQuery(""); };
+  const hasFilters = typeFilter !== "all" || actorFilter !== "all" || dateFrom || dateTo || query;
   return <div style={S.card}>
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
       <b style={{ fontSize: 13 }}>سجل نشاط المشروع</b><Chip>{activity.length}</Chip>
       <span style={{ flex: 1 }} />
-      <span style={{ fontSize: 10.5, color: C.muted }}>يشمل المشروع وسجلاته المرتبطة</span>
+      <span style={{ fontSize: 10.5, color: C.muted }}>آخر {activity.length} حدثًا من سجلات المشروع المتاحة</span>
     </div>
-    {!activity.length ? <Empty icon="🕘" title="لا نشاط مسجّل" sub="ستظهر هنا تغييرات المشروع والمهام والمخرجات والحوكمة والأهداف والتقارير." /> :
+    <SearchBar value={query} onChange={setQuery} placeholder="ابحث في النشاط…">
+      <select aria-label="تصفية النشاط حسب النوع" style={{ ...S.sel, width: 150 }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+        <option value="all">كل أنواع النشاط</option>{typeOptions.map((type) => <option key={type} value={type}>{labels[type] || type}</option>)}
+      </select>
+      <select aria-label="تصفية النشاط حسب العضو" style={{ ...S.sel, width: 150 }} value={actorFilter} onChange={(e) => setActorFilter(e.target.value)}>
+        <option value="all">كل الأعضاء</option>{actorOptions.map((actor) => <option key={actor} value={actor}>{nameOf(actor)}</option>)}
+      </select>
+      <input aria-label="النشاط من تاريخ" type="date" style={{ ...S.inp, width: 145 }} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+      <input aria-label="النشاط إلى تاريخ" type="date" style={{ ...S.inp, width: 145 }} value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} />
+      {hasFilters && <Btn small onClick={clearFilters}>مسح الفلاتر</Btn>}
+    </SearchBar>
+    {!activity.length ? <Empty icon="🕘" title={sourceActivity.length ? "لا توجد أحداث مطابقة" : "لا نشاط مسجّل"} sub={sourceActivity.length ? "غيّر عوامل التصفية أو امسحها لعرض النشاط." : "ستظهر هنا تغييرات المشروع والمهام والمخرجات والحوكمة والأهداف والتقارير."} /> :
       activity.map((event) => <button type="button" key={event.id} onClick={() => navigate(event)} style={{ display: "flex", width: "100%", gap: 8, alignItems: "flex-start", border: 0, borderTop: "1px solid " + C.line, padding: "8px 2px", textAlign: "start", background: "transparent", color: C.text, cursor: "pointer", font: "inherit" }}>
         <span style={{ minWidth: 72, fontSize: 10.5, color: C.muted }}>{dateOf(event.at)}</span>
         <span style={{ flex: 1, fontSize: 12, lineHeight: 1.7 }}><b>{labels[aliases[event.entity] || event.entity] || event.entity}</b> · {event.action} {event.summary}</span>
