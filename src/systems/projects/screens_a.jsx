@@ -424,9 +424,10 @@ export function Portfolio() {
     setLeadFilter(d.leadFilter || ""); setTeamFilter(d.teamFilter || ""); setPriorityFilter(d.priorityFilter || "");
     setVisibilityFilter(d.visibilityFilter || ""); setDateFrom(d.dateFrom || ""); setDateTo(d.dateTo || "");
     setHighRiskOnly(!!d.highRiskOnly); setFinanceLinkFilter(d.financeLinkFilter || "");
-    const columns = Array.isArray(d.visibleColumns) ? d.visibleColumns.filter((key) => portfolioColumnKeys.includes(key)) : portfolioColumnKeys;
+    const selectedColumns = Array.isArray(d.visibleColumns) ? d.visibleColumns.filter((key) => portfolioColumnKeys.includes(key)) : portfolioColumnKeys;
+    const columns = [...new Set(["project", ...selectedColumns])];
     const order = Array.isArray(d.columnOrder) ? d.columnOrder.filter((key) => portfolioColumnKeys.includes(key)) : portfolioColumnKeys;
-    setVisibleColumns(columns.length ? columns : portfolioColumnKeys);
+    setVisibleColumns(columns);
     setColumnOrder([...order.filter((key) => columns.includes(key)), ...columns.filter((key) => !order.includes(key))]);
     setActiveSavedViewId(id);
   };
