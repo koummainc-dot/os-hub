@@ -51,24 +51,24 @@ using (
               and (project_record.visible_to is null or auth.uid() = any(project_record.visible_to))
          )
        )
-  )
-  and not exists (
-    -- Multi-project records (for example OKRs and Discoveries) are visible in
-    -- the Inbox only when the recipient can also see every linked Project.
-    select 1
-      from jsonb_array_elements_text(
-        case when jsonb_typeof(source_record.data->'project_ids')='array'
-          then source_record.data->'project_ids' else '[]'::jsonb end
-      ) as linked_project(value)
-     where not exists (
-       select 1 from public.workspace_records linked
-        where linked.workspace_id = source_record.workspace_id
-          and linked.system_id = source_record.system_id
-          and linked.collection = 'projects'
-          and linked.id = linked_project.value
-          and linked.deleted = false
-          and (linked.visible_to is null or auth.uid() = any(linked.visible_to))
-     )
+       and not exists (
+         -- Multi-project records (for example OKRs and Discoveries) are visible
+         -- only when the recipient can see every linked Project.
+         select 1
+           from jsonb_array_elements_text(
+             case when jsonb_typeof(source_record.data->'project_ids')='array'
+               then source_record.data->'project_ids' else '[]'::jsonb end
+           ) as linked_project(value)
+          where not exists (
+            select 1 from public.workspace_records linked
+             where linked.workspace_id = source_record.workspace_id
+               and linked.system_id = source_record.system_id
+               and linked.collection = 'projects'
+               and linked.id = linked_project.value
+               and linked.deleted = false
+               and (linked.visible_to is null or auth.uid() = any(linked.visible_to))
+          )
+       )
   )
 );
 
