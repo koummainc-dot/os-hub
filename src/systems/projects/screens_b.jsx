@@ -425,7 +425,7 @@ function ProjectFinanceTab({ p }) {
     try { return new Intl.NumberFormat("ar-EG", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(value)); }
     catch { return String(value) + " " + currency; }
   };
-  const openFinance = () => available && shell.go("system", "finance", "projects", { projectRef: p.id, fromSystem: "projects" });
+  const openFinance = () => available && shell.go("system", "finance", "projects", { projectRef: p.id, fromSystem: "projects", suggestedBudget: p.budget ?? null, suggestedCurrency: p.budget_currency || p.currency || "EGP", suggestedBudgetUpdatedAt: p.updated_at || null });
   const openFinanceTransaction = () => available && shell.go("system", "finance", "transactions", { projectRef: p.id, fromSystem: "projects", intent: "create-project-transaction" });
   return <section style={{ display: "grid", gap: 10 }}>
     <div style={S.card}>
