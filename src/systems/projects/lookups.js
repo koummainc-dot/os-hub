@@ -51,13 +51,7 @@ export const UPDATE_SECTIONS = [
   { key: "asks", title: "الطلبات (Asks)" }, { key: "metrics", title: "الأرقام الرئيسية" }, { key: "lows", title: "الصعوبات (Lows)" },
   { key: "highlights", title: "أبرز الإنجازات (Highlights)" }, { key: "next", title: "ماذا نتوقع في الفترة القادمة" },
 ];
-export const MEETING_TEMPLATES = [
-  { name: "Daily Standup", sections: ["ماذا أنجزنا أمس؟", "ماذا سننجز اليوم؟", "عوائق محتملة؟", "Action Items"] },
-  { name: "Weekly Sync", sections: ["ماذا حدث الأسبوع الماضي؟", "ماذا نعمل هذا الأسبوع؟", "عوائق؟", "Action Items"] },
-  { name: "Sprint Planning", sections: ["هدف الدورة", "Backlog الملتزم به", "الفريق والأدوار", "ملاحظات"] },
-  { name: "Post-mortem", sections: ["الأثر على المستخدم", "الجدول الزمني", "المقاييس", "تحليل السبب", "الحل وما نجح/ما يُحسَّن", "أعمال مستقبلية", "Action Items"] },
-  { name: "Ad Hoc", sections: ["الأجندة", "الملاحظات", "القرارات", "Action Items"] },
-];
+export { MEETING_TEMPLATES } from "../knowledge/meetingTemplates.js";
 
 const n = (title, offset, est, children, extra) => ({ title, offset_days: offset, estimate_minutes: est, children, ...(extra || {}) });
 export const BUILTIN_TEMPLATES = [
