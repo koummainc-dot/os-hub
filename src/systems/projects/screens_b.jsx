@@ -378,6 +378,7 @@ function ProjectFinanceTab({ p }) {
         {state === "loading" && <Chip color={C.muted}>جارٍ تحميل حالة الربط…</Chip>}
         {state === "not-linked" && <Chip color={C.warn}>غير مرتبط</Chip>}
         {state === "linked" && <Chip color={C.ok}>مرتبط</Chip>}
+        {profile && Number(profile.unvalued_transactions || 0) > 0 && <Chip color={C.warn}>مراجعة تقييم العملة</Chip>}
         {state === "multiple" && <Chip color={C.warn}>يتطلب مراجعة</Chip>}
         {state === "permission" && <Chip color={C.bad}>لا توجد صلاحية عرض Finance</Chip>}
         {state === "error" && <Chip color={C.bad}>تعذّر تحميل بيانات Finance</Chip>}
