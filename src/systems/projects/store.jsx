@@ -167,7 +167,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async restoreProjectFromTrash(p) {
       if (!p || !p.deleted_at) { toast("⛔ المشروع ليس في السلة أو لا يحتوي على علامة حذف صالحة."); return false; }
       if (p.id === GENERAL_ID || p.is_system) { toast("⛔ لا يمكن استرجاع مشروع النظام من السلة."); return false; }
-      const collections = ["tasks", "outputs", "risks", "issues", "decisions", "prds", "updates"];
+      const collections = ["tasks", "milestones", "outputs", "risks", "issues", "decisions", "prds", "updates"];
       // Shared deletion timestamp + actor identifies records from this exact batch.
       const related = collections.flatMap((coll) =>
         arr(recs, coll).filter((record) =>
@@ -178,7 +178,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       );
       const counts = {};
       for (const { coll } of related) counts[coll] = (counts[coll] || 0) + 1;
-      const labels = { tasks: "مهام", outputs: "مخرجات", risks: "مخاطر", issues: "مشاكل", decisions: "قرارات", prds: "مواصفات", updates: "تحديثات" };
+      const labels = { tasks: "مهام", milestones: "معالم", outputs: "مخرجات", risks: "مخاطر", issues: "مشاكل", decisions: "قرارات", prds: "مواصفات", updates: "تحديثات" };
       const summary = Object.entries(counts).map(([coll, count]) => `• ${labels[coll] || coll}: ${count}`).join("\n") || "لا توجد سجلات تابعة تحمل علامة الحذف نفسها.";
       if (related.length + 1 > 1000) {
         toast("⛔ يتجاوز الاسترجاع 1000 سجل؛ لم يُسترجع أي سجل لأن العملية يجب أن تكون ذرّية.");
