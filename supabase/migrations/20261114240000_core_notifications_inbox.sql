@@ -52,6 +52,24 @@ using (
          )
        )
   )
+  and not exists (
+    -- Multi-project records (for example OKRs and Discoveries) are visible in
+    -- the Inbox only when the recipient can also see every linked Project.
+    select 1
+      from jsonb_array_elements_text(
+        case when jsonb_typeof(source_record.data->'project_ids')='array'
+          then source_record.data->'project_ids' else '[]'::jsonb end
+      ) as linked_project(value)
+     where not exists (
+       select 1 from public.workspace_records linked
+        where linked.workspace_id = source_record.workspace_id
+          and linked.system_id = source_record.system_id
+          and linked.collection = 'projects'
+          and linked.id = linked_project.value
+          and linked.deleted = false
+          and (linked.visible_to is null or auth.uid() = any(linked.visible_to))
+     )
+  )
 );
 
 drop policy if exists core_notifications_update_read on public.core_notifications;
@@ -87,6 +105,8 @@ declare
   v_visible uuid[];
   v_project_id text;
   v_project_visible uuid[];
+  v_linked_project_id text;
+  v_linked_project_visible uuid[];
   v_id uuid;
 begin
   if auth.uid() is null then raise exception 'UNAUTHENTICATED' using errcode = '42501'; end if;
@@ -124,6 +144,24 @@ begin
     if v_project_visible is not null and not (v_recipient=any(v_project_visible)) then
       return jsonb_build_object('ok',true,'skipped','recipient-not-project-member');
     end if;
+  end if;
+  if jsonb_typeof(v_data->'project_ids') = 'array' then
+    for v_linked_project_id in
+      select value from jsonb_array_elements_text(v_data->'project_ids')
+    loop
+      select pr.visible_to into v_linked_project_visible
+        from public.workspace_records pr
+       where pr.workspace_id=v_ws and pr.system_id=v_system and pr.collection='projects'
+         and pr.id=v_linked_project_id and pr.deleted=false
+         and coalesce(pr.data->>'deleted_at','')='';
+      if not found then raise exception 'NOTIFICATION_PROJECT_NOT_FOUND' using errcode = 'P0002'; end if;
+      if v_linked_project_visible is not null and not (auth.uid()=any(v_linked_project_visible)) then
+        raise exception 'NOTIFICATION_PROJECT_FORBIDDEN' using errcode = '42501';
+      end if;
+      if v_linked_project_visible is not null and not (v_recipient=any(v_linked_project_visible)) then
+        return jsonb_build_object('ok',true,'skipped','recipient-not-project-member');
+      end if;
+    end loop;
   end if;
 
   insert into public.core_notifications(workspace_id,recipient_id,source_system,entity_collection,entity_id,event_type,title,body,deep_link,dedupe_key)
