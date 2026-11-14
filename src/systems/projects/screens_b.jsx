@@ -419,7 +419,7 @@ function ProjectActivity({ p }) {
   const sessionIds = new Set(data.sessions.filter((session) => session.project_id === p.id || taskIds.has(session.task_id)).map((session) => session.id));
   const projectKrs = data.krs.filter((kr) => (kr.project_ids || []).includes(p.id));
   const projectKrIds = new Set(projectKrs.map((kr) => kr.id));
-  const projectObjectiveIds = new Set(data.objectives.filter((objective) => objective.project_ids?.includes(p.id) || projectKrs.some((kr) => kr.objective_id === objective.id)).map((objective) => objective.id));
+  const projectObjectiveIds = new Set(data.objectives.filter((objective) => projectKrs.some((kr) => kr.objective_id === objective.id)).map((objective) => objective.id));
   const ids = {
     projects: new Set([p.id]),
     tasks: taskIds,
