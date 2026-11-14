@@ -501,6 +501,7 @@ function RelatedTab({ p, canE, section = "all" }) {
       const sourceRecordId = followupIdentity;
       const saved = await act.saveTask({
         id: "knowledge_meeting_task_" + encodeURIComponent(sourceRecordId),
+        source: "knowledge_meeting",
         source_record_id: sourceRecordId,
         title,
         project_id: p.id,
