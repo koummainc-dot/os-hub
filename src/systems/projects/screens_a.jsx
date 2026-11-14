@@ -413,6 +413,50 @@ export function Portfolio() {
     setLeadFilter(""); setTeamFilter(""); setPriorityFilter(""); setVisibilityFilter("");
     setDateFrom(""); setDateTo(""); setHighRiskOnly(false); setFinanceLinkFilter("");
   };
+  const applySavedView = (id) => {
+    const saved = savedViews.find((row) => row.id === id);
+    if (!saved) { setActiveSavedViewId(""); return; }
+    const d = saved.definition || {};
+    setQuery(typeof d.query === "string" ? d.query : "");
+    setStatus(["active","completed","archived","all"].includes(d.status) ? d.status : "active");
+    setMode(["cards","table","board","timeline","calendar"].includes(d.mode) ? d.mode : "cards");
+    setDelayedOnly(!!d.delayedOnly); setTypeFilter(d.typeFilter || ""); setHealthFilter(d.healthFilter || "");
+    setLeadFilter(d.leadFilter || ""); setTeamFilter(d.teamFilter || ""); setPriorityFilter(d.priorityFilter || "");
+    setVisibilityFilter(d.visibilityFilter || ""); setDateFrom(d.dateFrom || ""); setDateTo(d.dateTo || "");
+    setHighRiskOnly(!!d.highRiskOnly); setFinanceLinkFilter(d.financeLinkFilter || "");
+    const columns = Array.isArray(d.visibleColumns) ? d.visibleColumns.filter((key) => portfolioColumnKeys.includes(key)) : portfolioColumnKeys;
+    const order = Array.isArray(d.columnOrder) ? d.columnOrder.filter((key) => portfolioColumnKeys.includes(key)) : portfolioColumnKeys;
+    setVisibleColumns(columns.length ? columns : portfolioColumnKeys);
+    setColumnOrder([...order.filter((key) => columns.includes(key)), ...columns.filter((key) => !order.includes(key))]);
+    setActiveSavedViewId(id);
+  };
+  const saveCurrentView = async () => {
+    const name = window.prompt("اسم طريقة العرض المحفوظة (حتى 80 حرفًا):");
+    if (!name?.trim()) return;
+    const scope = window.confirm("مشاركة طريقة العرض مع أعضاء مساحة العمل؟\nموافق = مشاركة، إلغاء = شخصية") ? "workspace" : "personal";
+    const definition = { version: 1, query, status, mode, delayedOnly, typeFilter, healthFilter, leadFilter, teamFilter, priorityFilter, visibilityFilter, dateFrom, dateTo, highRiskOnly, financeLinkFilter, visibleColumns, columnOrder };
+    const result = await saveCoreSavedView({ workspaceId: ws.id, systemId: "projects", ownerId: me, name, scope, definition });
+    if (!result.ok) { setSavedViewsState("unavailable"); shell?.toast?.("تعذّر حفظ العرض في Core: " + (result.error?.message || "الخدمة غير متاحة")); return; }
+    setSavedViews((rows) => [result.row, ...rows.filter((row) => row.id !== result.row.id)]);
+    setActiveSavedViewId(result.row.id);
+    shell?.toast?.("تم حفظ طريقة العرض في Core.");
+  };
+  const deleteActiveSavedView = async () => {
+    const row = savedViews.find((item) => item.id === activeSavedViewId);
+    if (!row || row.owner_id !== me) return;
+    if (!window.confirm("حذف طريقة العرض المحفوظة؟")) return;
+    const result = await deleteCoreSavedView(row.id, me);
+    if (!result.ok || !result.deleted) { shell?.toast?.("تعذّر حذف طريقة العرض."); return; }
+    setSavedViews((rows) => rows.filter((item) => item.id !== row.id));
+    setActiveSavedViewId("");
+    shell?.toast?.("تم حذف طريقة العرض.");
+  };
+  const moveColumn = (key, delta) => setColumnOrder((order) => {
+    const next = [...order]; const index = next.indexOf(key); const target = index + delta;
+    if (index < 0 || target < 0 || target >= next.length) return order;
+    [next[index], next[target]] = [next[target], next[index]];
+    return next;
+  });
   const [calendarYear, calendarMonthNumber] = calendarMonth.split("-").map(Number);
   const calendarLead = dow(calendarMonth + "-01");
   const calendarDays = monthDays(calendarYear, calendarMonthNumber);
