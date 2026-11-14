@@ -526,7 +526,7 @@ function ProjectActivity({ p }) {
     entity: "finance_transaction",
     entity_id: transaction.id,
     at: transaction.localDate ? transaction.localDate + "T12:00:00" : "",
-    actor_id: null,
+    actor_id: "finance-system",
     systemActor: "Finance OS",
     action: transaction.status === "Reversed" ? "حركة معكوسة" : "حركة مرتبطة بالمشروع",
     summary: transaction.name + " · " + transaction.amount + " " + transaction.currency + (transaction.baseMissing ? " · غير مقيّمة بعملة الأساس" : ""),
@@ -539,7 +539,7 @@ function ProjectActivity({ p }) {
     ...financeActivity,
   ].sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
   const typeOptions = [...new Set(sourceActivity.map((event) => aliases[event.entity] || event.entity).filter(Boolean))];
-  const actorOptions = [...new Set(sourceActivity.map((event) => String(event.actor_id || "")).filter(Boolean))];
+  const actorOptions = [...new Set([...sourceActivity.map((event) => String(event.actor_id || "")).filter(Boolean), ...(financeTransactions.length ? ["finance-system"] : [])])];
   const activity = sourceActivity.filter((event) => {
     const collection = aliases[event.entity] || event.entity;
     const day = String(event.at || "").slice(0, 10);
@@ -576,6 +576,7 @@ function ProjectActivity({ p }) {
       <span style={{ flex: 1 }} />
       <span style={{ fontSize: 10.5, color: C.muted }}>يشمل سجلات Projects والحركات المالية المتاحة</span>
     </div>
+    {financeState === "loading" && <div role="status" style={{ fontSize: 10.5, color: C.muted, marginBottom: 7 }}>جارٍ تحميل الحركات المالية المرتبطة…</div>}
     {financeState === "permission" && <div role="status" style={{ fontSize: 10.5, color: C.warn, marginBottom: 7 }}>لم تُحمّل حركات Finance بسبب صلاحية القراءة؛ بقية Activity تعمل بصورة مستقلة.</div>}
     {financeState === "error" && <div role="status" style={{ fontSize: 10.5, color: C.muted, marginBottom: 7 }}>تعذّر تحميل حركات Finance؛ لم تُستبدل بأرقام تقديرية.</div>}
     <SearchBar value={query} onChange={setQuery} placeholder="ابحث في النشاط…">
@@ -583,7 +584,7 @@ function ProjectActivity({ p }) {
         <option value="all">كل أنواع النشاط</option>{typeOptions.map((type) => <option key={type} value={type}>{labels[type] || type}</option>)}
       </select>
       <select aria-label="تصفية النشاط حسب العضو" style={{ ...S.sel, width: 150 }} value={actorFilter} onChange={(e) => setActorFilter(e.target.value)}>
-        <option value="all">كل الأعضاء</option>{actorOptions.map((actor) => <option key={actor} value={actor}>{nameOf(actor)}</option>)}
+        <option value="all">كل الأعضاء والمصادر</option>{actorOptions.map((actor) => <option key={actor} value={actor}>{actor === "finance-system" ? "Finance OS" : nameOf(actor)}</option>)}
       </select>
       <input aria-label="النشاط من تاريخ" type="date" style={{ ...S.inp, width: 145 }} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
       <input aria-label="النشاط إلى تاريخ" type="date" style={{ ...S.inp, width: 145 }} value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} />
