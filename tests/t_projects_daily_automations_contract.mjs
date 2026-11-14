@@ -5,6 +5,9 @@ const automation = await readFile(new URL("../supabase/migrations/20261114260000
 const scheduleGate = await readFile(new URL("../supabase/migrations/20261114262000_core_projects_automation_schedule_gate.sql", import.meta.url), "utf8");
 const accessFix = await readFile(new URL("../supabase/migrations/20261114261000_core_projects_automation_governance_access.sql", import.meta.url), "utf8");
 const notifications = await readFile(new URL("../supabase/migrations/20261114240000_core_notifications_inbox.sql", import.meta.url), "utf8");
+const timerAutomation = await readFile(new URL("../supabase/migrations/20261114268000_core_projects_long_timer_notifications.sql", import.meta.url), "utf8");
+const projectsScreens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
+const projectsDomain = await readFile(new URL("../src/systems/projects/domain.js", import.meta.url), "utf8");
 
 for (const eventType of [
   "task_due_today", "task_due_soon", "task_overdue",
@@ -15,7 +18,7 @@ for (const eventType of [
 ]) {
   assert.ok(automation.includes(eventType), `daily automations must cover ${eventType}`);
 }
-for (const toggle of ["dueReminders","overdueDigest","healthAlerts","governanceAlerts","prdReview","outputReview","staleInbox","reviewDraft","krCheckin"]) {
+for (const toggle of ["dueReminders","overdueDigest","healthAlerts","governanceAlerts","prdReview","outputReview","staleInbox","reviewDraft","krCheckin","timerLong"]) {
   assert.ok(automation.includes(toggle), `daily automation must respect the ${toggle} setting`);
 }
 assert.ok(automation.includes("core_projects_enqueue_notification") && automation.includes("core_notifications"),
@@ -33,4 +36,20 @@ assert.ok(accessFix.includes("case when p_section in ('issues','decisions') then
 assert.ok(notifications.includes("linked_project.value") && notifications.includes("recipient-not-project-member"),
   "Inbox RLS and emit must enforce visibility of every linked Project");
 
-console.log("✓ Projects daily automation, Core Inbox, privacy, dedupe and schedule-gate contracts passed");
+
+assert.ok(timerAutomation.includes("timer_long_running") && timerAutomation.includes("timerMaxHours"),
+  "the long-running timer setting must produce a scheduled Core notification at the configured threshold");
+assert.ok(timerAutomation.includes("v_data->>'member_id' is distinct from p_recipient_id::text"),
+  "only the timer owner may receive the long-running timer notification");
+assert.ok(timerAutomation.includes("timer.data->>'member_id'=auth.uid()::text") &&
+  timerAutomation.includes("core_notifications.entity_collection <> 'timers'"),
+  "Core Inbox RLS must restrict timer notifications to their owner");
+assert.ok(timerAutomation.includes("when 'timers' then 'tasks'") &&
+  timerAutomation.includes("projects','timers','tasks'"),
+  "timer notification reads must inherit Tasks section access");
+assert.ok(projectsScreens.includes('settings?.automations?.winSuggest === false ? []'),
+  "the Win suggestions toggle must actually hide suggestions when disabled");
+assert.ok(!projectsScreens.includes('["pioSuggest"') && !projectsDomain.includes("pioSuggest"),
+  "unsupported PIO suggestion toggle must not be exposed as a dormant setting");
+
+console.log("✓ Projects daily automation, timer privacy, Core Inbox, dedupe and schedule-gate contracts passed");
