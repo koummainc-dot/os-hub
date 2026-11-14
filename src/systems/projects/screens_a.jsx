@@ -9,6 +9,7 @@ import { readOSEvents, subscribeOSEvents, subscribeToStoredOSEvents } from "../i
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
 import { supabase } from "../../core/supabase.js";
 import { listCoreSavedViews, saveCoreSavedView, deleteCoreSavedView } from "../../core/savedViews.js";
+import { listCoreNotifications, markCoreNotificationRead } from "../../core/notifications.js";
 import { L, opts, STATUS_COLOR } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, DueChip, ProjectName, ProjectForm, TaskForm, mOpts, projOpts } from "./parts.jsx";
 
@@ -88,6 +89,28 @@ export function Dashboard() {
 // ═════ Today ═════
 export function Today() {
   const { ws, me, data, idx, today, settings, A: act, can, alerts, people, nameOf, openTask, openProject, runningTimer, projectsById, toast, setPage, shell, online, queueItems = [], discardQueuedWrite, confirm } = useP();
+  const [coreNotifications, setCoreNotifications] = useState([]);
+  const [coreInboxState, setCoreInboxState] = useState("loading");
+  useEffect(() => {
+    let active = true;
+    if (!ws?.id) { setCoreNotifications([]); setCoreInboxState("idle"); return () => { active = false; }; }
+    listCoreNotifications(ws.id, 30).then((result) => {
+      if (!active) return;
+      if (result.ok) { setCoreNotifications(result.rows); setCoreInboxState("ready"); }
+      else { setCoreNotifications([]); setCoreInboxState("unavailable"); }
+    });
+    return () => { active = false; };
+  }, [ws?.id, me]);
+  const openCoreNotification = async (notification) => {
+    await markCoreNotificationRead(notification.id);
+    setCoreNotifications((rows) => rows.map((row) => row.id === notification.id ? { ...row, read_at: row.read_at || new Date().toISOString() } : row));
+    const link = notification.deep_link || {};
+    if (notification.source_system === "projects") {
+      if (link.taskId || (link.recordKind === "task" && link.recordId)) return openTask(link.taskId || link.recordId);
+      if (link.projectId) return openProject(link.projectId, link.tab || "overview", link.recordId ? { kind: link.recordKind, id: link.recordId } : null);
+    }
+    if (link.system || notification.source_system !== "projects") shell?.go?.("system", link.system || notification.source_system, link.tab || "home", link);
+  };
   const feed = D.todayFeed(me, { idx, issues: data.issues, projects: data.projects, contacts: data.contacts, today, settings });
   const [homeCompletions, setHomeCompletions] = useState([]);
   const [todayMeetings, setTodayMeetings] = useState([]);
@@ -142,6 +165,14 @@ export function Today() {
   return (
     <div style={{ maxWidth: 900 }}>
       <Head title="اليوم" sub={`${dateLabel} · ${total ? total + " مهمة تنتظرك" : "لا مهام معلّقة — يوم هادئ 🌿"}`} right={can("task.write", projectsById[GENERAL_ID]) && <Btn kind="primary" onClick={() => setForm(true)}>➕ مهمة</Btn>} />
+      {coreInboxState === "unavailable" && <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>الوارد الموحد غير متاح حتى تطبيق Migration الخاصة بـCore Notifications.</div>}
+      {(coreNotifications.length > 0 || coreInboxState === "ready") && <Section title="الوارد الموحد" count={coreNotifications.filter((item) => !item.read_at).length} color={coreNotifications.some((item) => !item.read_at) ? C.info : C.muted}>
+        {!coreNotifications.length ? <div style={{ fontSize: 12, color: C.muted }}>لا توجد إشعارات جديدة.</div> : coreNotifications.slice(0, 10).map((notification) => <button key={notification.id} type="button" onClick={() => openCoreNotification(notification)} style={{ display: "flex", width: "100%", gap: 8, alignItems: "start", textAlign: "start", padding: "8px 0", border: 0, borderTop: "1px solid " + C.line, background: "transparent", cursor: "pointer", color: C.text, font: "inherit" }}>
+          <span style={{ width: 7, height: 7, borderRadius: 8, background: notification.read_at ? C.line : C.info, marginTop: 6, flexShrink: 0 }} />
+          <span style={{ flex: 1 }}><b style={{ fontSize: 12 }}>{notification.title}</b>{notification.body && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{notification.body}</div>}<div style={{ fontSize: 10, color: C.dim, marginTop: 3 }}>{fmtShort(notification.created_at?.slice(0,10))} · {notification.source_system}</div></span>
+          <span style={{ fontSize: 10, color: C.info }}>فتح ↗</span>
+        </button>)}
+      </Section>}
       {(!online || queueItems.length > 0) && <Section title="حالة العمل دون اتصال" count={queueItems.length} color={queueItems.some((item) => item.conflict) ? C.bad : C.warn}>
         <div style={{ fontSize: 12, color: C.muted, marginBottom: 7 }}>{online ? "الاتصال متاح؛ تتم مزامنة التعديلات الآمنة تلقائيًا." : "أنت دون اتصال. يمكن تعديل حقول المهمة الأساسية فقط؛ الإنشاءات والعلاقات والعمليات الذرية والملفات تحتاج اتصالًا."}</div>
         {queueItems.filter((item) => !item.conflict).length > 0 && <div style={{ fontSize: 12, marginBottom: 6 }}>تعديلات محفوظة محليًا بانتظار المزامنة: {queueItems.filter((item) => !item.conflict).length}</div>}
