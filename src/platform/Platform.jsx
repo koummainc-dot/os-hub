@@ -243,7 +243,7 @@ function Platform(){
         const section=allowed.includes(saved.section)?saved.section:(allowed[0]||"");
         setRoute({view:"system",system:savedSys.id});
         if(section)setSectionBy(p=>({...p,[savedSys.id]:section}));
-      }else if(["today","team","invites","account"].includes(saved?.route?.view)){
+      }else if(["today","inbox","team","invites","account"].includes(saved?.route?.view)){
         setRoute({view:saved.route.view,system:null});
       }
     }catch{}
