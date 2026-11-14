@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
+import { supabase } from "../../core/supabase.js";
 import { A, S } from "../../core/ui.jsx";
 import { C, Btn, Chip, Head, Stat, Empty, Progress, Seg, Board, SearchBar, Tabs, FormModal, Modal, Field } from "../../core/kit.jsx";
 import { fmt, fmtShort, fmtMinutes, addDays, diffDays, monthDays, MONTH_NAMES, dow, dateOf } from "../../core/dates.js";
@@ -324,13 +325,91 @@ function ProjectOkr({ p }) {
   </div>;
 }
 function ProjectFinanceTab({ p }) {
-  const { shell } = useP();
+  const { shell, ws, isDemo } = useP();
+  const [profiles, setProfiles] = useState([]);
+  const [state, setState] = useState("loading");
+  const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
   const available = typeof shell?.go === "function";
-  return <section style={S.card}>
-    <Head title="الملف المالي للمشروع" sub="Finance OS هو المصدر المعتمد للميزانية الفعلية والحركات والإيرادات والمصروفات والعائد." />
-    <p style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.9, margin: "6px 0 14px" }}>Projects يحتفظ بمرجع المشروع فقط. لن تُنشأ هنا نسخة من الحركات أو الأرقام المالية؛ افتح الملف المالي في Finance OS لإعداد الملف وربط الحركات الموجودة بصلاحياته الأصلية.</p>
-    <Btn kind="primary" disabled={!available} onClick={() => shell.go("system", "finance", "projects", { projectRef: p.id, fromSystem: "projects" })}>فتح أو إعداد الملف المالي ↗</Btn>
-    <div style={{ fontSize: 11, color: C.muted, marginTop: 9 }}>إعداد الملف المالي يتطلب صلاحية كتابة في Finance OS، أما العرض فيتبع صلاحية Finance المستقلة.</div>
+  useEffect(() => {
+    let active = true;
+    if (isDemo || !ws?.id) {
+      setProfiles([]);
+      setState(isDemo ? "demo" : "error");
+      setError(isDemo ? "" : "تعذّر تحديد مساحة العمل الحالية.");
+      return () => { active = false; };
+    }
+    setState("loading");
+    setError("");
+    supabase.rpc("fin_projects_get", { p_ws: ws.id }).then(({ data, error: rpcError }) => {
+      if (!active) return;
+      if (rpcError) {
+        const message = String(rpcError.message || rpcError.details || rpcError.code || "");
+        if (rpcError.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(message)) setState("permission");
+        else setState("error");
+        setError(message || "تعذّر تحميل الملخص المالي.");
+        setProfiles([]);
+        return;
+      }
+      const matches = (Array.isArray(data) ? data : []).filter((profile) => String(profile.project_ref || "") === String(p.id));
+      setProfiles(matches);
+      setState(matches.length === 0 ? "not-linked" : matches.length === 1 ? "linked" : "multiple");
+    }).catch((rpcError) => {
+      if (!active) return;
+      const message = String(rpcError?.message || rpcError || "تعذّر تحميل الملخص المالي.");
+      setState(rpcError?.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(message) ? "permission" : "error");
+      setError(message);
+      setProfiles([]);
+    });
+    return () => { active = false; };
+  }, [ws?.id, p.id, isDemo, reloadKey]);
+  const profile = profiles.length === 1 ? profiles[0] : null;
+  const money = (value, currency = "EGP") => {
+    if (value === null || value === undefined || value === "") return "غير متاح";
+    try { return new Intl.NumberFormat("ar-EG", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(value)); }
+    catch { return String(value) + " " + currency; }
+  };
+  const openFinance = () => available && shell.go("system", "finance", "projects", { projectRef: p.id, fromSystem: "projects" });
+  return <section style={{ display: "grid", gap: 10 }}>
+    <div style={S.card}>
+      <Head title="الملف المالي للمشروع" sub="البيانات المالية تظل مملوكة لـ Finance OS؛ هذا العرض للقراءة فقط." right={<Btn small onClick={() => setReloadKey((value) => value + 1)} disabled={state === "loading"}>↻ تحديث</Btn>} />
+      <div role="status" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "8px 0" }}>
+        {state === "loading" && <Chip color={C.muted}>جارٍ تحميل حالة الربط…</Chip>}
+        {state === "not-linked" && <Chip color={C.warn}>غير مرتبط</Chip>}
+        {state === "linked" && <Chip color={C.ok}>مرتبط</Chip>}
+        {state === "multiple" && <Chip color={C.warn}>يتطلب مراجعة</Chip>}
+        {state === "permission" && <Chip color={C.bad}>لا توجد صلاحية عرض Finance</Chip>}
+        {state === "error" && <Chip color={C.bad}>تعذّر تحميل بيانات Finance</Chip>}
+        {state === "demo" && <Chip color={C.muted}>بيئة عرض تجريبي</Chip>}
+      </div>
+      {state === "loading" && <div style={{ color: C.muted, fontSize: 12 }}>يتم جلب الملخص من Finance دون إنشاء أو تعديل أي سجل.</div>}
+      {state === "not-linked" && <div style={{ color: C.dim, fontSize: 12.5, lineHeight: 1.9 }}>لا يوجد ملف مالي مرتبط بهذا المشروع. يمكنك إعداده من Finance؛ سيظل إنشاء الملف وحفظه وربط الحركات من صلاحيات Finance نفسها.</div>}
+      {state === "multiple" && <div role="alert" style={{ color: C.warn, fontSize: 12.5, lineHeight: 1.9 }}>يوجد أكثر من ملف مالي يحمل مرجع المشروع نفسه ({profiles.length}). لم أدمج الأرقام أو أختر ملفًا أساسيًا تلقائيًا؛ يلزم حسم الملف الأساسي من Finance.</div>}
+      {state === "permission" && <div role="alert" style={{ color: C.bad, fontSize: 12.5, lineHeight: 1.9 }}>تعذّر عرض الملخص لأن صلاحية Finance للقراءة غير متاحة لهذا الحساب. لا تعرض Projects أرقامًا تقديرية بدل البيانات المحمية.</div>}
+      {state === "error" && <div role="alert" style={{ color: C.bad, fontSize: 12.5, lineHeight: 1.9 }}>تعذّر تحميل بيانات Finance. {error}</div>}
+      {state === "demo" && <div style={{ color: C.muted, fontSize: 12 }}>البيانات المالية الحقيقية لا تُعرض في بيئة Demo.</div>}
+      {(state === "not-linked" || state === "multiple" || state === "error" || state === "permission") && <Btn kind="primary" disabled={!available} onClick={openFinance}>فتح Finance OS ↗</Btn>}
+      <div style={{ color: C.muted, fontSize: 10.5, marginTop: 8 }}>لا يتم إنشاء Finance Profile أو Transaction أو تعديلهما من Projects. لا تُعرض قيمة صفرية عندما لا يوجد ملف مالي.</div>
+    </div>
+    {profile && <div style={S.card}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+        <div><b style={{ fontSize: 13 }}>{profile.name || p.name}</b><div style={{ fontSize: 10.5, color: C.muted, marginTop: 3 }}>{profile.status || "—"} · آخر حركة مالية: {profile.last_activity || "لا توجد حركة مسجلة"} · عملة الأساس: {profile.base_currency || "EGP"}</div></div>
+        <Btn small onClick={openFinance} disabled={!available}>إدارة في Finance ↗</Btn>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 8, marginTop: 12 }}>
+        <Stat label="الإيرادات" value={money(profile.revenue_base, profile.base_currency)} />
+        <Stat label="المصروفات" value={money(profile.expenses_base, profile.base_currency)} />
+        <Stat label="صافي الربح" value={money(profile.net_profit_base, profile.base_currency)} />
+        <Stat label="الميزانية" value={profile.budget == null ? "غير محددة" : money(profile.budget, profile.currency)} />
+        <Stat label="استهلاك الميزانية" value={profile.budget_used_pct == null ? "غير متاح" : Number(profile.budget_used_pct).toLocaleString("ar-EG") + "%"} />
+        <Stat label="ROI" value={profile.roi_measurable ? Number(profile.roi_pct).toLocaleString("ar-EG") + "%" : "غير قابل للقياس"} />
+      </div>
+      {Number(profile.unvalued_transactions || 0) > 0 && <div role="status" style={{ marginTop: 10, padding: 9, borderRadius: 7, background: "rgba(245,158,11,.10)", color: C.warn, fontSize: 11.5, lineHeight: 1.8 }}>توجد {profile.unvalued_transactions} حركة بلا قيمة بعملة الأساس. قد تكون بحاجة إلى مراجعة سعر الصرف أو تقييم العملة؛ لم تُحتسب هذه القيم كصفر.</div>}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", color: C.muted, fontSize: 10.5, marginTop: 9 }}>
+        <span>ملف Finance: {profile.id}</span>
+        <span>آخر تحديث للملف: {profile.updated_at ? dateOf(profile.updated_at) : "غير متاح"}</span>
+      </div>
+    </div>}
   </section>;
 }
 function ProjectWinsTab({ p }) {
