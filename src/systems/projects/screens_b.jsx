@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { supabase } from "../../core/supabase.js";
 import { listProjectHealthTransitions } from "../../core/projectHealth.js";
+import { emitProjectIntegrationFailure } from "../../core/notifications.js";
 import { A, S } from "../../core/ui.jsx";
 import { C, Btn, Chip, Head, Stat, Empty, Progress, Seg, Board, SearchBar, Tabs, FormModal, Modal, Field } from "../../core/kit.jsx";
 import { fmt, fmtShort, fmtMinutes, addDays, diffDays, monthDays, MONTH_NAMES, dow, dateOf } from "../../core/dates.js";
@@ -420,7 +421,7 @@ function ProjectOkr({ p }) {
   </div>;
 }
 function ProjectFinanceTab({ p }) {
-  const { shell, ws, isDemo } = useP();
+  const { shell, ws, isDemo, me } = useP();
   const [profiles, setProfiles] = useState([]);
   const [syncMeta, setSyncMeta] = useState(null);
   const lastGoodSync = useRef(null);
@@ -445,19 +446,23 @@ function ProjectFinanceTab({ p }) {
       if (!active) return;
       if (profileResult.error) {
         const message = String(profileResult.error.message || profileResult.error.details || profileResult.error.code || "");
-        const permissionDenied = profileResult.error.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(message);
+        const permissionDenied = profileResult.error.code === "42501" ||
+          (profileResult.error.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED|PERMISSION/i.test(message));
         if (permissionDenied) {
           // Never display a cached Finance snapshot after the server revokes access.
           lastGoodSync.current = null;
           setProfiles([]);
           setSyncMeta(null);
           setState("permission");
-        } else if (lastGoodSync.current) {
-          setState("stale");
-          setSyncMeta(lastGoodSync.current);
         } else {
-          setState("error");
-          setProfiles([]);
+          if (lastGoodSync.current) {
+            setState("stale");
+            setSyncMeta(lastGoodSync.current);
+          } else {
+            setState("error");
+            setProfiles([]);
+          }
+          void emitProjectIntegrationFailure({ workspaceId: ws?.id, project: p, actorId: me, integration: "finance" });
         }
         setError(message || "تعذّر تحديث الملخص المالي.");
         return;
@@ -480,8 +485,13 @@ function ProjectFinanceTab({ p }) {
     }).catch((rpcError) => {
       if (!active) return;
       const message = String(rpcError?.message || rpcError || "تعذّر تحديث الملخص المالي.");
-      if (lastGoodSync.current) { setState("stale"); setSyncMeta(lastGoodSync.current); }
-      else { setState("error"); setProfiles([]); }
+      if (rpcError?.code === "42501" || /FORBIDDEN|UNAUTHENTICATED|permission denied/i.test(message)) {
+        lastGoodSync.current = null; setSyncMeta(null); setProfiles([]); setState("permission");
+      } else {
+        if (lastGoodSync.current) { setState("stale"); setSyncMeta(lastGoodSync.current); }
+        else { setState("error"); setProfiles([]); }
+        void emitProjectIntegrationFailure({ workspaceId: ws?.id, project: p, actorId: me, integration: "finance" });
+      }
       setError(message);
     });
     return () => { active = false; };
@@ -788,6 +798,7 @@ function RelatedTab({ p, canE, section = "all" }) {
       setMeetings(result.meetings || []);
     } catch (error) {
       setMeetingError(error?.message || "تعذر تحميل اجتماعات المعرفة.");
+      void emitProjectIntegrationFailure({ workspaceId: ws?.id, project: p, actorId: me, integration: "knowledge_meetings" });
     } finally {
       setLoadingMeetings(false);
     }
@@ -807,6 +818,7 @@ function RelatedTab({ p, canE, section = "all" }) {
     } catch (error) {
       setResources([]);
       setResourceError(error?.message || "تعذّر تحميل موارد Knowledge لهذا المشروع.");
+      void emitProjectIntegrationFailure({ workspaceId: ws?.id, project: p, actorId: me, integration: "knowledge_resources" });
     } finally {
       setLoadingResources(false);
     }
