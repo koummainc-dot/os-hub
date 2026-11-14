@@ -40,7 +40,7 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
    const meta={as_of:readModel.as_of||null,last_synced_at:readModel.last_synced_at||null,sync_status:readModel.sync_status||"fresh"};
    lastGoodSync.current=meta;setSyncMeta(meta);setSyncStatus("fresh");
    setProjects(rows);
-   setPrimaryProfiles(primary.error?primaryProfiles:(Array.isArray(primary.data)?primary.data:[]));
+   if(!primary.error)setPrimaryProfiles(Array.isArray(primary.data)?primary.data:[]);
    setSourceProjects(os.error?[]:(os.data||[]).filter(r=>!r.deleted&&!r.data?.is_system).map(r=>({id:r.id,name:r.data?.name||r.data?.title||"",type:r.data?.type||"Other",status:r.data?.status||"Planning",currency:r.data?.budget_currency||r.data?.currency||""})).filter(r=>r.name));
    if(t.error){setTransactions([]);setError("تم تحميل المشاريع، لكن تعذّر تحميل قائمة الحركات لربطها: "+t.error.message);}
    else if(os.error){setTransactions(t.data||[]);setError("تعذّر قراءة مشاريع Projects OS. تأكد من صلاحية الوصول إلى قسم المشاريع قبل إعداد الملف المالي.");}
