@@ -3,7 +3,7 @@
 **Source of truth:** `Projects_OS_v5_Unified_Refactor_Spec.md` (Library version uploaded 2026-11-12).  
 **Implementation branch:** `feat/projects-v5-phase1-navigation`  
 **PR:** #188  
-**Latest verified implementation/test commit:** `26af3cb4b6b6d9c152b2523b431530ffbffa8520` — includes the forward-only Projects server-guard reconciliation and both isolated PostgreSQL smoke paths.
+**Latest verified implementation/test commit:** `26af3cb4b6b6d9c152b2523b431530ffbffa8520` — includes the forward-only Projects server-guard reconciliation and both isolated PostgreSQL smoke paths. **Current implementation head:** `21cf488f14b82c674da28e606c56a115603644db` — later feature additions are pending QA/CI; do not infer that prior CI verifies this head.
 **Latest verified Preview build:** Vercel check **SUCCESS** on the current PR head `26af3cb4b6b6d9c152b2523b431530ffbffa8520` (target: `https://vercel.com/koumma/os-hub/9rynry8gdUKCuMDTasRiMKi3wx5Y`).
 **Review date:** 2026-11-13
 
