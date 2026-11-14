@@ -111,6 +111,9 @@ assert.ok(portfolio.includes("listKnowledgeMeetings(ws.id, project.id)") &&
   portfolio.includes('kind: "meeting"') &&
   portfolio.includes('focusItemId: event.record.id, focusItemKind: "meeting"'),
   "Portfolio Calendar must include project, task, PRD, Final Output, and server-scoped Knowledge meeting events");
+const todayScreen = screensA.slice(screensA.indexOf("export function Today()"), screensA.indexOf("// ═════ This Week"));
+assert.ok(todayScreen.includes('focusItemId: meeting.id, focusItemKind: "meeting"'),
+  "Today meeting entries must navigate to the exact Knowledge-owned meeting rather than the meetings collection");
 assert.ok(screensC.includes("setProjectFilter") && screensC.includes("setQuery") &&
   screensC.includes('query.toLocaleLowerCase()') &&
   screensC.includes('aria-label="تصفية الإنجازات حسب المشروع"'),
