@@ -127,6 +127,9 @@ assert.ok(screensC.includes("const canWriteWins = can(\"win.write\")") &&
   "Project-context Win creation must verify the selected project's write permission");
 const projectActivity = screensB.slice(screensB.indexOf("function ProjectActivity("), screensB.indexOf("function ProjectWinsTab("));
 const financeTab = screensB.slice(screensB.indexOf("function ProjectFinanceTab("), screensB.indexOf("function ProjectActivity("));
+assert.ok(projectActivity.includes('finance-system') && projectActivity.includes('actor === "finance-system" ? "Finance OS"') &&
+  projectActivity.includes('financeState === "loading"'),
+  "Finance must appear as an explicit Activity source with loading and actor filtering");
 assert.ok(projectActivity.includes('supabase.rpc("fin_projects_get", { p_ws: ws.id })') &&
   projectActivity.includes('entity: "finance_transaction"') &&
   projectActivity.includes('labels.financeTransactions') &&
