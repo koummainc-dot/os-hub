@@ -68,6 +68,81 @@ function ProjectsDurableEventBridge({ ws, isDemo, children }) {
   return <Ctx.Provider value={{ ...ctx, durableOSEvents: events }}>{children}</Ctx.Provider>;
 }
 
+function OfflineQueuePanel(){
+  const { queueItems=[], isDemo, idx, projectsById, nameOf, discardQueuedWrite, rebaseQueuedWrite, store, toast } = useP();
+  if(isDemo || !queueItems.length) return null;
+  const conflicts=queueItems.filter(item=>item.conflict);
+  const fields=[
+    ["title","العنوان"],["description","الوصف"],["priority","الأولوية"],
+    ["due_date","تاريخ الاستحقاق"],["assignee_id","المسؤول"],["planning_bucket","قائمة التخطيط"]
+  ];
+  const fieldValue=(key,value)=>{
+    if(key==="assignee_id") return value ? nameOf(value) : "غير مسند";
+    if(value===null||value===undefined||value==="") return "—";
+    return String(value);
+  };
+  const discard=async(item)=>{
+    discardQueuedWrite(item.coll,item.rec.id);
+    await store.api.reload();
+    toast("تم تجاهل التعديل المحلي والعودة إلى آخر نسخة من الخادم.");
+  };
+  const rebase=async(item)=>{
+    const result=rebaseQueuedWrite(item.coll,item.rec.id);
+    if(!result.ok){
+      if(result.reason==="overlapping-edits"){
+        const labels=result.conflictingFields.map(key=>fields.find(([field])=>field===key)?.[1]||key);
+        toast("تعذر الدمج التلقائي لأن الطرفين عدّلا: "+labels.join("، ")+". افتح المهمة واحسم هذه الحقول يدويًا.");
+      }else{
+        toast("لا يمكن إعادة دمج هذا التعديل: "+(item.conflictReason==="deleted-on-server"?"السجل حُذف على الخادم.":item.conflictReason==="missing-on-server"?"السجل لم يعد موجودًا على الخادم.":"تعذر جلب النسخة الحالية."));
+      }
+      return;
+    }
+    await store.api.flushQueue();
+    toast("تم دمج الحقول غير المتعارضة مع آخر نسخة للخادم وإعادة محاولة الحفظ.");
+  };
+  return <section role="region" aria-label="حالة مزامنة التعديلات المحلية" style={{border:"1px solid "+(conflicts.length?"#D97706":"#CBD5E1"),background:conflicts.length?"#FFFBEB":"#F8FAFC",borderRadius:10,padding:12,marginBottom:12,display:"grid",gap:9}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+      <b style={{fontSize:12.5,color:conflicts.length?"#92400E":"#334155"}}>مزامنة التعديلات المحلية</b>
+      <span style={{fontSize:11,color:"#64748B"}}>{queueItems.length} تعديل · {conflicts.length} تعارض</span>
+      <span style={{flex:1}}/>
+      <button type="button" onClick={()=>store.api.flushQueue()} disabled={!store?.online} style={{border:"1px solid #CBD5E1",background:"#fff",borderRadius:7,padding:"5px 9px",fontSize:11,cursor:store?.online?"pointer":"not-allowed"}}>إعادة المحاولة</button>
+    </div>
+    {queueItems.map(item=>{
+      const task=idx.byId[item.rec.id];
+      const changed=fields.filter(([key])=>item.baseRec&&JSON.stringify(item.baseRec[key])!==JSON.stringify(item.rec[key]));
+      const title=task?.title||item.rec.title||"مهمة";
+      return <article key={item.coll+":"+item.rec.id} style={{borderTop:"1px solid "+(conflicts.length?"#F3D49A":"#E2E8F0"),paddingTop:8,display:"grid",gap:6}}>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <b style={{fontSize:12,flex:1}}>{title}</b>
+          <span style={{fontSize:10.5,color:item.conflict?"#B45309":"#64748B"}}>{item.conflict?"تعارض نسخة":"بانتظار الاتصال/المزامنة"}</span>
+          {task?.project_id&&<span style={{fontSize:10.5,color:"#64748B"}}>{projectsById[task.project_id]?.name||"مشروع"}</span>}
+        </div>
+        {item.conflict ? <>
+          <div style={{fontSize:11,color:"#92400E",lineHeight:1.8}}>
+            {item.conflictReason==="deleted-on-server"?"تم حذف المهمة على الخادم بعد حفظ تعديلك محليًا. لا يمكن دمج التعديل تلقائيًا.":
+             item.conflictReason==="missing-on-server"?"المهمة لم تعد موجودة على الخادم. احتفظ بنسخة من التعديل أو تجاهله.":
+             item.conflictReason==="server-read-failed"?"تعذر جلب آخر نسخة من الخادم؛ لن نعيد الكتابة فوقها.":
+             "تغيّرت نسخة المهمة على الخادم بعد بدء تعديلك دون اتصال. قارن القيم قبل الدمج."}
+          </div>
+          {item.serverRec&&changed.length>0&&<div style={{display:"grid",gap:5}}>
+            {changed.map(([key,label])=><div key={key} style={{display:"grid",gridTemplateColumns:"minmax(90px,0.5fr) repeat(2,minmax(0,1fr))",gap:6,fontSize:10.5}}>
+              <b>{label}</b>
+              <span style={{color:"#64748B",overflowWrap:"anywhere"}}>الخادم: {fieldValue(key,item.serverRec[key])}</span>
+              <span style={{color:"#92400E",overflowWrap:"anywhere"}}>تعديلك: {fieldValue(key,item.rec[key])}</span>
+            </div>)}
+          </div>}
+          <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+            <button type="button" onClick={()=>rebase(item)} disabled={!item.serverRec||!!item.serverRec._deleted||!!item.serverRec.deleted_at||!store?.online} style={{border:0,background:"#92400E",color:"#fff",borderRadius:7,padding:"6px 10px",fontSize:11,cursor:"pointer"}}>دمج الحقول غير المتعارضة</button>
+            <button type="button" onClick={()=>discard(item)} style={{border:"1px solid #D6A35D",background:"#fff",color:"#92400E",borderRadius:7,padding:"6px 10px",fontSize:11,cursor:"pointer"}}>استخدام نسخة الخادم / تجاهل المحلي</button>
+            <button type="button" onClick={()=>{store.api.reload();}} style={{border:"1px solid #CBD5E1",background:"#fff",borderRadius:7,padding:"6px 10px",fontSize:11,cursor:"pointer"}}>تحديث السجل</button>
+          </div>
+        </> : <div style={{fontSize:11,color:"#64748B"}}>{changed.map(([key,label])=>label).join("، ")||"تعديل مهمة"} محفوظ على هذا الجهاز فقط حتى الآن.</div>}
+      </article>;
+    })}
+    <div style={{fontSize:10.5,color:"#64748B"}}>Offline في Projects يسمح بتعديلات حقول أساسية لمهمة موجودة فقط. الإنشاء والعلاقات والنقل والملفات والعمليات الذرية تحتاج اتصالًا. لا يتم استبدال حقل متعارض تلقائيًا.</div>
+  </section>;
+}
+
 function Router({ sourceWriteRequest, routeContext }) {
   const ctx = useP(); const { page, ready, error, store, access, role, shell, ws, A, data, openProject, openTask } = ctx; const lvl = osSectionLevel(access, page);
   const lastHandledRouteContext = useRef(null);
@@ -230,7 +305,7 @@ function Router({ sourceWriteRequest, routeContext }) {
   const Screen = SCREENS[page] || Dashboard;
   const readOnlyScope = lvl === "view" && access.level === "edit";
   const body = readOnlyScope ? <Ctx.Provider value={{ ...ctx, can: () => false, role: "Viewer" }}><div style={{ marginBottom: 10 }}><Chip color="#3B82F6">👁 هذا القسم للعرض فقط</Chip></div><Screen /></Ctx.Provider> : <Screen />;
-  return <div className="projects-system" style={{ animation: "fadeIn 0.25s ease-out" }}>{ctx.pending > 0 && <div style={{ position: "fixed", top: 8, insetInlineEnd: 12, fontSize: 10.5, color: "#6E7781", zIndex: 3000 }}>⟳ جارٍ الحفظ…</div>}{ctx.online === false && !ctx.isDemo && <div style={{ fontSize: 11, color: "#B7791F", marginBottom: 8 }}>⚠ التحديث اللحظي غير متصل — تُحمَّل التغييرات عند العودة للنافذة.</div>}{body}<TaskSheet /><TimerBar /></div>;
+  return <div className="projects-system" style={{ animation: "fadeIn 0.25s ease-out" }}>{ctx.pending > 0 && <div style={{ position: "fixed", top: 8, insetInlineEnd: 12, fontSize: 10.5, color: "#6E7781", zIndex: 3000 }}>⟳ جارٍ الحفظ…</div>}{ctx.online === false && !ctx.isDemo && <div role="status" style={{ fontSize: 11, color: "#B7791F", marginBottom: 8 }}>⚠ أنت غير متصل. التغييرات التي يمكن حفظها محليًا ستظل في انتظار المزامنة.</div>}<OfflineQueuePanel />{body}<TaskSheet /><TimerBar /></div>;
 }
 
 export default function ProjectsSystem(props) {
