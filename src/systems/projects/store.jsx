@@ -724,7 +724,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     act,
   }), [R, recs, idx, data, settings, projectsById, prdsById, me, confirm, toast, putIn, visFor, stamp, act, del, nameOf, can]);
 
-  const alerts = useMemo(() => (ready ? D.computeAlerts(me, { idx, issues: data.issues, projects: data.projects, contacts: data.contacts, discovery: data.discovery, krs: data.krs, checkins: data.checkins, timers: data.timers, wins: data.wins, today, settings, metrics }) : []), [ready, me, idx, data, today, settings, metrics]);
+  const alerts = useMemo(() => (ready ? D.computeAlerts(me, { idx, issues: data.issues, projects: data.projects, contacts: data.contacts, discovery: data.discovery, krs: data.krs, checkins: data.checkins, timers: data.timers, wins: data.wins, prds: data.prds, outputs: data.outputs, today, settings, metrics }) : []), [ready, me, idx, data, today, settings, metrics]);
   const timer = (recs.timers || {})["timer_" + me]; const runningTimer = timer && timer.task_id && !timer.ended_at ? timer : null;
 
   // Phase A deep-link bridge: project/task context is addressable and browser Back can restore it.
