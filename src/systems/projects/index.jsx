@@ -175,6 +175,7 @@ function Router({ sourceWriteRequest }) {
           source_meeting_id: String(payload.meeting_id || ""),
           source_followup_id: sourceRecordId,
           source_followup_title: String(item?.source_followup_title || title),
+          source_meeting_title: String(item?.source_meeting_title || ""),
         };
         const saved = await A.saveTask(task, !existing);
         if (!saved?.id) throw new Error("لم يؤكد مخزن Projects حفظ المهمة.");
