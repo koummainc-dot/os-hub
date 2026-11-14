@@ -83,6 +83,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_prd_requirement_traceability_smoke.sql
       - name: Apply Projects Outputs private Storage migration
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261107150000_projects_output_storage.sql
+      - name: Harden Projects Outputs Storage path parser as SECURITY INVOKER
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114160000_projects_output_storage_invoker_hardening.sql
       - name: Verify Projects Outputs Storage bucket and RLS contract
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/projects_output_storage_rls_smoke.sql
       - name: Verify two-account privacy for Projects records and relationships
