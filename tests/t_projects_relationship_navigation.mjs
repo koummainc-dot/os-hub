@@ -85,13 +85,14 @@ for (const tabId of ["overview", "tasks", "outputs", "work", "prds", "risks", "i
 assert.ok(projectScreens.includes('import { listKnowledgeMeetings, listKnowledgeProjectResources, listKnowledgeAttachments } from "../knowledge/repository.js"') &&
   projectScreens.includes('listKnowledgeMeetings(ws.id, p.id)') &&
   projectScreens.includes('source_meeting_id: meeting.id') &&
-  projectScreens.includes('source_followup_id: followupIdentity'),
-  "Project Detail must use server-scoped Knowledge meetings and preserve stable follow-up provenance");
+  projectScreens.includes('p_followup_id: sourceRecordId') &&
+  projectScreens.includes('source_record_id: sourceRecordId'),
+  "Project Detail must use server-scoped Knowledge meetings and pass the stable follow-up identity to the idempotent server RPC");
 assert.ok(projectScreens.includes('findKnowledgeFollowupTask(data.tasks, meeting.id, followup, index)') &&
-  projectScreens.includes('source_followup_id: followupIdentity') &&
-  projectScreens.includes('source_followup_index: index') &&
-  projectScreens.includes('id: "knowledge_meeting_task_" + encodeURIComponent(sourceRecordId)'),
-  "Project Detail meeting follow-ups must use deterministic server-persisted task identity while retaining the legacy index fallback");
+  projectScreens.includes('stableKnowledgeFollowupId(meeting.id, followup)') &&
+  projectScreens.includes('supabase.rpc("projects_create_followup_task"') &&
+  projectScreens.includes('source_followup_index: index'),
+  "Project Detail meeting follow-ups must use stable source identity, server-side idempotent creation and the legacy index fallback");
 
 const governancePage = projectIndex.slice(projectIndex.indexOf("function GovernancePage()"), projectIndex.indexOf("const SCREENS"));
 assert.ok(projectIndex.includes('issues: GovernancePage') &&
