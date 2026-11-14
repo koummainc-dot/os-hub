@@ -214,6 +214,7 @@
 - Portfolio Calendar أصبح يعرض Risk review وIssue discovery وDecision وWin بالإضافة إلى الأحداث الموجودة سابقًا، وكل حدث يفتح السجل الأصلي داخل النظام المالك.
 - Project Finance أصبح يوفّر زر تسجيل حركة مباشر، وFinance Transactions يستقبل `projectRef` ويفتح نموذج الحركة مع `finance_project_id` واسم المشروع، دون إنشاء Finance record من Projects.
 - Knowledge Follow-up → Task أصبح يملك مسارًا ذريًا على الخادم يمنع إنشاء نسختين لنفس `stable_followup_id` تحت التزامن.
+- تم توضيح تسمية `Portfolio` في Navigation إلى **محفظة المشاريع**، مع وصف صريح أنها ليست المحفظة المالية؛ هي مركز متابعة المشاريع متعدد طرق العرض.
 
 **لا تُعتبر هذه التغييرات مقبولة نهائيًا بعد؛ اختبارات Preview والـQA الحية مؤجلة إلى دفعة الاختبارات النهائية كما تم الاتفاق.**
 
