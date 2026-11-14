@@ -762,7 +762,8 @@ export function Portfolio() {
           {["أحد","اثنين","ثلاثاء","أربعاء","خميس","جمعة","سبت"].map((day) => <div key={day} style={{ fontSize: 10.5, color: C.muted, textAlign: "center" }}>{day}</div>)}
           {Array.from({ length: calendarLead }, (_, index) => <div key={"blank-" + index} />)}
           {calendarDates.map((date) => {
-            const hasProjectTarget = visible.some((p) => p.target_date === date);\n            const dayEvents = calendarEvents.filter((event) => event.date === date);
+            const hasProjectTarget = visible.some((p) => p.target_date === date);
+            const dayEvents = calendarEvents.filter((event) => event.date === date);
             return <div key={date} style={{ minHeight: 84, minWidth: 0, border: "1px solid " + (date === today ? A : hasProjectTarget ? A : C.line), borderRadius: 6, padding: 4, background: date === today ? "rgba(239,159,39,.06)" : "transparent" }}>
               <div style={{ fontSize: 10, color: C.muted }}>{Number(date.slice(-2))}</div>
               {dayEvents.slice(0, 4).map((event) => <button key={event.id} type="button" onClick={() => openCalendarEvent(event)} title={(event.project?.name ? event.project.name + " · " : "") + calendarEventLabel(event)} style={{ display: "block", width: "100%", marginTop: 3, border: 0, borderRadius: 4, padding: "2px 4px", background: calendarEventColor(event.kind), color: C.text, fontSize: 10, textAlign: "start", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{calendarEventLabel(event)}</button>)}
