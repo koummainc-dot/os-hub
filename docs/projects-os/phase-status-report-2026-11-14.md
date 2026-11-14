@@ -4,7 +4,7 @@
 **المرجع الوظيفي الحاكم:** `Projects_OS_v5_Unified_Refactor_Spec.md` — الإصدار 5.0، §19 للمراحل و§18 لمعايير القبول  
 **المستودع:** `koummainc-dot/os-hub`  
 **الفرع:** `feat/projects-v5-phase1-navigation`  
-**آخر Commit اجتاز التحقق السابق:** `b5f4bd3` (QA/CI evidence below). **Current implementation head:** `40e77fd80a8ad99cde0e245b2fa48f74201c8496` — لم يُختبر بعد؛ لا تخلط بينه وبين آخر Commit متحقق.  
+**آخر Commit اجتاز التحقق السابق:** `b5f4bd3` (QA/CI evidence below). **Current implementation head:** `21cf488f14b82c674da28e606c56a115603644db` — لم يُختبر بعد؛ لا تخلط بينه وبين آخر Commit متحقق.  
 **PR:** #188 — مفتوح، Draft، غير مدمج  
 **قاعدة مهمة:** هذا التقرير لا يمنح موافقة على Migration أو نشر Production. لا تغيير إنتاجي ضمن هذه المراجعة.
 
@@ -52,8 +52,10 @@
 - Weekly Reviews: الأصل خاص دائمًا؛ مشاركة جزئية عبر Projection منفصل، مع حجب بيانات المشاريع الخاصة عن النسخة المشتركة.
 - Meeting Templates: الخمسة أصبحت Knowledge-owned وقابلة للاختيار في نموذج الاجتماع وتوليد أجندة قابلة للتحرير.
 - Offline: تقييد طابور Projects إلى تعديلات الحقول الأساسية لمهمة موجودة فقط، مع واجهة تعرض pending/conflicts وتسمح بإلغاء النسخة المحلية المتعارضة. الإنشاء والعلاقات والعمليات الذرية والملفات Online-only.
-- Alerts: تذكيرات PRD review للمراجعين الفعليين، Output review لقائد المشروع، ومخاطر عالية للمالك.
-- Finance Budget Handoff: تمرير اقتراح أولي مع تأكيد Finance صريح ومنع التحويل بين العملات.
+- Alerts: تذكيرات PRD review للمراجعين الفعليين، Output review لقائد المشروع، ومخاطر عالية/مشاكل حرجة للمالك، وإشعارات Core للأحداث التي تم تحديد مستلميها.
+- Unified Inbox: Core-owned notification table/RLS، dedupe، recipient visibility، read state، وToday Inbox؛ producers للـTask assignment وPRD/Output review وHigh Risk/Critical Issue، وKnowledge linked-meeting → Project lead.
+- Finance D-02: Finance-owned primary profile mapping، RPC لتعيين الأساسي، واستهلاك الاختيار في Portfolio وProject Finance.
+- Finance Budget Handoff: تمرير اقتراح أولي مع تأكيد Finance صريح ومنع التحويل بين العملات، وD-02 primary profile اختيار صريح.
 - لم تُشغّل CI/Preview acceptance أو migrations لهذه الدفعة بعد؛ جميع هذه البنود حالتها **Implemented on branch / Pending QA verification**، لا تعتبر معتمدة.
 
 ## 2. حالة كل Phase حسب المواصفة الأصلية v5 (§19)
