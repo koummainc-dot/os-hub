@@ -38,6 +38,7 @@ export const DOCUMENTATION_CATALOG = [
 
 export const DOCUMENTATION_SECTIONS = [
   {id:"overview",label:"نظرة عامة"},
+  {id:"screens",label:"الشاشات"},
   {id:"navigation",label:"التنقل والشاشات"},
   {id:"actions",label:"الأزرار والإجراءات"},
   {id:"relationships",label:"العلاقات وتدفق البيانات"},
