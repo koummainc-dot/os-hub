@@ -194,8 +194,8 @@
 1. **مسار إنشاء معاملة Finance:** مكتمل برمجيًا؛ Project Finance يمرر `projectRef` إلى Finance Transactions، وFinance يجهز النموذج باستخدام الملف المالي المملوك له ثم يستخدم `fin_post_transaction_with_splits` و`fin_project_transaction_link`. المتبقي هو القبول الحي من الواجهة/RPC.
 2. حسم D-02: هل لكل Project ملف Finance نشط أساسي واحد، أم اختيار Primary Profile صريح؟ لا تضف Unique constraint قبل جرد التكرارات والقرار.
 3. حُسم D-10 ونُفّذ handoff أولي: Projects يمرر الميزانية المقترحة والعملة وتاريخ تحديث المصدر إلى Finance، ولا تُحفظ القيمة قبل تأكيد صريح داخل Finance. اختلاف العملة يمنع النقل التلقائي، ولا توجد مزامنة لاحقة. يلزم اختبار migration/واجهة/RPC.
-4. إظهار حالات Not Linked / Linked / Multiple / Error / Permission Denied / Currency Mismatch مكتمل في Portfolio وProject Finance؛ حالة Stale تحتاج عقدًا صريحًا من Finance قبل اشتقاقها.
-5. Attribution للحركات المالية ومصدر Finance وحالات العملة/القيم غير المقيمة ظاهرة، ولا تُعرض أرقام صفرية عند غياب الربط؛ `as_of`/last-sync يحتاجان عقد Finance صريحًا إن كانا جزءًا من read model.
+4. حالات Not Linked / Linked / Multiple / Error / Permission Denied / Currency Mismatch / Stale موجودة؛ عقد Finance sync صريح `fin_projects_sync_get` يعيد `as_of`, `last_synced_at`, `sync_status`. QA أكد أن Finance read role يستلم Fresh metadata.
+5. Attribution للحركات المالية ومصدر Finance وحالات العملة/القيم غير المقيمة ظاهرة؛ Finance sync metadata أصبح عقدًا versioned ومستهلكًا في Projects وFinance UI. صلاحيات السحب تمسح Snapshot المحفوظ بدل عرضه كـStale.
 6. اختبار اختلاف العملة والصلاحيات والحسابات الحقيقية.
 7. استكمال تجميع Activity لكل أنواع السجلات، والتحقق من Wins/Updates وWeekly Review snapshots من المشروع والعرض العام.
 
@@ -250,22 +250,26 @@
 
 ---
 
-## 4. قرارات المنتج المفتوحة D-01 إلى D-12
+## 4. حالة قرارات المنتج D-01 إلى D-12
 
-- **D-01:** اعتماد Accent ومكونات التصميم الموحدة بعد المراجعة الفعلية.
-- **D-02:** عدد Finance Profiles الأساسية وعلاقة الملف المالي بالمشروع.
-- **D-03:** حدود ملكية Resources والملفات بين Projects وKnowledge وOutputs.
-- **D-04:** تثبيت الهوية المستقرة لكل Knowledge Follow-up وتخزينها على جانب Knowledge.
-- **D-05:** اعتماد canonical `project_ref` وعقد الربط النهائي.
-- **D-06:** Saved Views شخصية أم مشتركة، وعقد تخزينها.
-- **D-07:** Unified Inbox يتبع Platform Notification ولا تنشأ نسخة داخل Projects.
-- **D-08:** Milestones مستقلة أم Task type واحد؛ يمنع ازدواج النموذج.
-- **D-09:** نطاق اللغة الإنجليزية وتبديل اللغة في V1.
-- **D-10:** سياسة نقل planned budget من Projects إلى Finance.
-- **D-11:** عقد استعلام موارد Knowledge وصلاحياته.
-- **D-12:** إغلاق جرد Readers/Writers والبيانات القديمة الخاصة بـKR/Task قبل تعديل المسارات.
+**D-02 إلى D-12 حُسمت وسُجلت في `decision-log.md`؛ لم تعد قرارات معلّقة.** اعتماد الواجهة النهائي لـD-01 يظل ضمن بوابة التصميم، وليس سببًا لإيقاف التنفيذ البرمجي.
 
-العناصر الاختيارية/المؤجلة لا تتحول تلقائيًا إلى عمل جديد: أي عنصر مؤجل يظل خارج النطاق حتى يُعتمد صراحةً.
+| القرار | القرار المعتمد |
+|---|---|
+| D-01 | Accent موحد من Core هو `#EF9F27`؛ القبول البصري النهائي بعد مراجعة RTL والمكونات المشتركة |
+| D-02 | Finance يسمح بملفات متعددة حيث يدعم نموذجه، مع اختيار Primary واحد صراحةً؛ لا One-to-One constraint |
+| D-03 | Knowledge يملك الاجتماعات والموارد ومرفقاتها؛ Outputs يملك ملفات التسليم؛ Projects يملك روابطه الخارجية وبياناته الخاصة فقط |
+| D-04 | Follow-up ID ثابت يصدره Knowledge؛ Projects يستخدم هوية مصدر مركبة ويمنع التكرار |
+| D-05 | `knowledge_external_links` هو مرجع الربط canonical لـKnowledge↔Projects |
+| D-06 | Saved Views شخصية افتراضيًا؛ Workspace sharing للـOwner/Admin؛ Core يملك التخزين وRLS |
+| D-07 | Platform/Core يملك Unified Inbox وقراءة كل مستلم؛ لا Inbox محلي داخل Projects |
+| D-08 | Milestone سجل مستقل لا يدخل في Task progress |
+| D-09 | Arabic-first/RTL في V1؛ اختيار اللغة ودوامها من Core |
+| D-10 | نقل أولي مقترح للميزانية فقط بموافقة صريحة من Finance؛ لا مزامنة لاحقة أو تحويل عملة تلقائي |
+| D-11 | موارد Knowledge تقرأ باستعلام Knowledge server-scoped، وتفشل مغلقًا إذا تعذر التحقق |
+| D-12 | legacy KR/Task fields تبقى read-only؛ لا Backfill/حذف قبل reader-writer inventory وno-loss dry run |
+
+**Demo/Sandbox:** Demo مؤقت داخل الذاكرة فقط؛ QA مشروع Supabase منفصل. لا تُنشأ مساحة Sandbox دائمة داخل Production أو جداول موازية.
 
 ---
 
@@ -300,3 +304,46 @@
 ---
 
 **الحالة النهائية في 14 نوفمبر 2026:** العمل البرمجي الحالي ناجح آليًا على آخر Commit، لكن Projects OS v5 ما زال **PARTIAL / NOT APPROVED**. لا دمج لـPR #188 ولا Migration أو نشر Production قبل إغلاق G0–G7 وتوثيق الأدلة والموافقة.
+
+
+---
+
+## Latest implementation continuation — 2026-11-14 (بعد دفعة Finance/Inbox/Discovery)
+
+**هذه الإضافة هي الحالة الأحدث للميزات والقرارات؛ لا تغيّر بوابات الاعتماد النهائية.**
+
+### ما نُفذ على فرع PR #188
+
+- **Finance Sync:** Migration `20261114250000_finance_project_sync_read_model.sql` أضافت `fin_projects_sync_get` من Finance-owned read model. Project Finance وPortfolio وFinance Projects تعرض `as_of` و`last_synced_at` وحالة Fresh/Stale. انقطاع الشبكة يحتفظ بآخر Snapshot ناجح؛ لكن عند رفض Finance للصلاحية يتم مسح البيانات المخزنة فورًا ولا تعرض كـStale.
+- **Finance Primary Profile:** إصلاح التحقق في `fin_project_primary_set`: `fin_projects_get` يعيد JSONB array واحدًا، وليس SETOF. Migration مطبقة على QA، وتظل علاقة Primary اختيارًا صريحًا بلا uniqueness constraint على بيانات تاريخية لم تُجرد بالكامل.
+- **Unified Inbox:** Platform يعرض Core notifications مع عدّاد غير المقروء، تحديث دوري، mark-read، mark-all-read وDeep Links للسجل الأصلي في Projects/Knowledge. RLS وemit يتحققان من السجل المصدر ومن كل Project داخل `project_ids` قبل إظهار الإشعار.
+- **Scheduled Automations:** Core-owned worker يغطي Due/Soon/Overdue Tasks، Project Target Dates، Health Red/Orange، High Risks، Critical Issues، PRD Review، Output Review، Discovery Triage، Contact Follow-ups، Weekly Review Draft وKR Check-in. الـCron يستيقظ كل دقيقة، لكن wrapper سريع لا يشغّل مسح البيانات إلا إذا حان وقت التذكير المحلي لمساحة عمل. إعدادات Automations واحترام خصوصية المصدر والمشاريع المرتبطة جزء من مسار الإنشاء.
+- **Published Updates:** نشر Stakeholder Update يرسل إشعارًا مركزيًا لقائد المشروع وأعضائه؛ المصدر الأصلي يظل Update داخل Projects.
+- **Discovery traceability:** إضافة عنوان/رابط المصدر الأصلي وObjective references، مع تحقق UI وDB من وجود الهدف ومن مسار Objective→KR→Project. تحويل Discovery إلى Task/PRD/Issue/Project يظل ذريًا ويحافظ على المصدر؛ لا يُضاف Task→Objective مباشر.
+- **Demo/Sandbox:** Demo يستخدم store مؤقتًا في الذاكرة؛ Finance فيه read-only ولا تُرسل منه Notifications إلى Core. QA منفصل؛ لا توجد طبقة Sandbox دائمة تختلط ببيانات Production.
+- **Knowledge Resources:** Project Resources تعرض Knowledge rows عبر server-scoped query، وعند الطلب تحمل مرفقات Knowledge عبر signed links قصيرة العمر؛ ملفات Outputs تبقى في Output Storage، وروابط المشروع الخارجية تظل Projects-owned. لا يتم نسخ المرفقات إلى Projects.
+- **Saved Views D-06:** الحفظ الشخصي والتطبيق والتحديث والحذف موجودة في Core adapter؛ Workspace sharing للـOwner/Admin فقط، مع RLS يمنع عضو Projects العادي من إنشاء/تعديل/حذف Shared View ويحافظ على creator identity.
+
+### أدلة QA المعزول
+
+تم تطبيق المigrations التالية على مشروع QA `lvtnyepemoqgmehdqark` فقط: Milestone integrity/batch/purge، Core Saved Views، Finance Primary Profile، Core Notifications، Finance Sync read model، Discovery Traceability، Daily Automations، Governance access mapping، Cron schedule gate، Saved Views manager permissions وhelper ACL.
+
+- تشغيل Finance sync تحت حساب QA member أعاد `sync_status=fresh` و`as_of` و`last_synced_at` و`contract_version=1`.
+- اختبار Saved Views بحسابين أثبت Personal owner CRUD، رفض Shared View للعضو العادي، وقبول Shared View CRUD لمالك المساحة. نفذت الحالات داخل Transaction ثم `ROLLBACK`.
+- اختبار Automation أنشأ إشعار `task_due_today` لمهمة اختبارية للمستلم الصحيح، ثم تحقق من أن الـfixture والـnotification لم يتركا أي بيانات بعد `ROLLBACK`.
+- فحص Cron أكد أن `os_hub_projects_daily_notifications` active بجدول `* * * * *`، وأن schedule gate يرجع دون مسح البيانات خارج وقت التذكير المحلي.
+- أضيفت عقود JS إلى `npm test` لـSaved Views permissions وDaily Automations وFinance Sync، بالإضافة إلى Demo isolation وDiscovery traceability. لم أشغّل بعد suite القبول النهائي على آخر Head.
+
+### ما لا يزال مفتوحًا (لا يُغلق بمجرد إضافة الواجهة)
+
+1. اختبارات واجهة حية كاملة لإنشاء/تعديل/أرشفة/استعادة كل الكيانات، وكل Backlinks بعد Reload.
+2. رفع وتنزيل ملفات حقيقية في Outputs وTask Sheet، وفشل Storage upload ثم retry عبر نفس `object_path`، واختبار Storage RLS بحساب مسموح وآخر ممنوع.
+3. اختبار الحسابات الثلاثة وصلاحيات Private Projects في Preview بعد التحقق من وجهة Supabase الفعلية؛ لا تكتب من Preview ما لم يثبت أنه QA.
+4. قبول Mobile/Tablet/RTL/Keyboard/Screen Reader/Contrast وBrowser Back/Deep Links.
+5. اختبار Offline queue وConflict resolution على واجهة فعلية، وPerformance لتسلسل 5,000 Task.
+6. جرد Readers/Writers ومسارات KR/Task القديمة، dry-run no-loss، backup/restore وrollback rehearsal؛ لا حذف أو Backfill تاريخي في هذه الدفعة.
+7. مراجعة final Activity/Wins/Updates/Weekly Review دورة البيانات والروابط من Global وProject context.
+8. CI/Preview النهائي للـhead الحالي، ثم فقط الانتقال إلى Phase 7 acceptance؛ لا merge ولا Production migration/deploy بدون موافقة صريحة.
+
+**الحالة:** Features batch مستمر / QA SQL المحدد ناجح / Projects OS v5 ما زال PARTIAL وNOT APPROVED. PR #188 يظل Draft.
+
