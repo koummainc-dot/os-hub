@@ -39,4 +39,10 @@ assert.ok(projects.includes("creatingFollowupsRef.current.add(key)") && projects
 assert.ok(projects.includes("source_meeting_id: meeting.id") && projects.includes("source_followup_index: index"), "created task must retain its source meeting and follow-up identity");
 assert.ok(projectDetail.includes("creatingFollowupsRef.current.has(key)") && projectDetail.includes("creatingFollowupsRef.current.add(key)") && projectDetail.includes("creatingFollowupsRef.current.delete(key)"), "Project Detail meeting follow-up conversion must also block duplicate in-flight submissions");
 
+assert.ok(component.includes("routeContext=null") && component.includes("routeContext?.focusItemId") &&
+  component.includes('routeContext?.focusItemKind==="meeting"') &&
+  component.includes('id={"knowledge-item-"+String(item.id).replace(/[^a-zA-Z0-9_-]/g,"_")}'),
+  "Knowledge must reveal and highlight the exact source item when a Project task opens its meeting backlink");
+assert.ok(projectDetail.includes('focusItemId: meeting.id, focusItemKind: "meeting"'),
+  "Project meeting cards must preserve the exact source Knowledge item ID when navigating");
 console.log("Knowledge delivery, attachment, cross-system and preview contracts: PASS");
