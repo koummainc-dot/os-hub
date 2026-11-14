@@ -53,9 +53,17 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
    setNotice("تم فتح الملف المالي المرتبط بالمشروع.");
   }else if(linkedProfiles.length>1){
    setBudgetHandoff(null);
-   setSelectedId(null);
-   setShowForm(false);
-   setNotice("يوجد أكثر من ملف مالي مرتبط بالمشروع نفسه. لم يتم اختيار ملف تلقائيًا؛ اختر الملف المقصود من القائمة أو راجع Finance قبل المتابعة.");
+   const primary=primaryProfiles.find(row=>String(row.project_ref)===ref);
+   const primaryProfile=primary&&linkedProfiles.find(profile=>String(profile.id)===String(primary.finance_project_id));
+   if(primaryProfile){
+    setSelectedId(primaryProfile.id);
+    setShowForm(false);
+    setNotice("تم فتح الملف المالي الأساسي المحدد صراحةً لهذا المشروع.");
+   }else{
+    setSelectedId(null);
+    setShowForm(false);
+    setNotice(primary?"تعيين الملف الأساسي يشير إلى ملف غير موجود؛ اختر ملفًا صالحًا وأعد تعيينه.":"يوجد أكثر من ملف مالي مرتبط بالمشروع نفسه دون ملف أساسي محدد؛ اختر الملف المقصود ثم عيّنه كملف أساسي.");
+   }
   }else{
    const source=sourceProjects.find(p=>String(p.id)===ref);
    if(source&&canEdit){
@@ -73,7 +81,7 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
    }
   }
   setHandledInitialProjectRef(ref);
- },[initialProjectRef,loading,handledInitialProjectRef,projects,sourceProjects,canEdit,currencies,initialBudget,initialCurrency,initialBudgetUpdatedAt]);
+ },[initialProjectRef,loading,handledInitialProjectRef,projects,sourceProjects,canEdit,currencies,initialBudget,initialCurrency,initialBudgetUpdatedAt,primaryProfiles]);
  const sourceProjectById=useMemo(()=>new Map(sourceProjects.map(p=>[p.id,p])),[sourceProjects]);
  const displayProjectName=(p)=>sourceProjectById.get(p.project_ref)?.name||p.name;
  const selected=selectedId?projects.find(p=>p.id===selectedId)||null:projects.length===1?projects[0]:null;
