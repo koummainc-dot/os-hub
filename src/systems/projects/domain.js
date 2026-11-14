@@ -11,7 +11,7 @@ export const DEFAULT_SETTINGS = {
   yellowDays: 14, yellowProgress: 0.7, riskHigh: 15, riskMedium: 8,
   paceOnTrack: 0.1, paceAtRisk: 0.25, inboxStaleDays: 14, timerMaxHours: 8, dueSoonDays: 1,
   cyclesEnabled: false, krWeights: false,
-  automations: { reviewDraft: true, dueReminders: true, overdueDigest: true, healthAlerts: true, staleInbox: true, krCheckin: true, timerLong: true, winSuggest: true, prdReview: true, outputReview: true, governanceAlerts: true },
+  automations: { reviewDraft: true, dueReminders: true, overdueDigest: true, healthAlerts: true, staleInbox: true, krCheckin: true, timerLong: true, winSuggest: true, prdReview: true, outputReview: true, updateDue: true, governanceAlerts: true },
 };
 
 // ── statuses & categories ───────────────────────────────────────────
