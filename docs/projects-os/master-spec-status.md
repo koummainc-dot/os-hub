@@ -175,3 +175,19 @@ In parallel, request the Knowledge and Finance owners' current API/schema/RLS co
 - **Preview data target: BLOCKED FOR WRITES.** Vercel has no configured project environment variables (0 entries); `src/core/supabase.js` therefore uses the built-in `https://cvcngvlickozahecgmij.supabase.co` default. Supabase lists exactly one project (`os-hub`) and zero development branches. Read-only production checks confirm 103 migration-history rows, the base `knowledge_resource_os` migration present, the new `knowledge_project_scoped_links` migration absent, and the new RPC/trigger absent. The Knowledge item/external-link counts are zero; six active Project records exist. Do not create/edit data from this Preview.
 - Supabase Branching requires Pro per the current Deployment & Branching guide. The separate-project quote for `os-hub-preview-qa` in the existing organization is **$0/month**, but project creation was stopped because the Supabase tool requires an explicit cost confirmation ID. No test project or branch has been created.
 - Production remains unchanged: no migration, data backfill, write, merge, or Production deployment was performed.
+
+
+---
+
+## Status correction — 2026-11-14
+
+**Current phase-by-phase status:** see [phase-status-report-2026-11-14.md](./phase-status-report-2026-11-14.md). This report supersedes older phase summaries below wherever they conflict with work completed after 2026-11-13.
+
+- The isolated Supabase QA project has now been created and used for relationship, privacy, and Finance reference-visibility testing. Older statements that QA creation was stopped or no QA project existed are historical and no longer current.
+- Knowledge ↔ Projects project-scoped reads are implemented with Knowledge-owned `knowledge_external_links` and `knowledge_list_project_meetings(workspace_id, project_id)`. Isolated SQL checks cover project A/B visibility and missing Knowledge/Projects permission; do not retain the older statement that selected Project meetings are still filtered client-side.
+- Finance's privileged `fin_project_save(jsonb)` reference-visibility guard was added in `20261114123000_finance_projects_reference_visibility_guard.sql`, applied to QA only, and tested with two identities: private Project reference rejected; shared visible Project accepted.
+- Latest code/test head reviewed: `b5f4bd37b4270fd74648c032ea826385cad573f8`. CI, Verify app, Finance Family Center, Projects SQL, Finance SQL, Ventures SQL and Knowledge SQL all passed on this exact head.
+- Vercel Preview is READY on that same commit. Preview-only environment variables are present for this branch, but their values were returned encrypted and the effective Supabase host could not be independently verified. Keep Preview writes blocked until the host is confirmed to be QA.
+- Production remains unchanged: no Production migration, backfill, test write, merge, or deployment was performed in this pass.
+
+The older rows in §1 and addenda below remain useful as historical implementation evidence, but their statuses are not the latest overall snapshot. Use the 2026-11-14 phase report for current acceptance decisions.
