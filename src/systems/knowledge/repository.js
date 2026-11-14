@@ -292,3 +292,27 @@ export async function listKnowledgeMeetings(workspaceId, projectId = null) {
     source: "workspace_data-legacy-fallback",
   };
 }
+
+
+// Project Resource Hub reads are server-scoped and never fall back to a workspace snapshot.
+export async function listKnowledgeProjectResources(workspaceId, projectId) {
+  if (!workspaceId || !projectId || !supabase) {
+    return { ok: false, resources: [], reason: "workspace-project-or-client-unavailable" };
+  }
+  const { data, error } = await supabase.rpc("knowledge_list_project_resources", {
+    p_workspace_id: workspaceId,
+    p_project_id: String(projectId),
+  });
+  if (error) {
+    return {
+      ok: false,
+      resources: [],
+      error,
+      reason: missingObject(error) ? "project-resource-query-not-installed" : "project-resource-query-failed",
+    };
+  }
+  const resources = (Array.isArray(data) ? data : [])
+    .map((row) => row?.resource || row)
+    .filter((item) => item && typeof item === "object" && item.id && item.title && item.status !== "archived" && !item.deleted_at);
+  return { ok: true, resources, source: "knowledge-project-scoped-resource-rpc" };
+}
