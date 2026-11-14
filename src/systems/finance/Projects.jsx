@@ -77,6 +77,7 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
  const sourceProjectById=useMemo(()=>new Map(sourceProjects.map(p=>[p.id,p])),[sourceProjects]);
  const displayProjectName=(p)=>sourceProjectById.get(p.project_ref)?.name||p.name;
  const selected=selectedId?projects.find(p=>p.id===selectedId)||null:projects.length===1?projects[0]:null;
+ const selectedIsPrimary=!!selected&&primaryProfiles.some(row=>row.project_ref===selected.project_ref&&row.finance_project_id===selected.id);
  const linkedIds=useMemo(()=>new Set(projects.flatMap(p=>(p.transactions||[]).map(t=>t.id))),[projects]);
  const availableTransactions=transactions.filter(t=>!linkedIds.has(t.id));
  function startCreate(){
@@ -116,7 +117,7 @@ export default function FinanceProjects({ws,access,isDemo=false,currencies=[],in
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12}}><Metric label="صافي الربح" value={money(p.net_profit_base,p.base_currency||"EGP")}/><Metric label="ROI" value={p.roi_measurable?Number(p.roi_pct).toLocaleString("ar-EG")+"%":"غير قابل للقياس"}/></div>
    </button>)}</div>}
   </Card>
-  {selected&&<Card><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"start",flexWrap:"wrap"}}><div><h3 style={{margin:0}}>{displayProjectName(selected)}</h3><p style={{fontSize:11,color:MUTED,margin:"5px 0 0"}}>{sourceProjectById.get(selected.project_ref)?"مرتبط بقسم Projects OS":"يتطلب ربطًا بمشروع من Projects OS"} · {TYPE_LABEL[selected.project_type]||selected.project_type} · {selected.start_date}{selected.end_date?" → "+selected.end_date:""} · {selected.scope==="Business"?"تجاري":"شخصي"}</p></div>{canEdit&&<div style={{display:"flex",gap:7,flexWrap:"wrap"}}><Btn onClick={()=>onCreateTransaction?.(selected)}>＋ تسجيل حركة</Btn><Btn secondary onClick={()=>startEdit(selected)}>تعديل بيانات المشروع</Btn></div>}</div>
+  {selected&&<Card><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"start",flexWrap:"wrap"}}><div><h3 style={{margin:0}}>{displayProjectName(selected)}</h3><p style={{fontSize:11,color:MUTED,margin:"5px 0 0"}}>{sourceProjectById.get(selected.project_ref)?"مرتبط بقسم Projects OS":"يتطلب ربطًا بمشروع من Projects OS"} · {TYPE_LABEL[selected.project_type]||selected.project_type} · {selected.start_date}{selected.end_date?" → "+selected.end_date:""} · {selected.scope==="Business"?"تجاري":"شخصي"} · {selectedIsPrimary?"الملف الأساسي":"ملف غير أساسي"}</p></div>{canEdit&&<div style={{display:"flex",gap:7,flexWrap:"wrap"}}><Btn onClick={()=>onCreateTransaction?.(selected)}>＋ تسجيل حركة</Btn>{!selectedIsPrimary&&<Btn secondary disabled={saving} onClick={()=>setPrimaryProfile(selected)}>تعيين كملف أساسي</Btn>}<Btn secondary onClick={()=>startEdit(selected)}>تعديل بيانات المشروع</Btn></div>}</div>
    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:9,marginTop:14}}>
     <Metric label="إجمالي الإيرادات" value={money(selected.revenue_base,selected.base_currency||"EGP")} detail={"عملة الأساس: "+(selected.base_currency||"EGP")}/>
     <Metric label="إجمالي المصروفات" value={money(selected.expenses_base,selected.base_currency||"EGP")}/>
