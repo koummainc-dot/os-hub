@@ -753,23 +753,32 @@ function RelatedTab({ p, canE, section = "all" }) {
     setCreatingFollowup(key);
     try {
       const sourceRecordId = followupIdentity;
-      const saved = await act.saveTask({
-        id: "knowledge_meeting_task_" + encodeURIComponent(sourceRecordId),
-        source: "knowledge_meeting",
-        source_record_id: sourceRecordId,
-        title,
-        project_id: p.id,
-        assignee_id: me,
-        status: "Not Started",
-        planning_bucket: "Inbox",
-        due_date: meeting.date && meeting.date >= today ? meeting.date : "",
-        source_meeting_id: meeting.id,
-        source_meeting_title: meeting.title || "",
-        source_followup_id: followupIdentity,
-        source_followup_title: title,
-        source_followup_index: index,
-      }, true);
-      if (saved) toast("✅ أُنشئت مهمة متابعة مرتبطة باجتماع Knowledge OS.");
+      if (!supabase || typeof supabase.rpc !== "function") throw new Error("اتصال Projects غير متاح.");
+      const { data: result, error } = await supabase.rpc("projects_create_followup_task", {
+        p_workspace_id: ws.id,
+        p_project_id: p.id,
+        p_followup_id: sourceRecordId,
+        p_task: {
+          source: "knowledge_meeting",
+          source_record_id: sourceRecordId,
+          title,
+          project_id: p.id,
+          assignee_id: me,
+          status: "Not Started",
+          planning_bucket: "Inbox",
+          due_date: meeting.date && meeting.date >= today ? meeting.date : "",
+          source_meeting_id: meeting.id,
+          source_meeting_title: meeting.title || "",
+          source_followup_title: title,
+          source_followup_index: index,
+          created_by: me,
+          sort_order: Date.now(),
+        },
+      });
+      if (error) throw error;
+      if (result?.duplicate) toast("ℹ️ هذه المتابعة مرتبطة بالفعل بمهمة؛ لم تُنشأ نسخة أخرى.");
+      else if (result?.created) toast("✅ أُنشئت مهمة متابعة مرتبطة باجتماع Knowledge OS.");
+      else toast("ℹ️ لم تُنشأ نسخة إضافية للمتابعة.");
     } catch (error) {
       toast("⛔ تعذّر إنشاء المهمة: " + (error?.message || "فشل الحفظ"));
     } finally {
