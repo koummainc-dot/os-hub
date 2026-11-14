@@ -35,7 +35,8 @@ for insert
 to authenticated
 with check (
   owner_id = auth.uid()
-  and public.ws_access_level(workspace_id, system_id, 'projects') = 'edit'
+  and public.ws_access_level(workspace_id, system_id, 'projects') in ('view','edit')
+  and (scope = 'personal' or public.ws_access_level(workspace_id, system_id, 'projects') = 'edit')
 );
 
 drop policy if exists core_saved_views_update on public.core_saved_views;
@@ -45,11 +46,12 @@ for update
 to authenticated
 using (
   owner_id = auth.uid()
-  and public.ws_access_level(workspace_id, system_id, 'projects') = 'edit'
+  and public.ws_access_level(workspace_id, system_id, 'projects') in ('view','edit')
 )
 with check (
   owner_id = auth.uid()
-  and public.ws_access_level(workspace_id, system_id, 'projects') = 'edit'
+  and public.ws_access_level(workspace_id, system_id, 'projects') in ('view','edit')
+  and (scope = 'personal' or public.ws_access_level(workspace_id, system_id, 'projects') = 'edit')
 );
 
 drop policy if exists core_saved_views_delete on public.core_saved_views;
@@ -59,7 +61,7 @@ for delete
 to authenticated
 using (
   owner_id = auth.uid()
-  and public.ws_access_level(workspace_id, system_id, 'projects') = 'edit'
+  and public.ws_access_level(workspace_id, system_id, 'projects') in ('view','edit')
 );
 
 grant select, insert, update, delete on public.core_saved_views to authenticated;
