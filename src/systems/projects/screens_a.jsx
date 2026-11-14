@@ -324,6 +324,7 @@ export function Portfolio() {
   const [highRiskOnly, setHighRiskOnly] = useState(false);
   const [financeLinkFilter, setFinanceLinkFilter] = useState("");
   const [financeProfiles, setFinanceProfiles] = useState([]);
+  const [financePrimaryProfiles, setFinancePrimaryProfiles] = useState([]);
   const [financeLinkState, setFinanceLinkState] = useState("idle");
   const [savedViews, setSavedViews] = useState([]);
   const [savedViewsState, setSavedViewsState] = useState("idle");
@@ -347,7 +348,9 @@ export function Portfolio() {
     return map;
   }, [financeProfiles]);
   const financeStatusFor = (project) => {
-    const profiles = financeByProjectRef.get(String(project.id)) || [];
+    const allProfiles = financeByProjectRef.get(String(project.id)) || [];
+    const primary = financePrimaryProfiles.find((row) => String(row.project_ref) === String(project.id));
+    const profiles = primary ? allProfiles.filter((profile) => String(profile.id) === String(primary.finance_project_id)) : allProfiles;
     if (financeLinkState === "permission") return { key: "permission", label: "Finance: لا توجد صلاحية", color: C.bad };
     if (financeLinkState === "error") return { key: "error", label: "Finance: خطأ", color: C.bad };
     if (!profiles.length) return { key: "not-linked", label: "Finance: غير مرتبط", color: C.warn };
@@ -373,17 +376,21 @@ export function Portfolio() {
     let active = true;
     if (!ws?.id || !supabase?.rpc) { setFinanceProfiles([]); setFinanceLinkState("idle"); return () => { active = false; }; }
     setFinanceLinkState("loading");
-    supabase.rpc("fin_projects_get", { p_ws: ws.id }).then(({ data: rows, error }) => {
+    Promise.all([
+      supabase.rpc("fin_projects_get", { p_ws: ws.id }),
+      supabase.rpc("fin_project_primary_list", { p_ws: ws.id }),
+    ]).then(([profilesResult, primaryResult]) => {
       if (!active) return;
-      if (error) {
-        const message = String(error.message || error.details || error.code || "");
-        setFinanceProfiles([]);
-        setFinanceLinkState(error.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(message) ? "permission" : "error");
+      if (profilesResult.error) {
+        const message = String(profilesResult.error.message || profilesResult.error.details || profilesResult.error.code || "");
+        setFinanceProfiles([]); setFinancePrimaryProfiles([]);
+        setFinanceLinkState(profilesResult.error.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(message) ? "permission" : "error");
         return;
       }
-      setFinanceProfiles(Array.isArray(rows) ? rows : []);
+      setFinanceProfiles(Array.isArray(profilesResult.data) ? profilesResult.data : []);
+      setFinancePrimaryProfiles(primaryResult.error ? [] : (Array.isArray(primaryResult.data) ? primaryResult.data : []));
       setFinanceLinkState("ready");
-    }).catch(() => { if (active) { setFinanceProfiles([]); setFinanceLinkState("error"); } });
+    }).catch(() => { if (active) { setFinanceProfiles([]); setFinancePrimaryProfiles([]); setFinanceLinkState("error"); } });
     return () => { active = false; };
   }, [ws?.id]);
   const openProjects = projects.filter((p) => !p.archived_at && !["Completed", "Cancelled"].includes(p.status));
