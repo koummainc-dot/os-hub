@@ -507,6 +507,7 @@ export function Meetings() {
         planning_bucket: "Inbox",
         due_date: meeting.date && meeting.date >= today ? meeting.date : "",
         source_meeting_id: meeting.id,
+        source_followup_id: followupIdentity,
         source_meeting_title: meeting.title || "",
         source_followup_title: title,
         source_followup_index: index,
