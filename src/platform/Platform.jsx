@@ -101,15 +101,15 @@ function Platform(){
   useEffect(()=>{
     const handler=async(e)=>{
       const d=e?.detail;
-      if(!d||d.workspaceId==null||String(d.workspaceId)!==String(wsId)||!(d.source==="ventures"||(d.source==="knowledge"&&d.systemId==="projects"))||!d.systemId) return;
+      if(!d||d.workspaceId==null||String(d.workspaceId)!==String(wsId)||!(d.source==="knowledge"&&d.systemId==="projects")||!d.systemId) return;
       if(d.systemId==="projects"){
-        const allowed=d.source==="ventures"?["create_risk"]:d.source==="knowledge"?["create_meeting_tasks"]:[];
+        const allowed=["create_meeting_tasks"];
         if(!allowed.includes(d.action)){
           window.dispatchEvent(new CustomEvent("os:source-write-result",{detail:{workspaceId:wsId,systemId:"projects",action:d.action||"update",recordId:d.recordId||null,source:d.source,ok:false,error:"unsupported-projects-source-write-action"}}));
           return;
         }
         setPendingProjectSourceWrite(d);
-        setSectionBy(p=>({...p,projects:d.action==="create_risk"?"risks":"tasks"}));
+        setSectionBy(p=>({...p,projects:"tasks"}));
         setRoute({view:"system",system:"projects"});
         setNavOpen(false);
         return;
@@ -128,7 +128,7 @@ function Platform(){
           const collection=String(payload.collection||"notes");
           const allowed=["resources","ideas","notes","meetings","events","inbox"];
           if(!allowed.includes(collection)) throw new Error("unsupported-knowledge-collection");
-          const recordId=String(d.recordId||payload.id||("ventures_knowledge_"+Date.now()));
+          const recordId=String(d.recordId||payload.id||("knowledge_"+Date.now()));
           const current=Array.isArray(snapshot[collection])?snapshot[collection]:[];
           const item={...(current.find(x=>String(x?.id)===recordId)||{}),...payload,id:recordId};
           delete item.collection;
@@ -147,7 +147,7 @@ function Platform(){
       try{
         if(!wsId) throw new Error("workspace-required");
         if(!["create","update"].includes(action)) throw new Error("unsupported-content-write-action");
-        const recordId=String(d.recordId||payload.id||("ventures_content_"+Date.now()));
+        const recordId=String(d.recordId||payload.id||("content_"+Date.now()));
         const {data:existing,error:readError}=await supabase.from("workspace_records").select("id,data,collection,deleted").eq("workspace_id",wsId).eq("system_id","content").eq("id",recordId).maybeSingle();
         if(readError) throw readError;
         const merged={...(existing?.data||{}),...payload,id:recordId,updated_at:new Date().toISOString()};
@@ -166,7 +166,7 @@ function Platform(){
     const handler=(event)=>{
       const d=event?.detail||{};
       if(d.workspaceId&&String(d.workspaceId)!==String(wsId))return;
-      if(d.systemId!=="projects"||!["ventures","knowledge"].includes(d.source))return;
+      if(d.systemId!=="projects"||d.source!=="knowledge")return;
       const requestRecordId=d.requestRecordId||d.recordId;
       setPendingProjectSourceWrite(current=>current&&String(current.recordId||"")===String(requestRecordId||"")?null:current);
       const message=d.source==="knowledge"

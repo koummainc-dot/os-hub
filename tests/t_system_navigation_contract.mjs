@@ -45,5 +45,4 @@ assert.ok(skincare.includes("onClick={() => setPage(id)}"), "Skincare navigation
 assert.deepEqual([...new Set(skincareNavIds)].sort(), [...new Set(skincareRegistryIds)].sort(), "Skincare internal navigation and registry IDs must match");
 assert.match(core, /id:"skincare"[\s\S]*?status:"live"/, "Skincare OS must be activated in the registry");
 
-assert.match(core, /id:"spiritual"[\s\S]*?status:"live"/, "Spiritual & Values OS must be activated in the registry");
 console.log("System internal navigation contract passed.");

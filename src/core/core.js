@@ -18,7 +18,6 @@ const OS_GROUPS=[{id:"work",label:"العمل والمعرفة"},{id:"life",labe
 function osSec(str){return str.split("|").map(x=>{const p=x.split(":");return{id:p[0],label:p[1],icon:p[2]||"•"};});}
 // status: live = built · planned = scaffold only. phase = proposed build order (see PLATFORM_MASTER_PLAN.md)
 const OS_SYSTEMS=[
-{id:"ventures",group:"work",scope:"shared",icon:"📈",color:"#0F766E",name:"Ventures OS",title:"محفظة المشاريع التجارية",status:"live",phase:"المرحلة 3 · محفظة المشاريع وMasterplan",sensitive:true,plan:"docs/VENTURES_OS_BUILD_SPEC.md",desc:"تتبّع أداء المتاجر والتطبيقات والمدونات والبزنس الأرضي كمحفظة، مع قرارات Scale/Fix/Pause/Kill.",sections:osSec("dashboard:المحفظة:⌂|entry:الإدخال الأسبوعي:📊|projects:المشاريع:📁|money:المال:💰|channels:القنوات:📣|seo:SEO:🔎|growth:النمو والتجارب:📈|catalog:الكتالوج:📦|compliance:الامتثال:🛡️|tools:الأدوات:🧰|decisions:القرارات:⚖️|import:الاستيراد:⬆️|settings:الإعدادات:⚙️|email:البريد:✉️")},
 {id:"content",group:"work",scope:"shared",icon:"✍️",color:"#EF9F27",name:"Content OS",title:"إدارة المحتوى",status:"live",phase:"جاهز",sensitive:false,plan:"docs/ContentOS_Phases_Roadmap.md",sections:null,
  desc:"تخطيط وإنتاج ونشر وتحليل المحتوى عبر الحسابات والمنصات."},
 {id:"projects",group:"work",scope:"shared",icon:"🚀",color:"#6366F1",name:"Projects OS",title:"المشاريع والمخرجات",status:"live",phase:"جاهز",sensitive:false,plan:"Projects_OS_v4_Unified_Master_Plan.md",
@@ -54,7 +53,6 @@ const OS_SYSTEMS=[
  desc:"الرحلات والبرنامج اليومي والحجوزات والميزانيات وقوائم التجهيز والوجهات والمستندات والذكريات والتقييمات.",
  sections:osSec("home:الرئيسية:⌂|trips:الرحلات:🧳|active:الرحلة النشطة:📍|itinerary:برنامج الرحلة:🗓️|bookings:الحجوزات:🎟️|budget:الميزانية:💳|packing:قائمة التجهيز:🎒|destinations:الوجهات:🌍|places:الأماكن والتجارب:🗺️|documents:المستندات:🛂|memories:الذكريات:📸|reviews:التقييمات:⭐|settings:الإعدادات:⚙️")},
 {id:"hobbies",group:"life",scope:"personal",icon:"🌱",color:"#65A30D",name:"Habits & Hobbies OS",title:"العادات والهوايات",status:"live",phase:"الدمج · العادات والهوايات",sensitive:true,plan:"Habit_OS_v4_Unified_Master_Plan.md + Hobbies_OS_v1_Unified_Master_Plan_AR.md",desc:"قسم موحّد للعادات اليومية والهوايات وجلسات الممارسة وتطور المهارات، مع الحفاظ على خصوصية السجلات.",sections:osSec("dashboard:الرئيسية:⌂|habit-library:العادات:🌱|habit-log:سجل العادات:📒|relapses:التعافي:🛟|books:الكتب:📚|reading:جلسات القراءة:📖|weekly-focus:التركيز الأسبوعي:🎯|achievements:إنجازات العادات:🏅|reminders:التذكيرات:🔔|trash:المحذوفات:🗑️|hobbies:هواياتي:🎨|explore:اهتمامات مستقبلية:🔎|sessions:جلسات الممارسة:⏱️|skills:المهارات والتقدم:📈|milestones:إنجازات الهوايات:🏆|goals:الأهداف:🎯|plans:خطط الممارسة:🗓️|resources:الموارد والمراجع:📚|equipment:المعدات المرتبطة:🧰|journal:اليوميات والذكريات:📔|insights:التحليلات والرؤى:📊|settings:الإعدادات والخصوصية:⚙️")},
-{id:"spiritual",group:"life",scope:"personal",icon:"🙏",color:"#14B8A6",name:"Spiritual & Values OS",title:"الروحانيات والقيم",status:"live",phase:"المرحلة 13 · النواة التشغيلية",sensitive:true,plan:"SPIRITUAL_VALUES_OS_UNIFIED_MASTER_PLAN_v4.md",
  desc:"القيم والمبادئ والممارسات والتأملات والالتزامات بهدوء وخصوصية.",
  sections:osSec("home:الرئيسية:⌂|values:القيم:💎|principles:المبادئ:📜|practices:الممارسات:🌿|dailylog:السجل اليومي:📒|reflections:التأملات:🪞|goals:الأهداف:🎯|commitments:الالتزامات:🤲|dates:التواريخ المهمة:📅|reviews:المراجعات:🔁|seasons:المواسم:🌙|alignment:الاتساق:🧭|settings:الإعدادات:⚙️")},
 {id:"skincare",group:"life",scope:"personal",icon:"🧴",color:"#A855F7",name:"Skincare OS",title:"العناية بالبشرة",status:"live",phase:"S7 · النظام التشغيلي",sensitive:true,plan:"plans/SKINCARE_OS_UNIFIED_MASTER_PLAN_v1_AR.md",desc:"ملف البشرة والمنتجات والعبوات والروتين والمفكرة والصور والمكونات والتجارب والتفاعلات والمتابعة.",sections:osSec("home:الرئيسية:⌂|dashboard:لوحة صحة البشرة:📊|followups:المتابعة والتنبيهات:🔔|settings:ملف البشرة:🧴|products:المنتجات:🧪|units:العبوات:📦|routines:الروتين:🗓️|routine_logs:سجل الروتين:📜|compare:مقارنة المنتجات:⚖️|diary:مفكرة البشرة:📔|photos:صور التقدم:📷|ingredients:المكونات:🧬|trials:التجارب:🧫|reactions:التفاعلات:⚠️|lists:القوائم والرغبات:♡")},
@@ -301,8 +299,8 @@ function osClearLocalCaches(){
 }
 function osBuildDemoState(){
   const sys=(lvl)=>{const o={};OS_SYSTEMS.forEach(s=>{o[s.id]={level:lvl,manage:false,sections:{}};});return o;};
-  const sara=sys("edit"); sara.finance.level="view"; delete sara.spiritual; delete sara.relationships; sara.content={level:"edit",manage:false,sections:{analytics:"none",team:"none",settings:"none"}}; sara.projects.manage=true; sara.hobbies={level:"view",manage:false,sections:{settings:"none"}};
-  const layla=sys("view"); delete layla.finance; delete layla.spiritual; delete layla.relationships; delete layla.nutrition; delete layla.hobbies;
+  const sara=sys("edit"); delete sara.relationships; sara.content={level:"edit",manage:false,sections:{analytics:"none",team:"none",settings:"none"}}; sara.projects.manage=true; sara.hobbies={level:"view",manage:false,sections:{settings:"none"}};
+  const layla=sys("view"); delete layla.finance; delete layla.relationships; delete layla.nutrition; delete layla.hobbies;
   const omar=sys("view"); Object.keys(omar).forEach(k=>{if(["content","projects","knowledge"].indexOf(k)<0)delete omar[k];});
   const ago=(d)=>new Date(Date.now()-d*86400000).toISOString();
   return {
