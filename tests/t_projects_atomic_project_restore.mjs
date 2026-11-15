@@ -10,6 +10,7 @@ assert.ok(end > start, "restore action must have a bounded body");
 const body = store.slice(start, end);
 assert.match(body, /await R\.putAtomic\(ops\)/, "project and related records must be restored atomically");
 assert.match(body, /record\.deleted_at === p\.deleted_at/, "only children from the same deletion batch are restored");
+assert.match(body, /"tasks", "milestones", "outputs", "risks", "issues", "decisions", "prds", "updates", "wins"/, "Wins from the same project deletion batch must be restored atomically");
 assert.match(body, /record\.deleted_by \|\| null\) === \(p\.deleted_by \|\| null/, "deletion actor must match batch marker");
 assert.match(body, /deleted_at: null, deleted_by: null/, "restore clears deletion markers");
 assert.match(body, /related\.length \+ 1 > 1000/, "oversized batches must be rejected");

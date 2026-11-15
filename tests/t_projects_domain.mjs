@@ -137,6 +137,17 @@ t("T-68 quarter label", () => { assert.equal(D.quarterOf("2026-07-01"), "Q3 2026
 t("T-73 contact status thresholds incl. last meeting", () => { assert.equal(D.contactStatus({}, TODAY).status, "NoContact"); assert.equal(D.contactStatus({ last_contact_at: "2026-08-01" }, TODAY).status, "Needs"); assert.equal(D.contactStatus({ last_contact_at: "2026-09-10" }, TODAY).status, "Soon"); assert.equal(D.contactStatus({ last_contact_at: "2026-10-20" }, TODAY).status, "InTouch"); assert.equal(D.contactStatus({ last_contact_at: "2026-06-01", last_meeting_at: "2026-10-20" }, TODAY).status, "InTouch"); });
 t("week start (Saturday default)", () => { assert.equal(D.weekStart("2026-10-25", 6), "2026-10-24"); assert.equal(D.weekStart("2026-10-24", 6), "2026-10-24"); assert.equal(D.weekStart("2026-10-23", 6), "2026-10-17"); assert.equal(D.weekStart("2026-10-25", 0), "2026-10-25"); });
 t("T-76 today feed reflects overdue/due/this-week/assignment", () => { const tasks = [task("a", { assignee_id: "m", due_date: "2026-10-01" }), task("b", { assignee_id: "m", due_date: TODAY }), task("c", { assignee_id: "m", planning_bucket: "This Week" }), task("d", { assignee_id: "other", due_date: TODAY })]; const f = D.todayFeed("m", { ...ctx(tasks), projects: [], contacts: [] }); assert.deepEqual(f.overdue.map((x) => x.id), ["a"]); assert.deepEqual(f.dueToday.map((x) => x.id), ["b"]); assert.deepEqual(f.thisWeek.map((x) => x.id), ["c"]); });
+t("T-61 high-risk reminders respect riskHigh and review_date", () => {
+  const base = { ...ctx([]), projects: [], contacts: [], krs: [], checkins: [], timers: [], issues: [], discovery: [], metrics: {} };
+  const alert = (risk) => D.computeAlerts("m", { ...base, risks: [risk] }).filter((item) => item.kind === "risk");
+  const common = { id: "r", project_id: "p1", owner_id: "m", status: "Open", probability: 3, impact: 5 };
+  assert.equal(alert({ ...common, review_date: "2026-11-15" }).length, 0, "a future review date is not due");
+  assert.equal(alert({ ...common, probability: 3, impact: 4, review_date: TODAY }).length, 0, "a score below the configured High threshold is not a High risk");
+  assert.equal(alert({ ...common, review_date: TODAY }).length, 1, "a High risk is reminded when its review date is today");
+  assert.equal(alert({ ...common, review_date: "2026-10-01" }).length, 1, "an overdue High-risk review is reminded");
+  assert.equal(alert({ ...common, review_date: null }).length, 1, "an unscheduled High risk remains due for its first review");
+  assert.equal(D.computeAlerts("m", { ...base, settings: { ...D.DEFAULT_SETTINGS, automations: { governanceAlerts: false } }, risks: [common] }).some((item) => item.kind === "risk"), false, "the governance alert toggle disables review reminders");
+});
 t("T-60 alerts: stale inbox once (dedupe key stable), overdue digest", () => { const c = { ...ctx([task("a", { assignee_id: "m", due_date: "2026-10-01" })]), projects: [], contacts: [], krs: [], checkins: [], timers: [], issues: [], discovery: [{ id: "d", status: "Inbox", logged_at: "2026-09-01" }], metrics: {} }; const a1 = D.computeAlerts("m", c), a2 = D.computeAlerts("m", c); assert.ok(a1.some((x) => x.kind === "inbox")); assert.ok(a1.some((x) => x.kind === "overdue")); assert.deepEqual(a1.map((x) => x.key), a2.map((x) => x.key)); });
 
 console.log(`\nPASS ${pass} · FAIL ${fail}`); process.exit(fail ? 1 : 0);

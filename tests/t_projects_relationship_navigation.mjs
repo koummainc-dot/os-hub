@@ -82,19 +82,23 @@ assert.ok(projectScreens.includes('const tabGroups = [') &&
 for (const tabId of ["overview", "tasks", "outputs", "work", "prds", "risks", "issues", "decisions", "people", "okr", "related", "activity"]) {
   assert.ok(projectScreens.includes(`id: "${tabId}"`), `legacy project tab id ${tabId} must remain stable for deep links`);
 }
-assert.ok(projectScreens.includes('import { listKnowledgeMeetings } from "../knowledge/repository.js"') &&
-  projectScreens.includes('String(meeting.relatedId) === String(p.id)') &&
+assert.ok(projectScreens.includes('import { listKnowledgeMeetings, listKnowledgeProjectResources, listKnowledgeAttachments } from "../knowledge/repository.js"') &&
+  projectScreens.includes('listKnowledgeMeetings(ws.id, p.id)') &&
   projectScreens.includes('source_meeting_id: meeting.id') &&
+  projectScreens.includes('p_followup_id: sourceRecordId') &&
+  projectScreens.includes('source_record_id: sourceRecordId'),
+  "Project Detail must use server-scoped Knowledge meetings and pass the stable follow-up identity to the idempotent server RPC");
+assert.ok(projectScreens.includes('findKnowledgeFollowupTask(data.tasks, meeting.id, followup, index)') &&
+  projectScreens.includes('stableKnowledgeFollowupId(meeting.id, followup)') &&
+  projectScreens.includes('supabase.rpc("projects_create_followup_task"') &&
   projectScreens.includes('source_followup_index: index'),
-  "Project Detail must read its linked meetings from Knowledge OS and preserve meeting provenance when creating follow-up tasks");
-assert.ok(projectScreens.includes('task.source_meeting_id === meeting.id && Number(task.source_followup_index) === index'),
-  "Project Detail meeting follow-ups must not create duplicate tasks after a task already exists");
+  "Project Detail meeting follow-ups must use stable source identity, server-side idempotent creation and the legacy index fallback");
 
-const risksPage = projectIndex.slice(projectIndex.indexOf("function RisksPage()"), projectIndex.indexOf("const SCREENS"));
-assert.ok(projectIndex.includes('issues: IssuesView') &&
-  risksPage.includes('id: "risks"') && risksPage.includes('id: "decisions"') &&
-  !risksPage.includes('id: "issues"') && !risksPage.includes('<IssuesView'),
-  "global Issues must have one dedicated destination; the Risks page must not duplicate its tab");
+const governancePage = projectIndex.slice(projectIndex.indexOf("function GovernancePage()"), projectIndex.indexOf("const SCREENS"));
+assert.ok(projectIndex.includes('issues: GovernancePage') &&
+  governancePage.includes('id: "risks"') && governancePage.includes('id: "issues"') && governancePage.includes('id: "decisions"') &&
+  governancePage.includes('{tab === "issues" && <IssuesView />'),
+  "global Governance must provide one unified destination for risks, issues, and decisions");
 const projectOkr = projectScreens.slice(projectScreens.indexOf("function ProjectOkr"), projectScreens.indexOf("function RelatedTab"));
 const okrScreens = await readFile(new URL("../src/systems/projects/screens_c.jsx", import.meta.url), "utf8");
 assert.ok(projectOkr.includes('openOkrRecord("objective", o.id)') && projectOkr.includes('openOkrRecord("kr", k.id)') &&
@@ -106,8 +110,17 @@ assert.ok(okrScreens.includes('const target = view?.okrFocus') &&
   okrScreens.includes('setFilter("all")'),
   "OKRs destination must reveal, scroll to, and highlight the exact target even when its status is outside the default filter");
 
-assert.ok(projectScreens.includes("activeGroup.tabs.length > 1") &&
+assert.ok(projectScreens.includes("const tabGroups = [") &&
+  projectScreens.includes('defaultTab: "tasks"') &&
+  projectScreens.includes('defaultTab: "outputs"') &&
+  projectScreens.includes('defaultTab: "risks"') &&
+  projectScreens.includes("const setGroup = (groupId) =>") &&
   projectScreens.includes("setTab(group.defaultTab)"),
-  "group navigation must reveal relevant subtabs and select a safe default destination");
+  "group navigation must expose grouped subtabs and select a safe default destination");
 
+assert.ok(parts.includes("t.source_meeting_id") && parts.includes("t.source_meeting_title") &&
+  parts.includes('shell?.go?.("system", "knowledge", "meetings", { focusItemId: t.source_meeting_id, focusItemKind: "meeting" })'),
+  "Task Sheet must expose an exact reverse link to the Knowledge source meeting");
+assert.ok(projectScreens.includes('shell?.go?.("system", "knowledge", "meetings", { focusItemId: meeting.id, focusItemKind: "meeting" })'),
+  "Project Meeting cards must open the exact Knowledge-owned meeting");
 console.log("✓ Projects relationship navigation contracts passed");

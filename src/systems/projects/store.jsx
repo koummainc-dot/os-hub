@@ -11,12 +11,12 @@ export const Ctx = createContext(null);
 export const useP = () => useContext(Ctx);
 
 export const GENERAL_ID = "proj_general";
-const COLLS = ["projects", "tasks", "outputs", "sessions", "timers", "prds", "discovery", "decisions", "risks", "issues", "contacts", "objectives", "krs", "checkins", "reviews", "wins", "updates", "templates", "teams", "profiles", "settings", "lookups", "activity"];
+const COLLS = ["projects", "tasks", "milestones", "outputs", "sessions", "timers", "prds", "discovery", "decisions", "risks", "issues", "contacts", "objectives", "krs", "checkins", "reviews", "review_shares", "wins", "updates", "templates", "teams", "profiles", "settings", "lookups", "activity"];
 
 export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, demoStore, seed, shell, page, setPage, children }) {
   const toast = shell && shell.toast ? shell.toast : () => {};
   const store = useRecordStore({ wsId: ws.id, systemId: "projects", isDemo, demoStore, seed, onToast: toast });
-  const { recs, ready, error, pending, online } = store; const R = store.api;
+  const { recs, ready, error, pending, online, queueItems, discardQueuedWrite, rebaseQueuedWrite } = store; const R = store.api;
   const [confirm, confirmNode] = useConfirm();
   const [view, setView] = useState({ projectId: null, tab: "overview", taskId: null });
   const me = authUser.id;
@@ -43,9 +43,9 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
   // ── live data
   const live = (c) => arr(recs, c).filter((r) => !r.deleted_at);
   const data = useMemo(() => ({
-    projects: live("projects"), tasks: live("tasks"), outputs: live("outputs"), sessions: live("sessions"), timers: arr(recs, "timers"), prds: live("prds"), discovery: live("discovery"),
+    projects: live("projects"), tasks: live("tasks"), milestones: live("milestones"), outputs: live("outputs"), sessions: live("sessions"), timers: arr(recs, "timers"), prds: live("prds"), discovery: live("discovery"),
     decisions: live("decisions"), risks: live("risks"), issues: live("issues"), contacts: live("contacts"), objectives: live("objectives"), krs: live("krs"), checkins: arr(recs, "checkins"),
-    reviews: live("reviews"), wins: live("wins"), updates: live("updates"), templates: live("templates"), teams: live("teams"), profiles: live("profiles"), activity: arr(recs, "activity"),
+    reviews: live("reviews"), review_shares: live("review_shares"), wins: live("wins"), updates: live("updates"), templates: live("templates"), teams: live("teams"), profiles: live("profiles"), activity: arr(recs, "activity"),
   }), [recs]);
   const trash = useMemo(() => COLLS.filter((c) => !["settings", "lookups", "activity", "timers", "checkins"].includes(c)).flatMap((c) => arr(recs, c).filter((r) => r.deleted_at).map((r) => ({ coll: c, rec: r }))), [recs]);
   const projectsById = useMemo(() => Object.fromEntries(data.projects.map((p) => [p.id, p])), [data.projects]);
@@ -84,7 +84,49 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
   const stamp = useCallback((rec) => ({ ...rec, created_by: rec.created_by || me, updated_by_member: me }), [me]);
 
   // ── generic writes (child records inherit project privacy)
-  const putIn = useCallback((coll, rec, project) => { const r = stamp(rec); if (project) r._vis = visFor(project); return R.put(coll, r); }, [R, stamp, visFor]);
+  const putIn = useCallback(async (coll, rec, project) => {
+    const previous = (data[coll] || []).find((item) => item.id === rec.id) || null;
+    const next = stamp(rec); if (project) next._vis = visFor(project);
+    const saved = await R.put(coll, next);
+    if (!saved || !ws?.id || isDemo) return saved;
+    const projectRecord = projectsById[saved.project_id] || (coll === "projects" ? saved : project);
+    const recipients = [];
+    const add = (recipient, eventType, title, tab, kind) => {
+      if (recipient && recipient !== me) recipients.push({ recipient, eventType, title, tab, kind });
+    };
+    if (coll === "tasks" && saved.assignee_id && (!previous || previous.assignee_id !== saved.assignee_id)) {
+      add(saved.assignee_id, "task_assigned", "أُسندت إليك مهمة: " + saved.title, "tasks", "task");
+    }
+    if (coll === "prds" && saved.status === "Ready for Review" && (previous?.status !== saved.status || JSON.stringify(previous?.reviewer_ids || []) !== JSON.stringify(saved.reviewer_ids || []))) {
+      (saved.reviewer_ids || []).forEach((id) => add(id, "prd_review_requested", "مواصفة بانتظار مراجعتك: " + (saved.title || "PRD"), "prds", "prd"));
+    }
+    if (coll === "outputs" && saved.approval === "Review" && previous?.approval !== "Review") {
+      add(projectRecord?.lead_id, "output_review_requested", "مخرج بانتظار مراجعة المشروع: " + (saved.name || "مخرج"), "outputs", "output");
+    }
+    if (coll === "risks" && saved.owner_id && D.isOpenRisk(saved) && Number(saved.probability || 0) * Number(saved.impact || 0) >= 12 && (previous?.owner_id !== saved.owner_id || previous?.status !== saved.status)) {
+      add(saved.owner_id, "high_risk_assigned", "خطر مرتفع يحتاج متابعتك: " + saved.title, "risks", "risk");
+    }
+    if (coll === "issues" && saved.owner_id && saved.severity === "Critical" && D.isOpenIssue(saved) && (previous?.owner_id !== saved.owner_id || previous?.severity !== saved.severity || previous?.status !== saved.status)) {
+      add(saved.owner_id, "critical_issue_assigned", "مشكلة حرجة تحتاج متابعتك: " + saved.title, "issues", "issue");
+    }
+    if (coll === "updates" && saved.status === "Published" && previous?.status !== "Published") {
+      const audience = [...new Set([projectRecord?.lead_id, ...(projectRecord?.members || []).map((member) => member.member_id)].filter(Boolean))];
+      audience.forEach((id) => add(id, "project_update_published", "تحديث جديد للمشروع: " + (saved.title || "تحديث"), "updates", "update"));
+    }
+    for (const item of recipients) {
+      const dedupe = [item.eventType, saved.id, item.recipient, saved.updated_at || saved.v || "latest"].join(":");
+      try {
+        await emitCoreNotification({
+          workspace_id: ws.id, recipient_id: item.recipient, source_system: "projects",
+          entity_collection: coll, entity_id: saved.id, event_type: item.eventType,
+          title: item.title, body: projectRecord?.name ? "المشروع: " + projectRecord.name : "",
+          dedupe_key: dedupe,
+          deep_link: { system: "projects", projectId: saved.project_id || saved.id, tab: item.tab, recordKind: item.kind, recordId: saved.id, taskId: item.kind === "task" ? saved.id : undefined },
+        });
+      } catch (error) { console.warn("Core notification emit failed", error); }
+    }
+    return saved;
+  }, [R, stamp, visFor, data, ws?.id, isDemo, projectsById, me]);
   const del = useCallback(async (coll, id, label) => { await R.softDelete(coll, id, me); act(coll, id, "deleted", label); toast("🗑 نُقل إلى السلة — يمكن استرجاعه من الإعدادات"); }, [R, me, act, toast]);
 
   // ensure the General system project exists (editors)
@@ -113,7 +155,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
         if (!saved) throw new Error("تعذّر الحفظ");
       } else {
         const vis = visFor(rec);
-        const kids = [["tasks", data.tasks], ["outputs", data.outputs], ["risks", data.risks], ["issues", data.issues], ["decisions", data.decisions], ["prds", data.prds], ["updates", data.updates]];
+        const kids = [["tasks", data.tasks], ["milestones", data.milestones], ["outputs", data.outputs], ["risks", data.risks], ["issues", data.issues], ["decisions", data.decisions], ["prds", data.prds], ["updates", data.updates]];
         const changed = kids.flatMap(([coll, list]) => list
           .filter((child) => child.project_id === rec.id && JSON.stringify(child._vis || null) !== JSON.stringify(vis))
           .map((child) => ({ coll, rec: { ...child, _vis: vis } })));
@@ -167,7 +209,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async restoreProjectFromTrash(p) {
       if (!p || !p.deleted_at) { toast("⛔ المشروع ليس في السلة أو لا يحتوي على علامة حذف صالحة."); return false; }
       if (p.id === GENERAL_ID || p.is_system) { toast("⛔ لا يمكن استرجاع مشروع النظام من السلة."); return false; }
-      const collections = ["tasks", "outputs", "risks", "issues", "decisions", "prds", "updates"];
+      const collections = ["tasks", "milestones", "outputs", "risks", "issues", "decisions", "prds", "updates", "wins"];
       // Shared deletion timestamp + actor identifies records from this exact batch.
       const related = collections.flatMap((coll) =>
         arr(recs, coll).filter((record) =>
@@ -178,7 +220,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       );
       const counts = {};
       for (const { coll } of related) counts[coll] = (counts[coll] || 0) + 1;
-      const labels = { tasks: "مهام", outputs: "مخرجات", risks: "مخاطر", issues: "مشاكل", decisions: "قرارات", prds: "مواصفات", updates: "تحديثات" };
+      const labels = { tasks: "مهام", milestones: "معالم", outputs: "مخرجات", risks: "مخاطر", issues: "مشاكل", decisions: "قرارات", prds: "مواصفات", updates: "تحديثات", wins: "إنجازات" };
       const summary = Object.entries(counts).map(([coll, count]) => `• ${labels[coll] || coll}: ${count}`).join("\n") || "لا توجد سجلات تابعة تحمل علامة الحذف نفسها.";
       if (related.length + 1 > 1000) {
         toast("⛔ يتجاوز الاسترجاع 1000 سجل؛ لم يُسترجع أي سجل لأن العملية يجب أن تكون ذرّية.");
@@ -186,8 +228,10 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       }
       const message = `استرجاع المشروع «${p.name}» من السلة؟\n\nسيتم استرجاع المشروع والسجلات التي نُقلت معه في عملية الحذف نفسها:\n${summary}\n\nالسجلات التي كانت في السلة قبل حذف المشروع لن تُسترجع معه، وجلسات الوقت التاريخية ستظل كما هي.`;
       if (!(await confirm(message, { title: "مراجعة أثر استرجاع المشروع", ok: "استرجاع المشروع وسجلاته" }))) return false;
-      const ops = related.map(({ coll, rec }) => ({ coll, rec: { ...rec, deleted_at: null, deleted_by: null } }));
-      ops.push({ coll: "projects", rec: { ...p, deleted_at: null, deleted_by: null } });
+      const ops = [
+        { coll: "projects", rec: { ...p, deleted_at: null, deleted_by: null } },
+        ...related.map(({ coll, rec }) => ({ coll, rec: { ...rec, deleted_at: null, deleted_by: null } })),
+      ];
       try {
         await R.putAtomic(ops);
       } catch (error) {
@@ -203,7 +247,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
         toast("⛔ لا يمكن نقل مشروع النظام إلى السلة");
         return false;
       }
-      const collections = ["tasks", "outputs", "risks", "issues", "decisions", "prds", "updates"];
+      const collections = ["tasks", "milestones", "outputs", "risks", "issues", "decisions", "prds", "updates", "wins"];
       const related = collections.flatMap((coll) =>
         arr(recs, coll)
           .filter((record) => record.project_id === p.id && !record.deleted_at)
@@ -211,7 +255,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       );
       const counts = {};
       for (const { coll } of related) counts[coll] = (counts[coll] || 0) + 1;
-      const labels = { tasks: "مهام", outputs: "مخرجات", risks: "مخاطر", issues: "مشاكل", decisions: "قرارات", prds: "مواصفات", updates: "تحديثات" };
+      const labels = { tasks: "مهام", milestones: "معالم", outputs: "مخرجات", risks: "مخاطر", issues: "مشاكل", decisions: "قرارات", prds: "مواصفات", updates: "تحديثات", wins: "إنجازات" };
       const summary = Object.entries(counts).map(([coll, count]) => `• ${labels[coll] || coll}: ${count}`).join("\n") || "لا توجد سجلات تابعة ظاهرة.";
       const sessionCount = data.sessions.filter((session) => idx.list.some((task) => task.project_id === p.id && task.id === session.task_id)).length;
       const total = related.length + 1;
@@ -626,19 +670,66 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     },
     async moveTree(taskId, targetProjectId) {
       const target = projectsById[targetProjectId];
-      if (!target || !idx.byId[taskId]) { toast("⛔ المشروع أو المهمة غير موجودة"); return false; }
       const source = idx.byId[taskId];
+      const sourceProject = source && projectsById[source.project_id];
+      if (!target || !source || !sourceProject || target.is_system || target.archived_at || sourceProject.archived_at) { toast("⛔ المشروع أو المهمة غير موجودة أو غير نشطة"); return false; }
       if (source.project_id === targetProjectId) { toast("ℹ️ المهمة موجودة بالفعل في هذا المشروع"); return false; }
+      if (!can("task.write", sourceProject) || !can("task.write", target)) throw new Error("نقل الشجرة يتطلب صلاحية تعديل المهام في المشروعين.");
       const plan = D.planTreeMove(taskId, targetProjectId, idx, prdsById, data.tasks, Object.fromEntries(data.discovery.map((x) => [x.id, x])));
-      const outputPatches = data.outputs.filter((x) => plan.ids.includes(x.task_id)).map((o) => ({ before: o, after: { ...o, project_id: targetProjectId, _vis: visFor(target) } }));
-      const taskPatches = plan.patches.map((p) => ({ before: data.tasks.find((t) => t.id === p.id), after: { ...p, _vis: visFor(target) } }));
-      const prdCount = plan.patches.filter((p, i) => data.tasks.find((t) => t.id === plan.ids[i])?.prd_id && !p.prd_id).length;
-      const discoveryCount = plan.patches.reduce((n, p, i) => n + ((data.tasks.find((t) => t.id === plan.ids[i])?.discovery_ids || []).length - (p.discovery_ids || []).length), 0);
-      const prompt = `نقل ${plan.ids.length} مهمة إلى مشروع «${target.name}»؟\nسيتم نقل ${outputPatches.length} مخرج مرتبط، مع الحفاظ على روابط الأبناء داخل الشجرة.\n${prdCount ? `سيتم مسح ${prdCount} رابط مواصفة لا يتبع المشروع الهدف.\n` : ""}${discoveryCount ? `سيتم مسح ${discoveryCount} رابط اكتشاف غير صالح للمشروع الهدف.\n` : ""}سيُحفظ النقل كعملية واحدة على الخادم؛ يلزم الاتصال المباشر لضمان عدم نقل جزء فقط.`;
-      if (!(await confirm(prompt, { title: "نقل شجرة المهام", ok: "نقل الشجرة" }))) return false;
+      const moved = new Set(plan.ids);
+      const taskPatches = plan.patches.map((next) => ({ before: data.tasks.find((t) => t.id === next.id), after: { ...stamp(next), _vis: visFor(target) } }));
+      const outputPatches = data.outputs.filter((o) => moved.has(o.task_id)).map((o) => {
+        const next = { ...o, project_id: targetProjectId, _vis: visFor(target) };
+        const prd = next.prd_id && prdsById[next.prd_id];
+        if (!prd || prd.project_id !== targetProjectId) { next.prd_id = null; next.prd_requirement_id = null; }
+        else if (next.prd_requirement_id && !(prd.requirements || []).some((r) => r.id === next.prd_requirement_id)) next.prd_requirement_id = null;
+        return { before: o, after: next };
+      });
+      const referencePatches = [];
+      const patchIds = (collection, records, fields, allowed) => records.forEach((record) => {
+        const linked = fields.flatMap((field) => Array.isArray(record[field]) ? record[field].filter((id) => moved.has(id)) : []);
+        if (!linked.length) return;
+        if (!allowed) throw new Error("لا تملك صلاحية تحديث روابط " + collection + " المتأثرة بنقل هذه الشجرة.");
+        const after = { ...record };
+        fields.forEach((field) => { if (Array.isArray(after[field])) after[field] = after[field].filter((id) => !moved.has(id)); });
+        referencePatches.push({ before: record, after: stamp(after), collection });
+      });
+      const patchTaskId = (collection, records, field, allowed) => records.forEach((record) => {
+        if (!record[field] || !moved.has(record[field])) return;
+        if (!allowed) throw new Error("لا تملك صلاحية تحديث رابط المهمة في " + collection + " المتأثر بنقل هذه الشجرة.");
+        referencePatches.push({ before: record, after: stamp({ ...record, [field]: null }), collection });
+      });
+      patchIds("risks", data.risks.filter((r) => r.project_id === source.project_id), ["task_ids"], can("risk.write", sourceProject));
+      patchIds("issues", data.issues.filter((r) => r.project_id === source.project_id), ["task_ids"], can("issue.write", sourceProject));
+      patchIds("decisions", data.decisions.filter((r) => r.project_id === source.project_id), ["affected_task_ids", "implementation_task_ids"], can("decision.write", sourceProject));
+      patchIds("milestones", data.milestones.filter((r) => r.project_id === source.project_id), ["related_task_ids"], can("project.edit", sourceProject));
+      const sourceWins = data.wins.filter((win) => win.project_id === source.project_id);
+      patchIds("wins", sourceWins, ["task_ids"], can("win.write", sourceProject));
+      patchTaskId("wins", sourceWins, "task_id", can("win.write", sourceProject));
+      const sourceDraftUpdates = data.updates.filter((update) =>
+        update.project_id === source.project_id && update.status !== "Published"
+      );
+      patchIds("updates", sourceDraftUpdates, ["completed_task_ids", "delayed_task_ids", "next_task_ids", "related_task_ids"], can("update.write", sourceProject));
+      data.krs.filter((kr) => Array.isArray(kr.task_ids) && kr.task_ids.some((id) => moved.has(id))).forEach((kr) => {
+        const targetAllowed = (kr.project_ids || []).includes(targetProjectId);
+        const removeIds = targetAllowed ? [] : plan.ids;
+        if (!removeIds.length) return;
+        if (!can("okr.write")) throw new Error("لا تملك صلاحية تحديث مجموعات المهام المرتبطة بالنتائج الرئيسية.");
+        referencePatches.push({ before: kr, after: stamp({ ...kr, task_ids: (kr.task_ids || []).filter((id) => !removeIds.includes(id)) }), collection: "krs" });
+      });
+      const prdCount = plan.patches.filter((next, i) => data.tasks.find((t) => t.id === plan.ids[i])?.prd_id && !next.prd_id).length;
+      const discoveryCount = plan.patches.reduce((n, next, i) => n + ((data.tasks.find((t) => t.id === plan.ids[i])?.discovery_ids || []).length - (next.discovery_ids || []).length), 0);
+      const prompt = "نقل " + plan.ids.length + " مهمة من «" + sourceProject.name + "» إلى «" + target.name + "»؟\n"
+        + "• " + outputPatches.length + " مخرج سينتقل مع المهام.\n"
+        + "• " + referencePatches.length + " سجل Governance/OKR/Milestone/Wins ومسودة Update ستُحدّث روابطه لمنع بقاء روابط عابرة للمشاريع.\n"
+        + "• " + prdCount + " رابط PRD و" + discoveryCount + " رابط Discovery غير صالحين للهدف سيُفصلان.\n"
+        + "• ستظل جلسات الوقت مرتبطة بمعرّفات المهام نفسها.\n"
+        + "كل التغييرات ستُحفظ في معاملة واحدة؛ أي فشل يلغي العملية كلها.";
+      if (!(await confirm(prompt, { title: "معاينة نقل المهمة والشجرة", ok: "نقل كل السجلات المتأثرة" }))) return false;
       try {
         await persistTaskTreeMove({
-          taskPatches, outputPatches,
+          taskPatches,
+          outputPatches: [...outputPatches, ...referencePatches.map((patch) => ({ before: patch.before, after: patch.after, collection: patch.collection }))],
           putAtomic: R.putAtomic,
           put: (collection, record) => R.put(collection, record),
         });
@@ -646,8 +737,8 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
         toast("⛔ " + (error?.message || "تعذّر نقل الشجرة"));
         return false;
       }
-      act("tasks", taskId, "moved_tree", `${plan.ids.length} مهمة → ${target.name}`);
-      toast("✅ نُقلت الشجرة بالكامل");
+      act("tasks", taskId, "moved_tree", plan.ids.length + " مهمة: " + sourceProject.name + " → " + target.name);
+      toast("✅ نُقلت الشجرة وروابطها التابعة بالكامل");
       return true;
     },
     async completeAll(taskId) {
@@ -693,7 +784,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       if (!task || !idx.isLeaf(taskId)) throw new Error("اختَر مهمة موجودة ونهائية في شجرة المهام قبل بدء المؤقّت.");
       if (!can("session.write", projectsById[task.project_id])) throw new Error("لا تملك صلاحية تسجيل جلسة لهذا المشروع.");
       const cur = (recs.timers || {})["timer_" + me]; if (cur && cur.task_id && !cur.ended_at) { toast("⛔ TIMER_ALREADY_RUNNING — أوقف المؤقّت الحالي أولاً"); return false; }
-      await R.put("timers", { id: "timer_" + me, member_id: me, task_id: taskId, started_at: nowIso(), ended_at: null }); return true;
+      await R.put("timers", { id: "timer_" + me, member_id: me, task_id: taskId, started_at: nowIso(), ended_at: null, _vis: [me] }); return true;
     },
     async stopTimer(note) {
       const cur = (recs.timers || {})["timer_" + me]; if (!cur || !cur.task_id || cur.ended_at) return null;
@@ -718,13 +809,13 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     },
     async voidSession(s, reason) { await R.put("sessions", { ...s, voided_at: nowIso(), voided_by: me, void_reason: reason || "" }); },
     // generic
-    put: (coll, rec, project) => putIn(coll, rec, project), del, restore: (coll, id) => R.restore(coll, id).then(() => toast("♻️ تم الاسترجاع")), permanentlyDeleteProject: async (p) => { if (!p || !p.deleted_at) return false; if (p.id === GENERAL_ID || p.is_system) { toast("⛔ لا يمكن حذف مشروع النظام نهائيًا."); return false; } const collections = ["tasks", "outputs", "risks", "issues", "decisions", "prds", "updates"]; const related = collections.flatMap((coll) => arr(recs, coll).filter((record) => record.project_id === p.id && record.deleted_at === p.deleted_at && (record.deleted_by || null) === (p.deleted_by || null)).map((rec) => ({ coll, rec }))); const counts = {}; for (const { coll } of related) counts[coll] = (counts[coll] || 0) + 1; const labels = { tasks: "مهام", outputs: "مخرجات", risks: "مخاطر", issues: "مشكلات", decisions: "قرارات", prds: "مواصفات", updates: "تحديثات" }; const summary = Object.entries(counts).map(([coll, count]) => "• " + (labels[coll] || coll) + ": " + count).join("\\n") || "لا توجد سجلات تابعة من دفعة الحذف نفسها."; const ops = [...related, { coll: "projects", rec: p }]; if (ops.length > 1000) { toast("⛔ يتجاوز الحذف النهائي 1000 سجل؛ لم يُحذف شيء."); return false; } const message = "تحذير: هذا الإجراء نهائي ولا يمكن التراجع عنه.\\n\\nسيُحذف المشروع «" + p.name + "» وجميع السجلات التي نُقلت معه في دفعة الحذف نفسها:\\n" + summary + "\\n\\nالسجلات التي كانت في السلة قبل حذف المشروع لن تُحذف معه. جلسات الوقت التاريخية ستبقى محفوظة.\\n\\nهل تريد المتابعة؟"; if (!(await confirm(message, { title: "حذف نهائي لا يمكن التراجع عنه", danger: true, ok: "حذف المشروع وسجلاته نهائيًا", cancel: "إلغاء" }))) return false; try { await R.purgeAtomic({ projectId: p.id, deletedAt: p.deleted_at, deletedBy: p.deleted_by, ops }); } catch (error) { toast("⛔ لم يُحذف المشروع نهائيًا: " + (error?.message || "فشل الحذف") + "."); return false; } act("projects", p.id, "permanently_deleted", p.name); toast("🧹 تم حذف المشروع وسجلات دفعة الحذف نفسها نهائيًا. جلسات الوقت التاريخية محفوظة."); return true; }, restoreTrashRecord: async (coll, rec) => { if (!rec) return false; if (coll === "projects") return A.restoreProjectFromTrash(rec); const project = rec.project_id && arr(recs, "projects").find((item) => item.id === rec.project_id && item.deleted_at); if (project && rec.deleted_at === project.deleted_at && (rec.deleted_by || null) === (project.deleted_by || null)) { toast("ℹ️ هذا السجل جزء من مشروع موجود في السلة؛ استرجع المشروع لاسترجاعهما معًا."); return false; } try { const restored = await R.restore(coll, rec.id); if (!restored) throw new Error("لم يؤكد مخزن البيانات الاسترجاع"); toast("♻️ تم استرجاع السجل"); return true; } catch (error) { toast("⛔ تعذّر استرجاع السجل: " + (error?.message || "فشل الحفظ")); return false; } },
+    put: (coll, rec, project) => putIn(coll, rec, project), del, restore: (coll, id) => R.restore(coll, id).then(() => toast("♻️ تم الاسترجاع")), permanentlyDeleteProject: async (p) => { if (!p || !p.deleted_at) return false; if (p.id === GENERAL_ID || p.is_system) { toast("⛔ لا يمكن حذف مشروع النظام نهائيًا."); return false; } const collections = ["tasks", "milestones", "outputs", "risks", "issues", "decisions", "prds", "updates", "wins"]; const related = collections.flatMap((coll) => arr(recs, coll).filter((record) => record.project_id === p.id && record.deleted_at === p.deleted_at && (record.deleted_by || null) === (p.deleted_by || null)).map((rec) => ({ coll, rec }))); const counts = {}; for (const { coll } of related) counts[coll] = (counts[coll] || 0) + 1; const labels = { tasks: "مهام", milestones: "معالم", outputs: "مخرجات", risks: "مخاطر", issues: "مشكلات", decisions: "قرارات", prds: "مواصفات", updates: "تحديثات", wins: "إنجازات" }; const summary = Object.entries(counts).map(([coll, count]) => "• " + (labels[coll] || coll) + ": " + count).join("\\n") || "لا توجد سجلات تابعة من دفعة الحذف نفسها."; const ops = [...related, { coll: "projects", rec: p }]; if (ops.length > 1000) { toast("⛔ يتجاوز الحذف النهائي 1000 سجل؛ لم يُحذف شيء."); return false; } const message = "تحذير: هذا الإجراء نهائي ولا يمكن التراجع عنه.\\n\\nسيُحذف المشروع «" + p.name + "» وجميع السجلات التي نُقلت معه في دفعة الحذف نفسها:\\n" + summary + "\\n\\nالسجلات التي كانت في السلة قبل حذف المشروع لن تُحذف معه. جلسات الوقت التاريخية ستبقى محفوظة.\\n\\nهل تريد المتابعة؟"; if (!(await confirm(message, { title: "حذف نهائي لا يمكن التراجع عنه", danger: true, ok: "حذف المشروع وسجلاته نهائيًا", cancel: "إلغاء" }))) return false; try { await R.purgeAtomic({ projectId: p.id, deletedAt: p.deleted_at, deletedBy: p.deleted_by, ops }); } catch (error) { toast("⛔ لم يُحذف المشروع نهائيًا: " + (error?.message || "فشل الحذف") + "."); return false; } act("projects", p.id, "permanently_deleted", p.name); toast("🧹 تم حذف المشروع وسجلات دفعة الحذف نفسها نهائيًا. جلسات الوقت التاريخية محفوظة."); return true; }, restoreTrashRecord: async (coll, rec) => { if (!rec) return false; if (coll === "projects") return A.restoreProjectFromTrash(rec); const project = rec.project_id && arr(recs, "projects").find((item) => item.id === rec.project_id && item.deleted_at); if (project && rec.deleted_at === project.deleted_at && (rec.deleted_by || null) === (project.deleted_by || null)) { toast("ℹ️ هذا السجل جزء من مشروع موجود في السلة؛ استرجع المشروع لاسترجاعهما معًا."); return false; } try { const restored = await R.restore(coll, rec.id); if (!restored) throw new Error("لم يؤكد مخزن البيانات الاسترجاع"); toast("♻️ تم استرجاع السجل"); return true; } catch (error) { toast("⛔ تعذّر استرجاع السجل: " + (error?.message || "فشل الحفظ")); return false; } },
     async saveSettings(patch) { return R.put("settings", { id: "ws", ...((recs.settings || {}).ws || {}), ...patch }); },
     async saveLookups(lists) { return R.put("lookups", { id: "main", lists }); },
     act,
   }), [R, recs, idx, data, settings, projectsById, prdsById, me, confirm, toast, putIn, visFor, stamp, act, del, nameOf, can]);
 
-  const alerts = useMemo(() => (ready ? D.computeAlerts(me, { idx, issues: data.issues, projects: data.projects, contacts: data.contacts, discovery: data.discovery, krs: data.krs, checkins: data.checkins, timers: data.timers, wins: data.wins, today, settings, metrics }) : []), [ready, me, idx, data, today, settings, metrics]);
+  const alerts = useMemo(() => (ready ? D.computeAlerts(me, { idx, issues: data.issues, risks: data.risks, projects: data.projects, contacts: data.contacts, discovery: data.discovery, krs: data.krs, checkins: data.checkins, timers: data.timers, wins: data.wins, prds: data.prds, outputs: data.outputs, today, settings, metrics }) : []), [ready, me, idx, data, today, settings, metrics]);
   const timer = (recs.timers || {})["timer_" + me]; const runningTimer = timer && timer.task_id && !timer.ended_at ? timer : null;
 
   // Phase A deep-link bridge: project/task context is addressable and browser Back can restore it.
@@ -777,7 +868,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
   // shell bridge: badges + notification bell
   useEffect(() => { if (shell && shell.publish) shell.publish("projects", { notifCount: alerts.length, openNotifs: () => setPage("today") }); }, [alerts.length]);
 
-  const value = { shell, ws, isDemo, me, role, access, people, nameOf, settings, lookups, today, weekStartStr, recs, data, trash, projectsById, prdsById, idx, metrics, projectProgress, can, projectRole, visFor, A, R, confirm, toast, alerts, runningTimer, view, setView, page, setPage, pending, online, ready, error, store,
+  const value = { shell, ws, isDemo, me, role, access, people, nameOf, settings, lookups, today, weekStartStr, recs, data, trash, projectsById, prdsById, idx, metrics, projectProgress, can, projectRole, visFor, A, R, confirm, toast, alerts, runningTimer, view, setView, page, setPage, pending, online, queueItems, discardQueuedWrite, rebaseQueuedWrite, ready, error, store,
     openProject: (id, tab, focusRecord = null) => { setView((v) => ({ ...v, projectId: id, tab: tab || "overview", taskId: null, focusRecord, ...(focusRecord?.kind === "issue" ? { issueStatusFilter: "all" } : {}) })); setPage("projects"); writeProjectHash({ projectId: id, tab: tab || "overview", taskId: null, focusRecord }); },
     openDiscovery: (id) => { setView((v) => ({ ...v, focusRecord: id ? { kind: "discovery", id } : null })); setPage("discovery"); },
     openTask: (id) => setView((v) => { const next = { ...v, taskId: id }; writeProjectHash({ projectId: v.projectId, tab: v.tab || "overview", taskId: id, focusRecord: v.focusRecord }); return next; }),

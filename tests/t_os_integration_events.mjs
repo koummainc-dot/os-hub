@@ -38,6 +38,8 @@ assert.match(platform,/d\.source==="ventures"\|\|\(d\.source==="knowledge"&&d\.s
 assert.match(platform,/create_meeting_tasks/,"Platform routes Knowledge meeting task requests through the Projects host");
 assert.match(projects,/handleKnowledgeMeetingTasks/,"Projects handles Knowledge meeting follow-up requests");
 assert.match(projects,/A\.saveTask\(task, !existing\)/,"meeting actions are persisted through the authoritative Projects task repository");
+assert.match(knowledge,/source_meeting_title: String\(item\.title \|\| ""\)/,"meeting follow-up payload carries the human-readable source meeting title");
+assert.match(projects,/source_meeting_title: String\(item\?\.source_meeting_title \|\| ""\)/,"Projects tasks persist the source meeting title for the reverse link");
 assert.match(projects,/source_record_id: sourceRecordId/,"meeting follow-up task writes carry a stable source identity");
 assert.match(projects,/knowledge_meeting_task_.*encodeURIComponent\(sourceRecordId\)/,"meeting tasks use deterministic IDs to avoid cross-tab duplicates");
 assert.match(projects,/ctx\.trash \|\| \[\]/,"repeat meeting conversion does not silently restore a trashed task");
@@ -45,6 +47,8 @@ assert.match(projects,/المهمة السابقة مؤرشفة/,"repeat meeting
 assert.match(projects,/ctx\.data\.tasks \|\| \[\]/,"repeated meeting requests reconcile against existing source-linked tasks");
 assert.match(knowledge,/createMeetingFollowupTasks/,"Knowledge exposes meeting follow-up conversion");
 assert.match(knowledge,/action: "create_meeting_tasks"/,"Knowledge sends an explicit Projects task-creation action");
-assert.match(knowledge,/source_record_id: String\(item\.id\)/,"meeting follow-up identities remain stable across repeated sends");
+assert.match(knowledge,/const followupId = stableKnowledgeFollowupId\(item\.id, title\)/,"Knowledge follow-ups use stable meeting+item identity instead of array position");
+assert.match(knowledge,/source_record_id: followupId/,"Knowledge payload persists the stable source identity");
+assert.match(knowledge,/tasks\.map\(\(task\) => task\.source_record_id\)\.sort\(\)\.join\("\\|"/,"repeated sends use a deterministic request key regardless of follow-up order");
 
 console.log("OS integration durable event contract tests passed.");

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { A, S } from "../../core/ui.jsx";
 import { C, Btn, Chip, Head, Stat, Empty, Progress, Seg, Board, SearchBar, Tabs, FormModal } from "../../core/kit.jsx";
 import { fmt, fmtShort, fmtMinutes, addDays, diffDays, dayName, monthDays, MONTH_NAMES, dow } from "../../core/dates.js";
@@ -7,8 +7,11 @@ import { useP, GENERAL_ID } from "./store.jsx";
 import * as D from "./domain.js";
 import { readOSEvents, subscribeOSEvents, subscribeToStoredOSEvents } from "../integrationEvents.js";
 import { listKnowledgeMeetings } from "../knowledge/repository.js";
-import { L, opts } from "./lookups.js";
-import { HealthBadge, StatusChip, PriorityChip, Who, DueChip, ProjectName, TaskForm, mOpts, projOpts } from "./parts.jsx";
+import { supabase } from "../../core/supabase.js";
+import { listCoreSavedViews, saveCoreSavedView, updateCoreSavedView, deleteCoreSavedView } from "../../core/savedViews.js";
+import { listCoreNotifications, markCoreNotificationRead } from "../../core/notifications.js";
+import { L, opts, STATUS_COLOR } from "./lookups.js";
+import { HealthBadge, StatusChip, PriorityChip, Who, DueChip, ProjectName, ProjectForm, TaskForm, mOpts, projOpts } from "./parts.jsx";
 
 const Section = ({ title, count, color, children, action }) => (
   <div style={{ ...S.card, marginBottom: 12 }}>
@@ -49,7 +52,7 @@ export function Dashboard() {
         <Stat label="مشاريع جارية" value={running.length} color={C.info} onClick={() => setPage("projects")} />
         <Stat label="مهام متأخرة" value={overdue.length} color={overdue.length ? C.bad : C.ok} onClick={() => setPage("tasks")} />
         <Stat label="مشاكل حرجة" value={critical.length} color={critical.length ? C.bad : C.ok} onClick={() => { setView((v) => ({ ...v, issueSeverityFilter: "Critical", issueStatusFilter: "open" })); setPage("issues"); }} />
-        <Stat label="مخاطر عالية" value={highRisks.length} color={highRisks.length ? C.orange : C.ok} onClick={() => setPage("risks")} />
+        <Stat label="مخاطر عالية" value={highRisks.length} color={highRisks.length ? C.orange : C.ok} onClick={() => { setView((current) => ({ ...current, riskStatusFilter: "open", riskHighOnly: true })); setPage("risks"); }} />
         <Stat label="صندوق الاكتشاف" value={inbox.length} sub="بانتظار الفرز" color={C.violet} onClick={() => setPage("discovery")} />
       </div>
       <Section title="صحة المشاريع" count={running.length}>
@@ -85,7 +88,30 @@ export function Dashboard() {
 
 // ═════ Today ═════
 export function Today() {
-  const { ws, me, data, idx, today, settings, A: act, can, alerts, people, nameOf, openTask, openProject, runningTimer, projectsById, toast, setPage } = useP();
+  const { ws, me, data, idx, today, settings, A: act, can, alerts, people, nameOf, openTask, openProject, runningTimer, projectsById, toast, setPage, shell, online, queueItems = [], discardQueuedWrite, confirm } = useP();
+  const [coreNotifications, setCoreNotifications] = useState([]);
+  const [coreInboxState, setCoreInboxState] = useState("loading");
+  const [showAllInbox, setShowAllInbox] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (!ws?.id) { setCoreNotifications([]); setCoreInboxState("idle"); return () => { active = false; }; }
+    listCoreNotifications(ws.id, 100).then((result) => {
+      if (!active) return;
+      if (result.ok) { setCoreNotifications(result.rows); setCoreInboxState("ready"); }
+      else { setCoreNotifications([]); setCoreInboxState("unavailable"); }
+    });
+    return () => { active = false; };
+  }, [ws?.id, me]);
+  const openCoreNotification = async (notification) => {
+    await markCoreNotificationRead(notification.id);
+    setCoreNotifications((rows) => rows.map((row) => row.id === notification.id ? { ...row, read_at: row.read_at || new Date().toISOString() } : row));
+    const link = notification.deep_link || {};
+    if (notification.source_system === "projects") {
+      if (link.taskId || (link.recordKind === "task" && link.recordId)) return openTask(link.taskId || link.recordId);
+      if (link.projectId) return openProject(link.projectId, link.tab || "overview", link.recordId ? { kind: link.recordKind, id: link.recordId } : null);
+    }
+    if (link.system || notification.source_system !== "projects") shell?.go?.("system", link.system || notification.source_system, link.tab || "home", link);
+  };
   const feed = D.todayFeed(me, { idx, issues: data.issues, projects: data.projects, contacts: data.contacts, today, settings });
   const [homeCompletions, setHomeCompletions] = useState([]);
   const [todayMeetings, setTodayMeetings] = useState([]);
@@ -140,9 +166,30 @@ export function Today() {
   return (
     <div style={{ maxWidth: 900 }}>
       <Head title="اليوم" sub={`${dateLabel} · ${total ? total + " مهمة تنتظرك" : "لا مهام معلّقة — يوم هادئ 🌿"}`} right={can("task.write", projectsById[GENERAL_ID]) && <Btn kind="primary" onClick={() => setForm(true)}>➕ مهمة</Btn>} />
+      {coreInboxState === "unavailable" && <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>الوارد الموحد غير متاح حتى تطبيق Migration الخاصة بـCore Notifications.</div>}
+      {(coreNotifications.length > 0 || coreInboxState === "ready") && <Section title="الوارد الموحد" count={coreNotifications.filter((item) => !item.read_at).length} color={coreNotifications.some((item) => !item.read_at) ? C.info : C.muted}>
+        {!coreNotifications.length ? <div style={{ fontSize: 12, color: C.muted }}>لا توجد إشعارات جديدة.</div> : coreNotifications.slice(0, 8).map((notification) => <button key={notification.id} type="button" onClick={() => openCoreNotification(notification)} style={{ display: "flex", width: "100%", gap: 8, alignItems: "start", textAlign: "start", padding: "8px 0", border: 0, borderTop: "1px solid " + C.line, background: "transparent", cursor: "pointer", color: C.text, font: "inherit" }}>
+          <span style={{ width: 7, height: 7, borderRadius: 8, background: notification.read_at ? C.line : C.info, marginTop: 6, flexShrink: 0 }} />
+          <span style={{ flex: 1 }}><b style={{ fontSize: 12 }}>{notification.title}</b>{notification.body && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{notification.body}</div>}<div style={{ fontSize: 10, color: C.dim, marginTop: 3 }}>{fmtShort(notification.created_at?.slice(0,10))} · {notification.source_system}</div></span>
+          <span style={{ fontSize: 10, color: C.info }}>فتح ↗</span>
+        </button>)}
+        {coreNotifications.length > 8 && <Btn small onClick={() => setShowAllInbox(true)}>عرض كل الإشعارات ({coreNotifications.length})</Btn>}
+      </Section>}
+      {showAllInbox && <Modal title="الوارد الموحد" wide onClose={() => setShowAllInbox(false)} footer={<><Btn onClick={async () => { await Promise.all(coreNotifications.filter((item) => !item.read_at).map((item) => markCoreNotificationRead(item.id))); setCoreNotifications((rows) => rows.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() }))); }}>تحديد الكل كمقروء</Btn><Btn onClick={() => setShowAllInbox(false)}>إغلاق</Btn></>}>
+        <div style={{ display: "grid", gap: 4 }}>{coreNotifications.map((notification) => <button key={notification.id} type="button" onClick={() => { setShowAllInbox(false); openCoreNotification(notification); }} style={{ display: "flex", gap: 8, alignItems: "start", textAlign: "start", padding: 9, border: "1px solid " + C.line, borderRadius: 8, background: notification.read_at ? "transparent" : "rgba(59,130,246,.05)", cursor: "pointer", color: C.text, font: "inherit" }}><span style={{ flex: 1 }}><b style={{ fontSize: 12 }}>{notification.title}</b><div style={{ fontSize: 11, color: C.muted }}>{notification.body}</div><div style={{ fontSize: 10, color: C.dim }}>{fmtShort(notification.created_at?.slice(0,10))} · {notification.source_system}</div></span><span style={{ color: C.info, fontSize: 11 }}>فتح ↗</span></button>)}</div>
+      </Modal>}
+      {(!online || queueItems.length > 0) && <Section title="حالة العمل دون اتصال" count={queueItems.length} color={queueItems.some((item) => item.conflict) ? C.bad : C.warn}>
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 7 }}>{online ? "الاتصال متاح؛ تتم مزامنة التعديلات الآمنة تلقائيًا." : "أنت دون اتصال. يمكن تعديل حقول المهمة الأساسية فقط؛ الإنشاءات والعلاقات والعمليات الذرية والملفات تحتاج اتصالًا."}</div>
+        {queueItems.filter((item) => !item.conflict).length > 0 && <div style={{ fontSize: 12, marginBottom: 6 }}>تعديلات محفوظة محليًا بانتظار المزامنة: {queueItems.filter((item) => !item.conflict).length}</div>}
+        {queueItems.filter((item) => item.conflict).map((item) => <div key={item.coll + "/" + item.rec.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderTop: "1px solid " + C.line, fontSize: 12 }}>
+          <span style={{ flex: 1 }}>تعارض في «{item.rec.title || item.rec.id}» — نسخة أحدث موجودة على الخادم. لم نستبدلها.</span>
+          <Btn small danger onClick={async () => { if (!(await confirm("إلغاء النسخة المحلية غير المتزامنة؟ ستبقى نسخة الخادم كما هي."))) return; discardQueuedWrite(item.coll, item.rec.id); toast("تم إلغاء التعديل المحلي المتعارض."); }}>إلغاء المحلي</Btn>
+        </div>)}
+      </Section>}
       {can("task.write", projectsById[GENERAL_ID]) && <div style={{ display: "flex", gap: 8, marginBottom: 12 }}><input style={S.inp} placeholder="أضف مهمة سريعة لهذا الأسبوع… (Enter)" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && quickAdd()} /><Btn kind="primary" onClick={quickAdd}>إضافة</Btn></div>}
-      {alerts.length > 0 && <Section title="تنبيهات" count={alerts.length} color={C.warn}>{alerts.map((a) => <div key={a.key} style={{ display: "flex", gap: 8, alignItems: "center", padding: "5px 0", fontSize: 12.5, color: lvl[a.level] || C.dim }}><span>●</span><span style={{ flex: 1 }}>{a.text}</span>{a.project && <Btn small onClick={() => openProject(a.project)}>فتح</Btn>}</div>)}</Section>}
-      <Section title="اجتماعات اليوم" count={todayMeetings.length} color={C.violet} action={<Btn small onClick={() => setPage("meetings")}>كل الاجتماعات</Btn>}>{meetingsState === "loading" ? <span style={{ fontSize: 12, color: C.muted }}>جارٍ تحميل الاجتماعات…</span> : meetingsState === "error" ? <span style={{ fontSize: 12, color: C.muted }}>تعذر تحميل اجتماعات المعرفة الآن. يمكنك إعادة المحاولة بفتح قسم الاجتماعات.</span> : !todayMeetings.length ? <span style={{ fontSize: 12, color: C.muted }}>لا توجد اجتماعات مسجلة لهذا اليوم.</span> : todayMeetings.map(meeting => <div key={meeting.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${C.line}` }}><span>🗓️</span><span style={{ flex: 1, fontSize: 12.5, minWidth: 0 }}>{meeting.title}</span><span style={{ color: C.muted, fontSize: 11, whiteSpace: "nowrap" }}>{meeting.startTime || meeting.start_time || meeting.time || "طوال اليوم"}</span><Btn small onClick={() => setPage("meetings")}>فتح</Btn></div>)}</Section>}\n      {homeCompletions.length > 0 && <Section title="إنجازات المنزل" count={homeCompletions.length} color={C.ok}>{homeCompletions.slice(0, 8).map(event => <div key={event.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "5px 0", fontSize: 12.5 }}><span>🏠 {event.payload?.taskTitle || "مهمة منزلية"}</span><span style={{ color: C.muted, whiteSpace: "nowrap" }}>{fmt(event.occurredAt?.slice(0, 10) || today)}</span></div>)}</Section>}
+      {alerts.length > 0 && <Section title="تنبيهات" count={alerts.length} color={C.warn}>{alerts.map((a) => <div key={a.key} style={{ display: "flex", gap: 8, alignItems: "center", padding: "5px 0", fontSize: 12.5, color: lvl[a.level] || C.dim }}><span>●</span><span style={{ flex: 1 }}>{a.text}</span>{a.project && <Btn small onClick={() => openProject(a.project, a.record?.kind === "prd" ? "prds" : a.record?.kind === "output" ? "outputs" : a.record?.kind === "risk" ? "risks" : a.kind === "issue" ? "issues" : "overview", a.record || null)}>فتح</Btn>}</div>)}</Section>}
+      <Section title="اجتماعات اليوم" count={todayMeetings.length} color={C.violet} action={<Btn small onClick={() => setPage("meetings")}>كل الاجتماعات</Btn>}>{meetingsState === "loading" ? <span style={{ fontSize: 12, color: C.muted }}>جارٍ تحميل الاجتماعات…</span> : meetingsState === "error" ? <span style={{ fontSize: 12, color: C.muted }}>تعذر تحميل اجتماعات المعرفة الآن. يمكنك إعادة المحاولة بفتح قسم الاجتماعات.</span> : !todayMeetings.length ? <span style={{ fontSize: 12, color: C.muted }}>لا توجد اجتماعات مسجلة لهذا اليوم.</span> : todayMeetings.map(meeting => <div key={meeting.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${C.line}` }}><span>🗓️</span><span style={{ flex: 1, fontSize: 12.5, minWidth: 0 }}>{meeting.title}</span><span style={{ color: C.muted, fontSize: 11, whiteSpace: "nowrap" }}>{meeting.startTime || meeting.start_time || meeting.time || "طوال اليوم"}</span><Btn small onClick={() => shell?.go?.("system", "knowledge", "meetings", { focusItemId: meeting.id, focusItemKind: "meeting" })}>فتح الاجتماع ↗</Btn></div>)}</Section>
+      {homeCompletions.length > 0 && <Section title="إنجازات المنزل" count={homeCompletions.length} color={C.ok}>{homeCompletions.slice(0, 8).map(event => <div key={event.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "5px 0", fontSize: 12.5 }}><span>🏠 {event.payload?.taskTitle || "مهمة منزلية"}</span><span style={{ color: C.muted, whiteSpace: "nowrap" }}>{fmt(event.occurredAt?.slice(0, 10) || today)}</span></div>)}</Section>}
       {feed.overdue.length > 0 && <Section title="متأخرة" count={feed.overdue.length} color={C.bad}>{feed.overdue.map((t) => <TaskLine key={t.id} t={t} />)}</Section>}
       <Section title="مستحقة اليوم" count={feed.dueToday.length} color={C.warn}>{!feed.dueToday.length ? <span style={{ fontSize: 12, color: C.muted }}>لا شيء مستحق اليوم</span> : feed.dueToday.map((t) => <TaskLine key={t.id} t={t} />)}</Section>
       <Section title="هذا الأسبوع" count={feed.thisWeek.length} color={C.info}>{!feed.thisWeek.length ? <span style={{ fontSize: 12, color: C.muted }}>لا مهام مخطَّطة. حرّك مهام من الوارد في «هذا الأسبوع».</span> : feed.thisWeek.map((t) => <TaskLine key={t.id} t={t} />)}</Section>
@@ -187,9 +234,12 @@ export function Week() {
 
 // ═════ My Tasks ═════
 export function Tasks() {
-  const { me, data, idx, people, projectsById, today, A: act, R, can, openTask, setPage } = useP();
+  const { me, data, idx, people, projectsById, today, A: act, R, can, openTask, setPage, view, setView } = useP();
+  const activeProjectsOnly = view.activeProjectsOnly === true;
   const [mode, setMode] = useState("list"); const [who, setWho] = useState("all"); const [q, setQ] = useState(""); const [proj, setProj] = useState(""); const [st, setSt] = useState("open"); const [blocked, setBlocked] = useState(false); const [form, setForm] = useState(false); const [quickAdd, setQuickAdd] = useState(false); const [month, setMonth] = useState(today.slice(0, 7)); const [selected, setSelected] = useState(() => new Set()); const [inlineId, setInlineId] = useState(null);
-  const list = idx.list.filter((t) => idx.isLeaf(t.id) && !projectsById[t.project_id]?.archived_at).filter((t) => (who === "all" ? true : who === "none" ? !t.assignee_id : t.assignee_id === who)).filter((t) => !proj || t.project_id === proj).filter((t) => (st === "all" ? true : st === "open" ? ["todo", "active"].includes(D.cat(t.status)) : D.cat(t.status) === st)).filter((t) => !blocked || t.blocked).filter((t) => !q || t.title.toLowerCase().includes(q.toLowerCase()));
+  const list = idx.list.filter((t) => idx.isLeaf(t.id) && !projectsById[t.project_id]?.archived_at)
+    .filter((t) => !activeProjectsOnly || (!!projectsById[t.project_id] && !projectsById[t.project_id].is_system && !["Completed", "Cancelled"].includes(projectsById[t.project_id].status)))
+    .filter((t) => (who === "all" ? true : who === "none" ? !t.assignee_id : t.assignee_id === who)).filter((t) => !proj || t.project_id === proj).filter((t) => (st === "all" ? true : st === "open" ? ["todo", "active"].includes(D.cat(t.status)) : D.cat(t.status) === st)).filter((t) => !blocked || t.blocked).filter((t) => !q || t.title.toLowerCase().includes(q.toLowerCase()));
   const sorted = [...list].sort((a, b) => (a.due_date || "9999").localeCompare(b.due_date || "9999"));
   const selectedVisible = sorted.filter((t) => selected.has(t.id));
   const toggleSelected = (id) => setSelected((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
@@ -206,7 +256,8 @@ export function Tasks() {
         <select style={{ ...S.sel, width: 150 }} value={proj} onChange={(e) => setProj(e.target.value)}><option value="">كل المشاريع</option>{projOpts(data.projects).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select>
         <select style={{ ...S.sel, width: 120 }} value={st} onChange={(e) => setSt(e.target.value)}><option value="open">مفتوحة</option><option value="done">مكتملة</option><option value="cancelled">ملغاة</option><option value="all">الكل</option></select>
         <label style={{ fontSize: 12, display: "flex", gap: 5, alignItems: "center" }}><input type="checkbox" checked={blocked} onChange={(e) => setBlocked(e.target.checked)} />المتعطّلة فقط</label>
-        {(q || who !== me || proj || st !== "open" || blocked) && <Btn small onClick={() => { setQ(""); setWho(me); setProj(""); setSt("open"); setBlocked(false); }}>مسح الفلاتر</Btn>}
+        {activeProjectsOnly && <span style={{ fontSize: 11, color: C.muted }}>مهام المشاريع النشطة فقط</span>}
+        {(q || who !== "all" || proj || st !== "open" || blocked || activeProjectsOnly) && <Btn small onClick={() => { setQ(""); setWho("all"); setProj(""); setSt("open"); setBlocked(false); setView((current) => ({ ...current, activeProjectsOnly: false })); }}>مسح الفلاتر</Btn>}
       </SearchBar>
       {selectedVisible.length > 0 && <div style={{ ...S.card, padding: "8px 10px", marginBottom: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", position: "sticky", top: 4, zIndex: 5 }}>
         <b style={{ fontSize: 12 }}>تم تحديد {selectedVisible.length}</b>
@@ -292,10 +343,113 @@ export function Tasks() {
 // ═════ Portfolio ═════
 // Cross-project portfolio view; derived only from existing workspace records.
 export function Portfolio() {
-  const { data, metrics, idx, today, settings, projectProgress, openProject, setPage, setView } = useP();
+  const { data, metrics, idx, today, settings, projectProgress, openProject, openTask, setPage, setView, people, can, view, A: act, ws, shell, me, role } = useP();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("active");
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [mode, setMode] = useState("cards");
+  const [delayedOnly, setDelayedOnly] = useState(false);
+  const [typeFilter, setTypeFilter] = useState("");
+  const [healthFilter, setHealthFilter] = useState("");
+  const [leadFilter, setLeadFilter] = useState("");
+  const [teamFilter, setTeamFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
+  const [visibilityFilter, setVisibilityFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [highRiskOnly, setHighRiskOnly] = useState(false);
+  const [financeLinkFilter, setFinanceLinkFilter] = useState("");
+  const [financeProfiles, setFinanceProfiles] = useState([]);
+  const [financePrimaryProfiles, setFinancePrimaryProfiles] = useState([]);
+  const [financeSyncMeta, setFinanceSyncMeta] = useState(null);
+  const lastGoodFinanceSync = useRef(null);
+  const [financeLinkState, setFinanceLinkState] = useState("idle");
+  const [savedViews, setSavedViews] = useState([]);
+  const [savedViewsState, setSavedViewsState] = useState("idle");
+  const [activeSavedViewId, setActiveSavedViewId] = useState("");
+  const portfolioColumnKeys = ["project","status","health","progress","target","remaining","lead","team","priority","finance","issues","risks"];
+  const [visibleColumns, setVisibleColumns] = useState(portfolioColumnKeys);
+  const [columnOrder, setColumnOrder] = useState(portfolioColumnKeys);
+  const [calendarMonth, setCalendarMonth] = useState(today.slice(0, 7));
+  const [calendarMeetings, setCalendarMeetings] = useState([]);
+  const [calendarMeetingsState, setCalendarMeetingsState] = useState("idle");
   const projects = data.projects.filter((p) => !p.is_system && !p.deleted_at);
+  const financeByProjectRef = useMemo(() => {
+    const map = new Map();
+    for (const profile of financeProfiles) {
+      const ref = String(profile.project_ref || "");
+      if (!ref) continue;
+      const current = map.get(ref) || [];
+      current.push(profile);
+      map.set(ref, current);
+    }
+    return map;
+  }, [financeProfiles]);
+  const financeStatusFor = (project) => {
+    const allProfiles = financeByProjectRef.get(String(project.id)) || [];
+    const primary = financePrimaryProfiles.find((row) => String(row.project_ref) === String(project.id));
+    const profiles = primary ? allProfiles.filter((profile) => String(profile.id) === String(primary.finance_project_id)) : allProfiles;
+    if (financeLinkState === "permission") return { key: "permission", label: "Finance: لا توجد صلاحية", color: C.bad };
+    if (financeLinkState === "error") return { key: "error", label: "Finance: خطأ", color: C.bad };
+    if (financeLinkState === "stale") return { key: "stale", label: "Finance: بيانات قديمة", color: C.warn, profile: profiles.length === 1 ? profiles[0] : null };
+    if (primary && !profiles.length) return { key: "primary-invalid", label: "Finance: الملف الأساسي غير موجود", color: C.bad };
+    if (!profiles.length) return { key: "not-linked", label: "Finance: غير مرتبط", color: C.warn };
+    if (profiles.length > 1) return { key: "multiple", label: "Finance: أكثر من ملف", color: C.warn };
+    const profile = profiles[0];
+    const projectCurrency = String(project.budget_currency || project.currency || "").toUpperCase();
+    const financeCurrency = String(profile.currency || profile.base_currency || "").toUpperCase();
+    if (projectCurrency && financeCurrency && projectCurrency !== financeCurrency) return { key: "currency-mismatch", label: `Finance: اختلاف عملة ${financeCurrency}/${projectCurrency}`, color: C.bad, profile };
+    return { key: "linked", label: "Finance: مرتبط", color: C.ok, profile };
+  };
+  useEffect(() => {
+    let active = true;
+    if (!ws?.id || !me) { setSavedViews([]); setSavedViewsState("idle"); return () => { active = false; }; }
+    setSavedViewsState("loading");
+    listCoreSavedViews(ws.id, "projects").then((result) => {
+      if (!active) return;
+      if (result.ok) { setSavedViews(result.rows); setSavedViewsState("ready"); }
+      else { setSavedViews([]); setSavedViewsState("unavailable"); }
+    });
+    return () => { active = false; };
+  }, [ws?.id, me]);
+  useEffect(() => {
+    let active = true;
+    if (!ws?.id || !supabase?.rpc) { setFinanceProfiles([]); setFinancePrimaryProfiles([]); setFinanceSyncMeta(null); lastGoodFinanceSync.current = null; setFinanceLinkState("idle"); return () => { active = false; }; }
+    setFinanceLinkState("loading");
+    Promise.all([
+      supabase.rpc("fin_projects_sync_get", { p_ws: ws.id }),
+      supabase.rpc("fin_project_primary_list", { p_ws: ws.id }),
+    ]).then(([profilesResult, primaryResult]) => {
+      if (!active) return;
+      if (profilesResult.error) {
+        const message = String(profilesResult.error.message || profilesResult.error.details || profilesResult.error.code || "");
+        const permissionDenied = profilesResult.error.code === "P0001" && /FORBIDDEN|UNAUTHENTICATED/i.test(message);
+        if (permissionDenied) {
+          setFinanceProfiles([]); setFinancePrimaryProfiles([]); setFinanceSyncMeta(null); lastGoodFinanceSync.current = null;
+          setFinanceLinkState("permission");
+        } else if (lastGoodFinanceSync.current) {
+          setFinanceSyncMeta(lastGoodFinanceSync.current);
+          setFinanceLinkState("stale");
+        } else {
+          setFinanceProfiles([]); setFinancePrimaryProfiles([]); setFinanceLinkState("error");
+        }
+        return;
+      }
+      const payload = profilesResult.data || {};
+      const rows = Array.isArray(payload.projects) ? payload.projects : [];
+      const meta = { as_of: payload.as_of || null, last_synced_at: payload.last_synced_at || null, sync_status: payload.sync_status || "fresh" };
+      lastGoodFinanceSync.current = meta;
+      setFinanceSyncMeta(meta);
+      setFinanceProfiles(rows);
+      if (!primaryResult.error) setFinancePrimaryProfiles(Array.isArray(primaryResult.data) ? primaryResult.data : []);
+      setFinanceLinkState("ready");
+    }).catch(() => {
+      if (!active) return;
+      if (lastGoodFinanceSync.current) { setFinanceSyncMeta(lastGoodFinanceSync.current); setFinanceLinkState("stale"); }
+      else { setFinanceProfiles([]); setFinancePrimaryProfiles([]); setFinanceLinkState("error"); }
+    });
+    return () => { active = false; };
+  }, [ws?.id]);
   const openProjects = projects.filter((p) => !p.archived_at && !["Completed", "Cancelled"].includes(p.status));
   const completed = projects.filter((p) => p.status === "Completed" && !p.archived_at);
   const delayed = openProjects.filter((p) => metrics[p.id]?.daysRemaining < 0);
@@ -304,22 +458,203 @@ export function Portfolio() {
   const objectives = data.objectives.filter((o) => o.status === "Active");
   const visible = projects
     .filter((p) => status === "all" || (status === "active" ? openProjects.includes(p) : status === "completed" ? completed.includes(p) : !!p.archived_at))
-    .filter((p) => !query || [p.name, p.description, p.final_goal].some((v) => String(v || "").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
+    .filter((p) => !query || [p.id, p.name, p.description, p.final_goal].some((v) => String(v || "").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
+    .filter((p) => !delayedOnly || delayed.includes(p))
+    .filter((p) => !typeFilter || String(p.type || "") === typeFilter)
+    .filter((p) => !healthFilter || metrics[p.id]?.health === healthFilter)
+    .filter((p) => !leadFilter || String(p.lead_id || "") === leadFilter)
+    .filter((p) => !teamFilter || (p.members || []).some((member) => String(member.member_id || member.user_id || member.id || "") === teamFilter))
+    .filter((p) => !priorityFilter || String(p.priority || "Medium") === priorityFilter)
+    .filter((p) => !visibilityFilter || String(p.visibility || "workspace") === visibilityFilter)
+    .filter((p) => !dateFrom || (!!p.target_date && p.target_date >= dateFrom))
+    .filter((p) => !dateTo || (!!p.target_date && p.target_date <= dateTo))
+    .filter((p) => !highRiskOnly || data.risks.some((risk) => risk.project_id === p.id && D.isOpenRisk(risk) && D.riskScore(risk) >= settings.riskHigh))
+    .filter((p) => !financeLinkFilter || financeStatusFor(p).key === financeLinkFilter)
     .sort((a, b) => {
       const rank = { Red: 0, Orange: 1, Yellow: 2, Green: 3, OnHold: 4, NotEvaluated: 5 };
       return (rank[metrics[a.id]?.health] ?? 9) - (rank[metrics[b.id]?.health] ?? 9) || String(a.target_date || "9999").localeCompare(String(b.target_date || "9999"));
     });
   const taskCount = idx.list.filter((t) => idx.isLeaf(t.id) && openProjects.some((p) => p.id === t.project_id) && ["todo", "active"].includes(D.cat(t.status))).length;
+  const typeOptions = [...new Set(projects.map((p) => String(p.type || "")).filter(Boolean))].sort();
+  const priorityOptions = [...new Set(projects.map((p) => String(p.priority || "Medium")))].sort();
+  const visibilityOptions = [...new Set(projects.map((p) => String(p.visibility || "workspace")))].sort();
+  const healthOptions = [...new Set(projects.map((p) => metrics[p.id]?.health).filter(Boolean))].sort();
+  const filtersActive = status !== "active" || !!(query || typeFilter || healthFilter || leadFilter || teamFilter || priorityFilter || visibilityFilter || dateFrom || dateTo || highRiskOnly || delayedOnly || financeLinkFilter);
+  const clearFilters = () => {
+    setQuery(""); setStatus("active"); setDelayedOnly(false); setTypeFilter(""); setHealthFilter("");
+    setLeadFilter(""); setTeamFilter(""); setPriorityFilter(""); setVisibilityFilter("");
+    setDateFrom(""); setDateTo(""); setHighRiskOnly(false); setFinanceLinkFilter("");
+  };
+  const applySavedView = (id) => {
+    const saved = savedViews.find((row) => row.id === id);
+    if (!saved) { setActiveSavedViewId(""); return; }
+    const d = saved.definition || {};
+    setQuery(typeof d.query === "string" ? d.query : "");
+    setStatus(["active","completed","archived","all"].includes(d.status) ? d.status : "active");
+    setMode(["cards","table","board","timeline","calendar"].includes(d.mode) ? d.mode : "cards");
+    setDelayedOnly(!!d.delayedOnly); setTypeFilter(d.typeFilter || ""); setHealthFilter(d.healthFilter || "");
+    setLeadFilter(d.leadFilter || ""); setTeamFilter(d.teamFilter || ""); setPriorityFilter(d.priorityFilter || "");
+    setVisibilityFilter(d.visibilityFilter || ""); setDateFrom(d.dateFrom || ""); setDateTo(d.dateTo || "");
+    setHighRiskOnly(!!d.highRiskOnly); setFinanceLinkFilter(d.financeLinkFilter || "");
+    const selectedColumns = Array.isArray(d.visibleColumns) ? d.visibleColumns.filter((key) => portfolioColumnKeys.includes(key)) : portfolioColumnKeys;
+    const columns = [...new Set(["project", ...selectedColumns])];
+    const order = Array.isArray(d.columnOrder) ? d.columnOrder.filter((key) => portfolioColumnKeys.includes(key)) : portfolioColumnKeys;
+    setVisibleColumns(columns);
+    setColumnOrder([...order.filter((key) => columns.includes(key)), ...columns.filter((key) => !order.includes(key))]);
+    setActiveSavedViewId(id);
+  };
+  const canManageSharedViews = role === "Owner" || role === "Admin";
+  const activeSavedView = savedViews.find((item) => item.id === activeSavedViewId) || null;
+  const canEditActiveSavedView = !!activeSavedView && (
+    activeSavedView.scope === "workspace" ? canManageSharedViews : activeSavedView.owner_id === me
+  );
+  const currentViewDefinition = () => ({
+    version: 1, query, status, mode, delayedOnly, typeFilter, healthFilter, leadFilter, teamFilter,
+    priorityFilter, visibilityFilter, dateFrom, dateTo, highRiskOnly, financeLinkFilter,
+    visibleColumns, columnOrder
+  });
+  const saveCurrentView = async () => {
+    const name = window.prompt("اسم طريقة العرض المحفوظة (حتى 80 حرفًا):");
+    if (!name?.trim()) return;
+    const scope = canManageSharedViews && window.confirm("مشاركة طريقة العرض مع أعضاء مساحة العمل؟\nموافق = مشاركة، إلغاء = شخصية")
+      ? "workspace" : "personal";
+    const result = await saveCoreSavedView({ workspaceId: ws.id, systemId: "projects", ownerId: me, name, scope, definition: currentViewDefinition() });
+    if (!result.ok) { shell?.toast?.("تعذّر حفظ العرض في Core: " + (result.error?.message || "الخدمة غير متاحة")); return; }
+    setSavedViews((rows) => [result.row, ...rows.filter((row) => row.id !== result.row.id)]);
+    setActiveSavedViewId(result.row.id);
+    shell?.toast?.("تم حفظ طريقة العرض في Core.");
+  };
+  const updateActiveSavedView = async () => {
+    if (!activeSavedView || !canEditActiveSavedView) return;
+    const result = await updateCoreSavedView({
+      id: activeSavedView.id, workspaceId: ws.id, systemId: "projects",
+      name: activeSavedView.name, scope: activeSavedView.scope, definition: currentViewDefinition()
+    });
+    if (!result.ok) { shell?.toast?.("تعذّر تحديث طريقة العرض: " + (result.error?.message || "رفضت الصلاحيات العملية")); return; }
+    setSavedViews((rows) => rows.map((row) => row.id === result.row.id ? result.row : row));
+    shell?.toast?.("تم تحديث طريقة العرض المحفوظة.");
+  };
+  const deleteActiveSavedView = async () => {
+    const row = activeSavedView;
+    if (!row || !canEditActiveSavedView) return;
+    if (!window.confirm("حذف طريقة العرض المحفوظة؟")) return;
+    const result = await deleteCoreSavedView(row.id);
+    if (!result.ok || !result.deleted) { shell?.toast?.("تعذّر حذف طريقة العرض أو لا تملك صلاحية إدارتها."); return; }
+    setSavedViews((rows) => rows.filter((item) => item.id !== row.id));
+    setActiveSavedViewId("");
+    shell?.toast?.("تم حذف طريقة العرض.");
+  };
+  const moveColumn = (key, delta) => setColumnOrder((order) => {
+    const next = [...order]; const index = next.indexOf(key); const target = index + delta;
+    if (index < 0 || target < 0 || target >= next.length) return order;
+    [next[index], next[target]] = [next[target], next[index]];
+    return next;
+  });
+  const [calendarYear, calendarMonthNumber] = calendarMonth.split("-").map(Number);
+  const calendarLead = dow(calendarMonth + "-01");
+  const calendarDays = monthDays(calendarYear, calendarMonthNumber);
+  const calendarDates = Array.from({ length: calendarDays }, (_, index) => calendarMonth + "-" + String(index + 1).padStart(2, "0"));
+  const calendarProjectIds = visible.map((project) => project.id);
+  const calendarProjectKey = calendarProjectIds.join("|");
+  useEffect(() => {
+    let active = true;
+    if (mode !== "calendar" || !ws?.id || !calendarProjectIds.length) {
+      setCalendarMeetings([]);
+      setCalendarMeetingsState("idle");
+      return () => { active = false; };
+    }
+    setCalendarMeetingsState("loading");
+    Promise.all(visible.map(async (project) => {
+      try {
+        const result = await listKnowledgeMeetings(ws.id, project.id);
+        return result.ok
+          ? (result.meetings || []).map((meeting) => ({ ...meeting, project_id: project.id }))
+          : { __queryError: true };
+      } catch {
+        return { __queryError: true };
+      }
+    })).then((results) => {
+      if (!active) return;
+      const failed = results.some((result) => !Array.isArray(result));
+      setCalendarMeetings(results.flatMap((result) => Array.isArray(result) ? result : []));
+      setCalendarMeetingsState(failed ? "partial" : "ready");
+    }).catch(() => {
+      if (active) { setCalendarMeetings([]); setCalendarMeetingsState("error"); }
+    });
+    return () => { active = false; };
+  }, [mode, ws?.id, calendarProjectKey]);
+  const calendarVisibleIds = new Set(calendarProjectIds);
+  const calendarEvents = [
+    ...visible.filter((project) => project.start_date).map((project) => ({ id: project.id + ":start", date: project.start_date, project, kind: "start", title: project.name })),
+    ...visible.filter((project) => project.target_date).map((project) => ({ id: project.id + ":target", date: project.target_date, project, kind: "target", title: project.name })),
+    ...data.milestones.filter((milestone) => milestone.due_date && !milestone.archived_at && calendarVisibleIds.has(milestone.project_id)).map((milestone) => ({ id: milestone.id + ":milestone", date: milestone.due_date, project: projects.find((project) => project.id === milestone.project_id), kind: "milestone", record: milestone, title: milestone.title })),
+    ...idx.list.filter((task) => task.due_date && calendarVisibleIds.has(task.project_id)).map((task) => ({ id: task.id + ":due", date: task.due_date, project: projects.find((project) => project.id === task.project_id), kind: "task", record: task, title: task.title })),
+    ...data.prds.filter((prd) => prd.target_ship_date && calendarVisibleIds.has(prd.project_id)).map((prd) => ({ id: prd.id + ":ship", date: prd.target_ship_date, project: projects.find((project) => project.id === prd.project_id), kind: "prd", record: prd, title: prd.title || "موعد إطلاق المواصفة" })),
+    ...data.outputs.filter((output) => output.approval === "Final" && output.approved_at && calendarVisibleIds.has(output.project_id)).map((output) => ({ id: output.id + ":approved", date: String(output.approved_at).slice(0, 10), project: projects.find((project) => project.id === output.project_id), kind: "output", record: output, title: output.name })),
+    ...data.risks.filter((risk) => risk.review_date && calendarVisibleIds.has(risk.project_id)).map((risk) => ({ id: risk.id + ":review", date: risk.review_date, project: projects.find((project) => project.id === risk.project_id), kind: "risk-review", record: risk, title: risk.title })),
+    ...data.issues.filter((issue) => issue.discovered_at && calendarVisibleIds.has(issue.project_id)).map((issue) => ({ id: issue.id + ":discovered", date: String(issue.discovered_at).slice(0, 10), project: projects.find((project) => project.id === issue.project_id), kind: "issue", record: issue, title: issue.title })),
+    ...data.decisions.filter((decision) => decision.decided_at && calendarVisibleIds.has(decision.project_id)).map((decision) => ({ id: decision.id + ":decision", date: String(decision.decided_at).slice(0, 10), project: projects.find((project) => project.id === decision.project_id), kind: "decision", record: decision, title: decision.title })),
+    ...data.wins.filter((win) => win.achieved_on && calendarVisibleIds.has(win.project_id)).map((win) => ({ id: win.id + ":win", date: String(win.achieved_on).slice(0, 10), project: projects.find((project) => project.id === win.project_id), kind: "win", record: win, title: win.title })),
+    ...calendarMeetings.filter((meeting) => meeting.date && calendarVisibleIds.has(meeting.project_id)).map((meeting) => ({ id: meeting.id + ":meeting", date: String(meeting.date).slice(0, 10), project: projects.find((project) => project.id === meeting.project_id), kind: "meeting", record: meeting, title: meeting.title })),
+  ];
+  const openCalendarEvent = (event) => {
+    if (event.kind === "task") return openTask(event.record.id);
+    if (event.kind === "milestone") return openProject(event.project.id, "milestones");
+    if (event.kind === "meeting") return shell?.go?.("system", "knowledge", "meetings", { focusItemId: event.record.id, focusItemKind: "meeting" });
+    if (event.kind === "prd") return openProject(event.project.id, "prds", { kind: "prd", id: event.record.id });
+    if (event.kind === "output") return openProject(event.project.id, "outputs", { kind: "output", id: event.record.id });
+    if (event.kind === "risk-review") return openProject(event.project.id, "risks", { kind: "risk", id: event.record.id });
+    if (event.kind === "issue") return openProject(event.project.id, "issues", { kind: "issue", id: event.record.id });
+    if (event.kind === "decision") return openProject(event.project.id, "decisions", { kind: "decision", id: event.record.id });
+    if (event.kind === "win") return setPage("wins");
+    return openProject(event.project.id, "overview");
+  };
+  const calendarEventLabel = (event) => ({
+    start: "▶ " + event.title,
+    target: "🏁 " + event.title,
+    milestone: "◆ " + event.title,
+    task: "☑ " + event.title,
+    prd: "🚀 " + event.title,
+    output: "📦 " + event.title,
+    meeting: "🗓 " + event.title,
+    "risk-review": "⚠️ مراجعة " + event.title,
+    issue: "🔥 " + event.title,
+    decision: "⚖️ " + event.title,
+    win: "🏆 " + event.title,
+  }[event.kind] || event.title);
+  const calendarEventColor = (kind) => kind === "start" ? "rgba(16,185,129,.12)" : kind === "target" ? "rgba(239,159,39,.12)" : kind === "milestone" ? "rgba(124,58,237,.12)" : kind === "meeting" ? "rgba(124,58,237,.12)" : kind === "risk-review" ? "rgba(239,68,68,.12)" : kind === "issue" ? "rgba(220,38,38,.12)" : kind === "decision" ? "rgba(124,58,237,.12)" : kind === "win" ? "rgba(16,185,129,.12)" : kind === "task" ? "rgba(59,130,246,.12)" : kind === "prd" ? "rgba(2,132,199,.12)" : "rgba(14,116,144,.12)";
+  const timelineDates = visible.flatMap((p) => [p.start_date || p.target_date, p.target_date || p.start_date]).filter(Boolean).sort();
+  const timelineMin = timelineDates[0] || "";
+  const timelineMax = timelineDates[timelineDates.length - 1] || "";
+  const timelineSpan = timelineMin ? Math.max(1, diffDays(timelineMax, timelineMin) + 1) : 1;
+  const timelinePosition = (date) => Math.max(0, Math.min(100, diffDays(date, timelineMin) / timelineSpan * 100));
+  const boardStatuses = ["Idea", "Planned", "In Progress", "On Hold", "Completed", "Cancelled"];
+  const portfolioColumnDefs = {
+    project: { label: "المشروع", render: (p) => <><button type="button" onClick={() => openProject(p.id)} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", font: "inherit", fontWeight: 700, textAlign: "start" }}>{p.name}</button><div style={{ color: C.muted, fontSize: 10.5 }}>{p.type || "—"}</div></> },
+    status: { label: "الحالة", render: (p) => L.projectStatus[p.status] || p.status || "—" },
+    health: { label: "الصحة", render: (p,m) => <HealthBadge m={m} compact /> },
+    progress: { label: "التقدم", render: (p,m) => <div style={{ minWidth: 110 }}><Progress value={m.progress == null ? null : m.progress} /><div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{m.progress == null ? "غير قابل للقياس" : Math.round(m.progress) + "%"}</div></div> },
+    target: { label: "الموعد", render: (p) => p.target_date ? fmtShort(p.target_date) : "—" },
+    remaining: { label: "الأيام المتبقية", render: (p,m) => m.daysRemaining == null ? "—" : m.daysRemaining < 0 ? "متأخر " + -m.daysRemaining + " يوم" : "باقٍ " + m.daysRemaining + " يوم" },
+    lead: { label: "القائد", render: (p) => people.find((person) => person.id === p.lead_id)?.name || "—" },
+    team: { label: "الفريق", render: (p) => (p.members || []).length ? <span>{p.members.slice(0,2).map((member) => people.find((person) => person.id === member.member_id)?.name || "عضو").join("، ")}{p.members.length > 2 ? " +" + (p.members.length - 2) : ""}</span> : "—" },
+    priority: { label: "الأولوية", render: (p) => L.priority[p.priority] || p.priority || "—" },
+    finance: { label: "Finance", render: (p) => <Chip color={financeStatusFor(p).color}>{financeStatusFor(p).label}</Chip> },
+    issues: { label: "المشاكل", render: (p) => { const count = data.issues.filter((issue) => issue.project_id === p.id && D.isOpenIssue(issue)).length; return <button type="button" onClick={() => setView({ ...view, projectId: p.id, tab: "issues", issueStatusFilter: "open", issueSeverityFilter: "", focusRecord: null })} style={{ border: 0, background: "transparent", padding: 0, color: count ? C.info : C.muted, cursor: "pointer", textDecoration: count ? "underline" : "none", font: "inherit" }}>{count}</button>; } },
+    risks: { label: "المخاطر", render: (p) => { const count = data.risks.filter((risk) => risk.project_id === p.id && D.isOpenRisk(risk)).length; return <button type="button" onClick={() => setView({ ...view, projectId: p.id, tab: "risks", riskStatusFilter: "open", riskHighOnly: false, focusRecord: null })} style={{ border: 0, background: "transparent", padding: 0, color: count ? C.info : C.muted, cursor: "pointer", textDecoration: count ? "underline" : "none", font: "inherit" }}>{count}</button>; } },
+  };
+  const activePortfolioColumns = columnOrder.filter((key) => visibleColumns.includes(key) && portfolioColumnDefs[key]);
+
   return (
     <div>
-      <Head title="محفظة المشاريع" sub="نظرة موحّدة على حالة المشاريع والأهداف والمخاطر عبر مساحة العمل." />
+      <Head title="محفظة المشاريع" sub="هذه ليست محفظة مالية؛ هي مركز Portfolio لمتابعة جميع المشاريع وحالتها وتقدمها ومخاطرها ومواعيدها وروابط Finance." right={can("project.create") && <Btn kind="primary" onClick={() => setNewProjectOpen(true)}>＋ مشروع جديد</Btn>} />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 10, marginBottom: 14 }}>
         <Stat label="مشاريع نشطة" value={openProjects.length} color={C.info} onClick={() => setStatus("active")} />
         <Stat label="مشاريع مكتملة" value={completed.length} color={C.ok} onClick={() => setStatus("completed")} />
-        <Stat label="مشاريع متأخرة" value={delayed.length} color={delayed.length ? C.bad : C.ok} onClick={() => setStatus("active")} />
-        <Stat label="مهام مفتوحة" value={taskCount} color={C.violet} onClick={() => setPage("tasks")} />
+        <Stat label="مشاريع متأخرة" value={delayed.length} color={delayed.length ? C.bad : C.ok} onClick={() => { setStatus("active"); setDelayedOnly(true); }} />
+        <Stat label="مهام مفتوحة" value={taskCount} color={C.violet} onClick={() => { setView((current) => ({ ...current, activeProjectsOnly: true })); setPage("tasks"); }} />
         <Stat label="مشاكل حرجة" value={criticalIssues.length} color={criticalIssues.length ? C.bad : C.ok} onClick={() => { setView((v) => ({ ...v, issueSeverityFilter: "Critical", issueStatusFilter: "open" })); setPage("issues"); }} />
-        <Stat label="مخاطر عالية" value={highRisks.length} color={highRisks.length ? C.orange : C.ok} onClick={() => setPage("risks")} />
+        <Stat label="مخاطر عالية" value={highRisks.length} color={highRisks.length ? C.orange : C.ok} onClick={() => { setView((current) => ({ ...current, riskStatusFilter: "open", riskHighOnly: true })); setPage("risks"); }} />
       </div>
       {objectives.length > 0 && <div style={{ ...S.card, marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 9 }}><b style={{ fontSize: 13 }}>الأهداف النشطة (OKR)</b><span style={{ flex: 1 }} /><Btn small onClick={() => setPage("okrs")}>إدارة الأهداف</Btn></div>
@@ -333,11 +668,111 @@ export function Portfolio() {
           <select aria-label="تصفية المشاريع" style={{ ...S.sel, minWidth: 150 }} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="active">النشطة</option><option value="completed">المكتملة</option><option value="archived">المؤرشفة</option><option value="all">كل المشاريع</option>
           </select>
+          <Seg small value={mode} onChange={setMode} options={[{ v: "cards", l: "بطاقات" }, { v: "table", l: "جدول" }, { v: "board", l: "لوحة" }, { v: "timeline", l: "خط زمني" }, { v: "calendar", l: "تقويم" }]} />
+          <select aria-label="طرق العرض المحفوظة" style={{ ...S.sel, minWidth: 175 }} value={activeSavedViewId} onChange={(e) => applySavedView(e.target.value)}>
+            <option value="">طرق العرض المحفوظة</option>
+            {savedViews.map((row) => <option key={row.id} value={row.id}>{row.name}{row.scope === "workspace" ? " · مشتركة" : " · شخصية"}</option>)}
+          </select>
+          <Btn small onClick={saveCurrentView} disabled={savedViewsState === "unavailable" || savedViewsState === "loading"}>حفظ كطريقة عرض</Btn>
+          {canEditActiveSavedView && <Btn small onClick={updateActiveSavedView}>حفظ تعديلات العرض</Btn>}
+          {canEditActiveSavedView && <Btn small danger onClick={deleteActiveSavedView}>حذف العرض</Btn>}
+          {activeSavedView?.scope === "workspace" && !canManageSharedViews && <span style={{ color: C.muted, fontSize: 10.5 }}>عرض مشترك · التعديل للمديرين فقط</span>}
           <span style={{ color: C.muted, fontSize: 11 }}>{visible.length} مشروع</span>
+          {filtersActive && <Btn small onClick={clearFilters}>مسح الفلاتر</Btn>}
+        </div>
+        <details style={{ marginTop: 9 }}>
+          <summary style={{ cursor: "pointer", fontSize: 12, color: C.dim }}>فلاتر مركبة {filtersActive ? "· مفعّلة" : ""}</summary>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 8, marginTop: 9 }}>
+            <label style={{ fontSize: 11, color: C.muted }}>النوع<select aria-label="نوع المشروع" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}><option value="">كل الأنواع</option>{typeOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+            <label style={{ fontSize: 11, color: C.muted }}>الصحة<select aria-label="صحة المشروع" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={healthFilter} onChange={(e) => setHealthFilter(e.target.value)}><option value="">كل الحالات الصحية</option>{healthOptions.map((value) => <option key={value} value={value}>{D.HEALTH_META[value]?.label || value}</option>)}</select></label>
+            <label style={{ fontSize: 11, color: C.muted }}>القائد<select aria-label="قائد المشروع" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={leadFilter} onChange={(e) => setLeadFilter(e.target.value)}><option value="">كل القادة</option>{people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>
+            <label style={{ fontSize: 11, color: C.muted }}>عضو الفريق<select aria-label="عضو الفريق" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}><option value="">كل الفرق</option>{people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>
+            <label style={{ fontSize: 11, color: C.muted }}>الأولوية<select aria-label="أولوية المشروع" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}><option value="">كل الأولويات</option>{priorityOptions.map((value) => <option key={value} value={value}>{L.priority[value] || value}</option>)}</select></label>
+            <label style={{ fontSize: 11, color: C.muted }}>الرؤية<select aria-label="رؤية المشروع" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={visibilityFilter} onChange={(e) => setVisibilityFilter(e.target.value)}><option value="">كل مستويات الرؤية</option>{visibilityOptions.map((value) => <option key={value} value={value}>{value === "private" ? "خاص" : value === "workspace" ? "مساحة العمل" : value}</option>)}</select></label>
+            <label style={{ fontSize: 11, color: C.muted }}>حالة Finance<select aria-label="حالة ربط Finance" style={{ ...S.sel, width: "100%", marginTop: 3 }} value={financeLinkFilter} onChange={(e) => setFinanceLinkFilter(e.target.value)}><option value="">كل حالات Finance</option><option value="linked">مرتبط</option><option value="not-linked">غير مرتبط</option><option value="multiple">أكثر من ملف بلا أساسي</option><option value="primary-invalid">ملف أساسي غير صالح</option><option value="stale">بيانات قديمة</option><option value="currency-mismatch">اختلاف عملة</option><option value="permission">لا توجد صلاحية</option><option value="error">خطأ</option></select></label>
+            <label style={{ fontSize: 11, color: C.muted }}>الموعد من<input aria-label="الموعد من" type="date" style={{ ...S.inp, width: "100%", marginTop: 3 }} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></label>
+            <label style={{ fontSize: 11, color: C.muted }}>الموعد إلى<input aria-label="الموعد إلى" type="date" style={{ ...S.inp, width: "100%", marginTop: 3 }} value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} /></label>
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 8 }}>
+            <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 11.5 }}><input type="checkbox" checked={highRiskOnly} onChange={(e) => setHighRiskOnly(e.target.checked)} />مشاريع بها مخاطر عالية مفتوحة</label>
+            {delayedOnly && <span style={{ fontSize: 11, color: C.warn }}>فلتر المشاريع المتأخرة مفعّل</span>}
+          </div>
+        </details>
+        <div style={{ marginTop: 10, paddingTop: 9, borderTop: "1px solid " + C.line }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, marginBottom: 7 }}>أعمدة جدول المحفظة وترتيبها</div>
+          <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>{[["project","المشروع"],["status","الحالة"],["health","الصحة"],["progress","التقدم"],["target","الموعد"],["remaining","الأيام المتبقية"],["lead","القائد"],["team","الفريق"],["priority","الأولوية"],["finance","Finance"],["issues","المشاكل"],["risks","المخاطر"]].map(([key,label]) => <label key={key} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11 }}><input type="checkbox" checked={visibleColumns.includes(key)} onChange={(e) => { if (key === "project" && !e.target.checked) return; setVisibleColumns((old) => e.target.checked ? [...old,key] : old.filter((x) => x !== key)); }} />{label}</label>)}</div>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 7 }}>{columnOrder.filter((key) => visibleColumns.includes(key)).map((key) => <span key={key} style={{ display: "inline-flex", alignItems: "center", gap: 3, border: "1px solid " + C.line, borderRadius: 6, padding: "3px 5px", fontSize: 10.5 }}>{({project:"المشروع",status:"الحالة",health:"الصحة",progress:"التقدم",target:"الموعد",remaining:"الأيام المتبقية",lead:"القائد",team:"الفريق",priority:"الأولوية",finance:"Finance",issues:"المشاكل",risks:"المخاطر"})[key]}<button type="button" aria-label="تحريك العمود لليسار" onClick={() => moveColumn(key,-1)} style={{ border: 0, background: "transparent", cursor: "pointer" }}>←</button><button type="button" aria-label="تحريك العمود لليمين" onClick={() => moveColumn(key,1)} style={{ border: 0, background: "transparent", cursor: "pointer" }}>→</button></span>)}</div>
+        </div>
+        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>طرق العرض تحفظ الفلاتر ونمط العرض والأعمدة وترتيبها في Core. المشاركة اختيارية وتخضع لصلاحيات مساحة العمل.</div>
+      </div>
+      {!visible.length ? <Empty icon="🗂️" title="لا توجد مشاريع مطابقة" sub="غيّر الفلتر أو عبارة البحث لعرض مشاريع أخرى." />
+      : mode === "table" ? <div style={{ ...S.card, padding: 0, overflowX: "auto" }}>
+        <table style={{ width: "100%", minWidth: Math.max(680, activePortfolioColumns.length * 112), borderCollapse: "collapse", fontSize: 12 }}>
+          <thead><tr style={{ background: "rgba(0,0,0,0.03)" }}>{activePortfolioColumns.map((key) => <th key={key} style={{ padding: 9, textAlign: "start", color: C.muted, fontSize: 10.5, whiteSpace: "nowrap" }}>{portfolioColumnDefs[key].label}</th>)}</tr></thead>
+          <tbody>{visible.map((p) => { const m = metrics[p.id] || {}; return <tr key={p.id} style={{ borderTop: "1px solid " + C.line }}>{activePortfolioColumns.map((key) => <td key={key} style={{ padding: 9, whiteSpace: ["status","target","remaining","finance"].includes(key) ? "nowrap" : "normal" }}>{portfolioColumnDefs[key].render(p,m)}</td>)}</tr>; })}</tbody>
+        </table>
+      </div>
+      : mode === "board" ? <div>
+        <Board
+          columns={boardStatuses.map((projectStatus) => ({
+            id: projectStatus,
+            label: L.projectStatus[projectStatus] || projectStatus,
+            color: STATUS_COLOR?.[projectStatus],
+            items: visible.filter((p) => !p.archived_at && p.status === projectStatus)
+          }))}
+          onMove={async (id, to) => {
+            const project = data.projects.find((p) => p.id === id);
+            if (!project || project.archived_at || !can("project.edit", project)) return;
+            if (project.status === to) return;
+            await act.setProjectStatus(project, to);
+          }}
+          renderCard={(p) => <div onClick={() => openProject(p.id)} style={{ ...S.card, padding: "9px 11px", cursor: "pointer" }}>
+            <div style={{ display: "flex", gap: 7, alignItems: "center" }}><b style={{ flex: 1, fontSize: 12 }}>{p.name}</b><HealthBadge m={metrics[p.id] || {}} compact /></div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 5 }}><PriorityChip p={p.priority} /><Chip color={financeStatusFor(p).color}>{financeStatusFor(p).label}</Chip><span style={{ fontSize: 10.5, color: C.muted }}>{p.target_date ? "الموعد " + fmtShort(p.target_date) : "بلا موعد"}</span></div>
+            <div style={{ marginTop: 6 }}><Progress value={metrics[p.id]?.progress == null ? null : metrics[p.id].progress} /></div>
+          </div>}
+        />
+        {visible.some((p) => p.archived_at) && <section style={{ ...S.card, marginTop: 10, padding: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>المشاريع المؤرشفة · للعرض فقط</div>
+          {visible.filter((p) => p.archived_at).map((p) => <button key={p.id} type="button" onClick={() => openProject(p.id)} style={{ display: "block", width: "100%", textAlign: "start", border: 0, borderTop: "1px solid " + C.line, background: "transparent", padding: "8px 2px", color: C.info, cursor: "pointer", font: "inherit" }}>{p.name}</button>)}
+        </section>}
+      </div>
+      : mode === "timeline" ? <div style={{ ...S.card, overflowX: "auto" }}>
+        {!timelineDates.length ? <Empty icon="🗓️" title="لا توجد مشاريع مؤرخة" sub="أضف تاريخ بداية أو موعدًا مستهدفًا للمشروع." /> : <div style={{ minWidth: 760 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: C.muted, marginBottom: 9 }}><span>{fmtShort(timelineMin)}</span><span>{fmtShort(timelineMax)}</span></div>
+          {visible.filter((p) => p.start_date || p.target_date).map((p) => {
+            const start = p.start_date || p.target_date, finish = p.target_date || p.start_date;
+            const left = timelinePosition(start), width = Math.max(1.5, timelinePosition(finish) - left);
+            return <div key={p.id} style={{ display: "grid", gridTemplateColumns: "190px 1fr", gap: 10, alignItems: "center", marginBottom: 9 }}>
+              <button type="button" onClick={() => openProject(p.id)} style={{ border: 0, background: "transparent", padding: 0, font: "inherit", textAlign: "start", color: C.info, cursor: "pointer", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</button>
+              <div style={{ position: "relative", height: 25, borderRadius: 6, background: "rgba(0,0,0,.04)" }}><div title={fmtShort(start) + " → " + fmtShort(finish)} style={{ position: "absolute", insetInlineStart: left + "%", width: width + "%", top: 3, height: 19, borderRadius: 5, background: metrics[p.id]?.health === "Red" ? "rgba(239,68,68,.2)" : metrics[p.id]?.health === "Orange" ? "rgba(239,159,39,.22)" : "rgba(16,185,129,.18)", border: "1px solid " + (metrics[p.id]?.health === "Red" ? C.bad : metrics[p.id]?.health === "Orange" ? C.orange : C.ok) }} />{today >= timelineMin && today <= timelineMax && <div title="اليوم" style={{ position: "absolute", insetInlineStart: timelinePosition(today) + "%", top: 0, bottom: 0, width: 2, background: A, zIndex: 2 }} />}</div>
+            </div>;
+          })}
+        </div>}
+      </div>
+      : mode === "calendar" ? <div style={S.card}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><Btn small onClick={() => { const next = new Date(Date.UTC(calendarYear, calendarMonthNumber - 2, 1)); setCalendarMonth(next.toISOString().slice(0, 7)); }}>→</Btn><b>{MONTH_NAMES[calendarMonthNumber - 1]} {calendarYear}</b><Btn small onClick={() => { const next = new Date(Date.UTC(calendarYear, calendarMonthNumber, 1)); setCalendarMonth(next.toISOString().slice(0, 7)); }}>←</Btn></div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", fontSize: 10.5, color: C.muted, marginBottom: 8 }}>
+          <span>▶ بداية / 🏁 نهاية</span><span>☑ موعد مهمة</span><span>🚀 إطلاق PRD</span><span>📦 مخرج معتمد</span><span>⚠️ مراجعة خطر</span><span>🔥 اكتشاف مشكلة</span><span>⚖️ قرار</span><span>🏆 إنجاز</span><span>🗓 اجتماع Knowledge</span>
+          {calendarMeetingsState === "loading" && <span>· جارٍ تحميل اجتماعات المشاريع…</span>}
+          {calendarMeetingsState === "partial" && <span>· بعض اجتماعات Knowledge لم تُحمّل؛ بقية المواعيد متاحة.</span>}
+          {calendarMeetingsState === "error" && <span>· تعذّر تحميل اجتماعات Knowledge.</span>}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 4 }}>
+          {["أحد","اثنين","ثلاثاء","أربعاء","خميس","جمعة","سبت"].map((day) => <div key={day} style={{ fontSize: 10.5, color: C.muted, textAlign: "center" }}>{day}</div>)}
+          {Array.from({ length: calendarLead }, (_, index) => <div key={"blank-" + index} />)}
+          {calendarDates.map((date) => {
+            const hasProjectTarget = visible.some((p) => p.target_date === date);
+            const dayEvents = calendarEvents.filter((event) => event.date === date);
+            return <div key={date} style={{ minHeight: 84, minWidth: 0, border: "1px solid " + (date === today ? A : hasProjectTarget ? A : C.line), borderRadius: 6, padding: 4, background: date === today ? "rgba(239,159,39,.06)" : "transparent" }}>
+              <div style={{ fontSize: 10, color: C.muted }}>{Number(date.slice(-2))}</div>
+              {dayEvents.slice(0, 4).map((event) => <button key={event.id} type="button" onClick={() => openCalendarEvent(event)} title={(event.project?.name ? event.project.name + " · " : "") + calendarEventLabel(event)} style={{ display: "block", width: "100%", marginTop: 3, border: 0, borderRadius: 4, padding: "2px 4px", background: calendarEventColor(event.kind), color: C.text, fontSize: 10, textAlign: "start", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{calendarEventLabel(event)}</button>)}
+              {dayEvents.length > 4 && <div style={{ fontSize: 9, color: C.muted }}>+{dayEvents.length - 4} أحداث أخرى</div>}
+            </div>;
+          })}
         </div>
       </div>
-      {!visible.length ? <Empty icon="🗂️" title="لا توجد مشاريع مطابقة" sub="غيّر الفلتر أو عبارة البحث لعرض مشاريع أخرى." /> :
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 10 }}>
+      : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 10 }}>
           {visible.map((p) => {
             const m = metrics[p.id] || {};
             const tasks = idx.list.filter((t) => idx.isLeaf(t.id) && t.project_id === p.id);
@@ -351,16 +786,18 @@ export function Portfolio() {
                 <HealthBadge m={m} compact />
               </div>
               {p.description && <div style={{ color: C.dim, fontSize: 11.5, marginTop: 8, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.description}</div>}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}><Progress value={m.progress || 0} /><b style={{ fontSize: 11, minWidth: 36, textAlign: "end" }}>{Math.round(m.progress || 0)}%</b></div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginTop: 11, paddingTop: 9, borderTop: "1px solid " + C.line }}>
-                <div><div style={{ fontSize: 15, fontWeight: 700 }}>{open}</div><div style={{ color: C.muted, fontSize: 10 }}>مهام مفتوحة</div></div>
-                <div><div style={{ fontSize: 15, fontWeight: 700, color: overdue ? C.bad : C.text }}>{overdue}</div><div style={{ color: C.muted, fontSize: 10 }}>متأخرة</div></div>
-                <div><div style={{ fontSize: 15, fontWeight: 700 }}>{issueCount + riskCount}</div><div style={{ color: C.muted, fontSize: 10 }}>مشاكل ومخاطر</div></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}><Progress value={m.progress == null ? null : m.progress} /><b style={{ fontSize: 11, minWidth: 36, textAlign: "end" }}>{m.progress == null ? "غير قابل للقياس" : Math.round(m.progress) + "%"}</b></div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6, marginTop: 11, paddingTop: 9, borderTop: "1px solid " + C.line }}>
+                <div><button type="button" onClick={(e) => { e.stopPropagation(); setView({ ...view, projectId: p.id, tab: "tasks", taskFilter: null, taskFilterIds: [], focusRecord: null }); }} style={{ border: 0, background: "transparent", padding: 0, color: C.info, cursor: "pointer", fontSize: 15, fontWeight: 700 }}>{open}</button><div style={{ color: C.muted, fontSize: 10 }}>مهام مفتوحة</div></div>
+                <div><button type="button" onClick={(e) => { e.stopPropagation(); setView({ ...view, projectId: p.id, tab: "tasks", taskFilter: "overdue", focusRecord: null }); }} style={{ border: 0, background: "transparent", padding: 0, color: overdue ? C.bad : C.text, cursor: "pointer", fontSize: 15, fontWeight: 700 }}>{overdue}</button><div style={{ color: C.muted, fontSize: 10 }}>متأخرة</div></div>
+                <div><button type="button" onClick={(e) => { e.stopPropagation(); setView({ ...view, projectId: p.id, tab: "issues", issueStatusFilter: "open", issueSeverityFilter: "", focusRecord: null }); }} style={{ border: 0, background: "transparent", padding: 0, color: issueCount ? C.info : C.text, cursor: "pointer", fontSize: 15, fontWeight: 700 }}>{issueCount}</button><div style={{ color: C.muted, fontSize: 10 }}>مشاكل</div></div>
+                <div><button type="button" onClick={(e) => { e.stopPropagation(); setView({ ...view, projectId: p.id, tab: "risks", riskStatusFilter: "open", riskHighOnly: false, focusRecord: null }); }} style={{ border: 0, background: "transparent", padding: 0, color: riskCount ? C.info : C.text, cursor: "pointer", fontSize: 15, fontWeight: 700 }}>{riskCount}</button><div style={{ color: C.muted, fontSize: 10 }}>مخاطر</div></div>
               </div>
             </div>;
           })}
         </div>}
-      <div style={{ marginTop: 12, color: C.muted, fontSize: 10.5 }}>المؤشرات محسوبة من سجلات المشاريع والمهام والمخاطر والمشاكل الحالية؛ لا تُنشأ بيانات أو علاقات جديدة في هذه الشاشة.</div>
+      <div style={{ marginTop: 12, color: C.muted, fontSize: 10.5 }}>المؤشرات محسوبة من سجلات المشاريع والمهام والمخاطر والمشاكل الحالية؛ لا تُنشأ بيانات أو علاقات جديدة في هذه الشاشة. الربط المالي لا يعرض حالة أو أرقامًا هنا قبل اكتمال Finance read model.</div>
+      {newProjectOpen && <ProjectForm initial={{}} onClose={() => setNewProjectOpen(false)} />}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { A, AccessDenied, Logo, S, ToastContainer, ToastCtx } from "../core/ui.j
 import { OSAuthScreen, OSAvatar, OSOverlay, OSStatusScreen } from "./auth.jsx";
 import { OSAccountPage, OSInvitesPage, OSScaffold, OSTeamPage, OSTodayPage } from "./pages.jsx";
 import { createPlatformIntegrationServices } from "./integrations.js";
+import { listCoreNotifications, markCoreNotificationRead } from "../core/notifications.js";
 
 
 // ════════════════ SYSTEM HOST (contract every system module follows) ════════════════
@@ -14,7 +15,7 @@ import { createPlatformIntegrationServices } from "./integrations.js";
 //        page/setPage (current section) · shell{publish,go,toast}
 // The module renders ONLY its content: menu, workspace, user and demo bar belong to the shell.
 const SYSTEM_LOADERS=import.meta.glob("../systems/*/index.jsx");
-function OSSystemHost({sys,ws,acc,me,members,isDemo,demoStore,section,setSection,shell,sourceWriteRequest}){
+function OSSystemHost({sys,ws,acc,me,members,isDemo,demoStore,section,setSection,shell,sourceWriteRequest,routeContext}){
   const [st,setSt]=useState({mod:null,err:null,tick:0});
   const setPage=useCallback((value)=>setSection(sys.id,value),[setSection,sys.id]);
   useEffect(()=>{
@@ -41,7 +42,7 @@ function OSSystemHost({sys,ws,acc,me,members,isDemo,demoStore,section,setSection
   if(!mod) return <div style={{textAlign:"center",padding:60,color:"#6E7781",fontSize:13}}><div style={{width:30,height:30,border:`3px solid ${A}30`,borderTopColor:A,borderRadius:"50%",margin:"0 auto 12px",animation:"spin 0.8s linear infinite"}}/>جاري تحميل {sys.title}...</div>;
   if(mod.scaffold) return <OSScaffold sys={sys} section={section} acc={acc} isDemo={isDemo}/>;
   const Comp=mod.default;
-  return <Comp api={wiredApi} access={acc} authUser={me} ws={ws} members={members} isDemo={isDemo} demoStore={demoStore} page={section} setPage={setPage} shell={shell} sourceWriteRequest={sourceWriteRequest}/>;
+  return <Comp api={wiredApi} access={acc} authUser={me} ws={ws} members={members} isDemo={isDemo} demoStore={demoStore} page={section} setPage={setPage} shell={shell} sourceWriteRequest={sourceWriteRequest} routeContext={routeContext || null}/>;
 }
 
 // ════════════════ PLATFORM ROOT + SHELL ════════════════
@@ -61,6 +62,8 @@ function Platform(){
   const [navRestoredFor,setNavRestoredFor]=useState(null);
   const [bridge,setBridge]=useState({});
   const [pendingProjectSourceWrite,setPendingProjectSourceWrite]=useState(null);
+  const [coreNotifications,setCoreNotifications]=useState([]);
+  const [coreInboxState,setCoreInboxState]=useState("idle");
   const [narrow,setNarrow]=useState(typeof window!=="undefined"&&window.innerWidth<860);
   const [navOpen,setNavOpen]=useState(false);
   const [pop,setPop]=useState(null);
@@ -84,7 +87,7 @@ function Platform(){
   const removeToast=(id)=>setToasts(t=>t.filter(x=>x.id!==id));
   const shellApi=useMemo(()=>({
     toast,
-    go:(view,sysId,section)=>{setRoute({view,system:sysId||null});if(sysId&&section)setSectionBy(p=>({...p,[sysId]:section}));setNavOpen(false);},
+    go:(view,sysId,section,context=null)=>{setRoute({view,system:sysId||null,context:context||null});if(sysId&&section)setSectionBy(p=>({...p,[sysId]:section}));setNavOpen(false);},
     publish:(sysId,patch)=>setBridge(b=>{
       const cur=b[sysId]||{}; const nx={...cur}; let ch=false;
       Object.keys(patch).forEach(k=>{const v=patch[k]; if(typeof v==="function"){if(cur[k]!==v){nx[k]=v;ch=true;}} else if(JSON.stringify(cur[k])!==JSON.stringify(v)){nx[k]=v;ch=true;}});
@@ -240,7 +243,7 @@ function Platform(){
         const section=allowed.includes(saved.section)?saved.section:(allowed[0]||"");
         setRoute({view:"system",system:savedSys.id});
         if(section)setSectionBy(p=>({...p,[savedSys.id]:section}));
-      }else if(["today","team","invites","account"].includes(saved?.route?.view)){
+      }else if(["today","inbox","team","invites","account"].includes(saved?.route?.view)){
         setRoute({view:saved.route.view,system:null});
       }
     }catch{}
@@ -267,6 +270,50 @@ function Platform(){
     const iv=setInterval(f,60000); window.addEventListener("focus",f);
     return()=>{clearInterval(iv);window.removeEventListener("focus",f);};
   },[isDemo,auth.status,boot.state,uid]);
+  // ── Core Unified Inbox: recipient-specific and source-permission-filtered by RLS.
+  const refreshCoreInbox=useCallback(async(quiet=true)=>{
+    if(isDemo||!wsId||auth.status!=="in"||boot.state!=="ready"){
+      setCoreNotifications([]);
+      setCoreInboxState("idle");
+      return;
+    }
+    if(!quiet)setCoreInboxState("loading");
+    const result=await listCoreNotifications(wsId,100);
+    if(result.ok){
+      setCoreNotifications(result.rows||[]);
+      setCoreInboxState("ready");
+    }else{
+      setCoreInboxState("unavailable");
+    }
+  },[isDemo,wsId,auth.status,boot.state]);
+  useEffect(()=>{
+    refreshCoreInbox(true);
+    if(isDemo||auth.status!=="in"||boot.state!=="ready"||!wsId)return;
+    const onFocus=()=>refreshCoreInbox(true);
+    const iv=setInterval(onFocus,60000);
+    window.addEventListener("focus",onFocus);
+    return()=>{clearInterval(iv);window.removeEventListener("focus",onFocus);};
+  },[refreshCoreInbox,isDemo,auth.status,boot.state,wsId]);
+  const openCoreNotification=async(item)=>{
+    const result=await markCoreNotificationRead(item.id);
+    if(!result.ok)toast("تعذّر تحديث حالة قراءة الإشعار.");
+    setCoreNotifications(rows=>rows.map(row=>row.id===item.id?{...row,read_at:row.read_at||new Date().toISOString()}:row));
+    const link=item.deep_link&&typeof item.deep_link==="object"?item.deep_link:{};
+    const targetSystem=String(link.system||item.source_system||"");
+    if(!targetSystem||osAccess(ws,targetSystem).level==="none"){
+      setRoute({view:"inbox",system:null});
+      return;
+    }
+    if(link.tab)setSectionBy(previous=>({...previous,[targetSystem]:link.tab}));
+    setRoute({view:"system",system:targetSystem,context:link});
+    setNavOpen(false);
+  };
+  const markAllCoreNotificationsRead=async()=>{
+    const unread=coreNotifications.filter(item=>!item.read_at);
+    const results=await Promise.all(unread.map(item=>markCoreNotificationRead(item.id)));
+    if(results.some(result=>!result.ok))toast("تم تحديث بعض الإشعارات فقط؛ أعد المحاولة للبقية.");
+    await refreshCoreInbox(true);
+  };
 
   // ── actions ──
   const reloadAll=async(prefer)=>{if(auth.user)await bootRef.current(auth.user,prefer);};
@@ -363,7 +410,8 @@ function Platform(){
   const hostMe=viewMember?{id:viewMember.userId,email:viewMember.email,name:viewMember.name}:me;
   const invCount=incoming.length;
   const teamLabel=ws.isOwner?"الفريق والصلاحيات":"أعضاء المساحة";
-  const platformItems=[{id:"today",label:"اليوم",icon:"📅"},{id:"team",label:teamLabel,icon:"👥"},{id:"invites",label:"الدعوات",icon:"✉️",badge:invCount},{id:"account",label:"حسابي",icon:"👤"}];
+  const unreadCoreCount=coreNotifications.filter(item=>!item.read_at).length;
+  const platformItems=[{id:"today",label:"اليوم",icon:"📅"},{id:"inbox",label:"الوارد الموحد",icon:"🔔",badge:unreadCoreCount},{id:"team",label:teamLabel,icon:"👥"},{id:"invites",label:"الدعوات",icon:"✉️",badge:invCount},{id:"account",label:"حسابي",icon:"👤"}];
   const ctxLabel=sys?{icon:sys.icon,title:sys.title,sub:sys.name}:(()=>{const p=platformItems.find(x=>x.id===route.view)||platformItems[0];return route.view==="today"?{icon:"📅",title:"اليوم",sub:PLATFORM.name}:{icon:p.icon,title:p.label,sub:PLATFORM.name};})();
   const topOffset=isDemo?36:0;
   const itemStyle=(active)=>({display:"flex",alignItems:"center",gap:9,padding:"8px 14px",cursor:"pointer",borderRadius:8,margin:"1px 8px",width:"calc(100% - 16px)",background:active?"rgba(239,159,39,0.12)":"transparent",color:active?"#16181D":"#57606A",fontWeight:active?600:400,fontSize:13,border:"none",fontFamily:"inherit",textAlign:"right"});
@@ -441,6 +489,9 @@ function Platform(){
         {sys&&acc.level==="view"&&<div style={{margin:"10px 12px",padding:"6px 10px",borderRadius:8,background:"rgba(59,130,246,0.08)",color:"#2563EB",fontSize:10.5,fontWeight:600}}>👁 عرض فقط</div>}
       </div>
       <div style={{padding:"10px 12px",borderTop:"1px solid rgba(0,0,0,0.06)"}}>
+        <button onClick={()=>{setRoute({view:"inbox",system:null});setNavOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:7,padding:"7px 10px",borderRadius:8,border:"1px solid rgba(0,0,0,0.07)",background:"transparent",color:"#57606A",cursor:"pointer",fontFamily:"inherit",fontSize:12,marginBottom:6}}>
+          <span>🔔</span><span style={{flex:1,textAlign:"right"}}>الوارد الموحد</span>{unreadCoreCount>0&&badge(unreadCoreCount)}
+        </button>
         {sys&&br.openNotifs&&(
           <button onClick={br.openNotifs} style={{width:"100%",display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:8,border:"1px solid rgba(0,0,0,0.07)",background:"transparent",color:"#57606A",cursor:"pointer",fontFamily:"inherit",fontSize:12,position:"relative"}}>
             <span>🔔</span><span>التنبيهات</span>{br.notifCount>0&&<span style={{marginInlineStart:"auto"}}>{badge(br.notifCount)}</span>}
@@ -454,11 +505,12 @@ function Platform(){
 
   let content=null;
   if(route.view==="today") content=<OSTodayPage me={me} ws={ws} systems={visibleSystems} go={(v,id)=>setRoute({view:v,system:id})} incoming={incoming} onInvites={()=>setRoute({view:"invites",system:null})}/>;
+  else if(route.view==="inbox") content=<CoreInboxPage notifications={coreNotifications} state={coreInboxState} onOpen={openCoreNotification} onRefresh={()=>refreshCoreInbox(false)} onMarkAll={markAllCoreNotificationsRead}/>;
   else if(route.view==="team") content=<OSTeamPage ws={ws} me={me} admin={admin} isDemo={isDemo} onInvite={actions.invite} onSaveMember={actions.saveMember} onRemoveMember={actions.removeMember} onRevoke={actions.revoke} onSaveInvite={actions.saveInvite} onRename={actions.rename} onLeave={actions.leave} toast={toast}/>;
   else if(route.view==="invites") content=<OSInvitesPage incoming={incoming} onAccept={actions.accept} onDecline={actions.decline} toast={toast} isDemo={isDemo}/>;
   else if(route.view==="account") content=<OSAccountPage me={me} profile={data.profile} isDemo={isDemo} workspaces={workspaces} onUpdateName={actions.updateName} onLeave={actions.leave} onSignOut={actions.signOut} onSignOutOthers={actions.signOutOthers} toast={toast}/>;
   else if(route.view==="system") content=(sys&&acc.level!=="none")
-    ?<OSSystemHost key={ws.id+":"+sys.id+":"+(isDemo?demo.viewAs:"")} sys={sys} ws={ws} acc={acc} me={hostMe} members={admin.members} isDemo={isDemo} demoStore={demoStore} section={currentSection} setSection={setSection} shell={shellApi} sourceWriteRequest={sys.id==="projects"?pendingProjectSourceWrite:null}/>
+    ?<OSSystemHost key={ws.id+":"+sys.id+":"+(isDemo?demo.viewAs:"")} sys={sys} ws={ws} acc={acc} me={hostMe} members={admin.members} isDemo={isDemo} demoStore={demoStore} section={currentSection} setSection={setSection} shell={shellApi} sourceWriteRequest={sys.id==="projects"?pendingProjectSourceWrite:null} routeContext={route.context || null}/>
     :<AccessDenied/>;
 
   return(
@@ -488,6 +540,7 @@ function Platform(){
             <div style={{position:"sticky",top:topOffset,zIndex:3000,background:"#fff",borderBottom:"1px solid rgba(0,0,0,0.07)",padding:"9px 12px",display:"flex",alignItems:"center",gap:10}}>
               <button onClick={()=>setNavOpen(true)} style={{background:"none",border:"1px solid rgba(0,0,0,0.1)",borderRadius:8,fontSize:18,padding:"2px 9px",cursor:"pointer"}}>☰</button>
               <span style={{fontSize:16}}>{ctxLabel.icon}</span><span style={{fontSize:14,fontWeight:700,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ctxLabel.title}{sys&&navSections.length>0&&(()=>{const c=navSections.find(n=>n.id===currentSection);return c?" · "+c.label:"";})()}</span>
+              <button onClick={()=>setRoute({view:"inbox",system:null})} aria-label="الوارد الموحد" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,position:"relative"}}>🔔{unreadCoreCount>0&&<span style={{position:"absolute",top:-6,insetInlineStart:-4}}>{badge(unreadCoreCount)}</span>}</button>
               {invCount>0&&<button onClick={()=>setRoute({view:"invites",system:null})} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,position:"relative"}}>✉️<span style={{position:"absolute",top:-6,insetInlineStart:-4}}>{badge(invCount)}</span></button>}
             </div>
           )}
@@ -499,5 +552,27 @@ function Platform(){
   );
 }
 
+
+function CoreInboxPage({notifications,state,onOpen,onRefresh,onMarkAll}){
+  const unread=notifications.filter(item=>!item.read_at).length;
+  return <div style={{maxWidth:980,margin:"0 auto",direction:"rtl"}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:14}}>
+      <div style={{flex:1,minWidth:180}}><h2 style={{fontSize:20,margin:"0 0 4px"}}>الوارد الموحد</h2><div style={{fontSize:12,color:"#6E7781"}}>{unread} غير مقروء · الإشعارات تظل مرتبطة بالسجل الأصلي ومالك بياناته</div></div>
+      <button onClick={onRefresh} style={{border:"1px solid #D0D7DE",background:"#fff",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit"}}>↻ تحديث</button>
+      {unread>0&&<button onClick={onMarkAll} style={{border:"1px solid #D0D7DE",background:"#fff",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit"}}>تحديد الكل كمقروء</button>}
+    </div>
+    {state==="loading"&&<div style={{padding:20,color:"#6E7781"}}>جارٍ تحميل الإشعارات…</div>}
+    {state==="unavailable"&&<div role="alert" style={{padding:14,borderRadius:10,background:"#FFF7ED",color:"#9A3412",fontSize:12}}>خدمة الوارد الموحد غير متاحة حاليًا. تأكد من تطبيق Migration الخاصة بـCore Notifications وصلاحيات قراءة المصدر.</div>}
+    {state==="idle"&&<div style={{padding:14,color:"#6E7781",fontSize:12}}>الوارد غير متاح في الوضع التجريبي أو دون تسجيل الدخول.</div>}
+    {state==="ready"&&!notifications.length&&<div style={{padding:26,border:"1px dashed #D0D7DE",borderRadius:12,textAlign:"center",color:"#6E7781"}}><div style={{fontSize:28}}>🔔</div><b style={{color:"#16181D"}}>صندوق الوارد فارغ</b><div style={{fontSize:12,marginTop:5}}>ستظهر هنا إشعارات الأنظمة التي تملك صلاحية الوصول إليها.</div></div>}
+    <div style={{display:"grid",gap:8}}>
+      {notifications.map(item=><article key={item.id} style={{border:"1px solid "+(item.read_at?"#E5E7EB":"#C9D8E8"),borderRadius:10,padding:12,background:item.read_at?"#fff":"#F8FBFF",display:"flex",gap:10,alignItems:"start"}}>
+        <span style={{width:8,height:8,borderRadius:9,background:item.read_at?"#D1D5DB":"#2563EB",marginTop:6,flexShrink:0}}/>
+        <div style={{flex:1,minWidth:0}}><b style={{fontSize:13}}>{item.title}</b>{item.body&&<div style={{fontSize:12,color:"#57606A",marginTop:4}}>{item.body}</div>}<div style={{fontSize:10.5,color:"#8B949E",marginTop:5}}>{new Date(item.created_at).toLocaleString("ar-EG")} · {item.source_system} · {item.event_type}</div></div>
+        <button onClick={()=>onOpen(item)} style={{border:0,background:"transparent",color:"#0969DA",cursor:"pointer",fontFamily:"inherit",fontSize:12,whiteSpace:"nowrap"}}>فتح ↗</button>
+      </article>)}
+    </div>
+  </div>;
+}
 
 export { OSSystemHost, Platform, SYSTEM_LOADERS };

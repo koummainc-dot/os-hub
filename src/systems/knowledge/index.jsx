@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { loadNormalizedKnowledge, saveNormalizedKnowledge, hasKnowledgeContent, listKnowledgeAttachments, uploadKnowledgeAttachment, deleteKnowledgeAttachment, validateKnowledgeExternalLink, listKnowledgeProjects, listKnowledgeNotifications, markKnowledgeNotificationRead } from "./repository.js";
 import { subscribeOSEvents } from "../integrationEvents.js";
+import { stableKnowledgeFollowupId } from "./followupIdentity.js";
+import { MEETING_TEMPLATES } from "./meetingTemplates.js";
+import { supabase } from "../../core/supabase.js";
+import { emitCoreNotification } from "../../core/notifications.js";
 import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
 
 const C = { ink:"#172033", muted:"#64748B", line:"#E2E8F0", bg:"#F8FAFC", accent:"#0284C7", soft:"#E0F2FE", green:"#047857", amber:"#B45309", red:"#B91C1C", white:"#FFFFFF" };
@@ -94,7 +98,7 @@ function Btn({children,onClick,secondary=false,disabled=false,type="button",tone
 function Field({label,children}) { return <label style={{display:"grid",gap:6,fontSize:12,fontWeight:750,color:"#475569"}}>{label}{children}</label>; }
 function Tag({children}) { return <span style={{fontSize:11,padding:"4px 8px",borderRadius:999,background:C.soft,color:"#075985",whiteSpace:"nowrap"}}>{children}</span>; }
 
-export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub",setPage,ws}) {
+export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub",setPage,ws,routeContext=null}) {
   const [data,setData]=useState(emptyData);
   const [updatedAt,setUpdatedAt]=useState(null);
   const [storageMode,setStorageMode]=useState("legacy");
@@ -105,6 +109,7 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
   const [query,setQuery]=useState("");
   const [filter,setFilter]=useState("all");
   const [editor,setEditor]=useState(null);
+  const [focusItemId,setFocusItemId]=useState("");
   const [form,setForm]=useState({});
   const [meetingProjects,setMeetingProjects]=useState([]);
   const [meetingProjectsLoading,setMeetingProjectsLoading]=useState(false);
@@ -128,6 +133,26 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
   const [showArchived,setShowArchived]=useState(false);
   const canEdit=!!isDemo || access?.level==="edit" || access?.manage || access?.owner;
   const section=SECTIONS.some(s=>s[0]===page)?page:"hub";
+  useEffect(()=>{
+    const itemId=String(routeContext?.focusItemId||"");
+    if(!itemId) return;
+    setFocusItemId(itemId);
+    if(routeContext?.focusItemKind==="meeting" && page!=="meetings") setPage?.("meetings");
+    setQuery("");
+    setFilter("all");
+    setShowArchived(true);
+    const clearTimer=window.setTimeout(()=>setFocusItemId(""),5000);
+    return ()=>window.clearTimeout(clearTimer);
+  },[routeContext?.focusItemId,routeContext?.focusItemKind]);
+  useEffect(()=>{
+    if(!focusItemId) return;
+    const domId="knowledge-item-"+String(focusItemId).replace(/[^a-zA-Z0-9_-]/g,"_");
+    const timer=window.setTimeout(()=>{
+      const element=document.getElementById(domId);
+      element?.scrollIntoView?.({behavior:"smooth",block:"center"});
+    },120);
+    return ()=>window.clearTimeout(timer);
+  },[focusItemId,section,data,loading]);
   useEffect(()=>{setFilter("all");},[section]);
   const go=id=>setPage&&setPage(id);
   const refreshNotifications=useCallback(async()=>{
@@ -233,7 +258,49 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
         else setError(result?.error?.message||"تعذر حفظ التغييرات على الخادم. احتفظ بنسخة من تعديلاتك وأعد المحاولة.");
         return false;
       }
-      setData(next);setUpdatedAt(result?.updatedAt||updatedAt);setNotice("تم الحفظ.");return true;
+      setData(next);setUpdatedAt(result?.updatedAt||updatedAt);setNotice("تم الحفظ.");
+      const savedMeetings=Array.isArray(next?.meetings)?next.meetings:[];
+      const changedMeetings=savedMeetings.filter(item=>item.kind==="meeting"&&item.relatedSystem==="projects"&&item.relatedId&&item.date&&new Date(item.date+"T"+(item.startTime||"09:00")+":00").getTime()>Date.now()).filter(item=>{const before=(allItems||[]).find(old=>old.id===item.id);return !before||before.date!==item.date||before.startTime!==item.startTime||before.title!==item.title;});
+      for(const meeting of changedMeetings){
+        try{
+          const {data:projectRow,error:projectError}=await supabase.from("workspace_records").select("data,visible_to").eq("workspace_id",api.workspaceId).eq("system_id","projects").eq("collection","projects").eq("id",meeting.relatedId).eq("deleted",false).maybeSingle();
+          if(projectError||!projectRow?.data?.lead_id)continue;
+          await emitCoreNotification({workspace_id:api.workspaceId,recipient_id:projectRow.data.lead_id,source_system:"projects",entity_collection:"projects",entity_id:meeting.relatedId,event_type:"knowledge_meeting_scheduled",title:"اجتماع جديد مرتبط بالمشروع: "+(meeting.title||"اجتماع"),body:"الموعد: "+meeting.date+(meeting.startTime?" · "+meeting.startTime:""),dedupe_key:"knowledge-meeting:"+meeting.id+":"+meeting.date+":"+(meeting.startTime||""),deep_link:{system:"knowledge",tab:"meetings",recordId:meeting.id,focusItemId:meeting.id,focusItemKind:"meeting"}});
+        }catch(notificationError){console.warn("Knowledge meeting notification failed",notificationError);}
+      }
+
+      // Notify only when the saved Knowledge meeting gains a genuinely new
+      // Follow-up identity. The notification points to the original meeting;
+      // Follow-up text remains in Knowledge and is never copied to the Inbox.
+      const followupList=value=>Array.isArray(value)?value:(typeof value==="string"?value.split("\n"):[]);
+      for(const meeting of savedMeetings.filter(item=>item.kind==="meeting"&&item.relatedSystem==="projects"&&item.relatedId)){
+        try{
+          const before=(allItems||[]).find(old=>old.id===meeting.id);
+          const previousIds=new Set(followupList(before?.followups).map(value=>stableKnowledgeFollowupId(meeting.id,value)).filter(Boolean));
+          const added=followupList(meeting.followups).map(value=>({value,id:stableKnowledgeFollowupId(meeting.id,value)}))
+            .filter(item=>item.id&&!previousIds.has(item.id));
+          if(!added.length)continue;
+          const {data:projectRow,error:projectError}=await supabase.from("workspace_records")
+            .select("data,visible_to")
+            .eq("workspace_id",api.workspaceId).eq("system_id","projects")
+            .eq("collection","projects").eq("id",meeting.relatedId).eq("deleted",false).maybeSingle();
+          if(projectError||!projectRow?.data?.lead_id)continue;
+          const identities=added.map(item=>item.id).sort();
+          await emitCoreNotification({
+            workspace_id:api.workspaceId,
+            recipient_id:projectRow.data.lead_id,
+            source_system:"projects",
+            entity_collection:"projects",
+            entity_id:meeting.relatedId,
+            event_type:"knowledge_meeting_followups_added",
+            title:"بنود متابعة جديدة من اجتماع Knowledge",
+            body:"أُضيفت "+added.length+" متابعة جديدة لاجتماع "+(meeting.title||"مرتبط بالمشروع")+". افتح الاجتماع لمراجعتها.",
+            dedupe_key:"knowledge-meeting-followups:"+meeting.id+":"+identities.join("|"),
+            deep_link:{system:"knowledge",tab:"meetings",recordId:meeting.id,focusItemId:meeting.id,focusItemKind:"meeting"}
+          });
+        }catch(notificationError){console.warn("Knowledge follow-up notification failed",notificationError);}
+      }
+      return true;
     } catch(e) {setError(e?.message||"تعذر الحفظ.");return false;}
     finally {setSaving(false);}
   };
@@ -241,7 +308,7 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
     if(!canEdit)return;
     setAttachmentFile(null);setAttachments([]);
     setEditor({kind,id:null});
-    setForm({title:"",url:"",summary:"",notes:"",nextAction:"",sourceType:"مقال",status:kind==="inbox"?"inbox":"active",stage:"captured",priority:"normal",categoryId:"",tags:"",date:today(),startTime:"",endTime:"",location:"",attendees:"",decisions:"",followups:"",author:"",publishedAt:"",readAt:"",reviewAt:"",rating:"",relatedSystem:"",relatedId:"",relatedItemIds:[],pinned:false});
+    setForm({title:"",url:"",summary:"",notes:"",nextAction:"",sourceType:"مقال",status:kind==="inbox"?"inbox":"active",stage:"captured",priority:"normal",categoryId:"",tags:"",date:today(),startTime:"",endTime:"",location:"",attendees:"",decisions:"",followups:"",agenda:"",meetingTemplateId:"",author:"",publishedAt:"",readAt:"",reviewAt:"",rating:"",relatedSystem:"",relatedId:"",relatedItemIds:[],pinned:false});
     setError("");
   };
   const openEdit=item=>{
@@ -273,7 +340,7 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
       setError("لربط عنصر بنظام آخر، اختر النظام وأدخل معرّف العنصر معًا.");
       return;
     }
-    const row={...form,id:editor.id||uid(),title:esc(form.title),url:esc(form.url),summary:esc(form.summary),notes:esc(form.notes),nextAction:esc(form.nextAction),author:esc(form.author),location:esc(form.location),relatedSystem,relatedId,relatedItemIds:[...new Set((Array.isArray(form.relatedItemIds)?form.relatedItemIds:[]).filter(id=>id&&id!==(editor.id||"")))],rating:form.rating===""?null:Number(form.rating)||null,reviewAt:(kind==="resource"&&!form.reviewAt&&Number(data.preferences.reviewReminderDays)>0)?new Date(Date.now()+Number(data.preferences.reviewReminderDays)*86400000).toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}):(form.reviewAt||""),categoryId:form.categoryId||null,tags:[...new Set(esc(form.tags).split(",").map(x=>x.trim()).filter(Boolean))],attendees:esc(form.attendees).split(",").map(x=>x.trim()).filter(Boolean),followups:esc(form.followups).split("\n").map(x=>x.trim()).filter(Boolean),updatedAt:isoNow(),createdAt:form.createdAt||isoNow()};
+    const row={...form,id:editor.id||uid(),title:esc(form.title),url:esc(form.url),summary:esc(form.summary),notes:esc(form.notes),nextAction:esc(form.nextAction),author:esc(form.author),location:esc(form.location),relatedSystem,relatedId,relatedItemIds:[...new Set((Array.isArray(form.relatedItemIds)?form.relatedItemIds:[]).filter(id=>id&&id!==(editor.id||"")))],rating:form.rating===""?null:Number(form.rating)||null,reviewAt:(kind==="resource"&&!form.reviewAt&&Number(data.preferences.reviewReminderDays)>0)?new Date(Date.now()+Number(data.preferences.reviewReminderDays)*86400000).toLocaleDateString("en-CA",{timeZone:"Africa/Cairo"}):(form.reviewAt||""),categoryId:form.categoryId||null,tags:[...new Set(esc(form.tags).split(",").map(x=>x.trim()).filter(Boolean))],attendees:esc(form.attendees).split(",").map(x=>x.trim()).filter(Boolean),followups:esc(form.followups).split("\n").map(x=>x.trim()).filter(Boolean),agenda:esc(form.agenda),meetingTemplateId:esc(form.meetingTemplateId),updatedAt:isoNow(),createdAt:form.createdAt||isoNow()};
     delete row.kind;
     const key=kind==="resource"?"resources":kind==="idea"?"ideas":kind==="note"?"notes":kind==="meeting"?"meetings":kind==="event"?"events":"inbox";
     const next={...data,[key]:editor.id?data[key].map(x=>x.id===editor.id?row:x):[row,...data[key]]};
@@ -303,19 +370,29 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
   const createMeetingFollowupTasks = (item) => {
     if (isDemo || !api?.workspaceId) { setError("تحويل متابعات الاجتماع إلى مهام يتطلب مساحة عمل متصلة."); return; }
     if (item.kind !== "meeting" || item.relatedSystem !== "projects" || !item.relatedId) { setError("اربط الاجتماع بمشروع Projects أولاً."); return; }
-    const followups = (item.followups || []).map((title) => String(title || "").trim()).filter(Boolean);
+    const followups = (item.followups || []).map((value) => String(value || "").trim()).filter(Boolean);
     if (!followups.length) { setError("أضف متابعات للاجتماع أولاً."); return; }
-    const tasks = followups.map((title, index) => ({
-      title,
-      project_id: item.relatedId,
-      status: "Not Started",
-      priority: item.priority === "urgent" ? "High" : item.priority === "high" ? "High" : "Medium",
-      planning_bucket: "Inbox",
-      assignee_id: authUser?.id || null,
-      description: item.summary || "",
-      source_record_id: String(item.id) + ":" + String(index),
-    }));
-    const requestId = "knowledge-meeting:" + String(item.id) + ":" + followups.join("|");
+    const tasks = followups.map((title) => {
+      const followupId = stableKnowledgeFollowupId(item.id, title);
+      return {
+        title,
+        project_id: item.relatedId,
+        status: "Not Started",
+        priority: item.priority === "urgent" ? "High" : item.priority === "high" ? "High" : "Medium",
+        planning_bucket: "Inbox",
+        assignee_id: authUser?.id || null,
+        description: item.summary || "",
+        source_record_id: followupId,
+        source_followup_id: followupId,
+        source_followup_title: title,
+        source_meeting_title: String(item.title || ""),
+      };
+    });
+    if (tasks.some((task) => !task.source_record_id)) {
+      setError("تعذّر إنشاء هوية ثابتة لإحدى المتابعات. لم يتم إرسال أي مهمة.");
+      return;
+    }
+    const requestId = "knowledge-meeting:" + String(item.id) + ":" + tasks.map((task) => task.source_record_id).sort().join("|");
     window.dispatchEvent(new CustomEvent("os:source-write", { detail: {
       workspaceId: api.workspaceId,
       systemId: "projects",
@@ -324,7 +401,7 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
       recordId: requestId,
       payload: { meeting_id: item.id, project_id: item.relatedId, tasks },
     }}));
-    setError("تم إرسال " + tasks.length + " متابعة إلى Projects. ستظهر رسالة بنتيجة الحفظ بعد اكتمال الربط.");
+    setError("تم إرسال " + tasks.length + " متابعة إلى Projects بهويات ثابتة؛ ستظهر رسالة بنتيجة الحفظ بعد اكتمال الربط.");
   };
   const recordReview=async(item,rating)=>{
     if(!canEdit)return;
@@ -396,7 +473,7 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
           <label style={{fontSize:11,color:C.muted,display:"flex",gap:6,alignItems:"center"}}><input type="checkbox" checked={showArchived} onChange={e=>setShowArchived(e.target.checked)}/> إظهار المؤرشف</label>
         </div>
         {section==="hub"&&<section style={{...card,display:"grid",gap:10,marginBottom:12}}><div><h3 style={{margin:"0 0 4px",fontSize:16}}>مركز المراجعات</h3><div style={{fontSize:12,color:C.muted}}>مواعيد مراجعة المصادر والملاحظات.</div></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>{[["متأخرة",reviewOverview.overdue.length,C.red],["اليوم",reviewOverview.due.length,C.amber],["قادمة",reviewOverview.upcoming.length,C.green]].map(([label,count,color])=><div key={label} style={{border:"1px solid "+C.line,borderRadius:10,padding:10}}><div style={{fontSize:12,color:C.muted}}>{label}</div><b style={{fontSize:22,color}}>{count}</b></div>)}</div>{[["المتأخرة",reviewOverview.overdue],["مستحقة اليوم",reviewOverview.due],["القادمة",reviewOverview.upcoming]].map(([label,rows])=>rows.length>0&&<div key={label} style={{display:"grid",gap:6}}><b style={{fontSize:13}}>{label}</b>{rows.slice(0,4).map(row=><div key={row.kind+row.id} style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center",flexWrap:"wrap",borderTop:"1px solid "+C.line,paddingTop:6}}><span style={{fontSize:13}}>{row.title} <small style={{color:C.muted}}>({row.reviewDate})</small></span><div style={{display:"flex",gap:8}}>{row.url&&<a href={row.url} target="_blank" rel="noreferrer" style={{fontSize:12,color:C.accent}}>فتح المصدر ↗</a>}<Btn onClick={()=>go(row.kind==="resource"?"bookmarks":row.kind==="idea"?"ideas":row.kind==="note"?"notes":row.kind==="meeting"?"meetings":row.kind==="event"?"events":"inbox")}>عرض</Btn></div></div>)}</div>)}</section>}
-        {filtered.length===0?<div style={{...card,textAlign:"center",padding:40,color:C.muted}}>{section==="search"&&!query.trim()?"اكتب كلمة أو عبارة في البحث للوصول إلى المصادر والأفكار والملاحظات والاجتماعات والفعاليات.":"لا توجد عناصر مطابقة. احفظ مصدرًا أو أضف فكرة جديدة، أو غيّر عوامل البحث."}</div>:filtered.map(item=><article key={item.kind+":"+item.id} style={{...card,display:"grid",gap:10}}>
+        {filtered.length===0?<div style={{...card,textAlign:"center",padding:40,color:C.muted}}>{section==="search"&&!query.trim()?"اكتب كلمة أو عبارة في البحث للوصول إلى المصادر والأفكار والملاحظات والاجتماعات والفعاليات.":"لا توجد عناصر مطابقة. احفظ مصدرًا أو أضف فكرة جديدة، أو غيّر عوامل البحث."}</div>:filtered.map(item=><article key={item.kind+":"+item.id} id={"knowledge-item-"+String(item.id).replace(/[^a-zA-Z0-9_-]/g,"_")} style={{...card,display:"grid",gap:10,outline:focusItemId===String(item.id)?"2px solid "+C.accent:undefined,outlineOffset:focusItemId===String(item.id)?3:undefined}}>
           <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"start",flexWrap:"wrap"}}>
             <div style={{minWidth:0,flex:1}}><div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}><Tag>{KINDS[item.kind]||"وارد"}</Tag><Tag>{STATUSES[item.status]||item.status||"نشط"}</Tag>{item.sourceType&&<Tag>{item.sourceType}</Tag>}{item.pinned&&<Tag>مثبّت</Tag>}</div><h3 style={{fontSize:16,margin:"9px 0 5px",overflowWrap:"anywhere"}}>{item.title}</h3>{item.url&&<a href={item.url} target="_blank" rel="noreferrer" style={{fontSize:12,color:C.accent,overflowWrap:"anywhere"}}>{item.url}</a>}{item.url&&(item.sourceType==="فيديو"||["youtube","vimeo","loom","file"].includes(getMediaEmbed(item.url)?.provider))&&<MediaEmbed url={item.url} title={item.title} workspaceId={api?.workspaceId||"demo"} itemId={item.id}/>}<p style={{fontSize:13,color:C.muted,lineHeight:1.8,margin:"6px 0"}}>{item.summary||"لا يوجد ملخص بعد."}</p></div>
             {canEdit&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}><Btn secondary onClick={()=>openEdit(item)}>تعديل</Btn><Btn secondary onClick={()=>mutateItem(item,{pinned:!item.pinned})}>{item.pinned?"إلغاء التثبيت":"تثبيت"}</Btn>{item.status==="inbox"||item.status==="unread"?<Btn onClick={()=>mutateItem(item,{status:"processed",readAt:today()})}>تمت المراجعة</Btn>:null}{canEdit&&item.status!=="archived"&&<><Btn secondary onClick={()=>recordReview(item,"again")}>مراجعة: لم أتذكر</Btn><Btn secondary onClick={()=>recordReview(item,"hard")}>صعب</Btn><Btn secondary onClick={()=>recordReview(item,"good")}>جيد</Btn><Btn secondary onClick={()=>recordReview(item,"easy")}>سهل</Btn></>}{item.status==="archived"?<Btn onClick={()=>mutateItem(item,{status:"active",archivedAt:null})}>استعادة</Btn>:<Btn secondary onClick={()=>removeItem(item)}>أرشفة</Btn>}</div>}
@@ -433,6 +510,7 @@ export default function KnowledgeOS({api,access,authUser,isDemo=false,page="hub"
         <Field label="الوسوم (افصل بينها بفواصل)"><input style={input} value={form.tags||""} onChange={e=>setField("tags",e.target.value)} placeholder="فكرة، مرجع، متابعة"/></Field>
         {(editor.kind==="meeting"||editor.kind==="event")&&<><Field label="التاريخ"><input type="date" style={input} value={form.date||today()} onChange={e=>setField("date",e.target.value)}/></Field><Field label="وقت البداية"><input type="time" style={input} value={form.startTime||""} onChange={e=>setField("startTime",e.target.value)}/></Field><Field label="وقت النهاية"><input type="time" style={input} value={form.endTime||""} onChange={e=>setField("endTime",e.target.value)}/></Field></>}
       </div>
+      {editor.kind==="meeting"&&<><Field label="قالب الاجتماع"><select style={input} value={form.meetingTemplateId||""} onChange={e=>{const id=e.target.value;const template=MEETING_TEMPLATES.find(x=>x.id===id);setField("meetingTemplateId",id);setField("agenda",template?template.sections.map(section=>"• "+section).join("\n"): "");}}><option value="">بدون قالب</option>{MEETING_TEMPLATES.map(template=><option key={template.id} value={template.id}>{template.name}</option>)}</select></Field><Field label="أجندة الاجتماع"><textarea style={{...input,minHeight:110,resize:"vertical"}} value={form.agenda||""} onChange={e=>setField("agenda",e.target.value)} placeholder="أضف بنود الأجندة، بندًا في كل سطر"/></Field></>}
       {editor.kind==="meeting"&&<><Field label="المشاركون"><input style={input} value={form.attendees||""} onChange={e=>setField("attendees",e.target.value)} placeholder="الأسماء مفصولة بفواصل"/></Field><Field label="القرارات"><textarea style={input} value={form.decisions||""} onChange={e=>setField("decisions",e.target.value)}/></Field><Field label="المتابعات (كل متابعة في سطر)"><textarea style={input} value={form.followups||""} onChange={e=>setField("followups",e.target.value)}/></Field></>}
       {editor.kind==="event"&&<><Field label="المكان"><input style={input} value={form.location||""} onChange={e=>setField("location",e.target.value)}/></Field><Field label="رابط الحجز / الفعالية"><input type="url" style={input} value={form.url||""} onChange={e=>setField("url",e.target.value)}/></Field></>}
       {editor.kind!=="inbox"&&<label style={{display:"flex",gap:8,alignItems:"center",fontSize:12,fontWeight:750}}><input type="checkbox" checked={!!form.pinned} onChange={e=>setField("pinned",e.target.checked)}/> تثبيت العنصر في الرئيسية</label>}

@@ -45,7 +45,11 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f tests/knowledge_sql_bootstrap.sql
       - name: Apply Knowledge migration to disposable database
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261030150615_knowledge_resource_os.sql
+      - name: Apply canonical project-link and scoped-meeting migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261113210000_knowledge_project_scoped_links.sql
       - name: Verify RLS workspace isolation and attachment permissions
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/knowledge_resource_os_smoke.sql
+      - name: Verify canonical Projects links and server-scoped meeting queries
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/knowledge_project_scoped_links_smoke.sql
       - name: Run read-only migration preview against fixture
         run: psql -v ON_ERROR_STOP=1 -f docs/sql/knowledge_migration_preview.sql

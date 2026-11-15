@@ -8,13 +8,16 @@ declare
   result jsonb;
 begin
   insert into public.workspace_records(workspace_id,system_id,collection,id,data)
-  values(ws,'projects','discovery','d1','{"title":"D1","status":"Open"}')
+  values(ws,'projects','projects','discovery-project','{"name":"Discovery Project"}');
+
+  insert into public.workspace_records(workspace_id,system_id,collection,id,data)
+  values(ws,'projects','discovery','d1','{"title":"D1","status":"Open","project_ids":["discovery-project"]}')
   returning updated_at into discovery_ts;
 
   result := public.projects_apply_records_batch(
     ws,
     jsonb_build_array(
-      jsonb_build_object('collection','tasks','id','t1','data','{"title":"From D1"}'::jsonb,'deleted',false,'expected_updated_at',null),
+      jsonb_build_object('collection','tasks','id','t1','data','{"title":"From D1","project_id":"discovery-project","discovery_ids":["d1"]}'::jsonb,'deleted',false,'expected_updated_at',null),
       jsonb_build_object('collection','discovery','id','d1','data','{"title":"D1","status":"Completed"}'::jsonb,'deleted',false,'expected_updated_at',discovery_ts)
     )
   );
@@ -41,7 +44,7 @@ begin
     perform public.projects_apply_records_batch(
       ws,
       jsonb_build_array(
-        jsonb_build_object('collection','tasks','id','viewer-must-not-write','data','{"title":"blocked"}'::jsonb,'deleted',false,'expected_updated_at',null),
+        jsonb_build_object('collection','tasks','id','viewer-must-not-write','data','{"title":"blocked","project_id":"discovery-project"}'::jsonb,'deleted',false,'expected_updated_at',null),
         jsonb_build_object('collection','discovery','id','d1','data','{"status":"Blocked"}'::jsonb,'deleted',false,'expected_updated_at',discovery_ts)
       )
     );
@@ -80,7 +83,7 @@ begin
     perform public.projects_apply_records_batch(
       ws,
       jsonb_build_array(
-        jsonb_build_object('collection','tasks','id','rollback-task','data','{"title":"must rollback"}'::jsonb,'deleted',false,'expected_updated_at',null),
+        jsonb_build_object('collection','tasks','id','rollback-task','data','{"title":"must rollback","project_id":"discovery-project","discovery_ids":["d1"]}'::jsonb,'deleted',false,'expected_updated_at',null),
         jsonb_build_object('collection','discovery','id','d1','data','{"status":"Completed","force_test_failure":"true"}'::jsonb,'deleted',false,'expected_updated_at',discovery_ts)
       )
     );
