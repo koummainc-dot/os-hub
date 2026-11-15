@@ -28,6 +28,8 @@ const index=fs.readFileSync("src/systems/projects/index.jsx","utf8");
 assert.match(index,/DocumentationCenter/);
 assert.match(index,/documentation:\s*DocumentationPage/);
 assert.match(index,/id:\s*"help"/);
+const core=fs.readFileSync("src/core/core.js","utf8");
+assert.match(core,/documentation:مركز التوثيق/);
 const catalog=fs.readFileSync("src/systems/projects/documentation/documentationCatalog.js","utf8");
 for(const id of ["screen-dashboard","project-header-actions","workspace-tabs","objective-kr-project-task","prd-task-output","knowledge-integration","finance-integration","outputs-storage","complete-operating-manual","field-and-form-dictionary","release-acceptance-checklist","project-workspace-operating-guide","project-workspace-data-flow-lifecycle"]) assert.match(catalog,new RegExp(id));
 const component=fs.readFileSync("src/systems/projects/documentation/DocumentationCenter.jsx","utf8");
