@@ -221,31 +221,6 @@ function Router({ sourceWriteRequest, routeContext }) {
     ].map(group => ({ ...group, items: group.items.filter(item => visible.includes(item.id)) })).filter(group => group.items.length);
     shell.publish("projects", { visible, navGroups: groups });
   }, [role]);
-  const processedVenturesRiskWrites = useRef(new Set());
-  const handleVenturesRisk = useCallback(async (d) => {
-    if (!(d?.source === "ventures" && d.systemId === "projects" && d.action === "create_risk")) return;
-    const publishResult = (detail) => window.dispatchEvent(new CustomEvent("os:source-write-result", { detail: { workspaceId: ws?.id || null, systemId: "projects", source: "ventures", ...detail } }));
-    if (d.workspaceId && String(d.workspaceId) !== String(ws?.id)) return;
-    const payload = d.payload || {};
-    const project = ctx.projectsById?.[payload.project_id];
-    if (!project) { publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: "المشروع المرتبط بفحص البريد غير موجود أو غير متاح." }); return; }
-    if (osSectionLevel(access, "risks") !== "edit" || !ctx.can("risk.write", project)) { publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: "لا تملك صلاحية إنشاء مخاطر في هذا المشروع." }); return; }
-    const requestKey = String(d.recordId || payload.source_record_id || payload.id || "");
-    if (requestKey && processedVenturesRiskWrites.current.has(requestKey)) {
-      publishResult({ action: d.action, recordId: d.recordId || requestKey, ok: true });
-      return;
-    }
-    if (requestKey) processedVenturesRiskWrites.current.add(requestKey);
-    const existing = (ctx.data.risks || []).find((item) => item.source === "ventures_email" && String(item.source_record_id) === String(payload.source_record_id));
-    const risk = { ...payload, ...(existing?.id ? { id: existing.id } : { id: undefined }), project_id: project.id, source_record_id: payload.source_record_id };
-    try {
-      const saved = await A.saveRisk(risk);
-      publishResult({ action: d.action, recordId: saved.id, requestRecordId: d.recordId || null, ok: true });
-    } catch (error) {
-      if (requestKey) processedVenturesRiskWrites.current.delete(requestKey);
-      publishResult({ action: d.action, recordId: d.recordId || null, ok: false, error: error?.message || "تعذر حفظ الخطر في Projects." });
-    }
-  }, [A, access, ctx.can, ctx.data.risks, ctx.projectsById, ws?.id]);
   const processedKnowledgeMeetingWrites = useRef(new Set());
   const handleKnowledgeMeetingTasks = useCallback(async (d) => {
     if (!(d?.source === "knowledge" && d.systemId === "projects" && d.action === "create_meeting_tasks")) return;
@@ -294,9 +269,8 @@ function Router({ sourceWriteRequest, routeContext }) {
     publishResult({ action: d.action, recordId: d.recordId || null, ok, createdTaskIds, error: errors.join(" | ") || (rows.length ? null : "لا توجد متابعات لتحويلها.") });
   }, [A, access, ctx.can, ctx.data.tasks, ctx.projectsById, ctx.trash, ws?.id]);
   const handleSourceWrite = useCallback((d) => {
-    if (d?.source === "ventures") return handleVenturesRisk(d);
     if (d?.source === "knowledge") return handleKnowledgeMeetingTasks(d);
-  }, [handleVenturesRisk, handleKnowledgeMeetingTasks]);
+  }, [handleKnowledgeMeetingTasks]);
   useEffect(() => {
     if (!sourceWriteRequest || !ready) return;
     void handleSourceWrite(sourceWriteRequest);
