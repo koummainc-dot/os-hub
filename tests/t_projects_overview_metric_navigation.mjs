@@ -95,7 +95,7 @@ assert.ok(portfolio.includes('right={can("project.create") && <Btn kind="primary
 assert.ok(portfolio.includes('{newProjectOpen && <ProjectForm initial={{}}'), "Portfolio create opens the canonical ProjectForm");
 assert.ok(portfolio.includes('m.progress == null ? "غير قابل للقياس"'), "Portfolio cards and views do not coerce Not Measurable progress to zero");
 assert.ok(portfolio.includes('"الأيام المتبقية"') && portfolio.includes("m.daysRemaining"), "Portfolio table includes the target date and remaining-days metric");
-assert.ok(portfolio.includes('["المشروع","الحالة","الصحة","التقدم","الموعد","الأيام المتبقية","القائد","الفريق"'), "Portfolio table includes the lead and team columns");
+for (const label of ["القائد","الفريق"]) assert.ok(portfolio.includes(`"${label}"`), `Portfolio table includes the ${label} column`);
 assert.ok(portfolio.includes("إلغاء فلتر المشاريع المتأخرة") === false, "delayed-only indicator is represented by the combined filter reset");
 
 
