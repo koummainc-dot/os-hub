@@ -128,7 +128,7 @@ function Platform(){
           const collection=String(payload.collection||"notes");
           const allowed=["resources","ideas","notes","meetings","events","inbox"];
           if(!allowed.includes(collection)) throw new Error("unsupported-knowledge-collection");
-          const recordId=String(d.recordId||payload.id||("ventures_knowledge_"+Date.now()));
+          const recordId=String(d.recordId||payload.id||("knowledge_"+Date.now()));
           const current=Array.isArray(snapshot[collection])?snapshot[collection]:[];
           const item={...(current.find(x=>String(x?.id)===recordId)||{}),...payload,id:recordId};
           delete item.collection;
@@ -147,7 +147,7 @@ function Platform(){
       try{
         if(!wsId) throw new Error("workspace-required");
         if(!["create","update"].includes(action)) throw new Error("unsupported-content-write-action");
-        const recordId=String(d.recordId||payload.id||("ventures_content_"+Date.now()));
+        const recordId=String(d.recordId||payload.id||("content_"+Date.now()));
         const {data:existing,error:readError}=await supabase.from("workspace_records").select("id,data,collection,deleted").eq("workspace_id",wsId).eq("system_id","content").eq("id",recordId).maybeSingle();
         if(readError) throw readError;
         const merged={...(existing?.data||{}),...payload,id:recordId,updated_at:new Date().toISOString()};
