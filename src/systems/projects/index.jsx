@@ -11,7 +11,6 @@ import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView, DiscoveryV
 import { Okrs, Updates, Wins, Reviews, Contacts, Team, Templates, Meetings, Settings } from "./screens_c.jsx";
 import { buildSeed } from "./demo.js";
 import { loadDurableOSEvents, subscribeDurableOSEvents } from "../integrationEvents.js";
-import MasterplanWizard from "./masterplanWizard.jsx";
 import DocumentationCenter from "./documentation/DocumentationCenter.jsx";
 
 function DocumentationPage() {
@@ -47,7 +46,7 @@ function GovernancePage() {
   </div>;
 }
 
-const SCREENS = { dashboard: Dashboard, today: Today, week: Week, myWork: MyWork, portfolio: Portfolio, projects: Projects, tasks: Tasks, issues: GovernancePage, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: GovernancePage, decisions: GovernancePage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings, documentation: DocumentationPage, masterplanImport: MasterplanWizard };
+const SCREENS = { dashboard: Dashboard, today: Today, week: Week, myWork: MyWork, portfolio: Portfolio, projects: Projects, tasks: Tasks, issues: GovernancePage, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: GovernancePage, decisions: GovernancePage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings, documentation: DocumentationPage };
 
 function ProjectsDurableEventBridge({ ws, isDemo, children }) {
   const ctx = useP();
@@ -177,7 +176,7 @@ function Router({ sourceWriteRequest, routeContext }) {
   // sections hidden for Viewers (plan §13.2) are removed from the shell menu
   useEffect(() => {
     if (!shell || !shell.publish) return;
-    const visible = Object.keys(SCREENS).filter((k) => k !== "masterplanImport" && !(role === "Viewer" && ["reviews", "contacts"].includes(k)));
+    const visible = Object.keys(SCREENS).filter((k) => !(role === "Viewer" && ["reviews", "contacts"].includes(k)));
     const groups = [
       { id: "today", label: "مساحة اليوم", items: [
         { id: "dashboard", label: "الرئيسية", icon: "⌂" },
