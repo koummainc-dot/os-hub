@@ -419,7 +419,7 @@ export function Initiatives() {
               </div>
               <div style={{ display: "flex", gap: 7, marginTop: 10 }}>
                 <Btn small onClick={() => setForm({ ...i, project_ids: linked.map(p => p.id) })}>تعديل</Btn>
-                {linked.length === 0 && <Btn small onClick={async () => { if (await confirm("حذف هذه المبادرة؟", { danger: true })) { await act.deleteInitiative(i); } }}>حذف</Btn>}
+                {linked.length === 0 && <Btn small onClick={async () => { if (window.confirm("حذف هذه المبادرة؟")) { await act.deleteInitiative(i); } }}>حذف</Btn>}
               </div>
             </div>;
           })}
