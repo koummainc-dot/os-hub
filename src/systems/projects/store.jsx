@@ -11,7 +11,7 @@ export const Ctx = createContext(null);
 export const useP = () => useContext(Ctx);
 
 export const GENERAL_ID = "proj_general";
-const COLLS = ["projects", "tasks", "outputs", "sessions", "timers", "prds", "discovery", "decisions", "risks", "issues", "contacts", "objectives", "krs", "checkins", "reviews", "wins", "updates", "templates", "teams", "profiles", "settings", "lookups", "activity"];
+const COLLS = ["initiatives", "projects", "tasks", "outputs", "sessions", "timers", "prds", "discovery", "decisions", "risks", "issues", "contacts", "objectives", "krs", "checkins", "reviews", "wins", "updates", "templates", "teams", "profiles", "settings", "lookups", "activity"];
 
 export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, demoStore, seed, shell, page, setPage, children }) {
   const toast = shell && shell.toast ? shell.toast : () => {};
@@ -43,7 +43,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
   // ── live data
   const live = (c) => arr(recs, c).filter((r) => !r.deleted_at);
   const data = useMemo(() => ({
-    projects: live("projects"), tasks: live("tasks"), outputs: live("outputs"), sessions: live("sessions"), timers: arr(recs, "timers"), prds: live("prds"), discovery: live("discovery"),
+    initiatives: live("initiatives"), projects: live("projects"), tasks: live("tasks"), outputs: live("outputs"), sessions: live("sessions"), timers: arr(recs, "timers"), prds: live("prds"), discovery: live("discovery"),
     decisions: live("decisions"), risks: live("risks"), issues: live("issues"), contacts: live("contacts"), objectives: live("objectives"), krs: live("krs"), checkins: arr(recs, "checkins"),
     reviews: live("reviews"), wins: live("wins"), updates: live("updates"), templates: live("templates"), teams: live("teams"), profiles: live("profiles"), activity: arr(recs, "activity"),
   }), [recs]);
@@ -133,6 +133,31 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
         }
       }
       act("projects", rec.id, isNew ? "created" : "updated", rec.name); return saved;
+    },
+    async saveInitiative(v, isNew) {
+      const rec = stamp({ ...v, id: v.id || uid(), entity_type: "initiative" });
+      if (isNew) { rec.status = rec.status || "Active"; rec.created_by = me; }
+      const saved = await R.put("initiatives", rec);
+      if (!saved) throw new Error("تعذّر حفظ المبادرة");
+      act("initiatives", rec.id, isNew ? "created" : "updated", rec.name);
+      return saved;
+    },
+    async deleteInitiative(initiative) {
+      if (!initiative?.id) return false;
+      const linked = data.projects.filter((p) => p.initiative_id === initiative.id && !p.deleted_at);
+      if (linked.length) throw new Error("لا يمكن حذف المبادرة قبل فك ارتباط المشاريع التابعة بها.");
+      await R.softDelete("initiatives", initiative.id, me);
+      act("initiatives", initiative.id, "deleted", initiative.name);
+      return true;
+    },
+    async setProjectInitiative(project, initiativeId) {
+      if (!project?.id) return false;
+      if (!can("project.edit", project)) throw new Error("لا تملك صلاحية تعديل ارتباط المشروع.");
+      const next = { ...project, initiative_id: initiativeId || null };
+      const saved = await putIn("projects", next, next);
+      if (!saved) throw new Error("تعذّر تحديث ارتباط المشروع بالمبادرة.");
+      act("projects", project.id, "initiative_link", initiativeId ? "ربط بالمبادرة" : "فك ارتباط المبادرة");
+      return saved;
     },
     async setProjectStatus(p, to) {
       const chk = D.canChangeProjectStatus(p, to, idx); if (!chk.ok) { toast("⛔ " + chk.error); return false; }
