@@ -8,7 +8,7 @@ import { fmt, fmtShort, fmtMinutes, addDays, diffDays, monthDays, MONTH_NAMES, d
 import { uid } from "../../core/records.jsx";
 import { useP } from "./store.jsx";
 import * as D from "./domain.js";
-import { L, opts, STATUS_COLOR, PROJECT_TYPE_PROFILES } from "./lookups.js";
+import { L, opts, STATUS_COLOR, PROJECT_TYPE_PROFILES, PROJECT_MODULE_CONFIG } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, ProjectName, ProjectForm, TaskTree, mOpts } from "./parts.jsx";
 import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView, DiscoveryView } from "./entities.jsx";
 import { normalizeKnowledgeFollowup, stableKnowledgeFollowupId, findKnowledgeFollowupTask } from "../knowledge/followupIdentity.js";
@@ -147,12 +147,17 @@ function ProjectDetail() {
     { id: "finance", label: "المالية", defaultTab: "finance", tabs: [{ id: "finance", label: "الملف المالي" }] },
     { id: "results", label: "النتائج", defaultTab: "wins", tabs: [{ id: "wins", label: "الإنجازات" }, { id: "updates", label: "تحديثات المشروع" }] },
     { id: "collaboration", label: "التعاون", defaultTab: "people", tabs: [{ id: "people", label: "الفريق" }, { id: "activity", label: "النشاط" }] },
-    { id: "specialized", label: `أدوات ${PROJECT_TYPE_PROFILES[p.type]?.label || p.type || "المشروع"}`, defaultTab: "specialized", tabs: [{ id: "specialized", label: "الوحدات المتخصصة" }] },
+    { id: "specialized", label: `أدوات ${PROJECT_TYPE_PROFILES[p.type]?.label || p.type || "المشروع"}`, defaultTab: "specialized", tabs: [{ id: "specialized", label: "الوحدات المتخصصة" }, ...(PROJECT_TYPE_PROFILES[p.type]?.modules || []).map((module) => ({ id: "module:" + module, label: PROJECT_MODULE_CONFIG[module]?.label || module }))] },
   ];
   // Keep legacy "related" links resolvable; the visible resource tab is the canonical navigation entry.
   const activeGroup = tabGroups.find((group) => group.tabs.some((item) => item.id === tab)) || tabGroups[0];
   const navActiveTab = tab === "related" ? "resources" : tab;
   const setGroup = (groupId) => { const group = tabGroups.find((item) => item.id === groupId); if (group) setTab(group.defaultTab); };
+  useEffect(() => {
+    const onModule = (event) => { if (event?.detail?.module) setTab("module:" + event.detail.module); };
+    window.addEventListener("projects:open-module", onModule);
+    return () => window.removeEventListener("projects:open-module", onModule);
+  }, [p.id]);
   const canE = can("project.edit", p);
   const openQuickCreate = (kind, targetTab, patch = {}) => setView({ ...view, ...patch, tab: targetTab, focusRecord: null, quickCreate: kind });
   return (
@@ -249,32 +254,83 @@ function ProjectHealthHistory({ projectId, workspaceId }) {
   </div>;
 }
 
+function ProjectModuleRecords({ p, moduleKey }) {
+  const { data, A: act, can, people, toast } = useP();
+  const config = PROJECT_MODULE_CONFIG[moduleKey] || { label: moduleKey, fields: [] };
+  const [editing, setEditing] = useState(null);
+  const rows = (data.project_modules || []).filter((r) => r.project_id === p.id && r.module_key === moduleKey && !r.deleted_at);
+  const canWrite = can("project.module.write", p);
+  const fields = (config.fields || []).map((f) => f.type === "owner"
+    ? { ...f, type: "select", options: people.map((x) => ({ v: x.id, l: x.name })), allowEmpty: true }
+    : f.type === "url" ? { ...f, type: "text" } : f);
+  const submit = async (v) => {
+    const saved = await act.saveProjectModule({ ...v, module_key: moduleKey, project_id: p.id }, !v.id, p);
+    if (saved) { toast(v.id ? "✅ تم تحديث السجل" : "✅ تم إنشاء السجل"); setEditing(null); }
+    return !!saved;
+  };
+  return <div>
+    <Head title={config.label || moduleKey} sub={`سجلات ${config.label || moduleKey} الخاصة بهذا المشروع. البيانات محفوظة داخل المشروع ويمكن ربطها بالمهام والمخرجات المشتركة.`}
+      right={canWrite && <Btn kind="primary" onClick={() => setEditing({ module_key: moduleKey, status: "active", owner_id: p.lead_id || "", related_task_ids: [] })}>＋ إضافة {config.label || moduleKey}</Btn>} />
+    {!rows.length ? <Empty icon="▦" title={`لا توجد سجلات في ${config.label || moduleKey}`} sub="أنشئ أول سجل؛ سيبقى مرتبطًا بهذا المشروع وهذا النوع فقط." /> :
+      <div style={{ display: "grid", gap: 9 }}>
+        {rows.map((r) => <div key={r.id} style={{ ...S.card, padding: 12 }}>
+          <div style={{ display: "flex", gap: 9, alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 220 }}><div style={{ fontWeight: 800, fontSize: 13.5 }}>{r.name || r.title || "—"}</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 5 }}>
+                {r.status && <Chip color={r.status === "done" ? C.ok : r.status === "paused" ? C.warn : C.info}>{r.status === "done" ? "مكتمل" : r.status === "paused" ? "متوقف" : r.status === "draft" ? "مسودة" : "نشط"}</Chip>}
+                {r.target_date && <Chip>📅 {fmtShort(r.target_date)}</Chip>}
+                {r.owner_id && <Who id={r.owner_id} size={18} />}
+              </div>
+            </div>
+            {canWrite && <div style={{ display: "flex", gap: 6 }}><Btn small onClick={() => setEditing(r)}>تعديل</Btn><Btn small danger onClick={() => act.deleteProjectModule(r, p)}>حذف</Btn></div>}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 7, marginTop: 10 }}>
+            {(config.fields || []).filter((f) => !["name","status","owner_id","target_date","description","notes"].includes(f.key)).map((f) => r[f.key] !== undefined && r[f.key] !== "" && r[f.key] !== null ? <div key={f.key} style={{ fontSize: 11.5, color: C.dim }}><b>{f.label}:</b> {String(r[f.key])}</div> : null)}
+          </div>
+          {r.description && <div style={{ marginTop: 9, fontSize: 12, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{r.description}</div>}
+          {r.notes && <div style={{ marginTop: 7, fontSize: 11.5, color: C.muted, whiteSpace: "pre-wrap" }}>{r.notes}</div>}
+          {(r.related_task_ids || []).length > 0 && <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}><span style={{ fontSize: 10.5, color: C.muted }}>مهام مرتبطة:</span>{(r.related_task_ids || []).map((id) => { const t = data.tasks.find((x) => x.id === id); return t ? <Chip key={id}>{t.title}</Chip> : null; })}</div>}
+        </div>)}
+      </div>}
+    {editing && <FormModal title={editing.id ? "تعديل السجل" : "إضافة سجل"} wide initial={editing} onClose={() => setEditing(null)} fields={fields} onSubmit={submit}>
+      {(values, set) => <div style={{ marginTop: 10, borderTop: "1px solid " + C.line, paddingTop: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6 }}>الربط بسجلات التنفيذ المشتركة</div>
+        <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 7 }}>اربط السجل بمهام المشروع بدل إنشاء مهام مكررة.</div>
+        <div style={{ maxHeight: 150, overflowY: "auto", display: "grid", gap: 5 }}>
+          {data.tasks.filter((t) => t.project_id === p.id && !t.archived_at).map((t) => <label key={t.id} style={{ display: "flex", gap: 7, alignItems: "center", fontSize: 11.5 }}>
+            <input type="checkbox" checked={(values.related_task_ids || []).includes(t.id)} onChange={(e) => set("related_task_ids", e.target.checked ? [...(values.related_task_ids || []), t.id] : (values.related_task_ids || []).filter((id) => id !== t.id))} />{t.title}
+          </label>)}
+        </div>
+      </div>}
+    </FormModal>}
+  </div>;
+}
+
 function ProjectTypeWorkspace({ p }) {
-  const { setView } = useP();
+  const { data } = useP();
   const profile = PROJECT_TYPE_PROFILES[p.type] || PROJECT_TYPE_PROFILES["أخرى"];
-  const shortcuts = [
-    { label: "المهام", tab: "tasks", icon: "✓", desc: "حوّل الوحدة المتخصصة إلى مهام تنفيذية قابلة للمتابعة." },
-    { label: "المواصفات", tab: "prds", icon: "▤", desc: "وثّق متطلبات الوحدة وقراراتها." },
-    { label: "المخرجات", tab: "outputs", icon: "◈", desc: "اربط النتائج والملفات والمخرجات بالمشروع." },
-    { label: "المخاطر", tab: "risks", icon: "⚠", desc: "سجل مخاطر الوحدة ومتابعتها." },
-  ];
+  const modules = (profile.modules || []).filter((module) => PROJECT_MODULE_CONFIG[module]);
   return <div>
     <div style={{ ...S.card, marginBottom: 12 }}>
       <div style={{ fontSize: 16, fontWeight: 800 }}>{profile.label}</div>
-      <div style={{ color: C.muted, fontSize: 11.5, marginTop: 4 }}>هذا المشروع يستخدم تكوينًا متخصصًا حسب نوعه مع الاحتفاظ بنفس سجلات التنفيذ المشتركة.</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 12 }}>{profile.modules.map((module) => <Chip key={module}>{module}</Chip>)}</div>
+      <div style={{ color: C.muted, fontSize: 11.5, marginTop: 4 }}>الوحدات التالية جزء فعلي من المشروع. لكل وحدة سجلاتها الخاصة، وتُحفظ على مستوى المشروع بدون نسخ المهام أو المخرجات المشتركة.</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 12 }}>{modules.map((module) => <Chip key={module}>{PROJECT_MODULE_CONFIG[module].label}</Chip>)}</div>
     </div>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
-      {profile.modules.map((module, index) => {
-        const shortcut = shortcuts[index % shortcuts.length];
-        return <div key={module} style={{ ...S.card, padding: 13 }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}><span style={{ fontSize: 18 }}>{shortcut.icon}</span><b style={{ fontSize: 13 }}>{module}</b></div>
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>{shortcut.desc}</div>
-          <Btn small onClick={() => setView((v) => ({ ...v, tab: shortcut.tab }))} style={{ marginTop: 9 }}>فتح {shortcut.label}</Btn>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 10 }}>
+      {modules.map((module) => {
+        const count = (data.project_modules || []).filter((r) => r.project_id === p.id && r.module_key === module && !r.deleted_at).length;
+        return <div key={module} style={{ ...S.card, padding: 13, cursor: "pointer" }} onClick={() => setViewFromModule(module)}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}><span style={{ fontSize: 18 }}>▦</span><b style={{ fontSize: 13 }}>{PROJECT_MODULE_CONFIG[module].label}</b><Chip color={C.info}>{count}</Chip></div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>سجلات فعلية · إضافة وتعديل وحذف · ربط بالمهام</div>
         </div>;
       })}
     </div>
   </div>;
+}
+function setViewFromModule(module) {
+  // The click handler is replaced below by the ProjectDetail tab navigation.
+  // Kept as a named helper so the module card remains intentionally small.
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("projects:open-module", { detail: { module } }));
 }
 function Overview({ p, m }) {
   const { data, idx, today, settings, A: act, can, nameOf, projectProgress, view, setView, openTask, ws } = useP(); const cov = D.coverageOf(p, idx);
