@@ -11,7 +11,7 @@ export const Ctx = createContext(null);
 export const useP = () => useContext(Ctx);
 
 export const GENERAL_ID = "proj_general";
-const COLLS = ["initiatives", "projects", "tasks", "milestones", "outputs", "sessions", "timers", "prds", "discovery", "decisions", "risks", "issues", "contacts", "objectives", "krs", "checkins", "reviews", "review_shares", "wins", "updates", "templates", "teams", "profiles", "settings", "lookups", "activity"];
+const COLLS = ["initiatives", "project_modules", "projects", "tasks", "milestones", "outputs", "sessions", "timers", "prds", "discovery", "decisions", "risks", "issues", "contacts", "objectives", "krs", "checkins", "reviews", "review_shares", "wins", "updates", "templates", "teams", "profiles", "settings", "lookups", "activity"];
 
 export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, demoStore, seed, shell, page, setPage, children }) {
   const toast = shell && shell.toast ? shell.toast : () => {};
@@ -43,7 +43,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
   // ── live data
   const live = (c) => arr(recs, c).filter((r) => !r.deleted_at);
   const data = useMemo(() => ({
-    initiatives: live("initiatives"), projects: live("projects"), tasks: live("tasks"), milestones: live("milestones"), outputs: live("outputs"), sessions: live("sessions"), timers: arr(recs, "timers"), prds: live("prds"), discovery: live("discovery"),
+    initiatives: live("initiatives"), project_modules: live("project_modules"), projects: live("projects"), tasks: live("tasks"), milestones: live("milestones"), outputs: live("outputs"), sessions: live("sessions"), timers: arr(recs, "timers"), prds: live("prds"), discovery: live("discovery"),
     decisions: live("decisions"), risks: live("risks"), issues: live("issues"), contacts: live("contacts"), objectives: live("objectives"), krs: live("krs"), checkins: arr(recs, "checkins"),
     reviews: live("reviews"), review_shares: live("review_shares"), wins: live("wins"), updates: live("updates"), templates: live("templates"), teams: live("teams"), profiles: live("profiles"), activity: arr(recs, "activity"),
   }), [recs]);
@@ -68,7 +68,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     switch (action) {
       case "project.create": return true;
       case "project.edit": case "project.archive": case "project.delete": case "project.members": return lead;
-      case "task.write": case "session.write": case "risk.write": case "issue.write": case "decision.write": case "prd.write": case "output.write": return work;
+      case "project.module.write": case "task.write": case "session.write": case "risk.write": case "issue.write": case "decision.write": case "prd.write": case "output.write": return work;
       case "output.approve": case "prd.approve": return pr === "Lead" || pr === "Reviewer";
       case "update.write": return lead;
       case "discovery.write": case "win.write": case "contact.write": case "review.write": return true;
@@ -176,6 +176,20 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       }
       act("projects", rec.id, isNew ? "created" : "updated", rec.name); return saved;
     },
+    async saveProjectModule(v, isNew, project) {
+      if (!project || project.archived_at || project.is_system) throw new Error("لا يمكن تعديل وحدة مشروع غير نشط.");
+      if (!can("project.module.write", project)) throw new Error("لا تملك صلاحية تعديل وحدات هذا المشروع.");
+      const rec = { ...v, id: v.id || uid(), project_id: project.id, module_key: v.module_key, entity_type: "project_module" };
+      const saved = await putIn("project_modules", rec, project);
+      if (!saved) throw new Error("تعذّر حفظ سجل الوحدة.");
+      act("project_modules", rec.id, isNew ? "created" : "updated", rec.name || rec.title || rec.module_key);
+      return saved;
+    },
+    async deleteProjectModule(rec, project) {
+      if (!rec || !project || !can("project.module.write", project)) throw new Error("لا تملك صلاحية حذف هذا السجل.");
+      await del("project_modules", rec.id, rec.name || rec.title || "سجل الوحدة");
+      return true;
+    },
     async saveInitiative(v, isNew) {
       const rec = stamp({ ...v, id: v.id || uid(), entity_type: "initiative" });
       if (isNew) { rec.status = rec.status || "Active"; rec.created_by = me; }
@@ -235,7 +249,7 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
     async restoreProjectFromTrash(p) {
       if (!p || !p.deleted_at) { toast("⛔ المشروع ليس في السلة أو لا يحتوي على علامة حذف صالحة."); return false; }
       if (p.id === GENERAL_ID || p.is_system) { toast("⛔ لا يمكن استرجاع مشروع النظام من السلة."); return false; }
-      const collections = ["tasks", "milestones", "outputs", "risks", "issues", "decisions", "prds", "updates", "wins"];
+      const collections = ["project_modules", "tasks", "milestones", "outputs", "risks", "issues", "decisions", "prds", "updates", "wins"];
       // Shared deletion timestamp + actor identifies records from this exact batch.
       const related = collections.flatMap((coll) =>
         arr(recs, coll).filter((record) =>
