@@ -5,7 +5,7 @@ import { fmt, fmtShort, fmtMinutes, addDays, diffDays, monthDays, MONTH_NAMES, d
 import { uid } from "../../core/records.jsx";
 import { useP } from "./store.jsx";
 import * as D from "./domain.js";
-import { L, opts, STATUS_COLOR } from "./lookups.js";
+import { L, opts, STATUS_COLOR, PROJECT_TYPE_PROFILES } from "./lookups.js";
 import { HealthBadge, StatusChip, PriorityChip, Who, ProjectName, ProjectForm, TaskTree, mOpts } from "./parts.jsx";
 import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView } from "./entities.jsx";
 import MediaEmbed, { getMediaEmbed } from "../media/MediaEmbed.jsx";
@@ -98,6 +98,7 @@ function ProjectDetail() {
     { id: "delivery", label: "التسليم", defaultTab: "outputs", tabs: [{ id: "outputs", label: "المخرجات", count: counts.outputs }, { id: "work", label: "العمل والوقت" }, { id: "timeline", label: "الخط الزمني" }, { id: "related", label: "المراجع" }] },
     { id: "governance", label: "الحوكمة", defaultTab: "risks", tabs: [{ id: "risks", label: "المخاطر", count: counts.risks }, { id: "issues", label: "المشاكل", count: counts.issues }, { id: "decisions", label: "القرارات", count: counts.decisions }] },
     { id: "collaboration", label: "التعاون", defaultTab: "people", tabs: [{ id: "people", label: "الفريق" }, { id: "activity", label: "النشاط" }] },
+    { id: "specialized", label: "أدوات ${PROJECT_TYPE_PROFILES[p.type]?.label || p.type || "المشروع"}", defaultTab: "specialized", tabs: [{ id: "specialized", label: "الوحدات المتخصصة" }] },
   ];
   // Keep these stable tab IDs for existing deep links while grouping the UI by workflow.
   const activeGroup = tabGroups.find((group) => group.tabs.some((item) => item.id === tab)) || tabGroups[0];
@@ -129,10 +130,38 @@ function ProjectDetail() {
       {tab === "people" && <PeopleTab p={p} canE={can("project.members", p)} />}
       {tab === "okr" && <ProjectOkr p={p} />}
       {tab === "related" && <RelatedTab p={p} canE={canE} />}
+      {tab === "specialized" && <ProjectTypeWorkspace p={p} />}
       {tab === "activity" && <div style={S.card}>{data.activity.filter((a) => a.entity_id === p.id || (a.entity === "tasks" && idx.byId[a.entity_id] && idx.byId[a.entity_id].project_id === p.id)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40).map((a) => <div key={a.id} style={{ fontSize: 12, padding: "4px 0", color: C.dim }}>{dateOf(a.at)} · {nameOf(a.actor_id)} · {a.action} {a.summary}</div>)}{!data.activity.some((a) => a.entity_id === p.id) && <span style={{ fontSize: 12, color: C.muted }}>لا نشاط مسجَّل</span>}</div>}
       {edit && <ProjectForm initial={p} onClose={() => setEdit(false)} />}
     </div>
   );
+}
+function ProjectTypeWorkspace({ p }) {
+  const { setView, setPage } = useP();
+  const profile = PROJECT_TYPE_PROFILES[p.type] || PROJECT_TYPE_PROFILES["أخرى"];
+  const shortcuts = [
+    { label: "المهام", tab: "tasks", icon: "✓", desc: "حوّل كل وحدة متخصصة إلى مهام تنفيذية قابلة للمتابعة." },
+    { label: "المواصفات", tab: "prds", icon: "▤", desc: "وثّق المتطلبات والقرارات الخاصة بالوحدة." },
+    { label: "المخرجات", tab: "outputs", icon: "◈", desc: "اربط النتائج والملفات والمخرجات بالمشروع." },
+    { label: "المخاطر", tab: "risks", icon: "⚠", desc: "سجل مخاطر الوحدة ومتابعتها." },
+  ];
+  return <div>
+    <div style={{ ...S.card, marginBottom: 12 }}>
+      <div style={{ fontSize: 16, fontWeight: 800 }}>{profile.label}</div>
+      <div style={{ color: C.muted, fontSize: 11.5, marginTop: 4 }}>نوع المشروع يحدد مجموعة الأدوات المتخصصة المقترحة لهذا المشروع، مع بقاء البيانات التنفيذية مشتركة.</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 12 }}>{profile.modules.map((module) => <Chip key={module}>{module}</Chip>)}</div>
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
+      {profile.modules.map((module, index) => {
+        const shortcut = shortcuts[index % shortcuts.length];
+        return <div key={module} style={{ ...S.card, padding: 13 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}><span style={{ fontSize: 18 }}>{shortcut.icon}</span><b style={{ fontSize: 13 }}>{module}</b></div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>{shortcut.desc}</div>
+          <Btn small onClick={() => setView((v) => ({ ...v, tab: shortcut.tab }))} style={{ marginTop: 9 }}>فتح {shortcut.label}</Btn>
+        </div>;
+      })}
+    </div>
+  </div>;
 }
 function Overview({ p, m }) {
   const { data, idx, today, settings, A: act, can, nameOf, projectProgress, view, setView, openTask } = useP(); const cov = D.coverageOf(p, idx);
