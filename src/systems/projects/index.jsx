@@ -5,7 +5,7 @@ import { Tabs, Skeleton, ErrorState, Chip } from "../../core/kit.jsx";
 import { todayStr } from "../../core/dates.js";
 import { ProjectsProvider, useP, Ctx } from "./store.jsx";
 import { TaskSheet, TimerBar } from "./parts.jsx";
-import { Dashboard, Today, Week, Tasks, MyWork, Portfolio } from "./screens_a.jsx";
+import { Dashboard, Today, Week, Tasks, MyWork, Portfolio, Initiatives } from "./screens_a.jsx";
 import { Projects } from "./screens_b.jsx";
 import { OutputsView, RisksView, IssuesView, DecisionsView, PrdsView, DiscoveryView } from "./entities.jsx";
 import { Okrs, Updates, Wins, Reviews, Contacts, Team, Templates, Meetings, Settings } from "./screens_c.jsx";
@@ -46,7 +46,7 @@ function GovernancePage() {
   </div>;
 }
 
-const SCREENS = { dashboard: Dashboard, today: Today, week: Week, myWork: MyWork, portfolio: Portfolio, projects: Projects, tasks: Tasks, issues: GovernancePage, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: GovernancePage, decisions: GovernancePage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings, documentation: DocumentationPage };
+const SCREENS = { dashboard: Dashboard, today: Today, week: Week, myWork: MyWork, portfolio: Portfolio, initiatives: Initiatives, projects: Projects, tasks: Tasks, issues: GovernancePage, discovery: DiscoveryView, prds: PrdsView, okrs: Okrs, outputs: OutputsView, risks: GovernancePage, decisions: GovernancePage, meetings: Meetings, updates: Updates, wins: Wins, reviews: Reviews, contacts: Contacts, team: Team, templates: Templates, settings: Settings, documentation: DocumentationPage };
 
 function ProjectsDurableEventBridge({ ws, isDemo, children }) {
   const ctx = useP();
@@ -186,6 +186,7 @@ function Router({ sourceWriteRequest, routeContext }) {
       ]},
       { id: "portfolio", label: "محفظة المشاريع", items: [
         { id: "projects", label: "المشاريع", icon: "📁" },
+        { id: "initiatives", label: "المبادرات", icon: "🎯" },
         { id: "portfolio", label: "محفظة المشاريع", icon: "▦" },
       ]},
       { id: "planning", label: "التخطيط", items: [
