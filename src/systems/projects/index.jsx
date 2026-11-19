@@ -60,7 +60,8 @@ function Router({ sourceWriteRequest }) {
         { id: "projects", label: "المشاريع", icon: "📁" },
         { id: "tasks", label: "المهام", icon: "☑" },
         { id: "week", label: "هذا الأسبوع", icon: "🗓️" },
-        { id: "initiatives", label: "المبادرات", icon: "🎯" },\n        { id: "portfolio", label: "تحليلات المحفظة", icon: "▦" },
+        { id: "initiatives", label: "المبادرات", icon: "🎯" },
+        { id: "portfolio", label: "تحليلات المحفظة", icon: "▦" },
       ]},
       { id: "planning", label: "التخطيط", items: [
         { id: "discovery", label: "الاكتشاف", icon: "↘" },
