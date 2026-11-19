@@ -27,12 +27,27 @@ export const STATUS_COLOR = { Idea: "#94A3B8", Planned: "#6366F1", "In Progress"
 export const SEV_COLOR = { Low: "#94A3B8", Medium: "#F59E0B", High: "#F97316", Critical: "#EF4444" };
 
 export const DEFAULT_LOOKUPS = {
-  project_type: ["تطبيق", "براند", "متجر", "محتوى", "عمل", "أخرى"],
+  project_type: ["تطبيق", "براند", "متجر", "محتوى", "عمل", "Marketplace", "Affiliate", "منتجات رقمية", "توصيل", "شخصي", "أخرى"],
   contact_role: ["تقني", "مستثمر", "مورّد", "شريك", "عميل", "زميل", "مرشد", "جهة رسمية"],
   output_type: ["Design", "Code", "Document", "Sample", "Video", "Other"],
   meeting_type: ["Daily Standup", "Weekly Sync", "Sprint Planning", "Post-mortem", "Ad Hoc"],
 };
 export const LOOKUP_LABEL = { project_type: "أنواع المشاريع", contact_role: "أدوار جهات الاتصال", output_type: "أنواع المخرجات", meeting_type: "أنواع الاجتماعات (للمرجع)" };
+export const PROJECT_TYPE_PROFILES = {
+  "تطبيق": { key: "app", label: "تطبيق / SaaS", group: "Product", modules: ["Features", "Product Roadmap", "Releases", "Bugs", "User Feedback", "Product Analytics", "API & Integrations", "Technical Documentation", "Infrastructure"] },
+  "براند": { key: "brand", label: "براند", group: "Business", modules: ["Identity", "Products", "Suppliers", "Samples", "Launch", "Marketing", "Sales", "Brand Analytics"] },
+  "متجر": { key: "ecommerce", label: "متجر إلكتروني", group: "Commerce", modules: ["Products", "Categories", "Inventory", "Orders", "Customers", "Payments", "Shipping", "Marketing", "Sales Analytics", "Promotions"] },
+  "محتوى": { key: "content", label: "محتوى / Creator", group: "Content", modules: ["Content Pipeline", "Content Calendar", "Scripts", "Production", "Editing", "Publishing", "Channels", "Audience", "Analytics", "Sponsorships"] },
+  "عمل": { key: "business", label: "شركة خدمات / عمل", group: "Business", modules: ["Clients", "Services", "Proposals", "Contracts", "Invoices", "Time Tracking", "Team Capacity", "Profitability"] },
+  "Marketplace": { key: "marketplace", label: "Marketplace", group: "Commerce", modules: ["Buyers", "Sellers", "Listings", "Transactions", "Commissions", "Disputes", "Trust & Safety", "Payments & Escrow", "Marketplace Analytics"] },
+  "Affiliate": { key: "affiliate", label: "Affiliate", group: "Growth", modules: ["Affiliate Programs", "Products", "Campaigns", "Tracking Links", "Conversions", "Commissions", "Performance Analytics"] },
+  "منتجات رقمية": { key: "digital", label: "منتجات رقمية", group: "Commerce", modules: ["Digital Catalog", "Courses", "E-books", "Downloads", "Licenses", "Customers", "Sales", "Subscriptions"] },
+  "توصيل": { key: "delivery", label: "خدمات توصيل", group: "Operations", modules: ["Deliveries", "Fleet", "Drivers", "Routes", "Dispatch", "Tracking", "Operations", "Performance"] },
+  "شخصي": { key: "personal", label: "مشروع شخصي", group: "Personal", modules: ["Personal Goals", "Milestones", "Resources", "Progress"] },
+  "أخرى": { key: "other", label: "أخرى", group: "General", modules: [] }
+};
+export const PROJECT_TYPE_OPTIONS = Object.entries(PROJECT_TYPE_PROFILES).map(([v, p]) => ({ v, l: p.label }));
+
 
 // PRD template: 6 groups / 10 sections (plan §11.1)
 export const PRD_TEMPLATE = [
