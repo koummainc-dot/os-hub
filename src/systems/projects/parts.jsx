@@ -27,19 +27,41 @@ export const projOpts = (projects, includeArchived) => projects.filter((p) => in
 
 // ── Project form ────────────────────────────────────────────────────
 export function ProjectForm({ initial, onClose }) {
-  const { A: act, people, lookups, can, toast, openProject, settings, data } = useP(); const isNew = !initial || !initial.id;
+  const { A: act, people, lookups, can, toast, openProject, data } = useP();
+  const isNew = !initial || !initial.id;
+  const selectedType = initial?.type || "تطبيق";
+  const profile = PROJECT_TYPE_PROFILES[selectedType] || PROJECT_TYPE_PROFILES["أخرى"];
   const fields = [
     { key: "name", label: "اسم المشروع", required: true, span: 2 },
-    { key: "type", label: "النوع", type: "select", options: lookups.project_type.map((x) => ({ v: x, l: x })), allowEmpty: false },
+    { key: "type", label: "نوع المشروع", type: "select", options: PROJECT_TYPE_OPTIONS, allowEmpty: false, hint: "النوع يحدد القالب والأقسام والأدوات المتخصصة التي تظهر داخل المشروع." },
+    { key: "status", label: "حالة المشروع", type: "select", options: opts(L.projectStatus), allowEmpty: false },
     { key: "priority", label: "الأولوية", type: "select", options: opts(L.priority), allowEmpty: false },
-    { key: "start_date", label: "تاريخ البدء", type: "date" }, { key: "target_date", label: "الموعد المستهدف", type: "date" },
-    { key: "lead_id", label: "قائد المشروع", type: "select", options: mOpts(people), allowEmpty: false },
-    { key: "visibility", label: "الرؤية", type: "select", options: opts(L.visibility), allowEmpty: false, hint: "الخاص لا يراه إلا أعضاؤه (يُطبَّق في قاعدة البيانات)" },
-    { key: "final_goal", label: "الهدف النهائي", type: "textarea" }, { key: "description", label: "الوصف", type: "textarea" },
-    { key: "budget_planned", label: "الميزانية المخطَّطة", type: "number", min: 0 }, { key: "budget_currency", label: "العملة" },
+    { key: "start_date", label: "تاريخ البداية", type: "date" }, { key: "target_date", label: "التاريخ المستهدف", type: "date" },
+    { key: "lead_id", label: "المسؤول الرئيسي", type: "select", options: mOpts(people), allowEmpty: false },
+    { key: "members", label: "أعضاء المشروع", type: "multi", options: mOpts(people), hint: "الأعضاء المرتبطون بالمشروع." },
+    { key: "teams", label: "الفرق المشاركة", type: "multi", options: (lookups.teams || []).map((x) => ({ v: x.id || x, l: x.name || x.label || x })) },
+    { key: "budget_planned", label: "الميزانية", type: "number", min: 0 }, { key: "budget_currency", label: "العملة" },
+    { key: "visibility", label: "مستوى الظهور", type: "select", options: opts(L.visibility), allowEmpty: false },
+    { key: "template_id", label: "القالب", type: "select", options: (data.templates || []).filter((t) => !t.deleted_at && (!t.project_type || t.project_type === selectedType)).map((t) => ({ v: t.id, l: t.name })), emptyLabel: "— بدون قالب —" },
+    { key: "description", label: "وصف المشروع", type: "textarea", span: 2 },
+    { key: "final_goal", label: "الهدف النهائي", type: "textarea", required: true, span: 2 }
   ];
-  return <FormModal title={isNew ? "مشروع جديد" : "تعديل المشروع"} wide fields={fields} initial={{ type: lookups.project_type[0], priority: "Medium", visibility: "workspace", lead_id: undefined, budget_currency: "EGP", ...initial }}
-    onSubmit={async (v) => { const saved = await act.saveProject({ ...v, lead_id: v.lead_id || undefined }, isNew); if (saved) { toast(isNew ? "✅ تم إنشاء المشروع" : "✅ تم الحفظ"); onClose(); if (isNew) openProject(saved.id); } else return false; }} onClose={onClose} />;
+  return <FormModal title={isNew ? "إنشاء مشروع" : "تعديل المشروع"} wide fields={fields}
+    initial={{ type: selectedType, status: "Planned", priority: "Medium", visibility: "workspace", lead_id: undefined, members: [], teams: [], budget_currency: "EGP", ...initial }}
+    onSubmit={async (v) => {
+      const saved = await act.saveProject({ ...v, lead_id: v.lead_id || undefined, members: (v.members || []).map((id) => ({ member_id: id, role: id === v.lead_id ? "Lead" : "Member" })) }, isNew);
+      if (saved) { toast(isNew ? "✅ تم إنشاء المشروع" : "✅ تم الحفظ"); onClose(); if (isNew) openProject(saved.id); }
+      else return false;
+    }} onClose={onClose}>
+    {(values) => {
+      const p = PROJECT_TYPE_PROFILES[values.type] || PROJECT_TYPE_PROFILES["أخرى"];
+      return <div style={{ marginTop: 10, padding: 12, border: "1px solid " + C.line, borderRadius: 10, background: "rgba(59,130,246,0.04)" }}>
+        <div style={{ fontSize: 12.5, fontWeight: 800 }}>تكوين المشروع: {p.label}</div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>الأقسام المتخصصة التي سيجهزها هذا النوع:</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>{p.modules.map((m) => <Chip key={m}>{m}</Chip>)}</div>
+      </div>;
+    }}
+  </FormModal>;
 }
 
 // ── Task form ───────────────────────────────────────────────────────
