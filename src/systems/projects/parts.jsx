@@ -7,7 +7,7 @@ import { supabase } from "../../core/supabase.js";
 import { OUTPUT_STORAGE_BUCKET, validateOutputUpload, findOutputUploadIntent, uploadOutputFilesWithRecovery } from "./outputStorage.js";
 import { useP } from "./store.jsx";
 import * as D from "./domain.js";
-import { L, opts, PRIORITY_COLOR, STATUS_COLOR, SEV_COLOR } from "./lookups.js";
+import { L, opts, PRIORITY_COLOR, STATUS_COLOR, SEV_COLOR, PROJECT_TYPE_OPTIONS } from "./lookups.js";
 
 export const mOpts = (people) => people.map((p) => ({ v: p.id, l: p.name }));
 
