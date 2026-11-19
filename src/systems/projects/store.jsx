@@ -150,6 +150,26 @@ export function ProjectsProvider({ api, access, authUser, ws, members, isDemo, d
       act("initiatives", initiative.id, "deleted", initiative.name);
       return true;
     },
+    async setInitiativeProjects(initiative, projectIds) {
+      if (!initiative?.id) return false;
+      const nextIds = [...new Set((projectIds || []).filter(Boolean))];
+      const current = data.projects.filter((p) => p.initiative_id === initiative.id && !p.deleted_at).map((p) => p.id);
+      const allIds = [...new Set([...current, ...nextIds])];
+      const ops = allIds.map((id) => {
+        const project = projectsById[id];
+        if (!project || !can("project.edit", project)) return null;
+        const shouldLink = nextIds.includes(id);
+        return { coll: "projects", rec: { ...project, initiative_id: shouldLink ? initiative.id : null } };
+      }).filter(Boolean);
+      if (ops.length) {
+        const saved = await R.putAtomic(ops);
+        if (!Array.isArray(saved) || saved.length !== ops.length) throw new Error("لم يؤكد الخادم تحديث روابط المشاريع بالمبادرة.");
+      }
+      const skipped = allIds.filter((id) => !projectsById[id] || !can("project.edit", projectsById[id]));
+      if (skipped.length) throw new Error("لا تملك صلاحية تعديل بعض المشاريع المحددة.");
+      act("initiatives", initiative.id, "projects_linked", String(nextIds.length));
+      return nextIds;
+    },
     async setProjectInitiative(project, initiativeId) {
       if (!project?.id) return false;
       if (!can("project.edit", project)) throw new Error("لا تملك صلاحية تعديل ارتباط المشروع.");
