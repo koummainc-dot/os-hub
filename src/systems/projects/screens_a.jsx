@@ -803,6 +803,58 @@ export function Portfolio() {
 }
 
  
+// ═════ Initiatives ═════
+export function Initiatives() {
+  const { data, A: act, can, openProject, setPage } = useP();
+  const [form, setForm] = useState(null);
+  const initiatives = (data.initiatives || []).filter((i) => !i.deleted_at);
+  const projects = data.projects.filter((p) => !p.is_system && !p.deleted_at && !p.archived_at);
+  const projectOptions = projects.map((p) => ({ v: p.id, l: p.name }));
+  const statuses = [{ v: "Active", l: "نشطة" }, { v: "Planned", l: "مخططة" }, { v: "On Hold", l: "متوقفة" }, { v: "Completed", l: "مكتملة" }];
+  async function submit(v) {
+    const saved = await act.saveInitiative(v, !v.id);
+    await act.setInitiativeProjects(saved, v.project_ids || []);
+    setForm(null);
+  }
+  return <div>
+    <Head title="المبادرات" sub="النتيجة النهائية التي تتكوّن من عدة مشاريع تنفيذية مترابطة." right={can("project.create") && <Btn kind="primary" onClick={() => setForm({})}>＋ مبادرة جديدة</Btn>} />
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10, marginBottom: 14 }}>
+      <Stat label="المبادرات" value={initiatives.length} color={C.info} />
+      <Stat label="المشاريع التنفيذية" value={projects.length} color={C.violet} onClick={() => setPage("projects")} />
+      <Stat label="المشاريع المرتبطة" value={projects.filter((p) => p.initiative_id).length} color={C.orange} />
+    </div>
+    {!initiatives.length ? <Empty icon="🎯" title="لا توجد مبادرات بعد" sub="أنشئ مبادرة تمثل النتيجة النهائية ثم اربط بها المشاريع التي تنفذها." /> :
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,360px),1fr))", gap: 12 }}>
+        {initiatives.map((i) => {
+          const linked = projects.filter((p) => p.initiative_id === i.id);
+          const done = linked.filter((p) => p.status === "Completed").length;
+          const progress = linked.length ? Math.round((done / linked.length) * 100) : 0;
+          return <div key={i.id} style={{ ...S.card, padding: 14 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <div style={{ flex: 1 }}><div style={{ fontSize: 15, fontWeight: 800 }}>{i.name}</div><div style={{ fontSize: 11, color: C.muted }}>{statuses.find((x) => x.v === i.status)?.l || i.status || "—"}{i.target_date ? " · " + fmtShort(i.target_date) : ""}</div></div>
+              <Chip color={i.status === "Completed" ? C.ok : C.info}>{statuses.find((x) => x.v === i.status)?.l || i.status}</Chip>
+            </div>
+            {i.final_goal && <div style={{ fontSize: 12, color: C.dim, marginTop: 8 }}>{i.final_goal}</div>}
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12 }}><Progress value={progress} /><span style={{ fontSize: 10.5, color: C.muted }}>{done}/{linked.length} مشاريع مكتملة</span></div>
+            <div style={{ marginTop: 10, borderTop: "1px solid " + C.line, paddingTop: 8 }}>
+              {linked.map((p) => <div key={p.id} onClick={() => openProject(p.id)} style={{ display: "flex", gap: 7, padding: "5px 0", cursor: "pointer", fontSize: 12.5 }}><span>📁</span><span style={{ flex: 1 }}>{p.name}</span><span style={{ color: C.muted }}>{L.projectStatus[p.status] || p.status}</span></div>)}
+              {!linked.length && <div style={{ fontSize: 11, color: C.muted }}>لا توجد مشاريع مرتبطة.</div>}
+            </div>
+            <div style={{ display: "flex", gap: 7, marginTop: 9 }}><Btn small onClick={() => setForm({ ...i, project_ids: linked.map((p) => p.id) })}>تعديل</Btn></div>
+          </div>;
+        })}
+      </div>}
+    {form && <FormModal title={form.id ? "تعديل المبادرة" : "مبادرة جديدة"} wide initial={{ status: "Active", project_ids: [], ...form }} fields={[
+      { key: "name", label: "اسم المبادرة", required: true, span: 2 },
+      { key: "final_goal", label: "النتيجة النهائية", type: "textarea", required: true, span: 2 },
+      { key: "description", label: "الوصف", type: "textarea", span: 2 },
+      { key: "status", label: "الحالة", type: "select", options: statuses, allowEmpty: false },
+      { key: "target_date", label: "التاريخ المستهدف", type: "date" },
+      { key: "project_ids", label: "المشاريع التنفيذية", type: "multi", options: projectOptions, span: 2 }
+    ]} onClose={() => setForm(null)} onSubmit={submit} />}
+  </div>;
+}
+
 // ═════ My Work ═════
 // A dedicated personal work hub reusing the existing Today, Week and Tasks views.
 export function MyWork() {
