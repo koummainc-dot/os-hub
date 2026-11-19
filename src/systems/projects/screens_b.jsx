@@ -98,7 +98,7 @@ function ProjectDetail() {
     { id: "delivery", label: "التسليم", defaultTab: "outputs", tabs: [{ id: "outputs", label: "المخرجات", count: counts.outputs }, { id: "work", label: "العمل والوقت" }, { id: "timeline", label: "الخط الزمني" }, { id: "related", label: "المراجع" }] },
     { id: "governance", label: "الحوكمة", defaultTab: "risks", tabs: [{ id: "risks", label: "المخاطر", count: counts.risks }, { id: "issues", label: "المشاكل", count: counts.issues }, { id: "decisions", label: "القرارات", count: counts.decisions }] },
     { id: "collaboration", label: "التعاون", defaultTab: "people", tabs: [{ id: "people", label: "الفريق" }, { id: "activity", label: "النشاط" }] },
-    { id: "specialized", label: "أدوات ${PROJECT_TYPE_PROFILES[p.type]?.label || p.type || "المشروع"}", defaultTab: "specialized", tabs: [{ id: "specialized", label: "الوحدات المتخصصة" }] },
+    { id: "specialized", label: `أدوات ${PROJECT_TYPE_PROFILES[p.type]?.label || p.type || "المشروع"}`, defaultTab: "specialized", tabs: [{ id: "specialized", label: "الوحدات المتخصصة" }] },
   ];
   // Keep these stable tab IDs for existing deep links while grouping the UI by workflow.
   const activeGroup = tabGroups.find((group) => group.tabs.some((item) => item.id === tab)) || tabGroups[0];
